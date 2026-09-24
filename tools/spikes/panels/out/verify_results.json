@@ -1,0 +1,115 @@
+{
+ "blender": "5.2.2 LTS",
+ "errors": [],
+ "V1_keys_need_lmb": {
+  "show_region_ui_start": false,
+  "after_N_no_click": false,
+  "after_N_after_MMB": false,
+  "after_N_after_LMB": true,
+  "after_2nd_N_after_LMB": false
+ },
+ "V2_bone_selection": {
+  "selected_before_wp_a": [
+   "Armature"
+  ],
+  "wp_a": "{'FINISHED'}",
+  "a_modes_at_capture": {
+   "Armature": "POSE",
+   "Camera": "OBJECT",
+   "Cube": "WEIGHT_PAINT",
+   "Light": "OBJECT"
+  },
+  "a_template_mesh_props": [
+   "use_paint_bone_selection",
+   "use_paint_mask",
+   "use_paint_mask_vertex"
+  ],
+  "wp_b": "{'FINISHED'}",
+  "selected_b": [
+   "Cube"
+  ],
+  "b_modes_at_capture": {
+   "Armature": "OBJECT",
+   "Camera": "OBJECT",
+   "Cube": "WEIGHT_PAINT",
+   "Light": "OBJECT"
+  },
+  "b_template_mesh_props": [
+   "use_paint_mask",
+   "use_paint_mask_vertex"
+  ]
+ },
+ "V3_toolsettings_undo": [
+  {
+   "case": "OBJECT proportional_distance context_set_float",
+   "mode_before": "OBJECT",
+   "mode_after": "OBJECT",
+   "ret": "{'FINISHED'}",
+   "base": 1.0,
+   "changed": 3.5,
+   "after_undo": 3.5,
+   "undo": "{'FINISHED'}",
+   "reverted": false
+  },
+  {
+   "case": "OBJECT use_proportional_edit_objects context_toggle",
+   "mode_before": "OBJECT",
+   "mode_after": "OBJECT",
+   "ret": "{'FINISHED'}",
+   "base": false,
+   "changed": true,
+   "after_undo": true,
+   "undo": "{'FINISHED'}",
+   "reverted": false
+  },
+  {
+   "case": "EDIT use_snap context_toggle",
+   "mode_before": "EDIT_MESH",
+   "mode_after": "EDIT_MESH",
+   "ret": "{'FINISHED'}",
+   "base": false,
+   "changed": true,
+   "after_undo": true,
+   "undo": "{'FINISHED'}",
+   "reverted": false
+  },
+  {
+   "case": "EDIT pivot context_set_enum",
+   "mode_before": "EDIT_MESH",
+   "mode_after": "EDIT_MESH",
+   "ret": "{'FINISHED'}",
+   "base": "MEDIAN_POINT",
+   "changed": "ACTIVE_ELEMENT",
+   "after_undo": "ACTIVE_ELEMENT",
+   "undo": "{'FINISHED'}",
+   "reverted": false
+  },
+  {
+   "case": "EDIT mesh.select_mode('EXEC_DEFAULT', True, type='EDGE')",
+   "mode_before": "EDIT_MESH",
+   "mode_after": "EDIT_MESH",
+   "ret": "{'FINISHED'}",
+   "base": [
+    true,
+    false,
+    false
+   ],
+   "changed": [
+    false,
+    true,
+    false
+   ],
+   "after_undo": [
+    true,
+    false,
+    false
+   ],
+   "undo": "{'FINISHED'}",
+   "reverted": true
+  }
+ ],
+ "edit_enter": "{'FINISHED'}",
+ "edit_marker": "{'FINISHED'}",
+ "finish": "done",
+ "elapsed_s": 14.0
+}

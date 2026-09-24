@@ -1,0 +1,8326 @@
+{
+ "runs": {
+  "VULKAN": {
+   "pairs": {
+    "SpaceView3D/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/ASSET_SHELF": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": false
+    },
+    "SpaceView3D/ASSET_SHELF_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": false
+    },
+    "SpaceView3D/HUD": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": false
+    },
+    "SpaceView3D/TOOL_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/XR": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/ASSET_SHELF": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/ASSET_SHELF_HEADER": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/TOOL_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/ASSET_SHELF": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceNodeEditor/ASSET_SHELF_HEADER": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/CHANNELS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/TOOLS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/PREVIEW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/FOOTER": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/TOOL_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/SCRUBBING": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceClipEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/CHANNELS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceClipEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/PREVIEW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceDopeSheetEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/CHANNELS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceDopeSheetEditor/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/CHANNELS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceGraphEditor/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/CHANNELS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceNLA/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/TOOL_PROPS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceFileBrowser/EXECUTE": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpacePreferences/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpacePreferences/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpacePreferences/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpacePreferences/EXECUTE": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceProperties/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceProperties/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceProperties/NAVIGATION_BAR": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceConsole/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceConsole/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceInfo/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceInfo/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceOutliner/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceOutliner/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    }
+   },
+   "cursor": {
+    "TOPBAR/WINDOW": {
+     "registered": true
+    },
+    "TOPBAR/HEADER": {
+     "registered": true
+    },
+    "STATUSBAR/WINDOW": {
+     "registered": true
+    },
+    "STATUSBAR/HEADER": {
+     "registered": true
+    },
+    "EMPTY/WINDOW": {
+     "registered": true
+    },
+    "EMPTY/HEADER": {
+     "registered": true
+    },
+    "VIEW_3D/WINDOW": {
+     "registered": true
+    },
+    "VIEW_3D/HEADER": {
+     "registered": true
+    }
+   },
+   "phases": {
+    "distinct": {
+     "fired": [
+      [
+       "SpaceDopeSheetEditor",
+       "HEADER"
+      ],
+      [
+       "SpaceDopeSheetEditor",
+       "WINDOW"
+      ],
+      [
+       "SpaceOutliner",
+       "HEADER"
+      ],
+      [
+       "SpaceOutliner",
+       "WINDOW"
+      ],
+      [
+       "SpaceProperties",
+       "HEADER"
+      ],
+      [
+       "SpaceProperties",
+       "NAVIGATION_BAR"
+      ],
+      [
+       "SpaceProperties",
+       "WINDOW"
+      ],
+      [
+       "SpaceView3D",
+       "HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "TOOLS"
+      ],
+      [
+       "SpaceView3D",
+       "TOOL_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "UI"
+      ],
+      [
+       "SpaceView3D",
+       "WINDOW"
+      ]
+     ],
+     "timing": {
+      "total_us": {
+       "n": 12,
+       "min": 24.0,
+       "median": 29.8,
+       "p95": 362.4,
+       "max": 362.4
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 14.1,
+       "median": 18.0,
+       "p95": 328.8,
+       "max": 328.8
+      }
+     }
+    },
+    "distinct_nocache": {
+     "timing": {
+      "total_us": {
+       "n": 12,
+       "min": 34.5,
+       "median": 47.2,
+       "p95": 111.9,
+       "max": 111.9
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 21.8,
+       "median": 29.5,
+       "p95": 78.0,
+       "max": 78.0
+      }
+     }
+    }
+   },
+   "notes": [
+    "primitive_cube_add INVOKE -> {'FINISHED'}",
+    "wm.operators after Alt+G, A: ['OBJECT_OT_location_clear', 'OBJECT_OT_select_all']"
+   ],
+   "env": {
+    "blender": "5.2.2 LTS",
+    "backend": "VULKAN",
+    "renderer": "Intel(R) Graphics (MTL)",
+    "vendor": "Intel Corporation",
+    "version": "Intel open-source Mesa driver Mesa 26.2.3-arch1.1",
+    "ui_scale": 1.0,
+    "window_size": [
+     1920,
+     1128
+    ],
+    "WAYLAND_DISPLAY": "wayland-0",
+    "DISPLAY": ":1",
+    "use_region_overlap": true,
+    "argv": [
+     "$HOME/.local/share/blender/blender",
+     "--factory-startup",
+     "--enable-event-simulate",
+     "--gpu-backend",
+     "vulkan",
+     "--python",
+     "<repo>/tools/spikes/draw/probe.py"
+    ]
+   },
+   "spike6": {
+    "screen": "Layout",
+    "screen_area_types": [
+     "PROPERTIES",
+     "OUTLINER",
+     "DOPESHEET_EDITOR",
+     "VIEW_3D"
+    ],
+    "window_attrs_with_area": [],
+    "temp_override_global": {
+     "TOPBAR": {
+      "ctx_area": "TOPBAR",
+      "ctx_region": "HEADER",
+      "ctx_screen": "Layout",
+      "call_menu_poll": true,
+      "area_regions": [
+       [
+        "HEADER",
+        0,
+        1102,
+        1583,
+        26
+       ],
+       [
+        "HEADER",
+        1583,
+        1102,
+        337,
+        26
+       ],
+       [
+        "WINDOW",
+        0,
+        0,
+        1920,
+        1
+       ]
+      ],
+      "area_xywh": [
+       0,
+       1101,
+       1920,
+       27
+      ],
+      "spaces_active": "Space"
+     },
+     "STATUSBAR": {
+      "ctx_area": "STATUSBAR",
+      "ctx_region": "HEADER",
+      "ctx_screen": "Layout",
+      "call_menu_poll": true,
+      "area_regions": [
+       [
+        "HEADER",
+        0,
+        0,
+        1920,
+        23
+       ]
+      ],
+      "area_xywh": [
+       0,
+       0,
+       1920,
+       23
+      ],
+      "spaces_active": "Space"
+     }
+    }
+   },
+   "layout_main": [
+    {
+     "type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "space": "SpaceProperties",
+     "xywh": [
+      1579,
+      23,
+      339,
+      878
+     ],
+     "regions": [
+      [
+       "HEADER",
+       1579,
+       875,
+       339,
+       26
+      ],
+      [
+       "NAVIGATION_BAR",
+       1579,
+       23,
+       29,
+       852
+      ],
+      [
+       "WINDOW",
+       1608,
+       23,
+       310,
+       852
+      ]
+     ]
+    },
+    {
+     "type": "OUTLINER",
+     "ui_type": "OUTLINER",
+     "space": "SpaceOutliner",
+     "xywh": [
+      1579,
+      904,
+      339,
+      198
+     ],
+     "regions": [
+      [
+       "HEADER",
+       1579,
+       1076,
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       1579,
+       904,
+       339,
+       172
+      ]
+     ]
+    },
+    {
+     "type": "DOPESHEET_EDITOR",
+     "ui_type": "TIMELINE",
+     "space": "SpaceDopeSheetEditor",
+     "xywh": [
+      2,
+      23,
+      1574,
+      78
+     ],
+     "regions": [
+      [
+       "HEADER",
+       2,
+       75,
+       1574,
+       26
+      ],
+      [
+       "FOOTER",
+       2,
+       23,
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       2,
+       23,
+       1,
+       1
+      ],
+      [
+       "UI",
+       1575,
+       23,
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       2,
+       23,
+       1574,
+       52
+      ]
+     ]
+    },
+    {
+     "type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "space": "SpaceView3D",
+     "xywh": [
+      2,
+      104,
+      1574,
+      998
+     ],
+     "regions": [
+      [
+       "HEADER",
+       2,
+       1076,
+       1574,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       2,
+       1050,
+       1574,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       2,
+       104,
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       2,
+       104,
+       1,
+       1
+      ],
+      [
+       "TOOLS",
+       2,
+       104,
+       56,
+       946
+      ],
+      [
+       "UI",
+       1296,
+       104,
+       280,
+       946
+      ],
+      [
+       "HUD",
+       58,
+       104,
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       2,
+       104,
+       1574,
+       998
+      ]
+     ]
+    }
+   ],
+   "spike4_overlap": {
+    "uniform_color": [
+     1.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "expected_single": 0.3,
+    "expected_double": 0.51,
+    "zones": {
+     "v3d_window_only(center 80x80)": {
+      "rect": [
+       749,
+       563,
+       80,
+       80
+      ],
+      "uniform_all": 0.15,
+      "uniform_only_v3d_window": 0.15,
+      "uniform_all_but_v3d_window": 0.0,
+      "uniform_all_scissor_excl": 0.15,
+      "uniform_all_scissor_excl_linfix": 0.301
+     },
+     "v3d_HEADER": {
+      "rect": [
+       2,
+       1076,
+       1574,
+       26
+      ],
+      "uniform_all": 0.34,
+      "uniform_only_v3d_window": 0.056,
+      "uniform_all_but_v3d_window": 0.298,
+      "uniform_all_scissor_excl": 0.298,
+      "uniform_all_scissor_excl_linfix": 0.298
+     },
+     "v3d_TOOL_HEADER": {
+      "rect": [
+       2,
+       1050,
+       1574,
+       26
+      ],
+      "uniform_all": 0.413,
+      "uniform_only_v3d_window": 0.159,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "v3d_TOOLS": {
+      "rect": [
+       2,
+       104,
+       56,
+       946
+      ],
+      "uniform_all": 0.413,
+      "uniform_only_v3d_window": 0.159,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "v3d_UI": {
+      "rect": [
+       1296,
+       104,
+       280,
+       946
+      ],
+      "uniform_all": 0.413,
+      "uniform_only_v3d_window": 0.159,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "OUTLINER_WINDOW": {
+      "rect": [
+       1718,
+       960,
+       60,
+       60
+      ],
+      "uniform_all": 0.302,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "OUTLINER_HEADER": {
+      "rect": [
+       1579,
+       1076,
+       339,
+       26
+      ],
+      "uniform_all": 0.295,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.295,
+      "uniform_all_scissor_excl": 0.295,
+      "uniform_all_scissor_excl_linfix": 0.295
+     },
+     "PROPERTIES_WINDOW": {
+      "rect": [
+       1733,
+       419,
+       60,
+       60
+      ],
+      "uniform_all": 0.295,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.295,
+      "uniform_all_scissor_excl": 0.295,
+      "uniform_all_scissor_excl_linfix": 0.295
+     },
+     "PROPERTIES_HEADER": {
+      "rect": [
+       1579,
+       875,
+       339,
+       26
+      ],
+      "uniform_all": 0.292,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.292,
+      "uniform_all_scissor_excl": 0.292,
+      "uniform_all_scissor_excl_linfix": 0.292
+     },
+     "DOPESHEET_EDITOR_WINDOW": {
+      "rect": [
+       759,
+       19,
+       60,
+       60
+      ],
+      "uniform_all": 0.292,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.292,
+      "uniform_all_scissor_excl": 0.292,
+      "uniform_all_scissor_excl_linfix": 0.292
+     },
+     "DOPESHEET_EDITOR_HEADER": {
+      "rect": [
+       2,
+       75,
+       1574,
+       26
+      ],
+      "uniform_all": 0.292,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.292,
+      "uniform_all_scissor_excl": 0.292,
+      "uniform_all_scissor_excl_linfix": 0.292
+     }
+    },
+    "timing": {
+     "uniform_all": {
+      "total_us": {
+       "n": 12,
+       "min": 20.9,
+       "median": 26.3,
+       "p95": 120.9,
+       "max": 120.9
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 5.2,
+       "median": 14.8,
+       "p95": 75.7,
+       "max": 75.7
+      }
+     },
+     "uniform_only_v3d_window": {
+      "total_us": {
+       "n": 12,
+       "min": 8.0,
+       "median": 10.9,
+       "p95": 41.8,
+       "max": 41.8
+      },
+      "draw_us": {
+       "n": 1,
+       "min": 16.3,
+       "median": 16.3,
+       "p95": 16.3,
+       "max": 16.3
+      }
+     },
+     "uniform_all_but_v3d_window": {
+      "total_us": {
+       "n": 12,
+       "min": 11.4,
+       "median": 16.2,
+       "p95": 46.4,
+       "max": 46.4
+      },
+      "draw_us": {
+       "n": 11,
+       "min": 2.2,
+       "median": 3.6,
+       "p95": 14.6,
+       "max": 14.6
+      }
+     },
+     "uniform_all_scissor_excl": {
+      "total_us": {
+       "n": 12,
+       "min": 27.1,
+       "median": 37.1,
+       "p95": 93.9,
+       "max": 93.9
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 6.5,
+       "median": 12.0,
+       "p95": 44.6,
+       "max": 44.6
+      }
+     },
+     "uniform_all_scissor_excl_linfix": {
+      "total_us": {
+       "n": 12,
+       "min": 13.6,
+       "median": 16.5,
+       "p95": 45.3,
+       "max": 45.3
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 2.9,
+       "median": 5.8,
+       "p95": 27.1,
+       "max": 27.1
+      }
+     }
+    }
+   },
+   "screenshots": {
+    "distinct": {
+     "file": "notes/spikes/draw_vulkan.png",
+     "bytes": 99156,
+     "px": [
+      640,
+      376
+     ]
+    },
+    "cursor_topbar_mid": {
+     "file": "notes/spikes/draw_vulkan_cursor_topbar_mid.png",
+     "bytes": 56190,
+     "px": [
+      480,
+      282
+     ]
+    },
+    "cursor_view3d": {
+     "file": "notes/spikes/draw_vulkan_cursor_view3d.png",
+     "bytes": 53853,
+     "px": [
+      480,
+      282
+     ]
+    },
+    "win2_filtered": {
+     "file": "notes/spikes/draw_vulkan_win2.png",
+     "bytes": 7392,
+     "px": [
+      456,
+      253
+     ]
+    }
+   },
+   "spike4_cycle": [
+    {
+     "ui_type": "VIEW_3D+cube_add(HUD)",
+     "regions": [
+      [
+       "HEADER",
+       1574,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       1574,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "TOOLS",
+       56,
+       946
+      ],
+      [
+       "UI",
+       280,
+       946
+      ],
+      [
+       "HUD",
+       160,
+       25
+      ],
+      [
+       "WINDOW",
+       1574,
+       998
+      ]
+     ],
+     "fired": [
+      [
+       "SpaceView3D",
+       "HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "HUD"
+      ],
+      [
+       "SpaceView3D",
+       "TOOLS"
+      ],
+      [
+       "SpaceView3D",
+       "TOOL_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "UI"
+      ],
+      [
+       "SpaceView3D",
+       "WINDOW"
+      ]
+     ]
+    },
+    {
+     "ui_type": "VIEW_3D sculpt(asset shelf)",
+     "regions": [
+      [
+       "HEADER",
+       1574,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       1574,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1574,
+       59
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1574,
+       24
+      ],
+      [
+       "TOOLS",
+       56,
+       863
+      ],
+      [
+       "UI",
+       280,
+       863
+      ],
+      [
+       "HUD",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       1574,
+       998
+      ]
+     ],
+     "fired": [
+      [
+       "SpaceView3D",
+       "ASSET_SHELF"
+      ],
+      [
+       "SpaceView3D",
+       "ASSET_SHELF_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "HUD"
+      ],
+      [
+       "SpaceView3D",
+       "TOOLS"
+      ],
+      [
+       "SpaceView3D",
+       "TOOL_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "UI"
+      ],
+      [
+       "SpaceView3D",
+       "WINDOW"
+      ]
+     ]
+    },
+    {
+     "ui_type": "IMAGE_EDITOR",
+     "extra": null,
+     "space": "SpaceImageEditor",
+     "enabled": [
+      "show_region_tool_header",
+      "show_region_toolbar",
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       280,
+       826
+      ],
+      [
+       "TOOLS",
+       56,
+       826
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "TOOL_HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.143,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "UV",
+     "extra": null,
+     "space": "SpaceImageEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       280,
+       826
+      ],
+      [
+       "TOOLS",
+       56,
+       826
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "TOOL_HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.147,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "ShaderNodeTree",
+     "extra": null,
+     "space": "SpaceNodeEditor",
+     "enabled": [
+      "show_region_toolbar"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "UI",
+       280,
+       852
+      ],
+      [
+       "TOOLS",
+       56,
+       852
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.297
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "GeometryNodeTree",
+     "extra": null,
+     "space": "SpaceNodeEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "UI",
+       280,
+       852
+      ],
+      [
+       "TOOLS",
+       56,
+       852
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.297
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "SEQUENCE_EDITOR",
+     "extra": [
+      "view_type",
+      "SEQUENCER_PREVIEW"
+     ],
+     "space": "SpaceSequenceEditor",
+     "enabled": [
+      "show_region_tool_header",
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "SCRUBBING",
+       1,
+       1
+      ],
+      [
+       "UI",
+       339,
+       826
+      ],
+      [
+       "TOOLS",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       2,
+       341
+      ],
+      [
+       "WINDOW",
+       2,
+       485
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "PREVIEW",
+      "TOOL_HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "SEQUENCE_EDITOR",
+     "extra": [
+      "view_type",
+      "PREVIEW"
+     ],
+     "space": "SpaceSequenceEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "SCRUBBING",
+       1,
+       1
+      ],
+      [
+       "UI",
+       339,
+       826
+      ],
+      [
+       "TOOLS",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       2,
+       826
+      ],
+      [
+       "WINDOW",
+       1,
+       1
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "PREVIEW",
+      "TOOL_HEADER",
+      "UI"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "CLIP_EDITOR",
+     "extra": null,
+     "space": "SpaceClipEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       280,
+       852
+      ],
+      [
+       "UI",
+       26,
+       852
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       59,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.295,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "CLIP_EDITOR",
+     "extra": [
+      "view",
+      "GRAPH"
+     ],
+     "space": "SpaceClipEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       1,
+       1
+      ],
+      [
+       "UI",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       339,
+       852
+      ],
+      [
+       "WINDOW",
+       1,
+       1
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "PREVIEW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292,
+      "PREVIEW": 0.0
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "DOPESHEET",
+     "extra": null,
+     "space": "SpaceDopeSheetEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "CHANNELS",
+       200,
+       826
+      ],
+      [
+       "UI",
+       139,
+       826
+      ],
+      [
+       "WINDOW",
+       139,
+       826
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.292,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "TIMELINE",
+     "extra": null,
+     "space": "SpaceDopeSheetEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       200,
+       852
+      ],
+      [
+       "UI",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       139,
+       852
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.292,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "FCURVES",
+     "extra": null,
+     "space": "SpaceGraphEditor",
+     "enabled": [
+      "show_region_footer"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "CHANNELS",
+       211,
+       826
+      ],
+      [
+       "UI",
+       128,
+       826
+      ],
+      [
+       "WINDOW",
+       2,
+       826
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "DRIVERS",
+     "extra": null,
+     "space": "SpaceGraphEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       211,
+       852
+      ],
+      [
+       "UI",
+       128,
+       852
+      ],
+      [
+       "WINDOW",
+       2,
+       852
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "NLA_EDITOR",
+     "extra": null,
+     "space": "SpaceNLA",
+     "enabled": [
+      "show_region_footer"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "CHANNELS",
+       200,
+       826
+      ],
+      [
+       "UI",
+       139,
+       826
+      ],
+      [
+       "WINDOW",
+       2,
+       826
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "FILES",
+     "extra": null,
+     "space": "SpaceFileBrowser",
+     "enabled": [
+      "show_region_tool_props"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       240,
+       852
+      ],
+      [
+       "UI",
+       99,
+       70
+      ],
+      [
+       "EXECUTE",
+       1,
+       1
+      ],
+      [
+       "TOOL_PROPS",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       99,
+       782
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.302,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "ASSETS",
+     "extra": null,
+     "space": "SpaceFileBrowser",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       240,
+       852
+      ],
+      [
+       "UI",
+       1,
+       1
+      ],
+      [
+       "EXECUTE",
+       1,
+       1
+      ],
+      [
+       "TOOL_PROPS",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       99,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "PREFERENCES",
+     "extra": null,
+     "space": "SpacePreferences",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       100,
+       852
+      ],
+      [
+       "EXECUTE",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       239,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.295,
+      "HEADER": 0.293
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "SPREADSHEET",
+     "extra": null,
+     "space": "SpaceSpreadsheet",
+     "enabled": [
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       161,
+       826
+      ],
+      [
+       "UI",
+       178,
+       826
+      ],
+      [
+       "WINDOW",
+       178,
+       826
+      ]
+     ],
+     "fired": [
+      "FOOTER",
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.302,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "TEXT_EDITOR",
+     "extra": null,
+     "space": "SpaceTextEditor",
+     "enabled": [
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       160,
+       826
+      ],
+      [
+       "WINDOW",
+       179,
+       826
+      ]
+     ],
+     "fired": [
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "CONSOLE",
+     "extra": null,
+     "space": "SpaceConsole",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "INFO",
+     "extra": null,
+     "space": "SpaceInfo",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "OUTLINER",
+     "extra": null,
+     "space": "SpaceOutliner",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.302,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "PROPERTIES",
+     "extra": null,
+     "space": "SpaceProperties",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "NAVIGATION_BAR",
+       29,
+       852
+      ],
+      [
+       "WINDOW",
+       310,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "NAVIGATION_BAR",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.295,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    }
+   ],
+   "spike5_cursor": {
+    "topbar_left": {
+     "mouse": [
+      193,
+      1120
+     ],
+     "event_after": {
+      "mouse_x": 193,
+      "mouse_y": 1120,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "TOPBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((192, 1120),)",
+       "ctx_area_type": "TOPBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        1102,
+        1583,
+        26
+       ],
+       "area_xywh": [
+        0,
+        1101,
+        1920,
+        27
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        1102,
+        1583,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.296,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "topbar_mid": {
+     "mouse": [
+      961,
+      1120
+     ],
+     "event_after": {
+      "mouse_x": 961,
+      "mouse_y": 1120,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "TOPBAR",
+       "region": "HEADER",
+       "count": 5,
+       "args": "((960, 1120),)",
+       "ctx_area_type": "TOPBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        1102,
+        1583,
+        26
+       ],
+       "area_xywh": [
+        0,
+        1101,
+        1920,
+        27
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        1102,
+        1583,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.296,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "topbar_right": {
+     "mouse": [
+      1825,
+      1120
+     ],
+     "event_after": {
+      "mouse_x": 1825,
+      "mouse_y": 1120,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "TOPBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((1824, 1120),)",
+       "ctx_area_type": "TOPBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        1583,
+        1102,
+        337,
+        26
+       ],
+       "area_xywh": [
+        0,
+        1101,
+        1920,
+        27
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        1583,
+        1102,
+        337,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "statusbar_left": {
+     "mouse": [
+      193,
+      6
+     ],
+     "event_after": {
+      "mouse_x": 193,
+      "mouse_y": 6,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "STATUSBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((192, 6),)",
+       "ctx_area_type": "STATUSBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        0,
+        1920,
+        23
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.298,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "statusbar_right": {
+     "mouse": [
+      1729,
+      6
+     ],
+     "event_after": {
+      "mouse_x": 1729,
+      "mouse_y": 6,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "STATUSBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((1728, 6),)",
+       "ctx_area_type": "STATUSBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        0,
+        1920,
+        23
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.298,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "v3d_header": {
+     "mouse": [
+      790,
+      1089
+     ],
+     "event_after": {
+      "mouse_x": 790,
+      "mouse_y": 1089,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "VIEW_3D",
+       "region": "HEADER",
+       "count": 5,
+       "args": "((789, 1089),)",
+       "ctx_area_type": "VIEW_3D",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        2,
+        1076,
+        1574,
+        26
+       ],
+       "area_xywh": [
+        2,
+        104,
+        1574,
+        998
+       ],
+       "area_in_screen_areas": true,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        2,
+        1076,
+        1574,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.111,
+     "cover_v3d_center": 0.0
+    },
+    "view3d": {
+     "mouse": [
+      790,
+      603
+     ],
+     "event_after": {
+      "mouse_x": 790,
+      "mouse_y": 603,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "VIEW_3D",
+       "region": "WINDOW",
+       "count": 4,
+       "args": "((789, 603),)",
+       "ctx_area_type": "VIEW_3D",
+       "ctx_region_type": "WINDOW",
+       "xywh": [
+        2,
+        104,
+        1574,
+        998
+       ],
+       "area_xywh": [
+        2,
+        104,
+        1574,
+        998
+       ],
+       "area_in_screen_areas": true,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        2,
+        104,
+        1574,
+        998
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.111,
+     "cover_v3d_center": 0.301
+    },
+    "idle_after_move": {
+     "fires": []
+    }
+   },
+   "spike11": {
+    "redraw_counts_per_tick": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12
+    ],
+    "anim_values_seen": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11
+    ],
+    "cursor": {
+     "before": {
+      "mouse_x": 790,
+      "mouse_y": 603,
+      "type": "A",
+      "region_x": 788,
+      "region_y": 499
+     },
+     "after_warp": {
+      "mouse_x": 689,
+      "mouse_y": 553,
+      "type": "A",
+      "region_x": 687,
+      "region_y": 449
+     },
+     "warp_target": [
+      689,
+      553
+     ],
+     "after_simulated_move": {
+      "mouse_x": 849,
+      "mouse_y": 633,
+      "type": "A",
+      "region_x": 847,
+      "region_y": 529
+     },
+     "move_target": [
+      849,
+      633
+     ]
+    }
+   },
+   "spike17": {
+    "before": "MEDIAN_POINT",
+    "idle_header_draws": 0,
+    "idle_all": {},
+    "op_result": [
+     "FINISHED"
+    ],
+    "after_op": "CURSOR",
+    "op_header_draws": 1,
+    "op_all": {
+     "SpaceProperties/HEADER@win0": 1,
+     "SpaceProperties/NAVIGATION_BAR@win0": 1,
+     "SpaceProperties/WINDOW@win0": 1,
+     "SpaceDopeSheetEditor/HEADER@win0": 1,
+     "SpaceDopeSheetEditor/WINDOW@win0": 1,
+     "SpaceView3D/HEADER@win0": 1,
+     "SpaceView3D/TOOL_HEADER@win0": 1,
+     "SpaceView3D/TOOLS@win0": 1,
+     "SpaceView3D/UI@win0": 1,
+     "SpaceView3D/WINDOW@win0": 8
+    },
+    "after_rna": "INDIVIDUAL_ORIGINS",
+    "rna_header_draws": 1,
+    "rna_all": {
+     "SpaceProperties/HEADER@win0": 1,
+     "SpaceProperties/NAVIGATION_BAR@win0": 1,
+     "SpaceProperties/WINDOW@win0": 1,
+     "SpaceDopeSheetEditor/HEADER@win0": 1,
+     "SpaceDopeSheetEditor/WINDOW@win0": 1,
+     "SpaceView3D/HEADER@win0": 1,
+     "SpaceView3D/TOOL_HEADER@win0": 1,
+     "SpaceView3D/TOOLS@win0": 1,
+     "SpaceView3D/UI@win0": 1,
+     "SpaceView3D/WINDOW@win0": 8
+    }
+   },
+   "spike4_multiwindow": {
+    "window_new": [
+     "FINISHED"
+    ],
+    "n_windows": 2,
+    "win2": {
+     "size": [
+      1824,
+      1015
+     ],
+     "screen": "temp",
+     "areas": [
+      "VIEW_3D"
+     ]
+    },
+    "fired_per_window": {
+     "0": [
+      "SpaceDopeSheetEditor/HEADER",
+      "SpaceDopeSheetEditor/WINDOW",
+      "SpaceOutliner/HEADER",
+      "SpaceOutliner/WINDOW",
+      "SpaceProperties/HEADER",
+      "SpaceProperties/NAVIGATION_BAR",
+      "SpaceProperties/WINDOW",
+      "SpaceView3D/HEADER",
+      "SpaceView3D/TOOLS",
+      "SpaceView3D/TOOL_HEADER",
+      "SpaceView3D/UI",
+      "SpaceView3D/WINDOW"
+     ],
+     "1": [
+      "SpaceView3D/HEADER",
+      "SpaceView3D/WINDOW"
+     ]
+    },
+    "ctx_window_matches_area": true,
+    "filter_changed_frac_win1": 0.0,
+    "filter_changed_frac_win2": 1.0,
+    "filtered_calls": 12,
+    "window_close": [
+     "FINISHED"
+    ],
+    "n_windows_after_close": 1
+   },
+   "finish_reason": "ok",
+   "errors": [],
+   "answers": {
+    "registered": 86,
+    "fired": [
+     "SpaceClipEditor/HEADER",
+     "SpaceClipEditor/PREVIEW",
+     "SpaceClipEditor/TOOLS",
+     "SpaceClipEditor/UI",
+     "SpaceClipEditor/WINDOW",
+     "SpaceConsole/HEADER",
+     "SpaceConsole/WINDOW",
+     "SpaceDopeSheetEditor/CHANNELS",
+     "SpaceDopeSheetEditor/FOOTER",
+     "SpaceDopeSheetEditor/HEADER",
+     "SpaceDopeSheetEditor/UI",
+     "SpaceDopeSheetEditor/WINDOW",
+     "SpaceFileBrowser/HEADER",
+     "SpaceFileBrowser/TOOLS",
+     "SpaceFileBrowser/UI",
+     "SpaceFileBrowser/WINDOW",
+     "SpaceGraphEditor/CHANNELS",
+     "SpaceGraphEditor/FOOTER",
+     "SpaceGraphEditor/HEADER",
+     "SpaceGraphEditor/UI",
+     "SpaceGraphEditor/WINDOW",
+     "SpaceImageEditor/HEADER",
+     "SpaceImageEditor/TOOLS",
+     "SpaceImageEditor/TOOL_HEADER",
+     "SpaceImageEditor/UI",
+     "SpaceImageEditor/WINDOW",
+     "SpaceInfo/HEADER",
+     "SpaceInfo/WINDOW",
+     "SpaceNLA/CHANNELS",
+     "SpaceNLA/FOOTER",
+     "SpaceNLA/HEADER",
+     "SpaceNLA/UI",
+     "SpaceNLA/WINDOW",
+     "SpaceNodeEditor/HEADER",
+     "SpaceNodeEditor/TOOLS",
+     "SpaceNodeEditor/UI",
+     "SpaceNodeEditor/WINDOW",
+     "SpaceOutliner/HEADER",
+     "SpaceOutliner/WINDOW",
+     "SpacePreferences/HEADER",
+     "SpacePreferences/UI",
+     "SpacePreferences/WINDOW",
+     "SpaceProperties/HEADER",
+     "SpaceProperties/NAVIGATION_BAR",
+     "SpaceProperties/WINDOW",
+     "SpaceSequenceEditor/HEADER",
+     "SpaceSequenceEditor/PREVIEW",
+     "SpaceSequenceEditor/TOOL_HEADER",
+     "SpaceSequenceEditor/UI",
+     "SpaceSequenceEditor/WINDOW",
+     "SpaceSpreadsheet/FOOTER",
+     "SpaceSpreadsheet/HEADER",
+     "SpaceSpreadsheet/TOOLS",
+     "SpaceSpreadsheet/UI",
+     "SpaceSpreadsheet/WINDOW",
+     "SpaceTextEditor/FOOTER",
+     "SpaceTextEditor/HEADER",
+     "SpaceTextEditor/UI",
+     "SpaceTextEditor/WINDOW",
+     "SpaceView3D/ASSET_SHELF",
+     "SpaceView3D/ASSET_SHELF_HEADER",
+     "SpaceView3D/HEADER",
+     "SpaceView3D/HUD",
+     "SpaceView3D/TOOLS",
+     "SpaceView3D/TOOL_HEADER",
+     "SpaceView3D/UI",
+     "SpaceView3D/WINDOW"
+    ],
+    "not_fired": [
+     "SpaceClipEditor/CHANNELS",
+     "SpaceClipEditor/HUD",
+     "SpaceDopeSheetEditor/HUD",
+     "SpaceFileBrowser/EXECUTE",
+     "SpaceFileBrowser/TOOL_PROPS",
+     "SpaceGraphEditor/HUD",
+     "SpaceImageEditor/ASSET_SHELF",
+     "SpaceImageEditor/ASSET_SHELF_HEADER",
+     "SpaceImageEditor/HUD",
+     "SpaceNLA/HUD",
+     "SpaceNodeEditor/ASSET_SHELF",
+     "SpaceNodeEditor/ASSET_SHELF_HEADER",
+     "SpacePreferences/EXECUTE",
+     "SpaceSequenceEditor/CHANNELS",
+     "SpaceSequenceEditor/FOOTER",
+     "SpaceSequenceEditor/HUD",
+     "SpaceSequenceEditor/SCRUBBING",
+     "SpaceSequenceEditor/TOOLS",
+     "SpaceView3D/XR"
+    ],
+    "not_fired_but_instance_seen": [],
+    "context_mismatches": []
+   },
+   "fires_by_phase": {
+    "init": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "off": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_only_v3d_window": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all_but_v3d_window": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all_scissor_excl": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all_scissor_excl_linfix": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "distinct": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "distinct_nocache": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/ASSET_SHELF@win0",
+     "SpaceView3D/ASSET_SHELF_HEADER@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HUD@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:IMAGE_EDITOR": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceImageEditor/HEADER@win0",
+     "SpaceImageEditor/TOOLS@win0",
+     "SpaceImageEditor/TOOL_HEADER@win0",
+     "SpaceImageEditor/UI@win0",
+     "SpaceImageEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:UV": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceImageEditor/HEADER@win0",
+     "SpaceImageEditor/TOOLS@win0",
+     "SpaceImageEditor/TOOL_HEADER@win0",
+     "SpaceImageEditor/UI@win0",
+     "SpaceImageEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:ShaderNodeTree": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceNodeEditor/HEADER@win0",
+     "SpaceNodeEditor/TOOLS@win0",
+     "SpaceNodeEditor/UI@win0",
+     "SpaceNodeEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:GeometryNodeTree": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceNodeEditor/HEADER@win0",
+     "SpaceNodeEditor/TOOLS@win0",
+     "SpaceNodeEditor/UI@win0",
+     "SpaceNodeEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:SEQUENCE_EDITOR:SEQUENCER_PREVIEW": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceSequenceEditor/HEADER@win0",
+     "SpaceSequenceEditor/PREVIEW@win0",
+     "SpaceSequenceEditor/TOOL_HEADER@win0",
+     "SpaceSequenceEditor/UI@win0",
+     "SpaceSequenceEditor/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:SEQUENCE_EDITOR:PREVIEW": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceSequenceEditor/HEADER@win0",
+     "SpaceSequenceEditor/PREVIEW@win0",
+     "SpaceSequenceEditor/TOOL_HEADER@win0",
+     "SpaceSequenceEditor/UI@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:CLIP_EDITOR": [
+     "SpaceClipEditor/HEADER@win0",
+     "SpaceClipEditor/TOOLS@win0",
+     "SpaceClipEditor/UI@win0",
+     "SpaceClipEditor/WINDOW@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:CLIP_EDITOR:GRAPH": [
+     "SpaceClipEditor/HEADER@win0",
+     "SpaceClipEditor/PREVIEW@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:DOPESHEET": [
+     "SpaceDopeSheetEditor/CHANNELS@win0",
+     "SpaceDopeSheetEditor/FOOTER@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/UI@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:TIMELINE": [
+     "SpaceDopeSheetEditor/CHANNELS@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:FCURVES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceGraphEditor/CHANNELS@win0",
+     "SpaceGraphEditor/FOOTER@win0",
+     "SpaceGraphEditor/HEADER@win0",
+     "SpaceGraphEditor/UI@win0",
+     "SpaceGraphEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:DRIVERS": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceGraphEditor/CHANNELS@win0",
+     "SpaceGraphEditor/HEADER@win0",
+     "SpaceGraphEditor/UI@win0",
+     "SpaceGraphEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:NLA_EDITOR": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceNLA/CHANNELS@win0",
+     "SpaceNLA/FOOTER@win0",
+     "SpaceNLA/HEADER@win0",
+     "SpaceNLA/UI@win0",
+     "SpaceNLA/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:FILES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceFileBrowser/HEADER@win0",
+     "SpaceFileBrowser/TOOLS@win0",
+     "SpaceFileBrowser/UI@win0",
+     "SpaceFileBrowser/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:ASSETS": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceFileBrowser/HEADER@win0",
+     "SpaceFileBrowser/TOOLS@win0",
+     "SpaceFileBrowser/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:PREFERENCES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpacePreferences/HEADER@win0",
+     "SpacePreferences/UI@win0",
+     "SpacePreferences/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:SPREADSHEET": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceSpreadsheet/FOOTER@win0",
+     "SpaceSpreadsheet/HEADER@win0",
+     "SpaceSpreadsheet/TOOLS@win0",
+     "SpaceSpreadsheet/UI@win0",
+     "SpaceSpreadsheet/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:TEXT_EDITOR": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceTextEditor/FOOTER@win0",
+     "SpaceTextEditor/HEADER@win0",
+     "SpaceTextEditor/UI@win0",
+     "SpaceTextEditor/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:CONSOLE": [
+     "SpaceConsole/HEADER@win0",
+     "SpaceConsole/WINDOW@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:INFO": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceInfo/HEADER@win0",
+     "SpaceInfo/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:OUTLINER": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:PROPERTIES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "pc:topbar_left": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOL_HEADER@win0"
+    ],
+    "pc:v3d_header": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOL_HEADER@win0"
+    ],
+    "pc:view3d": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOL_HEADER@win0"
+    ],
+    "anim": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "pivot_op": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "pivot_rna": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ],
+    "mw_all": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ],
+    "mw_off": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ],
+    "mw_filter": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ]
+   },
+   "fires_detail_distinct": [
+    {
+     "space": "SpaceProperties",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceProperties",
+     "xywh": [
+      1579,
+      875,
+      339,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceProperties",
+     "region": "NAVIGATION_BAR",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "ctx_region_type": "NAVIGATION_BAR",
+     "ctx_space": "SpaceProperties",
+     "xywh": [
+      1579,
+      23,
+      29,
+      852
+     ],
+     "viewport": [
+      0,
+      0,
+      29,
+      852
+     ],
+     "scissor": [
+      0,
+      0,
+      29,
+      852
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceProperties",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceProperties",
+     "xywh": [
+      1608,
+      23,
+      310,
+      852
+     ],
+     "viewport": [
+      0,
+      0,
+      310,
+      852
+     ],
+     "scissor": [
+      0,
+      0,
+      310,
+      852
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceOutliner",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "OUTLINER",
+     "ui_type": "OUTLINER",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceOutliner",
+     "xywh": [
+      1579,
+      1076,
+      339,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceOutliner",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "OUTLINER",
+     "ui_type": "OUTLINER",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceOutliner",
+     "xywh": [
+      1579,
+      904,
+      339,
+      172
+     ],
+     "viewport": [
+      0,
+      0,
+      339,
+      172
+     ],
+     "scissor": [
+      0,
+      0,
+      339,
+      172
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceDopeSheetEditor",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "DOPESHEET_EDITOR",
+     "ui_type": "TIMELINE",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceDopeSheetEditor",
+     "xywh": [
+      2,
+      75,
+      1574,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceDopeSheetEditor",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "DOPESHEET_EDITOR",
+     "ui_type": "TIMELINE",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceDopeSheetEditor",
+     "xywh": [
+      2,
+      23,
+      1574,
+      52
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      52
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      52
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      1076,
+      1574,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "TOOL_HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "TOOL_HEADER",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      1050,
+      1574,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "TOOLS",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "TOOLS",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      104,
+      56,
+      946
+     ],
+     "viewport": [
+      0,
+      0,
+      56,
+      946
+     ],
+     "scissor": [
+      0,
+      0,
+      56,
+      946
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "UI",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "UI",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      1296,
+      104,
+      280,
+      946
+     ],
+     "viewport": [
+      0,
+      0,
+      280,
+      946
+     ],
+     "scissor": [
+      0,
+      0,
+      280,
+      946
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      104,
+      1574,
+      998
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      998
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      998
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    }
+   ]
+  },
+  "OPENGL": {
+   "pairs": {
+    "SpaceView3D/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/ASSET_SHELF": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": false
+    },
+    "SpaceView3D/ASSET_SHELF_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": false
+    },
+    "SpaceView3D/HUD": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": false
+    },
+    "SpaceView3D/TOOL_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceView3D/XR": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceImageEditor/ASSET_SHELF": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/ASSET_SHELF_HEADER": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceImageEditor/TOOL_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNodeEditor/ASSET_SHELF": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceNodeEditor/ASSET_SHELF_HEADER": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/CHANNELS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/TOOLS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/PREVIEW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/FOOTER": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceSequenceEditor/TOOL_HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSequenceEditor/SCRUBBING": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceClipEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/CHANNELS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceClipEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/PREVIEW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceClipEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceDopeSheetEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/CHANNELS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceDopeSheetEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceDopeSheetEditor/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/CHANNELS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceGraphEditor/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceGraphEditor/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/CHANNELS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceNLA/HUD": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceNLA/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceFileBrowser/TOOL_PROPS": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceFileBrowser/EXECUTE": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpacePreferences/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpacePreferences/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpacePreferences/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpacePreferences/EXECUTE": {
+     "registered": true,
+     "fired": false,
+     "instance_seen": false
+    },
+    "SpaceProperties/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceProperties/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceProperties/NAVIGATION_BAR": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/TOOLS": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceSpreadsheet/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/UI": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceTextEditor/FOOTER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceConsole/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceConsole/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceInfo/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceInfo/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceOutliner/WINDOW": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    },
+    "SpaceOutliner/HEADER": {
+     "registered": true,
+     "fired": true,
+     "instance_seen": true
+    }
+   },
+   "cursor": {
+    "TOPBAR/WINDOW": {
+     "registered": true
+    },
+    "TOPBAR/HEADER": {
+     "registered": true
+    },
+    "STATUSBAR/WINDOW": {
+     "registered": true
+    },
+    "STATUSBAR/HEADER": {
+     "registered": true
+    },
+    "EMPTY/WINDOW": {
+     "registered": true
+    },
+    "EMPTY/HEADER": {
+     "registered": true
+    },
+    "VIEW_3D/WINDOW": {
+     "registered": true
+    },
+    "VIEW_3D/HEADER": {
+     "registered": true
+    }
+   },
+   "phases": {
+    "distinct": {
+     "fired": [
+      [
+       "SpaceDopeSheetEditor",
+       "HEADER"
+      ],
+      [
+       "SpaceDopeSheetEditor",
+       "WINDOW"
+      ],
+      [
+       "SpaceOutliner",
+       "HEADER"
+      ],
+      [
+       "SpaceOutliner",
+       "WINDOW"
+      ],
+      [
+       "SpaceProperties",
+       "HEADER"
+      ],
+      [
+       "SpaceProperties",
+       "NAVIGATION_BAR"
+      ],
+      [
+       "SpaceProperties",
+       "WINDOW"
+      ],
+      [
+       "SpaceView3D",
+       "HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "TOOLS"
+      ],
+      [
+       "SpaceView3D",
+       "TOOL_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "UI"
+      ],
+      [
+       "SpaceView3D",
+       "WINDOW"
+      ]
+     ],
+     "timing": {
+      "total_us": {
+       "n": 12,
+       "min": 41.4,
+       "median": 70.3,
+       "p95": 377.5,
+       "max": 377.5
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 24.8,
+       "median": 45.6,
+       "p95": 335.5,
+       "max": 335.5
+      }
+     }
+    },
+    "distinct_nocache": {
+     "timing": {
+      "total_us": {
+       "n": 12,
+       "min": 94.2,
+       "median": 129.4,
+       "p95": 252.2,
+       "max": 252.2
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 64.7,
+       "median": 92.4,
+       "p95": 185.7,
+       "max": 185.7
+      }
+     }
+    }
+   },
+   "notes": [
+    "primitive_cube_add INVOKE -> {'FINISHED'}",
+    "wm.operators after Alt+G, A: ['OBJECT_OT_location_clear', 'OBJECT_OT_select_all']"
+   ],
+   "env": {
+    "blender": "5.2.2 LTS",
+    "backend": "OPENGL",
+    "renderer": "Mesa Intel(R) Graphics (MTL)",
+    "vendor": "Intel",
+    "version": "4.6 (Core Profile) Mesa 26.2.3-arch1.1",
+    "ui_scale": 1.0,
+    "window_size": [
+     1920,
+     1128
+    ],
+    "WAYLAND_DISPLAY": "wayland-0",
+    "DISPLAY": ":1",
+    "use_region_overlap": true,
+    "argv": [
+     "$HOME/.local/share/blender/blender",
+     "--factory-startup",
+     "--enable-event-simulate",
+     "--gpu-backend",
+     "opengl",
+     "--python",
+     "<repo>/tools/spikes/draw/probe.py"
+    ]
+   },
+   "spike6": {
+    "screen": "Layout",
+    "screen_area_types": [
+     "PROPERTIES",
+     "OUTLINER",
+     "DOPESHEET_EDITOR",
+     "VIEW_3D"
+    ],
+    "window_attrs_with_area": [],
+    "temp_override_global": {
+     "TOPBAR": {
+      "ctx_area": "TOPBAR",
+      "ctx_region": "HEADER",
+      "ctx_screen": "Layout",
+      "call_menu_poll": true,
+      "area_regions": [
+       [
+        "HEADER",
+        0,
+        1102,
+        1583,
+        26
+       ],
+       [
+        "HEADER",
+        1583,
+        1102,
+        337,
+        26
+       ],
+       [
+        "WINDOW",
+        0,
+        0,
+        1920,
+        1
+       ]
+      ],
+      "area_xywh": [
+       0,
+       1101,
+       1920,
+       27
+      ],
+      "spaces_active": "Space"
+     },
+     "STATUSBAR": {
+      "ctx_area": "STATUSBAR",
+      "ctx_region": "HEADER",
+      "ctx_screen": "Layout",
+      "call_menu_poll": true,
+      "area_regions": [
+       [
+        "HEADER",
+        0,
+        0,
+        1920,
+        23
+       ]
+      ],
+      "area_xywh": [
+       0,
+       0,
+       1920,
+       23
+      ],
+      "spaces_active": "Space"
+     }
+    }
+   },
+   "layout_main": [
+    {
+     "type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "space": "SpaceProperties",
+     "xywh": [
+      1579,
+      23,
+      339,
+      878
+     ],
+     "regions": [
+      [
+       "HEADER",
+       1579,
+       875,
+       339,
+       26
+      ],
+      [
+       "NAVIGATION_BAR",
+       1579,
+       23,
+       29,
+       852
+      ],
+      [
+       "WINDOW",
+       1608,
+       23,
+       310,
+       852
+      ]
+     ]
+    },
+    {
+     "type": "OUTLINER",
+     "ui_type": "OUTLINER",
+     "space": "SpaceOutliner",
+     "xywh": [
+      1579,
+      904,
+      339,
+      198
+     ],
+     "regions": [
+      [
+       "HEADER",
+       1579,
+       1076,
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       1579,
+       904,
+       339,
+       172
+      ]
+     ]
+    },
+    {
+     "type": "DOPESHEET_EDITOR",
+     "ui_type": "TIMELINE",
+     "space": "SpaceDopeSheetEditor",
+     "xywh": [
+      2,
+      23,
+      1574,
+      78
+     ],
+     "regions": [
+      [
+       "HEADER",
+       2,
+       75,
+       1574,
+       26
+      ],
+      [
+       "FOOTER",
+       2,
+       23,
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       2,
+       23,
+       1,
+       1
+      ],
+      [
+       "UI",
+       1575,
+       23,
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       2,
+       23,
+       1574,
+       52
+      ]
+     ]
+    },
+    {
+     "type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "space": "SpaceView3D",
+     "xywh": [
+      2,
+      104,
+      1574,
+      998
+     ],
+     "regions": [
+      [
+       "HEADER",
+       2,
+       1076,
+       1574,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       2,
+       1050,
+       1574,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       2,
+       104,
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       2,
+       104,
+       1,
+       1
+      ],
+      [
+       "TOOLS",
+       2,
+       104,
+       56,
+       946
+      ],
+      [
+       "UI",
+       1296,
+       104,
+       280,
+       946
+      ],
+      [
+       "HUD",
+       58,
+       104,
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       2,
+       104,
+       1574,
+       998
+      ]
+     ]
+    }
+   ],
+   "spike4_overlap": {
+    "uniform_color": [
+     1.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "expected_single": 0.3,
+    "expected_double": 0.51,
+    "zones": {
+     "v3d_window_only(center 80x80)": {
+      "rect": [
+       749,
+       563,
+       80,
+       80
+      ],
+      "uniform_all": 0.15,
+      "uniform_only_v3d_window": 0.15,
+      "uniform_all_but_v3d_window": 0.0,
+      "uniform_all_scissor_excl": 0.15,
+      "uniform_all_scissor_excl_linfix": 0.301
+     },
+     "v3d_HEADER": {
+      "rect": [
+       2,
+       1076,
+       1574,
+       26
+      ],
+      "uniform_all": 0.34,
+      "uniform_only_v3d_window": 0.056,
+      "uniform_all_but_v3d_window": 0.298,
+      "uniform_all_scissor_excl": 0.298,
+      "uniform_all_scissor_excl_linfix": 0.298
+     },
+     "v3d_TOOL_HEADER": {
+      "rect": [
+       2,
+       1050,
+       1574,
+       26
+      ],
+      "uniform_all": 0.413,
+      "uniform_only_v3d_window": 0.159,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "v3d_TOOLS": {
+      "rect": [
+       2,
+       104,
+       56,
+       946
+      ],
+      "uniform_all": 0.413,
+      "uniform_only_v3d_window": 0.159,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "v3d_UI": {
+      "rect": [
+       1296,
+       104,
+       280,
+       946
+      ],
+      "uniform_all": 0.413,
+      "uniform_only_v3d_window": 0.159,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "OUTLINER_WINDOW": {
+      "rect": [
+       1718,
+       960,
+       60,
+       60
+      ],
+      "uniform_all": 0.302,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.302,
+      "uniform_all_scissor_excl": 0.302,
+      "uniform_all_scissor_excl_linfix": 0.302
+     },
+     "OUTLINER_HEADER": {
+      "rect": [
+       1579,
+       1076,
+       339,
+       26
+      ],
+      "uniform_all": 0.295,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.295,
+      "uniform_all_scissor_excl": 0.295,
+      "uniform_all_scissor_excl_linfix": 0.295
+     },
+     "PROPERTIES_WINDOW": {
+      "rect": [
+       1733,
+       419,
+       60,
+       60
+      ],
+      "uniform_all": 0.295,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.295,
+      "uniform_all_scissor_excl": 0.295,
+      "uniform_all_scissor_excl_linfix": 0.295
+     },
+     "PROPERTIES_HEADER": {
+      "rect": [
+       1579,
+       875,
+       339,
+       26
+      ],
+      "uniform_all": 0.292,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.292,
+      "uniform_all_scissor_excl": 0.292,
+      "uniform_all_scissor_excl_linfix": 0.292
+     },
+     "DOPESHEET_EDITOR_WINDOW": {
+      "rect": [
+       759,
+       19,
+       60,
+       60
+      ],
+      "uniform_all": 0.292,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.292,
+      "uniform_all_scissor_excl": 0.292,
+      "uniform_all_scissor_excl_linfix": 0.292
+     },
+     "DOPESHEET_EDITOR_HEADER": {
+      "rect": [
+       2,
+       75,
+       1574,
+       26
+      ],
+      "uniform_all": 0.292,
+      "uniform_only_v3d_window": 0.0,
+      "uniform_all_but_v3d_window": 0.292,
+      "uniform_all_scissor_excl": 0.292,
+      "uniform_all_scissor_excl_linfix": 0.292
+     }
+    },
+    "timing": {
+     "uniform_all": {
+      "total_us": {
+       "n": 12,
+       "min": 64.4,
+       "median": 73.6,
+       "p95": 206.7,
+       "max": 206.7
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 18.1,
+       "median": 43.3,
+       "p95": 140.7,
+       "max": 140.7
+      }
+     },
+     "uniform_only_v3d_window": {
+      "total_us": {
+       "n": 12,
+       "min": 14.6,
+       "median": 19.6,
+       "p95": 66.8,
+       "max": 66.8
+      },
+      "draw_us": {
+       "n": 1,
+       "min": 17.4,
+       "median": 17.4,
+       "p95": 17.4,
+       "max": 17.4
+      }
+     },
+     "uniform_all_but_v3d_window": {
+      "total_us": {
+       "n": 12,
+       "min": 30.0,
+       "median": 44.5,
+       "p95": 80.8,
+       "max": 80.8
+      },
+      "draw_us": {
+       "n": 11,
+       "min": 7.0,
+       "median": 9.8,
+       "p95": 24.5,
+       "max": 24.5
+      }
+     },
+     "uniform_all_scissor_excl": {
+      "total_us": {
+       "n": 12,
+       "min": 38.0,
+       "median": 52.9,
+       "p95": 130.1,
+       "max": 130.1
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 9.5,
+       "median": 17.0,
+       "p95": 62.5,
+       "max": 62.5
+      }
+     },
+     "uniform_all_scissor_excl_linfix": {
+      "total_us": {
+       "n": 12,
+       "min": 38.1,
+       "median": 47.2,
+       "p95": 100.0,
+       "max": 100.0
+      },
+      "draw_us": {
+       "n": 12,
+       "min": 9.9,
+       "median": 17.1,
+       "p95": 51.9,
+       "max": 51.9
+      }
+     }
+    }
+   },
+   "screenshots": {
+    "distinct": {
+     "file": "notes/spikes/draw_opengl.png",
+     "bytes": 99166,
+     "px": [
+      640,
+      376
+     ]
+    },
+    "cursor_topbar_mid": {
+     "file": "notes/spikes/draw_opengl_cursor_topbar_mid.png",
+     "bytes": 56145,
+     "px": [
+      480,
+      282
+     ]
+    },
+    "cursor_view3d": {
+     "file": "notes/spikes/draw_opengl_cursor_view3d.png",
+     "bytes": 53850,
+     "px": [
+      480,
+      282
+     ]
+    },
+    "win2_filtered": {
+     "file": "notes/spikes/draw_opengl_win2.png",
+     "bytes": 7392,
+     "px": [
+      456,
+      253
+     ]
+    }
+   },
+   "spike4_cycle": [
+    {
+     "ui_type": "VIEW_3D+cube_add(HUD)",
+     "regions": [
+      [
+       "HEADER",
+       1574,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       1574,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "TOOLS",
+       56,
+       946
+      ],
+      [
+       "UI",
+       280,
+       946
+      ],
+      [
+       "HUD",
+       160,
+       25
+      ],
+      [
+       "WINDOW",
+       1574,
+       998
+      ]
+     ],
+     "fired": [
+      [
+       "SpaceView3D",
+       "HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "HUD"
+      ],
+      [
+       "SpaceView3D",
+       "TOOLS"
+      ],
+      [
+       "SpaceView3D",
+       "TOOL_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "UI"
+      ],
+      [
+       "SpaceView3D",
+       "WINDOW"
+      ]
+     ]
+    },
+    {
+     "ui_type": "VIEW_3D sculpt(asset shelf)",
+     "regions": [
+      [
+       "HEADER",
+       1574,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       1574,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1574,
+       59
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1574,
+       24
+      ],
+      [
+       "TOOLS",
+       56,
+       863
+      ],
+      [
+       "UI",
+       280,
+       863
+      ],
+      [
+       "HUD",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       1574,
+       998
+      ]
+     ],
+     "fired": [
+      [
+       "SpaceView3D",
+       "ASSET_SHELF"
+      ],
+      [
+       "SpaceView3D",
+       "ASSET_SHELF_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "HUD"
+      ],
+      [
+       "SpaceView3D",
+       "TOOLS"
+      ],
+      [
+       "SpaceView3D",
+       "TOOL_HEADER"
+      ],
+      [
+       "SpaceView3D",
+       "UI"
+      ],
+      [
+       "SpaceView3D",
+       "WINDOW"
+      ]
+     ]
+    },
+    {
+     "ui_type": "IMAGE_EDITOR",
+     "extra": null,
+     "space": "SpaceImageEditor",
+     "enabled": [
+      "show_region_tool_header",
+      "show_region_toolbar",
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       280,
+       826
+      ],
+      [
+       "TOOLS",
+       56,
+       826
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "TOOL_HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.143,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "UV",
+     "extra": null,
+     "space": "SpaceImageEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       280,
+       826
+      ],
+      [
+       "TOOLS",
+       56,
+       826
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "TOOL_HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.147,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "ShaderNodeTree",
+     "extra": null,
+     "space": "SpaceNodeEditor",
+     "enabled": [
+      "show_region_toolbar"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "UI",
+       280,
+       852
+      ],
+      [
+       "TOOLS",
+       56,
+       852
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.297
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "GeometryNodeTree",
+     "extra": null,
+     "space": "SpaceNodeEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "ASSET_SHELF",
+       1,
+       1
+      ],
+      [
+       "ASSET_SHELF_HEADER",
+       1,
+       1
+      ],
+      [
+       "UI",
+       280,
+       852
+      ],
+      [
+       "TOOLS",
+       56,
+       852
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.297
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "SEQUENCE_EDITOR",
+     "extra": [
+      "view_type",
+      "SEQUENCER_PREVIEW"
+     ],
+     "space": "SpaceSequenceEditor",
+     "enabled": [
+      "show_region_tool_header",
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "SCRUBBING",
+       1,
+       1
+      ],
+      [
+       "UI",
+       339,
+       826
+      ],
+      [
+       "TOOLS",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       2,
+       341
+      ],
+      [
+       "WINDOW",
+       2,
+       485
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "PREVIEW",
+      "TOOL_HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "SEQUENCE_EDITOR",
+     "extra": [
+      "view_type",
+      "PREVIEW"
+     ],
+     "space": "SpaceSequenceEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOL_HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "SCRUBBING",
+       1,
+       1
+      ],
+      [
+       "UI",
+       339,
+       826
+      ],
+      [
+       "TOOLS",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       2,
+       826
+      ],
+      [
+       "WINDOW",
+       1,
+       1
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "PREVIEW",
+      "TOOL_HEADER",
+      "UI"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "CLIP_EDITOR",
+     "extra": null,
+     "space": "SpaceClipEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       280,
+       852
+      ],
+      [
+       "UI",
+       26,
+       852
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       59,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.295,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "CLIP_EDITOR",
+     "extra": [
+      "view",
+      "GRAPH"
+     ],
+     "space": "SpaceClipEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       1,
+       1
+      ],
+      [
+       "UI",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       1,
+       1
+      ],
+      [
+       "PREVIEW",
+       339,
+       852
+      ],
+      [
+       "WINDOW",
+       1,
+       1
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "PREVIEW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292,
+      "PREVIEW": 0.0
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "DOPESHEET",
+     "extra": null,
+     "space": "SpaceDopeSheetEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "CHANNELS",
+       200,
+       826
+      ],
+      [
+       "UI",
+       139,
+       826
+      ],
+      [
+       "WINDOW",
+       139,
+       826
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.292,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "TIMELINE",
+     "extra": null,
+     "space": "SpaceDopeSheetEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       200,
+       852
+      ],
+      [
+       "UI",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       139,
+       852
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.292,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "FCURVES",
+     "extra": null,
+     "space": "SpaceGraphEditor",
+     "enabled": [
+      "show_region_footer"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "CHANNELS",
+       211,
+       826
+      ],
+      [
+       "UI",
+       128,
+       826
+      ],
+      [
+       "WINDOW",
+       2,
+       826
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "DRIVERS",
+     "extra": null,
+     "space": "SpaceGraphEditor",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       1,
+       1
+      ],
+      [
+       "CHANNELS",
+       211,
+       852
+      ],
+      [
+       "UI",
+       128,
+       852
+      ],
+      [
+       "WINDOW",
+       2,
+       852
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "NLA_EDITOR",
+     "extra": null,
+     "space": "SpaceNLA",
+     "enabled": [
+      "show_region_footer"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "CHANNELS",
+       200,
+       826
+      ],
+      [
+       "UI",
+       139,
+       826
+      ],
+      [
+       "WINDOW",
+       2,
+       826
+      ]
+     ],
+     "fired": [
+      "CHANNELS",
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "FILES",
+     "extra": null,
+     "space": "SpaceFileBrowser",
+     "enabled": [
+      "show_region_tool_props"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       240,
+       852
+      ],
+      [
+       "UI",
+       99,
+       70
+      ],
+      [
+       "EXECUTE",
+       1,
+       1
+      ],
+      [
+       "TOOL_PROPS",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       99,
+       782
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.302,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "ASSETS",
+     "extra": null,
+     "space": "SpaceFileBrowser",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       240,
+       852
+      ],
+      [
+       "UI",
+       1,
+       1
+      ],
+      [
+       "EXECUTE",
+       1,
+       1
+      ],
+      [
+       "TOOL_PROPS",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       99,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "TOOLS",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "PREFERENCES",
+     "extra": null,
+     "space": "SpacePreferences",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       100,
+       852
+      ],
+      [
+       "EXECUTE",
+       1,
+       1
+      ],
+      [
+       "WINDOW",
+       239,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.295,
+      "HEADER": 0.293
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "SPREADSHEET",
+     "extra": null,
+     "space": "SpaceSpreadsheet",
+     "enabled": [
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "TOOLS",
+       161,
+       826
+      ],
+      [
+       "UI",
+       178,
+       826
+      ],
+      [
+       "WINDOW",
+       178,
+       826
+      ]
+     ],
+     "fired": [
+      "FOOTER",
+      "HEADER",
+      "TOOLS",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.302,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "TEXT_EDITOR",
+     "extra": null,
+     "space": "SpaceTextEditor",
+     "enabled": [
+      "show_region_ui"
+     ],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "FOOTER",
+       339,
+       26
+      ],
+      [
+       "UI",
+       160,
+       826
+      ],
+      [
+       "WINDOW",
+       179,
+       826
+      ]
+     ],
+     "fired": [
+      "FOOTER",
+      "HEADER",
+      "UI",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "CONSOLE",
+     "extra": null,
+     "space": "SpaceConsole",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "INFO",
+     "extra": null,
+     "space": "SpaceInfo",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": null,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "OUTLINER",
+     "extra": null,
+     "space": "SpaceOutliner",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "WINDOW",
+       339,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.302,
+      "HEADER": 0.295
+     },
+     "ctx_ok": true
+    },
+    {
+     "ui_type": "PROPERTIES",
+     "extra": null,
+     "space": "SpaceProperties",
+     "enabled": [],
+     "regions": [
+      [
+       "HEADER",
+       339,
+       26
+      ],
+      [
+       "NAVIGATION_BAR",
+       29,
+       852
+      ],
+      [
+       "WINDOW",
+       310,
+       852
+      ]
+     ],
+     "fired": [
+      "HEADER",
+      "NAVIGATION_BAR",
+      "WINDOW"
+     ],
+     "uniform_alpha_eff": {
+      "WINDOW": 0.295,
+      "HEADER": 0.292
+     },
+     "ctx_ok": true
+    }
+   ],
+   "spike5_cursor": {
+    "topbar_left": {
+     "mouse": [
+      193,
+      1120
+     ],
+     "event_after": {
+      "mouse_x": 193,
+      "mouse_y": 1120,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "TOPBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((192, 1120),)",
+       "ctx_area_type": "TOPBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        1102,
+        1583,
+        26
+       ],
+       "area_xywh": [
+        0,
+        1101,
+        1920,
+        27
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        1102,
+        1583,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.296,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "topbar_mid": {
+     "mouse": [
+      961,
+      1120
+     ],
+     "event_after": {
+      "mouse_x": 961,
+      "mouse_y": 1120,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "TOPBAR",
+       "region": "HEADER",
+       "count": 5,
+       "args": "((960, 1120),)",
+       "ctx_area_type": "TOPBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        1102,
+        1583,
+        26
+       ],
+       "area_xywh": [
+        0,
+        1101,
+        1920,
+        27
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        1102,
+        1583,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.296,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "topbar_right": {
+     "mouse": [
+      1825,
+      1120
+     ],
+     "event_after": {
+      "mouse_x": 1825,
+      "mouse_y": 1120,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "TOPBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((1824, 1120),)",
+       "ctx_area_type": "TOPBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        1583,
+        1102,
+        337,
+        26
+       ],
+       "area_xywh": [
+        0,
+        1101,
+        1920,
+        27
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        1583,
+        1102,
+        337,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "statusbar_left": {
+     "mouse": [
+      193,
+      6
+     ],
+     "event_after": {
+      "mouse_x": 193,
+      "mouse_y": 6,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "STATUSBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((192, 6),)",
+       "ctx_area_type": "STATUSBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        0,
+        1920,
+        23
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.298,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "statusbar_right": {
+     "mouse": [
+      1729,
+      6
+     ],
+     "event_after": {
+      "mouse_x": 1729,
+      "mouse_y": 6,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "STATUSBAR",
+       "region": "HEADER",
+       "count": 4,
+       "args": "((1728, 6),)",
+       "ctx_area_type": "STATUSBAR",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_xywh": [
+        0,
+        0,
+        1920,
+        23
+       ],
+       "area_in_screen_areas": false,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        0,
+        0,
+        1920,
+        23
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.298,
+     "cover_v3d_header": 0.0,
+     "cover_v3d_center": 0.0
+    },
+    "v3d_header": {
+     "mouse": [
+      790,
+      1089
+     ],
+     "event_after": {
+      "mouse_x": 790,
+      "mouse_y": 1089,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "VIEW_3D",
+       "region": "HEADER",
+       "count": 5,
+       "args": "((789, 1089),)",
+       "ctx_area_type": "VIEW_3D",
+       "ctx_region_type": "HEADER",
+       "xywh": [
+        2,
+        1076,
+        1574,
+        26
+       ],
+       "area_xywh": [
+        2,
+        104,
+        1574,
+        998
+       ],
+       "area_in_screen_areas": true,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        2,
+        1076,
+        1574,
+        26
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.111,
+     "cover_v3d_center": 0.0
+    },
+    "view3d": {
+     "mouse": [
+      790,
+      603
+     ],
+     "event_after": {
+      "mouse_x": 790,
+      "mouse_y": 603,
+      "type": "A",
+      "region_x": -1,
+      "region_y": -1
+     },
+     "fires": [
+      {
+       "space": "VIEW_3D",
+       "region": "WINDOW",
+       "count": 4,
+       "args": "((789, 603),)",
+       "ctx_area_type": "VIEW_3D",
+       "ctx_region_type": "WINDOW",
+       "xywh": [
+        2,
+        104,
+        1574,
+        998
+       ],
+       "area_xywh": [
+        2,
+        104,
+        1574,
+        998
+       ],
+       "area_in_screen_areas": true,
+       "viewport": [
+        0,
+        0,
+        1920,
+        1128
+       ],
+       "scissor": [
+        2,
+        104,
+        1574,
+        998
+       ]
+      }
+     ],
+     "cover_topbar": 0.0,
+     "cover_statusbar": 0.0,
+     "cover_v3d_header": 0.111,
+     "cover_v3d_center": 0.301
+    },
+    "idle_after_move": {
+     "fires": []
+    }
+   },
+   "spike11": {
+    "redraw_counts_per_tick": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12
+    ],
+    "anim_values_seen": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11
+    ],
+    "cursor": {
+     "before": {
+      "mouse_x": 790,
+      "mouse_y": 603,
+      "type": "A",
+      "region_x": 788,
+      "region_y": 499
+     },
+     "after_warp": {
+      "mouse_x": 689,
+      "mouse_y": 553,
+      "type": "A",
+      "region_x": 687,
+      "region_y": 449
+     },
+     "warp_target": [
+      689,
+      553
+     ],
+     "after_simulated_move": {
+      "mouse_x": 849,
+      "mouse_y": 633,
+      "type": "A",
+      "region_x": 847,
+      "region_y": 529
+     },
+     "move_target": [
+      849,
+      633
+     ]
+    }
+   },
+   "spike17": {
+    "before": "MEDIAN_POINT",
+    "idle_header_draws": 0,
+    "idle_all": {},
+    "op_result": [
+     "FINISHED"
+    ],
+    "after_op": "CURSOR",
+    "op_header_draws": 1,
+    "op_all": {
+     "SpaceProperties/HEADER@win0": 1,
+     "SpaceProperties/NAVIGATION_BAR@win0": 1,
+     "SpaceProperties/WINDOW@win0": 1,
+     "SpaceDopeSheetEditor/HEADER@win0": 1,
+     "SpaceDopeSheetEditor/WINDOW@win0": 1,
+     "SpaceView3D/HEADER@win0": 1,
+     "SpaceView3D/TOOL_HEADER@win0": 1,
+     "SpaceView3D/TOOLS@win0": 1,
+     "SpaceView3D/UI@win0": 1,
+     "SpaceView3D/WINDOW@win0": 8
+    },
+    "after_rna": "INDIVIDUAL_ORIGINS",
+    "rna_header_draws": 1,
+    "rna_all": {
+     "SpaceProperties/HEADER@win0": 1,
+     "SpaceProperties/NAVIGATION_BAR@win0": 1,
+     "SpaceProperties/WINDOW@win0": 1,
+     "SpaceDopeSheetEditor/HEADER@win0": 1,
+     "SpaceDopeSheetEditor/WINDOW@win0": 1,
+     "SpaceView3D/HEADER@win0": 1,
+     "SpaceView3D/TOOL_HEADER@win0": 1,
+     "SpaceView3D/TOOLS@win0": 1,
+     "SpaceView3D/UI@win0": 1,
+     "SpaceView3D/WINDOW@win0": 8
+    }
+   },
+   "spike4_multiwindow": {
+    "window_new": [
+     "FINISHED"
+    ],
+    "n_windows": 2,
+    "win2": {
+     "size": [
+      1824,
+      1015
+     ],
+     "screen": "temp",
+     "areas": [
+      "VIEW_3D"
+     ]
+    },
+    "fired_per_window": {
+     "0": [
+      "SpaceDopeSheetEditor/HEADER",
+      "SpaceDopeSheetEditor/WINDOW",
+      "SpaceOutliner/HEADER",
+      "SpaceOutliner/WINDOW",
+      "SpaceProperties/HEADER",
+      "SpaceProperties/NAVIGATION_BAR",
+      "SpaceProperties/WINDOW",
+      "SpaceView3D/HEADER",
+      "SpaceView3D/TOOLS",
+      "SpaceView3D/TOOL_HEADER",
+      "SpaceView3D/UI",
+      "SpaceView3D/WINDOW"
+     ],
+     "1": [
+      "SpaceView3D/HEADER",
+      "SpaceView3D/WINDOW"
+     ]
+    },
+    "ctx_window_matches_area": true,
+    "filter_changed_frac_win1": 0.7623,
+    "filter_changed_frac_win2": 1.0,
+    "filtered_calls": 12,
+    "window_close": [
+     "FINISHED"
+    ],
+    "n_windows_after_close": 1
+   },
+   "finish_reason": "ok",
+   "errors": [],
+   "answers": {
+    "registered": 86,
+    "fired": [
+     "SpaceClipEditor/HEADER",
+     "SpaceClipEditor/PREVIEW",
+     "SpaceClipEditor/TOOLS",
+     "SpaceClipEditor/UI",
+     "SpaceClipEditor/WINDOW",
+     "SpaceConsole/HEADER",
+     "SpaceConsole/WINDOW",
+     "SpaceDopeSheetEditor/CHANNELS",
+     "SpaceDopeSheetEditor/FOOTER",
+     "SpaceDopeSheetEditor/HEADER",
+     "SpaceDopeSheetEditor/UI",
+     "SpaceDopeSheetEditor/WINDOW",
+     "SpaceFileBrowser/HEADER",
+     "SpaceFileBrowser/TOOLS",
+     "SpaceFileBrowser/UI",
+     "SpaceFileBrowser/WINDOW",
+     "SpaceGraphEditor/CHANNELS",
+     "SpaceGraphEditor/FOOTER",
+     "SpaceGraphEditor/HEADER",
+     "SpaceGraphEditor/UI",
+     "SpaceGraphEditor/WINDOW",
+     "SpaceImageEditor/HEADER",
+     "SpaceImageEditor/TOOLS",
+     "SpaceImageEditor/TOOL_HEADER",
+     "SpaceImageEditor/UI",
+     "SpaceImageEditor/WINDOW",
+     "SpaceInfo/HEADER",
+     "SpaceInfo/WINDOW",
+     "SpaceNLA/CHANNELS",
+     "SpaceNLA/FOOTER",
+     "SpaceNLA/HEADER",
+     "SpaceNLA/UI",
+     "SpaceNLA/WINDOW",
+     "SpaceNodeEditor/HEADER",
+     "SpaceNodeEditor/TOOLS",
+     "SpaceNodeEditor/UI",
+     "SpaceNodeEditor/WINDOW",
+     "SpaceOutliner/HEADER",
+     "SpaceOutliner/WINDOW",
+     "SpacePreferences/HEADER",
+     "SpacePreferences/UI",
+     "SpacePreferences/WINDOW",
+     "SpaceProperties/HEADER",
+     "SpaceProperties/NAVIGATION_BAR",
+     "SpaceProperties/WINDOW",
+     "SpaceSequenceEditor/HEADER",
+     "SpaceSequenceEditor/PREVIEW",
+     "SpaceSequenceEditor/TOOL_HEADER",
+     "SpaceSequenceEditor/UI",
+     "SpaceSequenceEditor/WINDOW",
+     "SpaceSpreadsheet/FOOTER",
+     "SpaceSpreadsheet/HEADER",
+     "SpaceSpreadsheet/TOOLS",
+     "SpaceSpreadsheet/UI",
+     "SpaceSpreadsheet/WINDOW",
+     "SpaceTextEditor/FOOTER",
+     "SpaceTextEditor/HEADER",
+     "SpaceTextEditor/UI",
+     "SpaceTextEditor/WINDOW",
+     "SpaceView3D/ASSET_SHELF",
+     "SpaceView3D/ASSET_SHELF_HEADER",
+     "SpaceView3D/HEADER",
+     "SpaceView3D/HUD",
+     "SpaceView3D/TOOLS",
+     "SpaceView3D/TOOL_HEADER",
+     "SpaceView3D/UI",
+     "SpaceView3D/WINDOW"
+    ],
+    "not_fired": [
+     "SpaceClipEditor/CHANNELS",
+     "SpaceClipEditor/HUD",
+     "SpaceDopeSheetEditor/HUD",
+     "SpaceFileBrowser/EXECUTE",
+     "SpaceFileBrowser/TOOL_PROPS",
+     "SpaceGraphEditor/HUD",
+     "SpaceImageEditor/ASSET_SHELF",
+     "SpaceImageEditor/ASSET_SHELF_HEADER",
+     "SpaceImageEditor/HUD",
+     "SpaceNLA/HUD",
+     "SpaceNodeEditor/ASSET_SHELF",
+     "SpaceNodeEditor/ASSET_SHELF_HEADER",
+     "SpacePreferences/EXECUTE",
+     "SpaceSequenceEditor/CHANNELS",
+     "SpaceSequenceEditor/FOOTER",
+     "SpaceSequenceEditor/HUD",
+     "SpaceSequenceEditor/SCRUBBING",
+     "SpaceSequenceEditor/TOOLS",
+     "SpaceView3D/XR"
+    ],
+    "not_fired_but_instance_seen": [],
+    "context_mismatches": []
+   },
+   "fires_by_phase": {
+    "init": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "off": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_only_v3d_window": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all_but_v3d_window": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all_scissor_excl": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "uniform_all_scissor_excl_linfix": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "distinct": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "distinct_nocache": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/ASSET_SHELF@win0",
+     "SpaceView3D/ASSET_SHELF_HEADER@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HUD@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:IMAGE_EDITOR": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceImageEditor/HEADER@win0",
+     "SpaceImageEditor/TOOLS@win0",
+     "SpaceImageEditor/TOOL_HEADER@win0",
+     "SpaceImageEditor/UI@win0",
+     "SpaceImageEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:UV": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceImageEditor/HEADER@win0",
+     "SpaceImageEditor/TOOLS@win0",
+     "SpaceImageEditor/TOOL_HEADER@win0",
+     "SpaceImageEditor/UI@win0",
+     "SpaceImageEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:ShaderNodeTree": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceNodeEditor/HEADER@win0",
+     "SpaceNodeEditor/TOOLS@win0",
+     "SpaceNodeEditor/UI@win0",
+     "SpaceNodeEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:GeometryNodeTree": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceNodeEditor/HEADER@win0",
+     "SpaceNodeEditor/TOOLS@win0",
+     "SpaceNodeEditor/UI@win0",
+     "SpaceNodeEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:SEQUENCE_EDITOR:SEQUENCER_PREVIEW": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceSequenceEditor/HEADER@win0",
+     "SpaceSequenceEditor/PREVIEW@win0",
+     "SpaceSequenceEditor/TOOL_HEADER@win0",
+     "SpaceSequenceEditor/UI@win0",
+     "SpaceSequenceEditor/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:SEQUENCE_EDITOR:PREVIEW": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceSequenceEditor/HEADER@win0",
+     "SpaceSequenceEditor/PREVIEW@win0",
+     "SpaceSequenceEditor/TOOL_HEADER@win0",
+     "SpaceSequenceEditor/UI@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:CLIP_EDITOR": [
+     "SpaceClipEditor/HEADER@win0",
+     "SpaceClipEditor/TOOLS@win0",
+     "SpaceClipEditor/UI@win0",
+     "SpaceClipEditor/WINDOW@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:CLIP_EDITOR:GRAPH": [
+     "SpaceClipEditor/HEADER@win0",
+     "SpaceClipEditor/PREVIEW@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:DOPESHEET": [
+     "SpaceDopeSheetEditor/CHANNELS@win0",
+     "SpaceDopeSheetEditor/FOOTER@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/UI@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:TIMELINE": [
+     "SpaceDopeSheetEditor/CHANNELS@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:FCURVES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceGraphEditor/CHANNELS@win0",
+     "SpaceGraphEditor/FOOTER@win0",
+     "SpaceGraphEditor/HEADER@win0",
+     "SpaceGraphEditor/UI@win0",
+     "SpaceGraphEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:DRIVERS": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceGraphEditor/CHANNELS@win0",
+     "SpaceGraphEditor/HEADER@win0",
+     "SpaceGraphEditor/UI@win0",
+     "SpaceGraphEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:NLA_EDITOR": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceNLA/CHANNELS@win0",
+     "SpaceNLA/FOOTER@win0",
+     "SpaceNLA/HEADER@win0",
+     "SpaceNLA/UI@win0",
+     "SpaceNLA/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:FILES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceFileBrowser/HEADER@win0",
+     "SpaceFileBrowser/TOOLS@win0",
+     "SpaceFileBrowser/UI@win0",
+     "SpaceFileBrowser/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:ASSETS": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceFileBrowser/HEADER@win0",
+     "SpaceFileBrowser/TOOLS@win0",
+     "SpaceFileBrowser/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:PREFERENCES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpacePreferences/HEADER@win0",
+     "SpacePreferences/UI@win0",
+     "SpacePreferences/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:SPREADSHEET": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceSpreadsheet/FOOTER@win0",
+     "SpaceSpreadsheet/HEADER@win0",
+     "SpaceSpreadsheet/TOOLS@win0",
+     "SpaceSpreadsheet/UI@win0",
+     "SpaceSpreadsheet/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:TEXT_EDITOR": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceTextEditor/FOOTER@win0",
+     "SpaceTextEditor/HEADER@win0",
+     "SpaceTextEditor/UI@win0",
+     "SpaceTextEditor/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:CONSOLE": [
+     "SpaceConsole/HEADER@win0",
+     "SpaceConsole/WINDOW@win0",
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:INFO": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceInfo/HEADER@win0",
+     "SpaceInfo/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:OUTLINER": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "cycle:PROPERTIES": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "pc:topbar_left": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOL_HEADER@win0"
+    ],
+    "pc:v3d_header": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOL_HEADER@win0"
+    ],
+    "pc:view3d": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOL_HEADER@win0"
+    ],
+    "anim": [
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "pivot_op": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0"
+    ],
+    "pivot_rna": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ],
+    "mw_all": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ],
+    "mw_off": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ],
+    "mw_filter": [
+     "SpaceDopeSheetEditor/HEADER@win0",
+     "SpaceDopeSheetEditor/WINDOW@win0",
+     "SpaceOutliner/HEADER@win0",
+     "SpaceOutliner/WINDOW@win0",
+     "SpaceProperties/HEADER@win0",
+     "SpaceProperties/NAVIGATION_BAR@win0",
+     "SpaceProperties/WINDOW@win0",
+     "SpaceView3D/HEADER@win0",
+     "SpaceView3D/HEADER@win1",
+     "SpaceView3D/TOOLS@win0",
+     "SpaceView3D/TOOL_HEADER@win0",
+     "SpaceView3D/UI@win0",
+     "SpaceView3D/WINDOW@win0",
+     "SpaceView3D/WINDOW@win1"
+    ]
+   },
+   "fires_detail_distinct": [
+    {
+     "space": "SpaceProperties",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceProperties",
+     "xywh": [
+      1579,
+      875,
+      339,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceProperties",
+     "region": "NAVIGATION_BAR",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "ctx_region_type": "NAVIGATION_BAR",
+     "ctx_space": "SpaceProperties",
+     "xywh": [
+      1579,
+      23,
+      29,
+      852
+     ],
+     "viewport": [
+      0,
+      0,
+      29,
+      852
+     ],
+     "scissor": [
+      0,
+      0,
+      29,
+      852
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceProperties",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "PROPERTIES",
+     "ui_type": "PROPERTIES",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceProperties",
+     "xywh": [
+      1608,
+      23,
+      310,
+      852
+     ],
+     "viewport": [
+      0,
+      0,
+      310,
+      852
+     ],
+     "scissor": [
+      0,
+      0,
+      310,
+      852
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceOutliner",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "OUTLINER",
+     "ui_type": "OUTLINER",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceOutliner",
+     "xywh": [
+      1579,
+      1076,
+      339,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      339,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceOutliner",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "OUTLINER",
+     "ui_type": "OUTLINER",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceOutliner",
+     "xywh": [
+      1579,
+      904,
+      339,
+      172
+     ],
+     "viewport": [
+      0,
+      0,
+      339,
+      172
+     ],
+     "scissor": [
+      0,
+      0,
+      339,
+      172
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceDopeSheetEditor",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "DOPESHEET_EDITOR",
+     "ui_type": "TIMELINE",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceDopeSheetEditor",
+     "xywh": [
+      2,
+      75,
+      1574,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceDopeSheetEditor",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "DOPESHEET_EDITOR",
+     "ui_type": "TIMELINE",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceDopeSheetEditor",
+     "xywh": [
+      2,
+      23,
+      1574,
+      52
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      52
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      52
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "HEADER",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      1076,
+      1574,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "TOOL_HEADER",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "TOOL_HEADER",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      1050,
+      1574,
+      26
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      26
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "TOOLS",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "TOOLS",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      104,
+      56,
+      946
+     ],
+     "viewport": [
+      0,
+      0,
+      56,
+      946
+     ],
+     "scissor": [
+      0,
+      0,
+      56,
+      946
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "UI",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "UI",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      1296,
+      104,
+      280,
+      946
+     ],
+     "viewport": [
+      0,
+      0,
+      280,
+      946
+     ],
+     "scissor": [
+      0,
+      0,
+      280,
+      946
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    },
+    {
+     "space": "SpaceView3D",
+     "region": "WINDOW",
+     "count": 1,
+     "drawn": 1,
+     "win": 0,
+     "area_type": "VIEW_3D",
+     "ui_type": "VIEW_3D",
+     "ctx_region_type": "WINDOW",
+     "ctx_space": "SpaceView3D",
+     "xywh": [
+      2,
+      104,
+      1574,
+      998
+     ],
+     "viewport": [
+      0,
+      0,
+      1574,
+      998
+     ],
+     "scissor": [
+      0,
+      0,
+      1574,
+      998
+     ],
+     "region_in_area": true,
+     "area_in_window_screen": true
+    }
+   ]
+  }
+ },
+ "summary": {
+  "spike4_callbacks_fire_per_pair": "CORRECTED by verifier: 67/86 pairs fire on both backends, now including SpaceView3D/HUD. The probe's key events lacked x/y, so they landed on the status bar. The 19 unfired pairs never had a visible instance: the other 6 HUDs, XR, Image/Node ASSET_SHELF(_HEADER), FileBrowser TOOL_PROPS/EXECUTE, Preferences EXECUTE, Sequencer CHANNELS/FOOTER/SCRUBBING/TOOLS, Clip CHANNELS.",
+  "spike4_context_identifies_region": "YES: 0 mismatches; context.region.type == registered type, type(context.space_data) == registered Space, region in context.area.regions, area in context.window.screen.areas. Viewport is region-local (0,0,w,h).",
+  "spike4_overlap_double_blend": "YES: alpha 0.30 -> effective 0.34 (3D HEADER), 0.413 (TOOL_HEADER/TOOLS/UI). Scissor-excluding the overlapping region rects in the WINDOW callback gives 0.298-0.302 everywhere.",
+  "spike4_linear_blend_regions": "3D View WINDOW (0.15) and Image/UV WINDOW (0.143-0.145) blend in linear space; alpha pre-compensation a' = 1-(1-a)**2.2 restores 0.301 (3D View). All other measured regions ~0.29-0.30. Verifier V1: the Image WINDOW still reads 0.143 with UI/TOOLS hidden, and a' gives 0.304. OpenGL is identical.",
+  "spike4_multiwindow": "YES: handlers fire in every window; context.window is correct; filtering on context.window.as_pointer() -> 0.0 changed pixels in win1, 1.0 in win2. Verifier V5: on OpenGL, runs.OPENGL filter_changed_frac_win1=0.76 is a screenshot artefact (two identical win1 screenshots differ by 3.1%). Per-window draw counters show only the target window drew, on both backends.",
+  "spike5_draw_cursor_topbar_statusbar": "PARTIAL: fires for TOPBAR/HEADER and STATUSBAR/HEADER only while the mouse is over that region (the screen's active region), in window coordinates, scissored to that region, and underneath overlapping regions. CORRECTED by verifier V2: it also fires on any window redraw (tag_redraw of another area with no mouse motion), not only on mouse move. */WINDOW and EMPTY never fired.",
+  "spike6_global_areas": "screen.areas = PROPERTIES, OUTLINER, DOPESHEET_EDITOR, VIEW_3D (no TOPBAR/STATUSBAR). temp_override(area=<topbar>, region=HEADER) works, and area.spaces.active is the base Space. CORRECTED by verifier V3: the areas are also reachable as context.area of a keymap-invoked operator with the mouse over the bar (TOPBAR/HEADER, STATUSBAR/HEADER, not in screen.areas), so the plaza must handle being invoked there.",
+  "spike11_timers_redraw_cursor_warp": "YES: 12 timer ticks at 0.05 s -> 12 redraws, every animation value seen. cursor_warp updates Blender's event state exactly (the physical pointer can't be observed under event simulation or on Wayland).",
+  "spike12_backends": "CORRECTED by verifier: both backends work with identical results. The OpenGL hang was Mesa EGL on Wayland blocking in eglSwapBuffers; vblank_mode=0 fixes it (without it: exit 124 and Python never ran; with it: exit 0). run.sh sets it. OpenGL costs about 2x the CPU time per callback.",
+  "spike17_header_redraw_after_context_set_enum": "YES: 0 header draws idle; 1 after wm.context_set_enum('EXEC_DEFAULT', True, ...) (FINISHED, value read back CURSOR); 1 after a direct RNA set.",
+  "timing": "Per-callback CPU time on Vulkan: total 37-98 us median, draw part 11-58 us median (rect vs rect+outline+blf), worst case 0.8 ms on the first draw. Timing varies between runs. Verifier: n=12 per phase, Python CPU time only. The batch-cache saving is not reproducible (one re-run: cached 36.8 us vs uncached 32.8 us). OpenGL is about 2x Vulkan.",
+  "verifier_rule_fix": "The builder's run.sh let GUI Blender write ~/.config/blender/5.2/config/recent-searches.txt on quit. run.sh now sets BLENDER_USER_CONFIG to an existing temp dir, and ~/.config/blender stayed unchanged afterwards."
+ },
+ "verifier": {
+  "VULKAN": {
+   "backend": "VULKAN",
+   "V1_linear": {
+    "VIEW_3D/WINDOW centre": {
+     "rect": [
+      749,
+      563,
+      80,
+      80
+     ],
+     "a0.30": {
+      "alpha": 0.15,
+      "base_median": 113.0
+     },
+     "a0.30_linfix": {
+      "alpha": 0.301,
+      "base_median": 113.0
+     }
+    },
+    "IMAGE/WINDOW centre, UI+TOOLS shown (probe.py setup)": {
+     "rect": [
+      1733,
+      434,
+      30,
+      30
+     ],
+     "a0.30": {
+      "alpha": 0.143,
+      "base_median": 56.0
+     },
+     "a0.30_linfix": {
+      "alpha": 0.304,
+      "base_median": 56.0
+     }
+    },
+    "IMAGE/WINDOW centre, overlaps hidden": {
+     "rect": [
+      1733,
+      434,
+      30,
+      30
+     ],
+     "a0.30": {
+      "alpha": 0.143,
+      "base_median": 56.0
+     },
+     "a0.30_linfix": {
+      "alpha": 0.304,
+      "base_median": 56.0
+     }
+    },
+    "SEQ/PREVIEW centre": {
+     "rect": [
+      1733,
+      434,
+      30,
+      30
+     ],
+     "a0.30": {
+      "alpha": null,
+      "base_median": 0.0
+     },
+     "a0.30_linfix": {
+      "alpha": null,
+      "base_median": 0.0
+     }
+    }
+   },
+   "V1_image_regions_ui_on": [
+    [
+     "HEADER",
+     1579,
+     875,
+     339,
+     26
+    ],
+    [
+     "ASSET_SHELF",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "ASSET_SHELF_HEADER",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOL_HEADER",
+     1579,
+     874,
+     1,
+     1
+    ],
+    [
+     "UI",
+     1638,
+     23,
+     280,
+     852
+    ],
+    [
+     "TOOLS",
+     1579,
+     23,
+     56,
+     852
+    ],
+    [
+     "WINDOW",
+     1579,
+     23,
+     339,
+     852
+    ]
+   ],
+   "V1_image_regions_ui_off": [
+    [
+     "HEADER",
+     1579,
+     875,
+     339,
+     26
+    ],
+    [
+     "ASSET_SHELF",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "ASSET_SHELF_HEADER",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOL_HEADER",
+     1579,
+     874,
+     1,
+     1
+    ],
+    [
+     "UI",
+     1917,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOLS",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "WINDOW",
+     1579,
+     23,
+     339,
+     852
+    ]
+   ],
+   "V1_seq_regions": [
+    [
+     "HEADER",
+     1579,
+     875,
+     339,
+     26
+    ],
+    [
+     "TOOL_HEADER",
+     1579,
+     874,
+     1,
+     1
+    ],
+    [
+     "FOOTER",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "SCRUBBING",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "UI",
+     1917,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOLS",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "CHANNELS",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "PREVIEW",
+     1579,
+     23,
+     339,
+     852
+    ],
+    [
+     "WINDOW",
+     0,
+     0,
+     1,
+     1
+    ]
+   ],
+   "V2_cursor_on_tag_redraw": {
+    "topbar": {
+     "idle_0.5s": {
+      "TOPBAR/HEADER": 1
+     },
+     "after_tag_redraw_VIEW_3D": {
+      "TOPBAR/HEADER": 1
+     }
+    },
+    "statusbar": {
+     "idle_0.5s": {},
+     "after_tag_redraw_VIEW_3D": {
+      "STATUSBAR/HEADER": 1
+     }
+    },
+    "view3d": {
+     "idle_0.5s": {},
+     "after_tag_redraw_PROPERTIES": {
+      "VIEW_3D/WINDOW": 1
+     }
+    }
+   },
+   "V3_keymap_invoke_over_global_bars": {
+    "topbar": {
+     "area": "TOPBAR",
+     "region": "HEADER",
+     "area_in_screen_areas": false,
+     "area_xywh": [
+      0,
+      1101,
+      1920,
+      27
+     ],
+     "mouse": [
+      960,
+      1120
+     ]
+    },
+    "statusbar": {
+     "area": "STATUSBAR",
+     "region": "HEADER",
+     "area_in_screen_areas": false,
+     "area_xywh": [
+      0,
+      0,
+      1920,
+      23
+     ],
+     "mouse": [
+      960,
+      6
+     ]
+    },
+    "view3d": {
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "area_in_screen_areas": true,
+     "area_xywh": [
+      2,
+      104,
+      1574,
+      998
+     ],
+     "mouse": [
+      789,
+      603
+     ]
+    }
+   },
+   "V5_multiwindow": {
+    "window_new": [
+     "FINISHED"
+    ],
+    "target_win2": {
+     "drawn": {
+      "1": 1
+     },
+     "filtered": {
+      "0": 4
+     },
+     "changed_win1": 0.0,
+     "changed_win2": 0.9939,
+     "win1_centre_alpha": 0.0,
+     "win2_centre_alpha": 0.146
+    },
+    "target_win1": {
+     "drawn": {
+      "0": 4
+     },
+     "filtered": {
+      "1": 1
+     },
+     "changed_win1": 0.8651,
+     "changed_win2": 0.0,
+     "win1_centre_alpha": 0.159,
+     "win2_centre_alpha": 0.0
+    },
+    "win1_screenshot_repeatable": 0.0,
+    "sizes": [
+     [
+      1920,
+      1128
+     ],
+     [
+      1824,
+      1015
+     ]
+    ],
+    "window_close": [
+     "FINISHED"
+    ]
+   },
+   "V4_stale": {
+    "properties_window_alpha_on": 0.295,
+    "after_off_without_tag": 0.295,
+    "after_tag_redraw": 0.0
+   },
+   "finish_reason": "ok",
+   "errors": []
+  },
+  "OPENGL": {
+   "backend": "OPENGL",
+   "V1_linear": {
+    "VIEW_3D/WINDOW centre": {
+     "rect": [
+      749,
+      563,
+      80,
+      80
+     ],
+     "a0.30": {
+      "alpha": 0.15,
+      "base_median": 113.0
+     },
+     "a0.30_linfix": {
+      "alpha": 0.301,
+      "base_median": 113.0
+     }
+    },
+    "IMAGE/WINDOW centre, UI+TOOLS shown (probe.py setup)": {
+     "rect": [
+      1733,
+      434,
+      30,
+      30
+     ],
+     "a0.30": {
+      "alpha": 0.143,
+      "base_median": 56.0
+     },
+     "a0.30_linfix": {
+      "alpha": 0.304,
+      "base_median": 56.0
+     }
+    },
+    "IMAGE/WINDOW centre, overlaps hidden": {
+     "rect": [
+      1733,
+      434,
+      30,
+      30
+     ],
+     "a0.30": {
+      "alpha": 0.143,
+      "base_median": 56.0
+     },
+     "a0.30_linfix": {
+      "alpha": 0.304,
+      "base_median": 56.0
+     }
+    },
+    "SEQ/PREVIEW centre": {
+     "rect": [
+      1733,
+      434,
+      30,
+      30
+     ],
+     "a0.30": {
+      "alpha": null,
+      "base_median": 0.0
+     },
+     "a0.30_linfix": {
+      "alpha": null,
+      "base_median": 0.0
+     }
+    }
+   },
+   "V1_image_regions_ui_on": [
+    [
+     "HEADER",
+     1579,
+     875,
+     339,
+     26
+    ],
+    [
+     "ASSET_SHELF",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "ASSET_SHELF_HEADER",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOL_HEADER",
+     1579,
+     874,
+     1,
+     1
+    ],
+    [
+     "UI",
+     1638,
+     23,
+     280,
+     852
+    ],
+    [
+     "TOOLS",
+     1579,
+     23,
+     56,
+     852
+    ],
+    [
+     "WINDOW",
+     1579,
+     23,
+     339,
+     852
+    ]
+   ],
+   "V1_image_regions_ui_off": [
+    [
+     "HEADER",
+     1579,
+     875,
+     339,
+     26
+    ],
+    [
+     "ASSET_SHELF",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "ASSET_SHELF_HEADER",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOL_HEADER",
+     1579,
+     874,
+     1,
+     1
+    ],
+    [
+     "UI",
+     1917,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOLS",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "WINDOW",
+     1579,
+     23,
+     339,
+     852
+    ]
+   ],
+   "V1_seq_regions": [
+    [
+     "HEADER",
+     1579,
+     875,
+     339,
+     26
+    ],
+    [
+     "TOOL_HEADER",
+     1579,
+     874,
+     1,
+     1
+    ],
+    [
+     "FOOTER",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "SCRUBBING",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "UI",
+     1917,
+     23,
+     1,
+     1
+    ],
+    [
+     "TOOLS",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "CHANNELS",
+     1579,
+     23,
+     1,
+     1
+    ],
+    [
+     "PREVIEW",
+     1579,
+     23,
+     339,
+     852
+    ],
+    [
+     "WINDOW",
+     0,
+     0,
+     1,
+     1
+    ]
+   ],
+   "V2_cursor_on_tag_redraw": {
+    "topbar": {
+     "idle_0.5s": {
+      "TOPBAR/HEADER": 1
+     },
+     "after_tag_redraw_VIEW_3D": {
+      "TOPBAR/HEADER": 1
+     }
+    },
+    "statusbar": {
+     "idle_0.5s": {},
+     "after_tag_redraw_VIEW_3D": {
+      "STATUSBAR/HEADER": 1
+     }
+    },
+    "view3d": {
+     "idle_0.5s": {},
+     "after_tag_redraw_PROPERTIES": {
+      "VIEW_3D/WINDOW": 1
+     }
+    }
+   },
+   "V3_keymap_invoke_over_global_bars": {
+    "topbar": {
+     "area": "TOPBAR",
+     "region": "HEADER",
+     "area_in_screen_areas": false,
+     "area_xywh": [
+      0,
+      1101,
+      1920,
+      27
+     ],
+     "mouse": [
+      960,
+      1120
+     ]
+    },
+    "statusbar": {
+     "area": "STATUSBAR",
+     "region": "HEADER",
+     "area_in_screen_areas": false,
+     "area_xywh": [
+      0,
+      0,
+      1920,
+      23
+     ],
+     "mouse": [
+      960,
+      6
+     ]
+    },
+    "view3d": {
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "area_in_screen_areas": true,
+     "area_xywh": [
+      2,
+      104,
+      1574,
+      998
+     ],
+     "mouse": [
+      789,
+      603
+     ]
+    }
+   },
+   "V5_multiwindow": {
+    "window_new": [
+     "FINISHED"
+    ],
+    "target_win2": {
+     "drawn": {
+      "1": 1
+     },
+     "filtered": {
+      "0": 4
+     },
+     "changed_win1": 0.031,
+     "changed_win2": 0.9939,
+     "win1_centre_alpha": 0.0,
+     "win2_centre_alpha": 0.146
+    },
+    "target_win1": {
+     "drawn": {
+      "0": 4
+     },
+     "filtered": {
+      "1": 1
+     },
+     "changed_win1": 0.8952,
+     "changed_win2": 0.0,
+     "win1_centre_alpha": 0.159,
+     "win2_centre_alpha": 0.0
+    },
+    "win1_screenshot_repeatable": 0.031,
+    "sizes": [
+     [
+      1920,
+      1128
+     ],
+     [
+      1824,
+      1015
+     ]
+    ],
+    "window_close": [
+     "FINISHED"
+    ]
+   },
+   "V4_stale": {
+    "properties_window_alpha_on": 0.295,
+    "after_off_without_tag": 0.295,
+    "after_tag_redraw": 0.0
+   },
+   "finish_reason": "ok",
+   "errors": []
+  }
+ }
+}

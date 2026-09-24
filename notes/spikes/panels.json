@@ -1,0 +1,1180 @@
+{
+ "meta": {
+  "blender": "5.2.2 LTS",
+  "window": {
+   "size": [
+    2560,
+    1537
+   ],
+   "areas": [
+    [
+     "PROPERTIES",
+     2105,
+     23,
+     453,
+     1212
+    ],
+    [
+     "OUTLINER",
+     2105,
+     1238,
+     453,
+     273
+    ],
+    [
+     "TIMELINE",
+     2,
+     23,
+     2100,
+     108
+    ],
+    [
+     "VIEW_3D",
+     2,
+     134,
+     2100,
+     1377
+    ]
+   ]
+  },
+  "elapsed_s": 79.28,
+  "errors": [],
+  "probe": "tools/spikes/panels/probe.py",
+  "runner": "tools/spikes/panels/run.sh --nested (private kwin_wayland --virtual; host KDE session was locked). Spike 13 was also run on the host display before the lock: same results.",
+  "raw": "tools/spikes/panels/out/results.json",
+  "verifier": "tools/spikes/panels/verify_probe.py -> tools/spikes/panels/out/verify_results.json (PANELS_PROBE=... run.sh --nested); errors []"
+ },
+ "harness_facts": [
+  "A locked host KDE Wayland session (loginctl LockedHint=yes) makes GUI Blender hang before --python runs; a nested `kwin_wayland --virtual --no-lockscreen` works (run.sh --nested).",
+  "Simulated KEYBOARD events (N, Tab, Shift+Tab, Ctrl+Z) are ignored by keymaps until the first simulated LEFTMOUSE press in the window; popup ESC handling works without it. probe.py clicks the cube first. Verifier re-check (after a 3 s start-up wait, so not a readiness race): {'show_region_ui_start': False, 'after_N_no_click': False, 'after_N_after_MMB': False, 'after_N_after_LMB': True, 'after_2nd_N_after_LMB': False}",
+  "Window.event_simulate defaults x=y=0: always pass the cursor position for key events.",
+  "WindowManager.print_undo_steps() prints via C stdout; capture it with os.dup2 + libc fflush. Line format: \"[* M ]   3 {0x...} type='Global Undo', name='Context Toggle'\" ('*' = active).",
+  "UILayout.introspect() works on the live header layout from a draw function appended to VIEW3D_HT_header; button leaves carry 'rna' ('Struct.prop[i]') or 'operator' ('bpy.ops.x.y(args)'); popovers (type 18) carry no panel name."
+ ],
+ "spike13_call_panel": {
+  "question": "Does wm.call_panel(name=P, keep_open=True) open HEADER, TOPBAR (TOOL_HEADER) and TIME_PT_* panels after the plaza modal ends, from the end of modal() and from a timer?",
+  "answer": "YES (14/14)",
+  "evidence": [
+   {
+    "panel": "VIEW3D_PT_snapping",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "modal",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2088,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "VIEW3D_PT_snapping",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "timer",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2088,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "VIEW3D_PT_proportional_edit",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "modal",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1377,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "VIEW3D_PT_proportional_edit",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "timer",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1377,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "VIEW3D_PT_transform_orientations",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "modal",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1251,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "VIEW3D_PT_transform_orientations",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "timer",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1251,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "TIMELINE",
+    "mode": "OBJECT",
+    "site": "modal",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.3722,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "TIMELINE",
+    "mode": "OBJECT",
+    "site": "timer",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.3722,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "TIME_PT_auto_keyframing",
+    "area": "TIMELINE",
+    "mode": "OBJECT",
+    "site": "modal",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.057,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "TIME_PT_auto_keyframing",
+    "area": "TIMELINE",
+    "mode": "OBJECT",
+    "site": "timer",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.057,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "modal",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2857,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "VIEW_3D",
+    "mode": "OBJECT",
+    "site": "timer",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2857,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "VIEW3D_PT_sculpt_symmetry_for_topbar",
+    "area": "VIEW_3D",
+    "mode": "SCULPT",
+    "site": "modal",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "SCULPT"
+    },
+    "pix_diff_open": 0.3111,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0062,
+    "opened": true,
+    "closed_by_esc": true
+   },
+   {
+    "panel": "VIEW3D_PT_sculpt_symmetry_for_topbar",
+    "area": "VIEW_3D",
+    "mode": "SCULPT",
+    "site": "timer",
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "SCULPT"
+    },
+    "pix_diff_open": 0.3111,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0062,
+    "opened": true,
+    "closed_by_esc": true
+   }
+  ],
+  "notes": [
+   "call_panel returns {'INTERFACE'} in every case; the appended probe draw runs with is_popover=True, context.area = the invoking area, region WINDOW; screenshot diff around the cursor 0.06-0.37 while open, 0.00-0.006 after ESC (no further draws).",
+   "TIME_PT_playback (DOPESHEET_EDITOR/HEADER) also opens when called from the 3D View.",
+   "VIEW3D_PT_sculpt_symmetry_for_topbar (bl_space_type TOPBAR) opens from the 3D View in SCULPT."
+  ],
+  "recommendation": "Hand off with bpy.ops.wm.call_panel(name=P, keep_open=True) as the last thing in modal() (after removing the draw handler, before returning FINISHED); the timer path under temp_override(window, area, region=WINDOW) is an equivalent fallback. Call it from the area the plaza was invoked in; the popover opens at the cursor."
+ },
+ "spike14_undo": {
+  "questions": {
+   "Q1": "Does Ctrl+Z restore tool-settings values changed via context_*('EXEC_DEFAULT', True) and toggle_flag?",
+   "Q2": "Is the undo push suppressed when the call is made during a modal / when the modal has UNDO?"
+  },
+  "answers": {
+   "Q1": "NO: an undo step IS pushed ('Context Set Enum' / 'Context Toggle' / 'Probe Toggle Flag') and Ctrl+Z / ed.undo() move the undo pointer, but the tested ToolSettings values (pivot, use_snap, snap_elements_base, proportional_distance, use_proportional_edit_objects) are not restored, in OBJECT and (verifier) EDIT_MESH. Exception (verifier): tool_settings.mesh_select_mode IS restored by edit-mesh undo after mesh.select_mode('EXEC_DEFAULT', True). The native Shift+Tab keymap (wm.context_toggle tool_settings.use_snap) behaves identically (A5). Scene-owned scene.transform_orientation_slots[0].type IS restored (A6), and so is Object-owned data changed the same way (B1-B3). The Tool Settings row is therefore mixed: orientation undoes, pivot/snap/proportional do not.",
+   "Q2": "Only when the running modal op itself has the UNDO flag: then the inner step is suppressed and the modal's own step replaces it on FINISHED (C4), or NO step at all on CANCELLED (C5). A modal without UNDO suppresses nothing, neither inside modal() (C1-C3) nor from a timer while it runs (C6). A timer call while an UNDO modal runs pushes its step plus an extra no-op modal step (C7).",
+   "positional_undo_flag": "Required: without ('EXEC_DEFAULT', True), or with direct RNA assignment, no step is pushed and the next undo also reverts the previous step (B4-B6)."
+  },
+  "method": "Before each case a marker step (wm.context_set_int scene.render.resolution_percentage) is pushed. 'step_pushed' = the active undo step address changed; 'marker_kept' = one undo left the marker value alone (so it undid exactly the tested step).",
+  "evidence": [
+   {
+    "case": "A1 pivot context_set_enum(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": "MEDIAN_POINT",
+    "changed": "CURSOR",
+    "after_undo": "CURSOR",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "pushed_while_modal": null,
+    "value_reverted": false,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "A2 pivot context_set_enum(EXEC,True) / ed.undo()",
+    "site": "timer",
+    "undo_method": "ed_undo",
+    "ret": "{'FINISHED'}",
+    "base": "CURSOR",
+    "changed": "MEDIAN_POINT",
+    "after_undo": "MEDIAN_POINT",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "pushed_while_modal": null,
+    "value_reverted": false,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "A3 use_snap context_toggle(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": true,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "pushed_while_modal": null,
+    "value_reverted": false,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "A4 snap_elements_base toggle_flag(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": [
+     "INCREMENT"
+    ],
+    "changed": [
+     "INCREMENT",
+     "VERTEX"
+    ],
+    "after_undo": [
+     "INCREMENT",
+     "VERTEX"
+    ],
+    "step_pushed": true,
+    "pushed_step_name": "Probe Toggle Flag",
+    "pushed_while_modal": null,
+    "value_reverted": false,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "A5 NATIVE Shift+Tab (use_snap) / Ctrl+Z",
+    "site": "native_key",
+    "undo_method": "ctrl_z",
+    "ret": "event_simulate Shift+Tab (keymap wm.context_toggle tool_settings.use_snap)",
+    "base": true,
+    "changed": false,
+    "after_undo": false,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "pushed_while_modal": null,
+    "value_reverted": false,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "A6 orientation slot[0] context_set_enum(EXEC,True) / Ctrl+Z (Scene-owned, not ToolSettings)",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": "GLOBAL",
+    "changed": "LOCAL",
+    "after_undo": "GLOBAL",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "B1 object.hide_render context_toggle(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "B2 object.hide_render context_toggle(EXEC,True) / ed.undo()",
+    "site": "timer",
+    "undo_method": "ed_undo",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "B3 decimate.delimit toggle_flag(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": [],
+    "changed": [
+     "SEAM"
+    ],
+    "after_undo": [],
+    "step_pushed": true,
+    "pushed_step_name": "Probe Toggle Flag",
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "B4 object.hide_render context_toggle() NO undo arg / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": false,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "B5 decimate.delimit toggle_flag() NO undo arg / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": [],
+    "changed": [
+     "SEAM"
+    ],
+    "after_undo": [],
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": false,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "B6 object.hide_render direct RNA assignment / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "ret": "'assigned'",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": false,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "C1 hide_render in modal() of op WITHOUT UNDO, FINISHED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "C2 decimate.delimit toggle_flag in modal() of op WITHOUT UNDO",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": [],
+    "changed": [
+     "SEAM"
+    ],
+    "after_undo": [],
+    "step_pushed": true,
+    "pushed_step_name": "Probe Toggle Flag",
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "C3 pivot in modal() of op WITHOUT UNDO, FINISHED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": "MEDIAN_POINT",
+    "changed": "CURSOR",
+    "after_undo": "CURSOR",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "pushed_while_modal": null,
+    "value_reverted": false,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "C4 hide_render in modal() of op WITH UNDO, FINISHED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": true,
+    "pushed_step_name": "Probe Modal Undo",
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "C5 hide_render in modal() of op WITH UNDO, CANCELLED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "pushed_while_modal": null,
+    "value_reverted": true,
+    "marker_kept": false,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "C6 hide_render from timer WHILE op WITHOUT UNDO is modal",
+    "site": "timer_while_modal",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": false,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "pushed_while_modal": true,
+    "value_reverted": true,
+    "marker_kept": true,
+    "active_after_undo": "Context Set"
+   },
+   {
+    "case": "C7 hide_render from timer WHILE op WITH UNDO is modal",
+    "site": "timer_while_modal",
+    "undo_method": "ctrl_z",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": true,
+    "step_pushed": true,
+    "pushed_step_name": "Probe Modal Undo",
+    "pushed_while_modal": true,
+    "value_reverted": false,
+    "marker_kept": true,
+    "active_after_undo": "Context Toggle"
+   }
+  ],
+  "extra_evidence_undo_explore": "Separate GUI run with bpy.ops.ed.undo() after one EXEC_DEFAULT,True op each: restored scene.render.resolution_percentage, object.hide_render, scene.frame_current; NOT restored tool_settings.transform_pivot_point, use_snap, proportional_distance.",
+  "verifier_evidence": [
+   {
+    "case": "OBJECT proportional_distance context_set_float",
+    "mode_before": "OBJECT",
+    "mode_after": "OBJECT",
+    "ret": "{'FINISHED'}",
+    "base": 1.0,
+    "changed": 3.5,
+    "after_undo": 3.5,
+    "undo": "{'FINISHED'}",
+    "reverted": false
+   },
+   {
+    "case": "OBJECT use_proportional_edit_objects context_toggle",
+    "mode_before": "OBJECT",
+    "mode_after": "OBJECT",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": true,
+    "undo": "{'FINISHED'}",
+    "reverted": false
+   },
+   {
+    "case": "EDIT use_snap context_toggle",
+    "mode_before": "EDIT_MESH",
+    "mode_after": "EDIT_MESH",
+    "ret": "{'FINISHED'}",
+    "base": false,
+    "changed": true,
+    "after_undo": true,
+    "undo": "{'FINISHED'}",
+    "reverted": false
+   },
+   {
+    "case": "EDIT pivot context_set_enum",
+    "mode_before": "EDIT_MESH",
+    "mode_after": "EDIT_MESH",
+    "ret": "{'FINISHED'}",
+    "base": "MEDIAN_POINT",
+    "changed": "ACTIVE_ELEMENT",
+    "after_undo": "ACTIVE_ELEMENT",
+    "undo": "{'FINISHED'}",
+    "reverted": false
+   },
+   {
+    "case": "EDIT mesh.select_mode('EXEC_DEFAULT', True, type='EDGE')",
+    "mode_before": "EDIT_MESH",
+    "mode_after": "EDIT_MESH",
+    "ret": "{'FINISHED'}",
+    "base": [
+     true,
+     false,
+     false
+    ],
+    "changed": [
+     false,
+     true,
+     false
+    ],
+    "after_undo": [
+     true,
+     false,
+     false
+    ],
+    "undo": "{'FINISHED'}",
+    "reverted": true
+   }
+  ],
+  "recommendation": "Keep the plan: the plaza operator has NO UNDO flag; run actions at the end of modal() or from a timer (both push normal steps); always pass ('EXEC_DEFAULT', True). For ToolSettings-owned paths (pivot, snap, snap elements, proportional) accept native parity: a step is pushed but undo does not revert it (orientation slots do revert, A6). Do not build a custom tool-settings undo. The Phase 3 acceptance line 'undo with Ctrl+Z' must be changed to 'matches the native header/keymap (Ctrl+Z does not revert tool settings)'. MESO_OT_toggle_flag works as designed and is undoable for ID-owned flags (modifier delimit)."
+ },
+ "spike15_template_header_3D_mode": {
+  "question": "What does template_header_3D_mode draw in PAINT_WEIGHT / PAINT_VERTEX / PAINT_TEXTURE (and EDIT_MESH)?",
+  "answer": "YES, observable with introspect() on a live header: EDIT_MESH = 3 mesh.select_mode operator buttons; PAINT_TEXTURE = use_paint_mask; PAINT_VERTEX = use_paint_mask + use_paint_mask_vertex; PAINT_WEIGHT = those two + use_paint_bone_selection only while a deforming armature (Armature modifier) is in POSE mode. CORRECTED by verifier: the earlier 'armature in OBJECT mode too' control was confounded - entering weight paint auto-enters POSE on a SELECTED deforming armature (_modes_wp_arm_selected: Armature POSE). With the armature deselected it stays in OBJECT mode and bone selection is NOT drawn (WEIGHT_PAINT+armature_in_OBJECT_mode).",
+  "evidence": {
+   "_mode_set": {
+    "EDIT": "{'FINISHED'}",
+    "WEIGHT_PAINT": "{'FINISHED'}",
+    "VERTEX_PAINT": "{'FINISHED'}",
+    "TEXTURE_PAINT": "{'FINISHED'}"
+   },
+   "EDIT": {
+    "mode": "EDIT_MESH",
+    "template_header_3D_mode": [
+     "op:bpy.ops.mesh.select_mode(type='VERT')",
+     "op:bpy.ops.mesh.select_mode(type='EDGE')",
+     "op:bpy.ops.mesh.select_mode(type='FACE')"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Edit Mode'",
+     "op:bpy.ops.mesh.select_mode(type='VERT')",
+     "op:bpy.ops.mesh.select_mode(type='EDGE')",
+     "op:bpy.ops.mesh.select_mode(type='FACE')",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Add'",
+     "btn24:'Mesh'",
+     "btn24:'Vertex'",
+     "btn24:'Edge'",
+     "btn24:'Face'",
+     "btn24:'UV'"
+    ]
+   },
+   "WEIGHT_PAINT": {
+    "mode": "PAINT_WEIGHT",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ]
+   },
+   "WEIGHT_PAINT+use_paint_mask": {
+    "mode": "PAINT_WEIGHT",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Weights'"
+    ]
+   },
+   "VERTEX_PAINT": {
+    "mode": "PAINT_VERTEX",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Vertex Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Paint'"
+    ]
+   },
+   "VERTEX_PAINT+use_paint_mask": {
+    "mode": "PAINT_VERTEX",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Vertex Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Paint'"
+    ]
+   },
+   "TEXTURE_PAINT": {
+    "mode": "PAINT_TEXTURE",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Texture Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "btn24:'View'"
+    ]
+   },
+   "TEXTURE_PAINT+use_paint_mask": {
+    "mode": "PAINT_TEXTURE",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Texture Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "btn24:'View'",
+     "btn24:'Select'"
+    ]
+   },
+   "_wp_arm_selected": "{'FINISHED'}",
+   "_modes_wp_arm_selected": {
+    "Armature": "POSE",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "WEIGHT_PAINT+armature_selected": {
+    "mode": "PAINT_WEIGHT",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ]
+   },
+   "_wp_arm_object_mode": "{'FINISHED'}",
+   "_modes_wp_arm_object_mode": {
+    "Armature": "OBJECT",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "WEIGHT_PAINT+armature_in_OBJECT_mode": {
+    "mode": "PAINT_WEIGHT",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ]
+   },
+   "_arm_pose": "{'FINISHED'}",
+   "_wp_with_pose": "{'FINISHED'}",
+   "_modes": {
+    "Armature": "POSE",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "WEIGHT_PAINT+pose_armature": {
+    "mode": "PAINT_WEIGHT",
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ],
+    "header_left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ]
+   },
+   "_modes_after": {
+    "Armature": "OBJECT",
+    "Camera": "OBJECT",
+    "Cube": "OBJECT",
+    "Light": "OBJECT"
+   }
+  },
+  "verifier_evidence": {
+   "selected_before_wp_a": [
+    "Armature"
+   ],
+   "wp_a": "{'FINISHED'}",
+   "a_modes_at_capture": {
+    "Armature": "POSE",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "a_template_mesh_props": [
+    "use_paint_bone_selection",
+    "use_paint_mask",
+    "use_paint_mask_vertex"
+   ],
+   "wp_b": "{'FINISHED'}",
+   "selected_b": [
+    "Cube"
+   ],
+   "b_modes_at_capture": {
+    "Armature": "OBJECT",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "b_template_mesh_props": [
+    "use_paint_mask",
+    "use_paint_mask_vertex"
+   ]
+  },
+  "recommendation": "Hand-build the replacement from object.data: TEXTURE -> [use_paint_mask]; VERTEX -> [use_paint_mask, use_paint_mask_vertex]; WEIGHT -> same + use_paint_bone_selection when an ARMATURE modifier's object is in POSE mode (CORRECTED by verifier; the C template uses the pose-mode armature check). They are Mesh-owned, so wm.context_toggle('EXEC_DEFAULT', True, data_path='object.data.use_paint_mask') is undoable. EDIT_MESH select mode should run the operator mesh.select_mode(type=VERT|EDGE|FACE) like the native button, with check state from tool_settings.mesh_select_mode."
+ },
+ "spike16_tool_dependent": {
+  "question": "Do the GP guide controls appear in VIEW3D_HT_header only with the Draw tool (builtin_brush.Draw)?",
+  "answer": "NO: the guide branch (space_view3d.py:945-957) is dead code in 5.2.2. The PAINT_GREASE_PENCIL draw tool is 'builtin.brush'. 'builtin_brush.Draw' is not in the tool list, and wm.tool_set_by_id(name='builtin_brush.Draw') returns CANCELLED (wm.py:2396 'Tool ... not found'). use_guide never appears with any tool tried.",
+  "gp_setup": {
+   "grease_pencil_add": "{'FINISHED'}",
+   "object": [
+    "Stroke",
+    "GREASEPENCIL"
+   ],
+   "mode_set": "{'FINISHED'}",
+   "initial_tool": "builtin.brush"
+  },
+  "available_tool_ids": [
+   "builtin.cursor",
+   "builtin.brush",
+   "builtin_brush.Erase",
+   "builtin_brush.Fill",
+   "builtin.box",
+   "builtin.circle",
+   "builtin.line",
+   "builtin.polyline",
+   "builtin.arc",
+   "builtin.curve",
+   "builtin.trim",
+   "builtin.eyedropper",
+   "builtin.interpolate"
+  ],
+  "per_tool": {
+   "<initial:builtin.brush>": {
+    "tool_set_by_id": null,
+    "active_tool_after": null,
+    "guide_in_header": false,
+    "header_centre": [
+     "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+     "rna:GPencilSculptSettings.lock_axis[0]",
+     "btn18:'Lines'"
+    ],
+    "tool_header": null
+   },
+   "builtin_brush.Draw": {
+    "tool_set_by_id": "{'CANCELLED'}",
+    "active_tool_after": "builtin.brush",
+    "guide_in_header": false,
+    "header_centre": [
+     "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+     "rna:GPencilSculptSettings.lock_axis[0]",
+     "btn18:'Lines'"
+    ],
+    "tool_header": [
+     "btn18:'Pencil'",
+     "btn18:'Black'",
+     "rna:BrushGpencilSettings.use_material_pin[0]",
+     "btn44",
+     "rna:GpPaint.color_mode[0]",
+     "rna:GpPaint.color_mode[0]",
+     "rna:BrushGpencilSettings.pin_draw_mode[0]",
+     "rna:Brush.unprojected_size[0]",
+     "rna:Brush.use_pressure_size[0]",
+     "rna:Brush.strength[0]",
+     "rna:Brush.use_pressure_strength[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.caps_type[0]",
+     "rna:BrushGpencilSettings.caps_type[0]",
+     "btn18:'Advanced'",
+     "btn18:'Stroke'",
+     "btn18:'Cursor'",
+     "btn46",
+     "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+     "rna:ToolSettings.use_gpencil_draw_additive[0]",
+     "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+     "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+     "rna:ToolSettings.use_gpencil_draw_onback[0]"
+    ]
+   },
+   "builtin.brush": {
+    "tool_set_by_id": "{'FINISHED'}",
+    "active_tool_after": "builtin.brush",
+    "guide_in_header": false,
+    "header_centre": [
+     "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+     "rna:GPencilSculptSettings.lock_axis[0]",
+     "btn18:'Lines'"
+    ],
+    "tool_header": [
+     "btn18:'Pencil'",
+     "btn18:'Black'",
+     "rna:BrushGpencilSettings.use_material_pin[0]",
+     "btn44",
+     "rna:GpPaint.color_mode[0]",
+     "rna:GpPaint.color_mode[0]",
+     "rna:BrushGpencilSettings.pin_draw_mode[0]",
+     "rna:Brush.unprojected_size[0]",
+     "rna:Brush.use_pressure_size[0]",
+     "rna:Brush.strength[0]",
+     "rna:Brush.use_pressure_strength[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.caps_type[0]",
+     "rna:BrushGpencilSettings.caps_type[0]",
+     "btn18:'Advanced'",
+     "btn18:'Stroke'",
+     "btn18:'Cursor'",
+     "btn46",
+     "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+     "rna:ToolSettings.use_gpencil_draw_additive[0]",
+     "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+     "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+     "rna:ToolSettings.use_gpencil_draw_onback[0]"
+    ]
+   },
+   "builtin_brush.Erase": {
+    "tool_set_by_id": "{'FINISHED'}",
+    "active_tool_after": "builtin_brush.Erase",
+    "guide_in_header": false,
+    "header_centre": [
+     "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+     "rna:GPencilSculptSettings.lock_axis[0]",
+     "btn18:'Lines'"
+    ],
+    "tool_header": [
+     "btn18:'Eraser Hard'",
+     "rna:Brush.size[0]",
+     "rna:Brush.use_pressure_size[0]",
+     "rna:Brush.strength[0]",
+     "rna:Brush.use_pressure_strength[0]",
+     "rna:BrushGpencilSettings.eraser_mode[0]",
+     "rna:BrushGpencilSettings.eraser_mode[0]",
+     "rna:BrushGpencilSettings.eraser_mode[0]",
+     "rna:BrushGpencilSettings.use_active_layer_only[0]",
+     "rna:BrushGpencilSettings.use_keep_caps_eraser[0]",
+     "btn18:'Cursor'",
+     "btn46",
+     "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+     "rna:ToolSettings.use_gpencil_draw_additive[0]",
+     "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+     "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+     "rna:ToolSettings.use_gpencil_draw_onback[0]"
+    ]
+   },
+   "builtin_brush.Fill": {
+    "tool_set_by_id": "{'FINISHED'}",
+    "active_tool_after": "builtin_brush.Fill",
+    "guide_in_header": false,
+    "header_centre": [
+     "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+     "rna:GPencilSculptSettings.lock_axis[0]",
+     "btn18:'Lines'"
+    ],
+    "tool_header": [
+     "btn18:'Fill'",
+     "btn18:'Black'",
+     "rna:BrushGpencilSettings.use_material_pin[0]",
+     "btn44",
+     "rna:GpPaint.color_mode[0]",
+     "rna:GpPaint.color_mode[0]",
+     "rna:BrushGpencilSettings.pin_draw_mode[0]",
+     "rna:BrushGpencilSettings.fill_direction[0]",
+     "rna:BrushGpencilSettings.fill_direction[0]",
+     "rna:Brush.unprojected_size[0]",
+     "btn18:'Advanced'",
+     "btn18:'Cursor'",
+     "btn46",
+     "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+     "rna:ToolSettings.use_gpencil_draw_additive[0]",
+     "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+     "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+     "rna:ToolSettings.use_gpencil_draw_onback[0]"
+    ]
+   },
+   "builtin.line": {
+    "tool_set_by_id": "{'FINISHED'}",
+    "active_tool_after": "builtin.line",
+    "guide_in_header": false,
+    "header_centre": [
+     "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+     "rna:GPencilSculptSettings.lock_axis[0]",
+     "btn18:'Lines'"
+    ],
+    "tool_header": [
+     "btn18:'Pencil'",
+     "btn18:'Black'",
+     "rna:BrushGpencilSettings.use_material_pin[0]",
+     "btn44",
+     "rna:GpPaint.color_mode[0]",
+     "rna:GpPaint.color_mode[0]",
+     "rna:BrushGpencilSettings.pin_draw_mode[0]",
+     "rna:Brush.unprojected_size[0]",
+     "rna:Brush.use_pressure_size[0]",
+     "rna:Brush.strength[0]",
+     "rna:Brush.use_pressure_strength[0]",
+     "rna:GREASE_PENCIL_OT_primitive_line.subdivision[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.stroke_type[0]",
+     "rna:BrushGpencilSettings.caps_type[0]",
+     "rna:BrushGpencilSettings.caps_type[0]",
+     "rna:GPencilSculptSettings.use_thickness_curve[0]",
+     "btn18:'Thickness Profile'",
+     "btn46",
+     "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+     "rna:ToolSettings.use_gpencil_draw_additive[0]",
+     "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+     "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+     "rna:ToolSettings.use_gpencil_draw_onback[0]"
+    ]
+   },
+   "builtin.cursor": {
+    "tool_set_by_id": "{'FINISHED'}",
+    "active_tool_after": "builtin.cursor",
+    "guide_in_header": false,
+    "header_centre": [
+     "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+     "rna:GPencilSculptSettings.lock_axis[0]",
+     "btn18:'Lines'"
+    ],
+    "tool_header": [
+     "rna:VIEW3D_OT_cursor3d.use_depth[0]",
+     "btn21:'Orientation:'",
+     "rna:VIEW3D_OT_cursor3d.orientation[0]",
+     "btn46",
+     "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+     "rna:ToolSettings.use_gpencil_draw_additive[0]",
+     "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+     "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+     "rna:ToolSettings.use_gpencil_draw_onback[0]"
+    ]
+   }
+  },
+  "recommendation": "Add the GP guide to the 'dead code, do not offer' list. The PAINT_GREASE_PENCIL HEADER centre is tool-independent (placement, lock_axis, layers popover). The tool-dependent part is TOOL_HEADER: per-tool draw_settings with Brush / BrushGpencilSettings / operator properties, e.g. GREASE_PENCIL_OT_primitive_line.subdivision or VIEW3D_OT_cursor3d.*. Those owners are Brush (no undo) or OperatorProperties, so keep them out of the Tool Settings row (native handoff only). The 5 ToolSettings mode toggles (multi-frame, additive, automerge, weight_data_add, onback) are constant across tools."
+ }
+}

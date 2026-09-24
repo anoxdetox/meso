@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+dist/
+*.zip
+*.blend1
+*.blend[1-9]
+.blender_ext/
+/docs/blender_python_reference_5_2/
+.venv/
+.vscode/
+.idea/

@@ -1,0 +1,1858 @@
+{
+ "blender": "5.2.2 LTS",
+ "args": [
+  "13",
+  "14",
+  "15",
+  "16"
+ ],
+ "spikes": {
+  "13": [
+   {
+    "panel": "VIEW3D_PT_snapping",
+    "area": "VIEW_3D",
+    "site": "modal",
+    "draws_before": 0,
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'INTERFACE'}",
+    "modal_still_running": false,
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2088,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "VIEW3D_PT_snapping",
+    "area": "VIEW_3D",
+    "site": "timer",
+    "draws_before": 0,
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2088,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "VIEW3D_PT_proportional_edit",
+    "area": "VIEW_3D",
+    "site": "modal",
+    "draws_before": 0,
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'INTERFACE'}",
+    "modal_still_running": false,
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1377,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "VIEW3D_PT_proportional_edit",
+    "area": "VIEW_3D",
+    "site": "timer",
+    "draws_before": 0,
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1377,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "VIEW3D_PT_transform_orientations",
+    "area": "VIEW_3D",
+    "site": "modal",
+    "draws_before": 0,
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'INTERFACE'}",
+    "modal_still_running": false,
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1251,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "VIEW3D_PT_transform_orientations",
+    "area": "VIEW_3D",
+    "site": "timer",
+    "draws_before": 0,
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.1251,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "TIMELINE",
+    "site": "modal",
+    "draws_before": 0,
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'INTERFACE'}",
+    "modal_still_running": false,
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.3722,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "TIMELINE",
+    "site": "timer",
+    "draws_before": 0,
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.3722,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "TIME_PT_auto_keyframing",
+    "area": "TIMELINE",
+    "site": "modal",
+    "draws_before": 0,
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'INTERFACE'}",
+    "modal_still_running": false,
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.057,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "TIME_PT_auto_keyframing",
+    "area": "TIMELINE",
+    "site": "timer",
+    "draws_before": 0,
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "DOPESHEET_EDITOR",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.057,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "VIEW_3D",
+    "site": "modal",
+    "draws_before": 0,
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'INTERFACE'}",
+    "modal_still_running": false,
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2857,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "TIME_PT_playback",
+    "area": "VIEW_3D",
+    "site": "timer",
+    "draws_before": 0,
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "OBJECT"
+    },
+    "pix_diff_open": 0.2857,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "OBJECT",
+    "mode_set": "noop"
+   },
+   {
+    "panel": "VIEW3D_PT_sculpt_symmetry_for_topbar",
+    "area": "VIEW_3D",
+    "site": "modal",
+    "draws_before": 0,
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'INTERFACE'}",
+    "modal_still_running": false,
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "SCULPT"
+    },
+    "pix_diff_open": 0.3111,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0062,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "SCULPT",
+    "mode_set": "{'FINISHED'}"
+   },
+   {
+    "panel": "VIEW3D_PT_sculpt_symmetry_for_topbar",
+    "area": "VIEW_3D",
+    "site": "timer",
+    "draws_before": 0,
+    "ret": "{'INTERFACE'}",
+    "draws_open": 2,
+    "draw_ctx": {
+     "is_popover": true,
+     "area": "VIEW_3D",
+     "region": "WINDOW",
+     "mode": "SCULPT"
+    },
+    "pix_diff_open": 0.3111,
+    "draws_after_esc": 0,
+    "pix_diff_after_esc": 0.0062,
+    "opened": true,
+    "closed_by_esc": true,
+    "mode": "SCULPT",
+    "mode_set": "{'FINISHED'}"
+   }
+  ],
+  "14": [
+   {
+    "case": "A1 pivot context_set_enum(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": "MEDIAN_POINT",
+    "marker": {
+     "from": 100,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": "CURSOR",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "stack_after_change": [
+     "Original",
+     "Context Set",
+     "Context Set Enum"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": "CURSOR",
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": false,
+    "marker_kept": true
+   },
+   {
+    "case": "A2 pivot context_set_enum(EXEC,True) / ed.undo()",
+    "site": "timer",
+    "undo_method": "ed_undo",
+    "base": "CURSOR",
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": "MEDIAN_POINT",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "stack_after_change": [
+     "Original",
+     "Context Set",
+     "Context Set",
+     "Context Set Enum"
+    ],
+    "undo_call": "{'FINISHED'}",
+    "after_undo": "MEDIAN_POINT",
+    "marker_after_undo": 43,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": false,
+    "marker_kept": true
+   },
+   {
+    "case": "A3 use_snap context_toggle(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 43,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": true,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Toggle"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": true,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": false,
+    "marker_kept": true
+   },
+   {
+    "case": "A4 snap_elements_base toggle_flag(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": [
+     "INCREMENT"
+    ],
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": [
+     "INCREMENT",
+     "VERTEX"
+    ],
+    "step_pushed": true,
+    "pushed_step_name": "Probe Toggle Flag",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Probe Toggle Flag"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": [
+     "INCREMENT",
+     "VERTEX"
+    ],
+    "marker_after_undo": 43,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": false,
+    "marker_kept": true
+   },
+   {
+    "case": "A5 NATIVE Shift+Tab (use_snap) / Ctrl+Z",
+    "site": "native_key",
+    "undo_method": "ctrl_z",
+    "base": true,
+    "marker": {
+     "from": 43,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "event_simulate Shift+Tab (keymap wm.context_toggle tool_settings.use_snap)",
+    "changed": false,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Toggle"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": false,
+    "marker_kept": true
+   },
+   {
+    "case": "A6 orientation slot[0] context_set_enum(EXEC,True) / Ctrl+Z (Scene-owned, not ToolSettings)",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": "GLOBAL",
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": "LOCAL",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Set Enum"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": "GLOBAL",
+    "marker_after_undo": 43,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "B1 object.hide_render context_toggle(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 43,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": true,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Toggle"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "B2 object.hide_render context_toggle(EXEC,True) / ed.undo()",
+    "site": "timer",
+    "undo_method": "ed_undo",
+    "base": false,
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": true,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Toggle"
+    ],
+    "undo_call": "{'FINISHED'}",
+    "after_undo": false,
+    "marker_after_undo": 43,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "B3 decimate.delimit toggle_flag(EXEC,True) / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": [],
+    "marker": {
+     "from": 43,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": [
+     "SEAM"
+    ],
+    "step_pushed": true,
+    "pushed_step_name": "Probe Toggle Flag",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Probe Toggle Flag"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": [],
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "B4 object.hide_render context_toggle() NO undo arg / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": true,
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Set"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": false
+   },
+   {
+    "case": "B5 decimate.delimit toggle_flag() NO undo arg / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": [],
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "{'FINISHED'}",
+    "changed": [
+     "SEAM"
+    ],
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Set"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": [],
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": false
+   },
+   {
+    "case": "B6 object.hide_render direct RNA assignment / Ctrl+Z",
+    "site": "timer",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "ret": "'assigned'",
+    "changed": true,
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Set"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": false
+   },
+   {
+    "case": "C1 hide_render in modal() of op WITHOUT UNDO, FINISHED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'FINISHED'}",
+    "modal_undo_flag": false,
+    "modal_return": "FINISHED",
+    "changed": true,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Toggle"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 43,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "C2 decimate.delimit toggle_flag in modal() of op WITHOUT UNDO",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "base": [],
+    "marker": {
+     "from": 43,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'FINISHED'}",
+    "modal_undo_flag": false,
+    "modal_return": "FINISHED",
+    "changed": [
+     "SEAM"
+    ],
+    "step_pushed": true,
+    "pushed_step_name": "Probe Toggle Flag",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Probe Toggle Flag"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": [],
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "C3 pivot in modal() of op WITHOUT UNDO, FINISHED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "base": "MEDIAN_POINT",
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'FINISHED'}",
+    "modal_undo_flag": false,
+    "modal_return": "FINISHED",
+    "changed": "CURSOR",
+    "step_pushed": true,
+    "pushed_step_name": "Context Set Enum",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Set Enum"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": "CURSOR",
+    "marker_after_undo": 43,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": false,
+    "marker_kept": true
+   },
+   {
+    "case": "C4 hide_render in modal() of op WITH UNDO, FINISHED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 43,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'FINISHED'}",
+    "modal_undo_flag": true,
+    "modal_return": "FINISHED",
+    "changed": true,
+    "step_pushed": true,
+    "pushed_step_name": "Probe Modal Undo",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Probe Modal Undo"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "C5 hide_render in modal() of op WITH UNDO, CANCELLED",
+    "site": "in_modal",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "ret": "{'FINISHED'}",
+    "modal_undo_flag": true,
+    "modal_return": "CANCELLED",
+    "changed": true,
+    "step_pushed": false,
+    "pushed_step_name": null,
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Set"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": false
+   },
+   {
+    "case": "C6 hide_render from timer WHILE op WITHOUT UNDO is modal",
+    "site": "timer_while_modal",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 41,
+     "to": 43,
+     "ret": "{'FINISHED'}"
+    },
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "modal_running_at_call": true,
+    "ret": "{'FINISHED'}",
+    "pushed_while_modal": true,
+    "modal_undo_flag": false,
+    "changed": true,
+    "step_pushed": true,
+    "pushed_step_name": "Context Toggle",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Set",
+     "Context Toggle"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": false,
+    "marker_after_undo": 43,
+    "active_after_undo": "Context Set",
+    "undo_moved_pointer": true,
+    "value_reverted": true,
+    "marker_kept": true
+   },
+   {
+    "case": "C7 hide_render from timer WHILE op WITH UNDO is modal",
+    "site": "timer_while_modal",
+    "undo_method": "ctrl_z",
+    "base": false,
+    "marker": {
+     "from": 43,
+     "to": 41,
+     "ret": "{'FINISHED'}"
+    },
+    "invoke_ret": "{'RUNNING_MODAL'}",
+    "modal_running_at_call": true,
+    "ret": "{'FINISHED'}",
+    "pushed_while_modal": true,
+    "modal_undo_flag": true,
+    "changed": true,
+    "step_pushed": true,
+    "pushed_step_name": "Probe Modal Undo",
+    "stack_after_change": [
+     "Context Set",
+     "Context Set",
+     "Context Toggle",
+     "Probe Modal Undo"
+    ],
+    "undo_call": "event_simulate Ctrl+Z",
+    "after_undo": true,
+    "marker_after_undo": 41,
+    "active_after_undo": "Context Toggle",
+    "undo_moved_pointer": true,
+    "value_reverted": false,
+    "marker_kept": true
+   }
+  ],
+  "15": {
+   "_mode_set": {
+    "EDIT": "{'FINISHED'}",
+    "WEIGHT_PAINT": "{'FINISHED'}",
+    "VERTEX_PAINT": "{'FINISHED'}",
+    "TEXTURE_PAINT": "{'FINISHED'}"
+   },
+   "EDIT": {
+    "mode": "EDIT_MESH",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Edit Mode'",
+     "op:bpy.ops.mesh.select_mode(type='VERT')",
+     "op:bpy.ops.mesh.select_mode(type='EDGE')",
+     "op:bpy.ops.mesh.select_mode(type='FACE')",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Add'",
+     "btn24:'Mesh'",
+     "btn24:'Vertex'",
+     "btn24:'Edge'",
+     "btn24:'Face'",
+     "btn24:'UV'",
+     "btn46",
+     "rna:TransformOrientationSlot.type[0]",
+     "rna:ToolSettings.transform_pivot_point[0]",
+     "rna:ToolSettings.use_snap[0]",
+     "btn18:'Mix'",
+     "rna:ToolSettings.use_proportional_edit[0]",
+     "rna:ToolSettings.proportional_edit_falloff[0]",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 33,
+    "template_header_3D_mode": [
+     "op:bpy.ops.mesh.select_mode(type='VERT')",
+     "op:bpy.ops.mesh.select_mode(type='EDGE')",
+     "op:bpy.ops.mesh.select_mode(type='FACE')"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Edit Mode'",
+     "op:bpy.ops.mesh.select_mode(type='VERT')",
+     "op:bpy.ops.mesh.select_mode(type='EDGE')",
+     "op:bpy.ops.mesh.select_mode(type='FACE')",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Add'",
+     "btn24:'Mesh'",
+     "btn24:'Vertex'",
+     "btn24:'Edge'",
+     "btn24:'Face'",
+     "btn24:'UV'"
+    ],
+    "paint_mask_items": [],
+    "template_paint_masks": []
+   },
+   "WEIGHT_PAINT": {
+    "mode": "PAINT_WEIGHT",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Weights'",
+     "btn46",
+     "btn18:'Vertex Groups'",
+     "btn18",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 22,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ]
+   },
+   "WEIGHT_PAINT+use_paint_mask": {
+    "mode": "PAINT_WEIGHT",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Weights'",
+     "btn46",
+     "btn18:'Vertex Groups'",
+     "btn18",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 23,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Weights'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ]
+   },
+   "VERTEX_PAINT": {
+    "mode": "PAINT_VERTEX",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Vertex Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Paint'",
+     "btn46",
+     "btn18:'Attribute'",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 21,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Vertex Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Paint'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ]
+   },
+   "VERTEX_PAINT+use_paint_mask": {
+    "mode": "PAINT_VERTEX",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Vertex Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Paint'",
+     "btn46",
+     "btn18:'Attribute'",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 22,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Vertex Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn24:'Paint'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ]
+   },
+   "TEXTURE_PAINT": {
+    "mode": "PAINT_TEXTURE",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Texture Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "btn24:'View'",
+     "btn46",
+     "btn18:'Texture Slots'",
+     "btn18",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 20,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Texture Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "btn24:'View'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]"
+    ]
+   },
+   "TEXTURE_PAINT+use_paint_mask": {
+    "mode": "PAINT_TEXTURE",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Texture Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "btn24:'View'",
+     "btn24:'Select'",
+     "btn46",
+     "btn18:'Texture Slots'",
+     "btn18",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 21,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Texture Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "btn24:'View'",
+     "btn24:'Select'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]"
+    ]
+   },
+   "_wp_arm_selected": "{'FINISHED'}",
+   "_modes_wp_arm_selected": {
+    "Armature": "POSE",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "WEIGHT_PAINT+armature_selected": {
+    "mode": "PAINT_WEIGHT",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]",
+     "btn24:'View'",
+     "btn24:'Weights'",
+     "btn46",
+     "btn18:'Vertex Groups'",
+     "btn18",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 24,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ]
+   },
+   "_wp_arm_object_mode": "{'FINISHED'}",
+   "_modes_wp_arm_object_mode": {
+    "Armature": "OBJECT",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "WEIGHT_PAINT+armature_in_OBJECT_mode": {
+    "mode": "PAINT_WEIGHT",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Weights'",
+     "btn46",
+     "btn18:'Vertex Groups'",
+     "btn18",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 22,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]"
+    ]
+   },
+   "_arm_pose": "{'FINISHED'}",
+   "_wp_with_pose": "{'FINISHED'}",
+   "_modes": {
+    "Armature": "POSE",
+    "Camera": "OBJECT",
+    "Cube": "WEIGHT_PAINT",
+    "Light": "OBJECT"
+   },
+   "WEIGHT_PAINT+pose_armature": {
+    "mode": "PAINT_WEIGHT",
+    "items": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]",
+     "btn24:'View'",
+     "btn24:'Weights'",
+     "btn46",
+     "btn18:'Vertex Groups'",
+     "btn18",
+     "btn46",
+     "btn18",
+     "rna:SpaceView3D.show_gizmo[0]",
+     "btn18",
+     "rna:View3DOverlay.show_overlays[0]",
+     "btn18",
+     "btn18",
+     "btn18",
+     "op:bpy.ops.view3d.toggle_xray()",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "rna:View3DShading.type[0]",
+     "btn18"
+    ],
+    "n_leaf": 24,
+    "template_header_3D_mode": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ],
+    "left_group": [
+     "rna:Area.ui_type[0]",
+     "op:bpy.ops.object.mode_set()(mode)'Weight Paint'",
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]",
+     "btn24:'View'",
+     "btn24:'Weights'"
+    ],
+    "paint_mask_items": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ],
+    "template_paint_masks": [
+     "rna:Mesh.use_paint_mask[0]",
+     "rna:Mesh.use_paint_mask_vertex[0]",
+     "rna:Mesh.use_paint_bone_selection[0]"
+    ]
+   },
+   "_modes_after": {
+    "Armature": "OBJECT",
+    "Camera": "OBJECT",
+    "Cube": "OBJECT",
+    "Light": "OBJECT"
+   }
+  },
+  "16": {
+   "per_tool": {
+    "<initial:builtin.brush>": {
+     "hdr_items": [
+      "rna:Area.ui_type[0]",
+      "op:bpy.ops.object.mode_set()(mode)'Draw Mode'",
+      "btn24:'View'",
+      "btn24:'Draw'",
+      "btn46",
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]",
+      "btn18:'Lines'",
+      "btn46",
+      "btn18",
+      "rna:SpaceView3D.show_gizmo[0]",
+      "btn18",
+      "rna:View3DOverlay.show_overlays[0]",
+      "btn18",
+      "btn18",
+      "op:bpy.ops.view3d.toggle_xray()",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "btn18"
+     ],
+     "guide": false
+    },
+    "builtin_brush.Draw": {
+     "tool_set_ret": "{'CANCELLED'}",
+     "active_after": "builtin.brush",
+     "guide": false,
+     "hdr_centre": [
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]"
+     ],
+     "hdr_items": [
+      "rna:Area.ui_type[0]",
+      "op:bpy.ops.object.mode_set()(mode)'Draw Mode'",
+      "btn24:'View'",
+      "btn24:'Draw'",
+      "btn46",
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]",
+      "btn18:'Lines'",
+      "btn46",
+      "btn18",
+      "rna:SpaceView3D.show_gizmo[0]",
+      "btn18",
+      "rna:View3DOverlay.show_overlays[0]",
+      "btn18",
+      "btn18",
+      "op:bpy.ops.view3d.toggle_xray()",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "btn18"
+     ],
+     "tool_hdr_items": [
+      "btn18:'Pencil'",
+      "btn18:'Black'",
+      "rna:BrushGpencilSettings.use_material_pin[0]",
+      "btn44",
+      "rna:GpPaint.color_mode[0]",
+      "rna:GpPaint.color_mode[0]",
+      "rna:BrushGpencilSettings.pin_draw_mode[0]",
+      "rna:Brush.unprojected_size[0]",
+      "rna:Brush.use_pressure_size[0]",
+      "rna:Brush.strength[0]",
+      "rna:Brush.use_pressure_strength[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.caps_type[0]",
+      "rna:BrushGpencilSettings.caps_type[0]",
+      "btn18:'Advanced'",
+      "btn18:'Stroke'",
+      "btn18:'Cursor'",
+      "btn46",
+      "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+      "rna:ToolSettings.use_gpencil_draw_additive[0]",
+      "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+      "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+      "rna:ToolSettings.use_gpencil_draw_onback[0]"
+     ]
+    },
+    "builtin.brush": {
+     "tool_set_ret": "{'FINISHED'}",
+     "active_after": "builtin.brush",
+     "guide": false,
+     "hdr_centre": [
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]"
+     ],
+     "hdr_items": [
+      "rna:Area.ui_type[0]",
+      "op:bpy.ops.object.mode_set()(mode)'Draw Mode'",
+      "btn24:'View'",
+      "btn24:'Draw'",
+      "btn46",
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]",
+      "btn18:'Lines'",
+      "btn46",
+      "btn18",
+      "rna:SpaceView3D.show_gizmo[0]",
+      "btn18",
+      "rna:View3DOverlay.show_overlays[0]",
+      "btn18",
+      "btn18",
+      "op:bpy.ops.view3d.toggle_xray()",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "btn18"
+     ],
+     "tool_hdr_items": [
+      "btn18:'Pencil'",
+      "btn18:'Black'",
+      "rna:BrushGpencilSettings.use_material_pin[0]",
+      "btn44",
+      "rna:GpPaint.color_mode[0]",
+      "rna:GpPaint.color_mode[0]",
+      "rna:BrushGpencilSettings.pin_draw_mode[0]",
+      "rna:Brush.unprojected_size[0]",
+      "rna:Brush.use_pressure_size[0]",
+      "rna:Brush.strength[0]",
+      "rna:Brush.use_pressure_strength[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.caps_type[0]",
+      "rna:BrushGpencilSettings.caps_type[0]",
+      "btn18:'Advanced'",
+      "btn18:'Stroke'",
+      "btn18:'Cursor'",
+      "btn46",
+      "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+      "rna:ToolSettings.use_gpencil_draw_additive[0]",
+      "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+      "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+      "rna:ToolSettings.use_gpencil_draw_onback[0]"
+     ]
+    },
+    "builtin_brush.Erase": {
+     "tool_set_ret": "{'FINISHED'}",
+     "active_after": "builtin_brush.Erase",
+     "guide": false,
+     "hdr_centre": [
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]"
+     ],
+     "hdr_items": [
+      "rna:Area.ui_type[0]",
+      "op:bpy.ops.object.mode_set()(mode)'Draw Mode'",
+      "btn24:'View'",
+      "btn24:'Draw'",
+      "btn46",
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]",
+      "btn18:'Lines'",
+      "btn46",
+      "btn18",
+      "rna:SpaceView3D.show_gizmo[0]",
+      "btn18",
+      "rna:View3DOverlay.show_overlays[0]",
+      "btn18",
+      "btn18",
+      "op:bpy.ops.view3d.toggle_xray()",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "btn18"
+     ],
+     "tool_hdr_items": [
+      "btn18:'Eraser Hard'",
+      "rna:Brush.size[0]",
+      "rna:Brush.use_pressure_size[0]",
+      "rna:Brush.strength[0]",
+      "rna:Brush.use_pressure_strength[0]",
+      "rna:BrushGpencilSettings.eraser_mode[0]",
+      "rna:BrushGpencilSettings.eraser_mode[0]",
+      "rna:BrushGpencilSettings.eraser_mode[0]",
+      "rna:BrushGpencilSettings.use_active_layer_only[0]",
+      "rna:BrushGpencilSettings.use_keep_caps_eraser[0]",
+      "btn18:'Cursor'",
+      "btn46",
+      "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+      "rna:ToolSettings.use_gpencil_draw_additive[0]",
+      "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+      "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+      "rna:ToolSettings.use_gpencil_draw_onback[0]"
+     ]
+    },
+    "builtin_brush.Fill": {
+     "tool_set_ret": "{'FINISHED'}",
+     "active_after": "builtin_brush.Fill",
+     "guide": false,
+     "hdr_centre": [
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]"
+     ],
+     "hdr_items": [
+      "rna:Area.ui_type[0]",
+      "op:bpy.ops.object.mode_set()(mode)'Draw Mode'",
+      "btn24:'View'",
+      "btn24:'Draw'",
+      "btn46",
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]",
+      "btn18:'Lines'",
+      "btn46",
+      "btn18",
+      "rna:SpaceView3D.show_gizmo[0]",
+      "btn18",
+      "rna:View3DOverlay.show_overlays[0]",
+      "btn18",
+      "btn18",
+      "op:bpy.ops.view3d.toggle_xray()",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "btn18"
+     ],
+     "tool_hdr_items": [
+      "btn18:'Fill'",
+      "btn18:'Black'",
+      "rna:BrushGpencilSettings.use_material_pin[0]",
+      "btn44",
+      "rna:GpPaint.color_mode[0]",
+      "rna:GpPaint.color_mode[0]",
+      "rna:BrushGpencilSettings.pin_draw_mode[0]",
+      "rna:BrushGpencilSettings.fill_direction[0]",
+      "rna:BrushGpencilSettings.fill_direction[0]",
+      "rna:Brush.unprojected_size[0]",
+      "btn18:'Advanced'",
+      "btn18:'Cursor'",
+      "btn46",
+      "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+      "rna:ToolSettings.use_gpencil_draw_additive[0]",
+      "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+      "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+      "rna:ToolSettings.use_gpencil_draw_onback[0]"
+     ]
+    },
+    "builtin.line": {
+     "tool_set_ret": "{'FINISHED'}",
+     "active_after": "builtin.line",
+     "guide": false,
+     "hdr_centre": [
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]"
+     ],
+     "hdr_items": [
+      "rna:Area.ui_type[0]",
+      "op:bpy.ops.object.mode_set()(mode)'Draw Mode'",
+      "btn24:'View'",
+      "btn24:'Draw'",
+      "btn46",
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]",
+      "btn18:'Lines'",
+      "btn46",
+      "btn18",
+      "rna:SpaceView3D.show_gizmo[0]",
+      "btn18",
+      "rna:View3DOverlay.show_overlays[0]",
+      "btn18",
+      "btn18",
+      "op:bpy.ops.view3d.toggle_xray()",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "btn18"
+     ],
+     "tool_hdr_items": [
+      "btn18:'Pencil'",
+      "btn18:'Black'",
+      "rna:BrushGpencilSettings.use_material_pin[0]",
+      "btn44",
+      "rna:GpPaint.color_mode[0]",
+      "rna:GpPaint.color_mode[0]",
+      "rna:BrushGpencilSettings.pin_draw_mode[0]",
+      "rna:Brush.unprojected_size[0]",
+      "rna:Brush.use_pressure_size[0]",
+      "rna:Brush.strength[0]",
+      "rna:Brush.use_pressure_strength[0]",
+      "rna:GREASE_PENCIL_OT_primitive_line.subdivision[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.stroke_type[0]",
+      "rna:BrushGpencilSettings.caps_type[0]",
+      "rna:BrushGpencilSettings.caps_type[0]",
+      "rna:GPencilSculptSettings.use_thickness_curve[0]",
+      "btn18:'Thickness Profile'",
+      "btn46",
+      "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+      "rna:ToolSettings.use_gpencil_draw_additive[0]",
+      "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+      "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+      "rna:ToolSettings.use_gpencil_draw_onback[0]"
+     ]
+    },
+    "builtin.cursor": {
+     "tool_set_ret": "{'FINISHED'}",
+     "active_after": "builtin.cursor",
+     "guide": false,
+     "hdr_centre": [
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]"
+     ],
+     "hdr_items": [
+      "rna:Area.ui_type[0]",
+      "op:bpy.ops.object.mode_set()(mode)'Draw Mode'",
+      "btn24:'View'",
+      "btn24:'Draw'",
+      "btn46",
+      "rna:ToolSettings.gpencil_stroke_placement_view3d[0]",
+      "rna:GPencilSculptSettings.lock_axis[0]",
+      "btn18:'Lines'",
+      "btn46",
+      "btn18",
+      "rna:SpaceView3D.show_gizmo[0]",
+      "btn18",
+      "rna:View3DOverlay.show_overlays[0]",
+      "btn18",
+      "btn18",
+      "op:bpy.ops.view3d.toggle_xray()",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "rna:View3DShading.type[0]",
+      "btn18"
+     ],
+     "tool_hdr_items": [
+      "rna:VIEW3D_OT_cursor3d.use_depth[0]",
+      "btn21:'Orientation:'",
+      "rna:VIEW3D_OT_cursor3d.orientation[0]",
+      "btn46",
+      "rna:ToolSettings.use_grease_pencil_multi_frame_editing[0]",
+      "rna:ToolSettings.use_gpencil_draw_additive[0]",
+      "rna:ToolSettings.use_gpencil_automerge_strokes[0]",
+      "rna:ToolSettings.use_gpencil_weight_data_add[0]",
+      "rna:ToolSettings.use_gpencil_draw_onback[0]"
+     ]
+    }
+   },
+   "gp_add": "{'FINISHED'}",
+   "gp_obj": [
+    "Stroke",
+    "GREASEPENCIL"
+   ],
+   "mode_set": "{'FINISHED'}",
+   "available_tool_ids": [
+    "builtin.cursor",
+    "builtin.brush",
+    "builtin_brush.Erase",
+    "builtin_brush.Fill",
+    "builtin.box",
+    "builtin.circle",
+    "builtin.line",
+    "builtin.polyline",
+    "builtin.arc",
+    "builtin.curve",
+    "builtin.trim",
+    "builtin.eyedropper",
+    "builtin.interpolate"
+   ],
+   "builtin_brush.Draw_available": false,
+   "initial_tool": "builtin.brush"
+  }
+ },
+ "errors": [],
+ "window": {
+  "size": [
+   2560,
+   1537
+  ],
+  "areas": [
+   [
+    "PROPERTIES",
+    2105,
+    23,
+    453,
+    1212
+   ],
+   [
+    "OUTLINER",
+    2105,
+    1238,
+    453,
+    273
+   ],
+   [
+    "TIMELINE",
+    2,
+    23,
+    2100,
+    108
+   ],
+   [
+    "VIEW_3D",
+    2,
+    134,
+    2100,
+    1377
+   ]
+  ]
+ },
+ "undo_steps_raw_start": "Undo 1 Steps (*: active, #=applied, M=memfile-active, S=skip)\n[* M ]   0 {0x7fddcd582208} type='Global Undo', name='Original'\n",
+ "elapsed_s": 79.28,
+ "undo_stack_final": [
+  "Original",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Set",
+  "Context Toggle <ACTIVE>",
+  "Probe Modal Undo"
+ ],
+ "finish_reason": "done"
+}

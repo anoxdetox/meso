@@ -1,0 +1,1855 @@
+{
+ "meta": {
+  "blender": "5.2.2 LTS",
+  "window": [
+   1920,
+   1100
+  ],
+  "ui_scale": 1.0,
+  "pixel_size": 1.0,
+  "gpu_backend": "OPENGL",
+  "areas": [
+   "PROPERTIES",
+   "OUTLINER",
+   "DOPESHEET_EDITOR",
+   "VIEW_3D"
+  ],
+  "view3d_window_region": [
+   2,
+   101,
+   1574,
+   973
+  ],
+  "elapsed_s": 106.3,
+  "runner": "tools/spikes/menus/run.sh (nested kwin_wayland --virtual; host session was locked)",
+  "probe": "tools/spikes/menus/probe.py",
+  "errors": []
+ },
+ "spike7_introspect": {
+  "question": "What does UILayout.introspect() return inside a real menu draw, and can it replace/augment the Python recorder?",
+  "answer": "PARTIAL: augment only (NO as a replacement)",
+  "schema": {
+   "top_level": "list with one dict {'type': 'LAYOUT_ROOT'|'LAYOUT_RADIAL', 'items': [...]}",
+   "container_node": {
+    "type": "LAYOUT_ROOT|LAYOUT_ROW|LAYOUT_COLUMN|LAYOUT_ABSOLUTE|LAYOUT_RADIAL",
+    "items": "list"
+   },
+   "button_node_keys": {
+    "type": "int (button type)",
+    "draw_string": "str (translated label; numbers include formatted value e.g. 'X: 0 m')",
+    "tip": "str",
+    "operator": "optional str: python call repr incl. non-default props, e.g. bpy.ops.object.delete(use_global=False)",
+    "property": "optional str: operator_menu_enum property name",
+    "rna": "optional str 'Struct.prop[index]' e.g. 'View3DOverlay.show_overlays[0]'"
+   },
+   "button_type_ints_observed": {
+    "1": "operator button",
+    "2": "expanded enum item (ROW)",
+    "3": "text field",
+    "5": "enum/prop dropdown (MENU)",
+    "7": "number field",
+    "11": "bool toggle/checkbox",
+    "18": "popover",
+    "20": "ID search/browse",
+    "21": "label (also the popup title)",
+    "24": "PULLDOWN (layout.menu / operator_menu_enum)",
+    "44": "separator/padding (first item of every popup block)",
+    "45": "separator line",
+    "46": "separator_spacer"
+   },
+   "absent": [
+    "submenu idname (PULLDOWN has only draw_string)",
+    "popover panel id",
+    "icons",
+    "operator_context",
+    "enabled/active/poll state",
+    "bool/enum current value (only numbers/text show value in draw_string)",
+    "owner/ID of rna (struct name only, not a resolvable data path)",
+    "geometry/rects"
+   ]
+  },
+  "evidence": {
+   "call_result": {
+    "OBJECT_MT_modifier_add_generate": [
+     "INTERFACE"
+    ],
+    "MESO_MT_probe_add": [
+     "INTERFACE"
+    ],
+    "MESO_MT_probe_object": [
+     "INTERFACE"
+    ],
+    "OBJECT_MT_modifier_add_normals": [
+     "INTERFACE"
+    ],
+    "MESO_MT_probe_snapshot": [
+     "INTERFACE"
+    ]
+   },
+   "ctx_at_draw_start": {
+    "OBJECT_MT_modifier_add_generate": "EXEC_REGION_WIN",
+    "MESO_MT_probe_add": "EXEC_REGION_WIN",
+    "MESO_MT_probe_object": "EXEC_REGION_WIN",
+    "OBJECT_MT_modifier_add_normals": "EXEC_REGION_WIN"
+   },
+   "VIEW3D_MT_add_via_probe": [
+    {
+     "type": "LAYOUT_ROOT",
+     "items": [
+      {
+       "type": 44,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 21,
+       "draw_string": "Probe Add",
+       "tip": ""
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "Search...",
+       "tip": "Pop-up a search for a menu in current context",
+       "operator": "bpy.ops.wm.search_single_menu(menu_idname=\"VIEW3D_MT_add\")"
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Mesh",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Curve",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Surface",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Metaball",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "Text",
+       "tip": "Add a text object to the scene",
+       "operator": "bpy.ops.object.text_add()"
+      }
+     ]
+    }
+   ],
+   "OBJECT_MT_modifier_add_generate_first_open_t3s": [
+    {
+     "type": "LAYOUT_ROOT",
+     "items": [
+      {
+       "type": 44,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 21,
+       "draw_string": "Generate",
+       "tip": ""
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "Array",
+       "tip": "",
+       "operator": "bpy.ops.object.modifier_add_node_group(asset_library_type='ESSENTIALS', asset_library_identifier=\"\", relative_asset_identifier=\"nodes/geometry_nodes_essentials.blend/NodeTree/Array\")"
+      },
+      {
+       "type": 1,
+       "draw_string": "Array (Legacy)",
+       "tip": "Add a procedural operation/effect to the active object",
+       "operator": "bpy.ops.object.modifier_add(type='ARRAY')"
+      },
+      {
+       "type": 1,
+       "draw_string": "Bevel",
+       "tip": "Add a procedural operation/effect to the active object",
+       "operator": "bpy.ops.object.modifier_add(type='BEVEL')"
+      },
+      {
+       "type": 1,
+       "draw_string": "Boolean",
+       "tip": "Add a procedural operation/effect to the active object",
+       "operator": "bpy.ops.object.modifier_add(type='BOOLEAN')"
+      },
+      {
+       "type": 1,
+       "draw_string": "Build",
+       "tip": "Add a procedural operation/effect to the active object",
+       "operator": "bpy.ops.object.modifier_add(type='BUILD')"
+      },
+      {
+       "type": 1,
+       "draw_string": "Curve to Tube",
+       "tip": "",
+       "operator": "bpy.ops.object.modifier_add_node_group(asset_library_type='ESSENTIALS', asset_library_identifier=\"\", relative_asset_identifier=\"nodes/geometry_nodes_essentials.blend/NodeTree/Curve to Tube\")"
+      }
+     ]
+    }
+   ],
+   "snapshot_before_items": [
+    {
+     "type": "LAYOUT_ROOT",
+     "items": [
+      {
+       "type": 44,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 21,
+       "draw_string": "Probe Snapshot",
+       "tip": ""
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      }
+     ]
+    }
+   ],
+   "snapshot_after_items": [
+    {
+     "type": "LAYOUT_ROOT",
+     "items": [
+      {
+       "type": 44,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 21,
+       "draw_string": "Probe Snapshot",
+       "tip": ""
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "A",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=1)"
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 21,
+         "draw_string": "Location:",
+         "tip": ""
+        },
+        {
+         "type": 7,
+         "draw_string": "X: 0 m",
+         "tip": "Location of the object",
+         "rna": "Object.location[0]"
+        },
+        {
+         "type": 7,
+         "draw_string": "Y: 0 m",
+         "tip": "Location of the object",
+         "rna": "Object.location[1]"
+        },
+        {
+         "type": 7,
+         "draw_string": "Z: 0 m",
+         "tip": "Location of the object",
+         "rna": "Object.location[2]"
+        }
+       ]
+      },
+      {
+       "type": 11,
+       "draw_string": "Show Overlays",
+       "tip": "Display overlays like gizmos and outlines",
+       "rna": "View3DOverlay.show_overlays[0]"
+      },
+      {
+       "type": 2,
+       "draw_string": "Bounding Box Center",
+       "tip": "",
+       "rna": "ToolSettings.transform_pivot_point[0]"
+      },
+      {
+       "type": 2,
+       "draw_string": "3D Cursor",
+       "tip": "",
+       "rna": "ToolSettings.transform_pivot_point[0]"
+      },
+      {
+       "type": 2,
+       "draw_string": "Individual Origins",
+       "tip": "",
+       "rna": "ToolSettings.transform_pivot_point[0]"
+      },
+      {
+       "type": 2,
+       "draw_string": "Median Point",
+       "tip": "",
+       "rna": "ToolSettings.transform_pivot_point[0]"
+      },
+      {
+       "type": 2,
+       "draw_string": "Active Element",
+       "tip": "",
+       "rna": "ToolSettings.transform_pivot_point[0]"
+      },
+      {
+       "type": 21,
+       "draw_string": "LBL",
+       "tip": ""
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Sub",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "Plane",
+       "tip": "Construct a filled planar mesh with 4 vertices",
+       "operator": "bpy.ops.mesh.primitive_plane_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "Cube",
+       "tip": "Construct a cube mesh that consists of six square faces",
+       "operator": "bpy.ops.mesh.primitive_cube_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "Circle",
+       "tip": "Construct a circle mesh",
+       "operator": "bpy.ops.mesh.primitive_circle_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "UV Sphere",
+       "tip": "Construct a spherical mesh with quad faces, except for triangle faces at the top and bottom",
+       "operator": "bpy.ops.mesh.primitive_uv_sphere_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "Ico Sphere",
+       "tip": "Construct a spherical mesh that consists of equally sized triangles",
+       "operator": "bpy.ops.mesh.primitive_ico_sphere_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "Cylinder",
+       "tip": "Construct a cylinder mesh",
+       "operator": "bpy.ops.mesh.primitive_cylinder_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "Cone",
+       "tip": "Construct a conic mesh",
+       "operator": "bpy.ops.mesh.primitive_cone_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "Torus",
+       "tip": "Construct a torus mesh",
+       "operator": "bpy.ops.mesh.primitive_torus_add()"
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "Grid",
+       "tip": "Construct a subdivided plane mesh",
+       "operator": "bpy.ops.mesh.primitive_grid_add()"
+      },
+      {
+       "type": 1,
+       "draw_string": "Monkey",
+       "tip": "Construct a Suzanne mesh",
+       "operator": "bpy.ops.mesh.primitive_monkey_add()"
+      },
+      {
+       "type": 24,
+       "draw_string": "Enum menu",
+       "tip": "",
+       "operator": "bpy.ops.object.origin_set()",
+       "property": "type"
+      },
+      {
+       "type": 18,
+       "draw_string": "Popover",
+       "tip": ""
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 20,
+         "draw_string": "",
+         "tip": "Browse Object to be linked"
+        },
+        {
+         "type": 3,
+         "draw_string": "Cube",
+         "tip": "Object data-block defining an object in a scene",
+         "rna": "Object.name[0]"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "OBJECT_MT_modifier_add_call_menu": [
+    {
+     "type": "LAYOUT_ROOT",
+     "items": [
+      {
+       "type": 44,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 21,
+       "draw_string": "Add Modifier",
+       "tip": ""
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "Search...",
+       "tip": "Pop-up a search for a menu in current context",
+       "operator": "bpy.ops.wm.search_single_menu(menu_idname=\"OBJECT_MT_modifier_add\")"
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Edit",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Generate",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Deform",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Normals",
+       "tip": ""
+      },
+      {
+       "type": 24,
+       "draw_string": "Physics",
+       "tip": ""
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": "LAYOUT_COLUMN",
+       "items": [
+        {
+         "type": 24,
+         "draw_string": "Geometry",
+         "tip": ""
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_COLUMN",
+       "items": [
+        {
+         "type": 24,
+         "draw_string": "Hair",
+         "tip": ""
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_COLUMN",
+       "items": [
+        {
+         "type": 24,
+         "draw_string": "Instances",
+         "tip": ""
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_COLUMN",
+       "items": [
+        {
+         "type": 24,
+         "draw_string": "Simulation",
+         "tip": ""
+        }
+       ]
+      },
+      {
+       "type": 45,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 1,
+       "draw_string": "Geometry Nodes",
+       "tip": "Add a procedural operation/effect to the active object",
+       "operator": "bpy.ops.object.modifier_add(type='NODES')"
+      }
+     ]
+    }
+   ],
+   "VIEW3D_HT_header_append_hook": [
+    {
+     "type": "LAYOUT_ROOT",
+     "items": [
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": "LAYOUT_ABSOLUTE",
+         "items": [
+          {
+           "type": 5,
+           "draw_string": "",
+           "tip": "",
+           "rna": "Area.ui_type[0]"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 5,
+           "draw_string": "Object Mode",
+           "tip": "",
+           "operator": "bpy.ops.object.mode_set()",
+           "property": "mode"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 24,
+         "draw_string": "View",
+         "tip": ""
+        },
+        {
+         "type": 24,
+         "draw_string": "Select",
+         "tip": ""
+        },
+        {
+         "type": 24,
+         "draw_string": "Add",
+         "tip": ""
+        },
+        {
+         "type": 24,
+         "draw_string": "Object",
+         "tip": ""
+        }
+       ]
+      },
+      {
+       "type": 46,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 5,
+           "draw_string": "Global",
+           "tip": "",
+           "rna": "TransformOrientationSlot.type[0]"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": 5,
+       "draw_string": "",
+       "tip": "",
+       "rna": "ToolSettings.transform_pivot_point[0]"
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 11,
+         "draw_string": "",
+         "tip": "Snap during transform",
+         "rna": "ToolSettings.use_snap[0]"
+        },
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 18,
+           "draw_string": "",
+           "tip": ""
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 11,
+         "draw_string": "",
+         "tip": "Proportional editing object mode",
+         "rna": "ToolSettings.use_proportional_edit_objects[0]"
+        },
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 5,
+           "draw_string": "",
+           "tip": "",
+           "rna": "ToolSettings.proportional_edit_falloff[0]"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": 46,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": 18,
+       "draw_string": "",
+       "tip": ""
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 11,
+         "draw_string": "",
+         "tip": "Show gizmos of all types",
+         "rna": "SpaceView3D.show_gizmo[0]"
+        },
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 18,
+           "draw_string": "",
+           "tip": ""
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 11,
+         "draw_string": "",
+         "tip": "Display overlays like gizmos and outlines",
+         "rna": "View3DOverlay.show_overlays[0]"
+        },
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 18,
+           "draw_string": "",
+           "tip": ""
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": 1,
+         "draw_string": "",
+         "tip": "Transparent scene display. Allow selecting through items",
+         "operator": "bpy.ops.view3d.toggle_xray()"
+        }
+       ]
+      },
+      {
+       "type": "LAYOUT_ROW",
+       "items": [
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 2,
+           "draw_string": "",
+           "tip": "",
+           "rna": "View3DShading.type[0]"
+          },
+          {
+           "type": 2,
+           "draw_string": "",
+           "tip": "",
+           "rna": "View3DShading.type[0]"
+          },
+          {
+           "type": 2,
+           "draw_string": "",
+           "tip": "",
+           "rna": "View3DShading.type[0]"
+          },
+          {
+           "type": 2,
+           "draw_string": "",
+           "tip": "",
+           "rna": "View3DShading.type[0]"
+          }
+         ]
+        },
+        {
+         "type": "LAYOUT_ROW",
+         "items": [
+          {
+           "type": 18,
+           "draw_string": "",
+           "tip": ""
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "pie": [
+    {
+     "type": "LAYOUT_RADIAL",
+     "items": [
+      {
+       "type": 1,
+       "draw_string": "0",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=0)"
+      },
+      {
+       "type": 1,
+       "draw_string": "1",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=1)"
+      },
+      {
+       "type": 1,
+       "draw_string": "2",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=2)"
+      },
+      {
+       "type": 1,
+       "draw_string": "3",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=3)"
+      },
+      {
+       "type": 1,
+       "draw_string": "4",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=4)"
+      },
+      {
+       "type": 1,
+       "draw_string": "5",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=5)"
+      },
+      {
+       "type": 1,
+       "draw_string": "6",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=6)"
+      },
+      {
+       "type": 1,
+       "draw_string": "7",
+       "tip": "(undocumented operator)",
+       "operator": "bpy.ops.meso.probe_pick(index=7)"
+      }
+     ]
+    }
+   ],
+   "schema_summary": {
+    "OBJECT_MT_modifier_add_generate": {
+     "n_dicts": 25,
+     "max_depth": 1,
+     "keys": {
+      "type": [
+       "int",
+       "str"
+      ],
+      "items": [
+       "list"
+      ],
+      "draw_string": [
+       "str"
+      ],
+      "tip": [
+       "str"
+      ],
+      "operator": [
+       "str"
+      ]
+     }
+    },
+    "MESO_MT_probe_add": {
+     "n_dicts": 32,
+     "max_depth": 2,
+     "keys": {
+      "type": [
+       "int",
+       "str"
+      ],
+      "items": [
+       "list"
+      ],
+      "draw_string": [
+       "str"
+      ],
+      "tip": [
+       "str"
+      ],
+      "operator": [
+       "str"
+      ],
+      "property": [
+       "str"
+      ]
+     }
+    },
+    "MESO_MT_probe_object": {
+     "n_dicts": 45,
+     "max_depth": 1,
+     "keys": {
+      "type": [
+       "int",
+       "str"
+      ],
+      "items": [
+       "list"
+      ],
+      "draw_string": [
+       "str"
+      ],
+      "tip": [
+       "str"
+      ],
+      "operator": [
+       "str"
+      ],
+      "property": [
+       "str"
+      ]
+     }
+    },
+    "OBJECT_MT_modifier_add_normals": {
+     "n_dicts": 6,
+     "max_depth": 1,
+     "keys": {
+      "type": [
+       "int",
+       "str"
+      ],
+      "items": [
+       "list"
+      ],
+      "draw_string": [
+       "str"
+      ],
+      "tip": [
+       "str"
+      ],
+      "operator": [
+       "str"
+      ]
+     }
+    },
+    "VIEW3D_HT_header": {
+     "n_dicts": 45,
+     "max_depth": 3,
+     "keys": {
+      "type": [
+       "int",
+       "str"
+      ],
+      "items": [
+       "list"
+      ],
+      "draw_string": [
+       "str"
+      ],
+      "tip": [
+       "str"
+      ],
+      "rna": [
+       "str"
+      ],
+      "operator": [
+       "str"
+      ],
+      "property": [
+       "str"
+      ]
+     }
+    }
+   }
+  },
+  "findings": [
+   "Operator idnames AND set property values appear (operator repr string, parseable with ast).",
+   "C-generated asset items appear with full args: bpy.ops.object.modifier_add_node_group(asset_library_type='ESSENTIALS', relative_asset_identifier='nodes/geometry_nodes_essentials.blend/NodeTree/Array') on the FIRST open at t=3.3s.",
+   "menu_contents() is expanded inline, including the C-only OBJECT_MT_modifier_add_root_catalogs (LAYOUT_COLUMNs holding PULLDOWN 'Geometry','Hair','Instances','Simulation').",
+   "introspect() is a snapshot at call time: called first in draw it only has the popup title; must be called last (append hook / end of wrapper draw).",
+   "Works in header draws too (VIEW3D_HT_header.append): C templates show up (template_header_3D_mode -> MENU 'Object Mode' with bpy.ops.object.mode_set(), prop rna paths like ToolSettings.use_snap[0]).",
+   "Only callable inside a live draw callback of a GUI region/popup -> data is one redraw late and needs the GUI (never headless popups)."
+  ],
+  "recommendation": "Keep the Python recorder as the primary source (it has submenu ids, icons, operator_context, prop pointers). Use introspect() only as an optional GUI-side augment: (a) a VIEW3D_HT_header-style append hook can cheaply cross-check header recordings; (b) for DYNAMIC asset items the operator repr is replayable, but getting it requires the menu to have been drawn natively, so the v1 design stays: DYNAMIC/C-only items -> native wm.call_menu handoff."
+ },
+ "spike8_operator_context": {
+  "question": "Do submenus inherit the operator_context set at the layout.menu() call site?",
+  "answer": "NO",
+  "evidence": {
+   "call_menu_root_ctx": "EXEC_REGION_WIN",
+   "root_modes_to_sub_ctx": {
+    "UNSET": "INVOKE_REGION_WIN",
+    "EXEC_REGION_WIN": "INVOKE_REGION_WIN",
+    "INVOKE_REGION_WIN": "INVOKE_REGION_WIN",
+    "EXEC_DEFAULT": "INVOKE_REGION_WIN",
+    "INVOKE_DEFAULT": "INVOKE_REGION_WIN",
+    "COL_EXEC_REGION_WIN": "INVOKE_REGION_WIN"
+   },
+   "OBJECT_MT_modifier_add_as_submenu_of_EXEC_REGION_WIN_root": {
+    "ctx_at_draw_start": "INVOKE_REGION_WIN",
+    "has_Search": false
+   },
+   "OBJECT_MT_modifier_add_via_call_menu": {
+    "ctx_at_draw_start": "EXEC_REGION_WIN",
+    "has_Search": true
+   },
+   "VIEW3D_MT_add_via_call_menu": {
+    "ctx_at_draw_start": "EXEC_REGION_WIN",
+    "has_Search": true,
+    "first_texts": [
+     "Add",
+     "Search...",
+     "Mesh",
+     "Curve",
+     "Surface",
+     "Metaball"
+    ]
+   },
+   "header_pulldown": {
+    "header_region": [
+     2,
+     1048,
+     1574,
+     26
+    ],
+    "screen_diff_after_click": {
+     "changed_px": 3793,
+     "bbox_xy": [
+      11,
+      1025,
+      116,
+      1070
+     ]
+    },
+    "sub_opened": true,
+    "sub_ctx_at_draw_start": "INVOKE_REGION_WIN",
+    "header_layout_ctx": "INVOKE_REGION_WIN"
+   },
+   "pie_root_ctx": {
+    "keymap_call_menu_pie": "INVOKE_REGION_WIN",
+    "call_menu_pie_temp_override": "INVOKE_REGION_WIN"
+   }
+  },
+  "rule": {
+   "wm.call_menu root": "EXEC_REGION_WIN",
+   "header pulldown root": "INVOKE_REGION_WIN (header layout itself is INVOKE_REGION_WIN)",
+   "any submenu (layout.menu, hover-opened)": "INVOKE_REGION_WIN regardless of parent (tested UNSET, EXEC_REGION_WIN, INVOKE_REGION_WIN, EXEC_DEFAULT, INVOKE_DEFAULT, column-level EXEC_REGION_WIN)",
+   "wm.call_menu_pie root": "INVOKE_REGION_WIN",
+   "menu_contents": "same layout -> inherits current value (it is drawn inline)"
+  },
+  "recommendation": "Recorder: root operator_context = INVOKE_REGION_WIN for header-row menus (matches the header pulldown: no 'Search...'), EXEC_REGION_WIN only when emulating a wm.call_menu popup; every lazily recorded submenu restarts at INVOKE_REGION_WIN; menu_contents keeps the current value. Native handoff via wm.call_menu shows the 'Search...' item for the 7 gated menus (acceptable)."
+ },
+ "spike9_c_only_call_menu": {
+  "question": "Does wm.call_menu(name=X) open each of the 9 C-only MenuTypes from a modal operator, at the cursor, and close cleanly with ESC?",
+  "answer": "YES for the call path (direct in modal() and via 0-interval timer + temp_override behave identically); per-menu: 5 open with content in VIEW_3D, 2 open EMPTY without their context, 2 poll-fail (CANCELLED) outside their editor",
+  "detection_method": "window.screenshot() before vs 0.7 s after the call; numpy diff (>10/255 on any RGB channel) with the status-bar rows masked out; bbox of changed pixels vs cursor; after ESC diff must be 0. Plus the operator return set ({'INTERFACE'} = popup created, {'CANCELLED','PASS_THROUGH'} = MenuType.poll failed, RuntimeError = unknown name). Saved PNGs visually confirmed.",
+  "in_bpy_types": {
+   "FILEBROWSER_MT_operations_menu": false,
+   "OBJECT_MT_link_to_collection": false,
+   "OBJECT_MT_modifier_add_root_catalogs": false,
+   "OBJECT_MT_move_to_collection": false,
+   "SEQUENCER_MT_add_scene": false,
+   "SEQUENCER_MT_modifier_add_root_catalogs": false,
+   "TOPBAR_MT_file_open_recent": false,
+   "TOPBAR_MT_undo_history": false,
+   "UI_MT_color_space_select": false
+  },
+  "per_menu_view3d": {
+   "OBJECT_MT_link_to_collection": "opens, at cursor",
+   "OBJECT_MT_move_to_collection": "opens, at cursor",
+   "OBJECT_MT_modifier_add_root_catalogs": "opens, at cursor (no title; catalogs Geometry/Hair/Instances/Simulation)",
+   "TOPBAR_MT_file_open_recent": "opens ('Open Recent' / 'No Recent Files' in factory startup)",
+   "TOPBAR_MT_undo_history": "opens ('Undo History' / 'Original')",
+   "SEQUENCER_MT_modifier_add_root_catalogs": "INTERFACE but an empty popup (thin bar); also empty in a Sequencer without strips",
+   "UI_MT_color_space_select": "INTERFACE but an empty popup (needs a colour-space button context)",
+   "SEQUENCER_MT_add_scene": "CANCELLED|PASS_THROUGH in VIEW_3D; opens in SEQUENCE_EDITOR",
+   "FILEBROWSER_MT_operations_menu": "CANCELLED|PASS_THROUGH in VIEW_3D and in a plain FILES area (no file-browser operator)"
+  },
+  "control": {
+   "VIEW3D_MT_object_apply": "opens",
+   "MESO_MT_does_not_exist": "RuntimeError: Menu ... not found"
+  },
+  "trials": {
+   "direct:VIEW3D_MT_object_apply": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 79719,
+    "bbox_xy": [
+     614,
+     279,
+     1023,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:FILEBROWSER_MT_operations_menu": {
+    "result": [
+     "CANCELLED",
+     "PASS_THROUGH"
+    ],
+    "exception": null,
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:OBJECT_MT_link_to_collection": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 28940,
+    "bbox_xy": [
+     641,
+     497,
+     1035,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:OBJECT_MT_modifier_add_root_catalogs": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 34668,
+    "bbox_xy": [
+     641,
+     500,
+     1003,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:OBJECT_MT_move_to_collection": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 28941,
+    "bbox_xy": [
+     641,
+     497,
+     1035,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:SEQUENCER_MT_add_scene": {
+    "result": [
+     "CANCELLED",
+     "PASS_THROUGH"
+    ],
+    "exception": null,
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:SEQUENCER_MT_modifier_add_root_catalogs": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 2050,
+    "bbox_xy": [
+     782,
+     618,
+     966,
+     631
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:TOPBAR_MT_file_open_recent": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 10441,
+    "bbox_xy": [
+     643,
+     571,
+     825,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:TOPBAR_MT_undo_history": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 17151,
+    "bbox_xy": [
+     643,
+     538,
+     992,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:UI_MT_color_space_select": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 2050,
+    "bbox_xy": [
+     782,
+     618,
+     966,
+     631
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "direct:MESO_MT_does_not_exist": {
+    "result": null,
+    "exception": "RuntimeError('Error: Menu \"MESO_MT_does_not_exist\" not found\\n')",
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:VIEW3D_MT_object_apply": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 79719,
+    "bbox_xy": [
+     614,
+     279,
+     1023,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:FILEBROWSER_MT_operations_menu": {
+    "result": [
+     "CANCELLED",
+     "PASS_THROUGH"
+    ],
+    "exception": null,
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:OBJECT_MT_link_to_collection": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 28940,
+    "bbox_xy": [
+     641,
+     497,
+     1035,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:OBJECT_MT_modifier_add_root_catalogs": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 34668,
+    "bbox_xy": [
+     641,
+     500,
+     1003,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:OBJECT_MT_move_to_collection": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 28941,
+    "bbox_xy": [
+     641,
+     497,
+     1035,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:SEQUENCER_MT_add_scene": {
+    "result": [
+     "CANCELLED",
+     "PASS_THROUGH"
+    ],
+    "exception": null,
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:SEQUENCER_MT_modifier_add_root_catalogs": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 2050,
+    "bbox_xy": [
+     782,
+     618,
+     966,
+     631
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:TOPBAR_MT_file_open_recent": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 10441,
+    "bbox_xy": [
+     643,
+     571,
+     825,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:TOPBAR_MT_undo_history": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 17151,
+    "bbox_xy": [
+     643,
+     538,
+     992,
+     629
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:UI_MT_color_space_select": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 2050,
+    "bbox_xy": [
+     782,
+     618,
+     966,
+     631
+    ],
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "timer:MESO_MT_does_not_exist": {
+    "result": null,
+    "exception": "RuntimeError('Error: Menu \"MESO_MT_does_not_exist\" not found\\n')",
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     789,
+     587
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "matched:SEQUENCE_EDITOR:direct:SEQUENCER_MT_add_scene": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 21210,
+    "bbox_xy": [
+     749,
+     23,
+     1212,
+     133
+    ],
+    "cursor": [
+     897,
+     47
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "matched:SEQUENCE_EDITOR:timer:SEQUENCER_MT_add_scene": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 21210,
+    "bbox_xy": [
+     749,
+     23,
+     1212,
+     133
+    ],
+    "cursor": [
+     897,
+     47
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": true
+   },
+   "matched:SEQUENCE_EDITOR:direct:SEQUENCER_MT_modifier_add_root_catalogs": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 1804,
+    "bbox_xy": [
+     892,
+     80,
+     1073,
+     89
+    ],
+    "cursor": [
+     897,
+     47
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "matched:SEQUENCE_EDITOR:timer:SEQUENCER_MT_modifier_add_root_catalogs": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 1804,
+    "bbox_xy": [
+     892,
+     80,
+     1073,
+     89
+    ],
+    "cursor": [
+     897,
+     47
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "matched:FILES:direct:FILEBROWSER_MT_operations_menu": {
+    "result": [
+     "CANCELLED",
+     "PASS_THROUGH"
+    ],
+    "exception": null,
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     909,
+     26
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "matched:FILES:timer:FILEBROWSER_MT_operations_menu": {
+    "result": [
+     "CANCELLED",
+     "PASS_THROUGH"
+    ],
+    "exception": null,
+    "opened": false,
+    "changed_px": 0,
+    "bbox_xy": null,
+    "cursor": [
+     909,
+     26
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   },
+   "matched:ShaderNodeTree:direct:UI_MT_color_space_select": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 2115,
+    "bbox_xy": [
+     11,
+     29,
+     1554,
+     91
+    ],
+    "cursor": [
+     789,
+     47
+    ],
+    "cursor_inside_bbox": true,
+    "closed_clean_after_one_esc": false
+   },
+   "matched:ShaderNodeTree:timer:UI_MT_color_space_select": {
+    "result": [
+     "INTERFACE"
+    ],
+    "exception": null,
+    "opened": true,
+    "changed_px": 815,
+    "bbox_xy": [
+     782,
+     78,
+     915,
+     91
+    ],
+    "cursor": [
+     789,
+     47
+    ],
+    "cursor_inside_bbox": false,
+    "closed_clean_after_one_esc": true
+   }
+  },
+  "recommendation": "Handoff can call wm.call_menu directly inside modal() right before returning FINISHED (no timer needed); the timer+temp_override path also works when the modal has already torn down. Check the return set: treat {'CANCELLED'} as 'not available here' (grey the row). Gate by editor: SEQUENCER_* only in SEQUENCE_EDITOR, FILEBROWSER_MT_operations_menu only in file-browser dialogs, never offer UI_MT_color_space_select (button-context menu). One ESC always closed the popup."
+ },
+ "spike10_pie_order": {
+  "question": "In which direction does each index of layout.menu_pie() land?",
+  "answer": "YES verified: 0=W, 1=E, 2=S, 3=N, 4=NW, 5=NE, 6=SW, 7=SE",
+  "method": "8 probe operators labelled '0'..'7' in a pie; opened by an addon keymap item F18 -> wm.call_menu_pie at the viewport centre; drag 160 px in each compass direction (window coords, +y up); F18 RELEASE selects; the operator records its index. Repeated click-style (wm.call_menu_pie from a timer + LMB click) for W, NE, S, SE with identical results.",
+  "evidence": {
+   "by_direction_key_release": {
+    "E": {
+     "picked_index": 1,
+     "how": "key_release",
+     "target": [
+      949,
+      587
+     ]
+    },
+    "NE": {
+     "picked_index": 5,
+     "how": "key_release",
+     "target": [
+      902,
+      700
+     ]
+    },
+    "N": {
+     "picked_index": 3,
+     "how": "key_release",
+     "target": [
+      789,
+      747
+     ]
+    },
+    "NW": {
+     "picked_index": 4,
+     "how": "key_release",
+     "target": [
+      675,
+      700
+     ]
+    },
+    "W": {
+     "picked_index": 0,
+     "how": "key_release",
+     "target": [
+      629,
+      587
+     ]
+    },
+    "SW": {
+     "picked_index": 6,
+     "how": "key_release",
+     "target": [
+      675,
+      473
+     ]
+    },
+    "S": {
+     "picked_index": 2,
+     "how": "key_release",
+     "target": [
+      789,
+      427
+     ]
+    },
+    "SE": {
+     "picked_index": 7,
+     "how": "key_release",
+     "target": [
+      902,
+      473
+     ]
+    }
+   },
+   "click_style": {
+    "W": {
+     "call_result": [
+      "INTERFACE"
+     ],
+     "picked_index": 0
+    },
+    "NE": {
+     "call_result": [
+      "INTERFACE"
+     ],
+     "picked_index": 5
+    },
+    "S": {
+     "call_result": [
+      "INTERFACE"
+     ],
+     "picked_index": 2
+    },
+    "SE": {
+     "call_result": [
+      "INTERFACE"
+     ],
+     "picked_index": 7
+    }
+   },
+   "index_to_direction": {
+    "1": "E",
+    "5": "NE",
+    "3": "N",
+    "4": "NW",
+    "0": "W",
+    "6": "SW",
+    "2": "S",
+    "7": "SE"
+   },
+   "bl_ui_comments": "space_view3d.py:6107-6115 VIEW3D_MT_transform_gizmo_pie: '# 1: Left', '# 2: Right', '# 3: Down', '# 4: Up', '# 5: Up/Left'",
+   "introspect": "LAYOUT_RADIAL with items in insertion order; no positions"
+  },
+  "recommendation": "core/zones.py: PIE_ORDER = ('W','E','S','N','NW','NE','SW','SE'); the recorder keeps menu_pie insertion order and maps index -> direction with this table (operator_enum / prop(expand=True) spread one slot per item)."
+ },
+ "verifier_corrections": {
+  "click_triggered_handoff": {
+   "probe": "tools/spikes/menus/probe_handoff.py (PROBE=probe_handoff.py tools/spikes/menus/run.sh OUT.json)",
+   "finding": "Handing off to wm.call_menu on LMB PRESS lets the following LMB RELEASE activate the popup item under the cursor (item 0) and close the popup, both direct-in-modal() and via a 0-interval timer (the timer only escaped when PRESS and RELEASE were injected in the same WM tick, which a real click never is). Handing off on LMB RELEASE (modal consumes the PRESS) left the popup open with nothing activated in all 4 variants. Reproduced in 2 runs.",
+   "rule": "ops/invoke.py: trigger the native handoff on the RELEASE of the click (or of the plaza key), never on PRESS; direct call in modal() is then fine.",
+   "trials": {
+    "PRESS:direct:gap0": {
+     "handoff_event": "LEFTMOUSE:PRESS",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 0,
+     "picked_by_stray_event": [
+      0
+     ],
+     "px_after_esc": 221071,
+     "modal_still_running": []
+    },
+    "PRESS:direct:gap0.12": {
+     "handoff_event": "LEFTMOUSE:PRESS",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 0,
+     "picked_by_stray_event": [
+      0
+     ],
+     "px_after_esc": 0,
+     "modal_still_running": []
+    },
+    "PRESS:timer:gap0": {
+     "handoff_event": "LEFTMOUSE:PRESS",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 23310,
+     "picked_by_stray_event": [],
+     "px_after_esc": 0,
+     "modal_still_running": []
+    },
+    "PRESS:timer:gap0.12": {
+     "handoff_event": "LEFTMOUSE:PRESS",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 0,
+     "picked_by_stray_event": [
+      0
+     ],
+     "px_after_esc": 0,
+     "modal_still_running": []
+    },
+    "RELEASE:direct:gap0": {
+     "handoff_event": "LEFTMOUSE:RELEASE",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 23310,
+     "picked_by_stray_event": [],
+     "px_after_esc": 0,
+     "modal_still_running": []
+    },
+    "RELEASE:direct:gap0.12": {
+     "handoff_event": "LEFTMOUSE:RELEASE",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 23310,
+     "picked_by_stray_event": [],
+     "px_after_esc": 0,
+     "modal_still_running": []
+    },
+    "RELEASE:timer:gap0": {
+     "handoff_event": "LEFTMOUSE:RELEASE",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 23310,
+     "picked_by_stray_event": [],
+     "px_after_esc": 0,
+     "modal_still_running": []
+    },
+    "RELEASE:timer:gap0.12": {
+     "handoff_event": "LEFTMOUSE:RELEASE",
+     "result": [
+      "INTERFACE"
+     ],
+     "popup_open_after_release_px": 23310,
+     "picked_by_stray_event": [],
+     "px_after_esc": 0,
+     "modal_still_running": []
+    }
+   },
+   "errors": []
+  },
+  "spike9_one_esc_claim": "Not universal: matched:ShaderNodeTree:direct:UI_MT_color_space_select kept a 1300 px diff after 3 ESCs (rows y=29-30 across the area width, i.e. a node-editor redraw after the ui_type switch, not the popup). Reproduced in raw2 and the verifier run; detection confounder, not a stuck popup.",
+  "spike9_grey_out": "CANCELLED is only known after the plaza has closed and C MenuType.poll is not reachable from Python, so rows cannot be pre-greyed from the return value; gate statically by editor and report CANCELLED at click time.",
+  "spike9_filebrowser": "FILEBROWSER_MT_operations_menu never opened in any tested context; 'only in file-browser dialogs' is untested inference.",
+  "spike8_plan_conflict": "Plan Phase 4 says 'EXEC_REGION_WIN is the root default for header menus'; spike 8 shows real header pulldowns draw at INVOKE_REGION_WIN (no 'Search...'). The spike result supersedes the plan wording."
+ }
+}
