@@ -387,22 +387,20 @@ class TestPlazaSnapFallbacks(unittest.TestCase):
     OPTIONS_ID = 'ts:mode_options:VIEW3D_PT_tools_object_options'
 
     def test_object_mode(self):
-        from tests.blender.test_popover import cm, pop, view3d_info
-        row, cascades = self._cascades()
-        self._check_snap(row, cascades)
         # The Options cascade comes from the tool header, recorded only while that region has a
-        # size; headless, an earlier sidebar toggle can leave it at 0 px (never in the GUI).
+        # size. Headless, a real sidebar toggle leaves it at 1 px for the rest of the session
+        # (test_properties_cycle_blender stubs its toggle for that): fail rather than check
+        # only the native panel.
         _w, area, _r = view3d()
         header = importlib.import_module(f"{ADDON_MODULE}.record.header")
-        if header.visible_region(area, 'TOOL_HEADER') is not None:
-            self.assertIn(self.OPTIONS_ID, cascades, [i.id for i in row.items])
-        options = cascades.get(self.OPTIONS_ID)
-        if options is None:
-            item = cm().Item(self.OPTIONS_ID, "Options", cm().KIND_CASCADE,
-                             {'group': 'mode_options', 'panel': 'VIEW3D_PT_tools_object_options'})
-            options = list(_walk(pop().build_tool_cascade(bpy.context, view3d_info(), item).items))
+        self.assertIsNotNone(header.visible_region(area, 'TOOL_HEADER'),
+                             "the 3D View tool header lost its size (an earlier region toggle)")
+        row, cascades = self._cascades()
+        self._check_snap(row, cascades)
+        self.assertIn(self.OPTIONS_ID, cascades, [i.id for i in row.items])
         self.assertIn('tool_settings.use_transform_data_origin',
-                      {i.action.data_path for i in options if i.kind == 'toggle'})
+                      {i.action.data_path for i in cascades[self.OPTIONS_ID]
+                       if i.kind == 'toggle'})
 
     def test_edit_mesh(self):
         with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):

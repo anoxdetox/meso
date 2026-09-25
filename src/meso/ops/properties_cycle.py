@@ -119,6 +119,13 @@ def cancel_sidebar() -> None:
             pass
 
 
+def show_sidebar(space) -> None:
+    """Show the sidebar of a 3D View space (a module function so the headless tests can stub
+    it: there the animated region toggle re-lays the area out at ui_scale 0 and every other
+    region of it, the tool header included, stays 1 px for the rest of the session)."""
+    space.show_region_ui = True
+
+
 def area_address(context, area):
     wm = context.window_manager
     window = context.window
@@ -181,7 +188,7 @@ default); with no Properties editor on the screen, the sidebar Item tab"""
         if plan == pc.SIDEBAR_SET and set_sidebar_tab(area):
             return {'FINISHED'}
         if plan == pc.SIDEBAR_SHOW:
-            space.show_region_ui = True
+            show_sidebar(space)
             area.tag_redraw()
         cancel_sidebar()
         _pending.update(address=area_address(context, area), tries=0)

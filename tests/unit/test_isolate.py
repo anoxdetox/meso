@@ -135,5 +135,72 @@ class TestPlan(unittest.TestCase):
         self.assertEqual(iso.plan([]), (iso.ISOLATE, ()))
 
 
+def B(names, bits, sigs=None):
+    """Bone flags: ``counts`` is the names in read order, one level, a sig per bone."""
+    return iso.Flags(tuple(names), (bytes(int(c) for c in bits),),
+                     tuple(sigs) if sigs is not None else tuple(names))
+
+
+class TestRemap(unittest.TestCase):
+    """Bones renamed or reordered while isolated keep the exact restore (``remap``/``rebase``);
+    added or removed bones keep the topology-change reveal."""
+
+    SIGS = ('s_a', 's_b', 's_c')
+
+    def test_sigs_are_not_compared(self):
+        self.assertEqual(B("ab", "10", sigs=(1, 2)), B("ab", "10", sigs=(3, 4)))
+
+    def test_same_names_other_order(self):
+        before = B("abc", "100", self.SIGS)
+        now = B("cab", "000", ('s_c', 's_a', 's_b'))
+        self.assertEqual(iso.remap(before, now), B("cab", "010", ('s_c', 's_a', 's_b')))
+
+    def test_rename_matched_by_sig(self):
+        before = B("abc", "101", self.SIGS)
+        now = B("axc", "000", self.SIGS)
+        self.assertEqual(iso.remap(before, now).bits, (b"\x01\x00\x01",))
+        self.assertEqual(iso.remap(before, now).counts, tuple("axc"))
+
+    def test_rename_and_reorder(self):
+        before = B("abc", "001", self.SIGS)
+        now = B("zab", "000", ('s_c', 's_a', 's_b'))
+        self.assertEqual(iso.remap(before, now).bits, (b"\x01\x00\x00",))
+
+    def test_unmatched_gives_none(self):
+        before = B("abc", "100", self.SIGS)
+        self.assertIsNone(iso.remap(before, B("abcd", "0000", self.SIGS + ('s_d',))))
+        self.assertIsNone(iso.remap(before, B("ab", "00", self.SIGS[:2])))
+        # a bone deleted and another added at a new place: its sig matches nothing
+        self.assertIsNone(iso.remap(before, B("abx", "000", ('s_a', 's_b', 's_new'))))
+        # two renamed bones with the same sig: ambiguous
+        twins = B("abc", "100", ('s', 's', 's_c'))
+        self.assertIsNone(iso.remap(twins, B("xyc", "000", ('s', 's', 's_c'))))
+        # no sigs (not a bone kind)
+        self.assertIsNone(iso.remap(F("10"), F("01", counts=('x', 'y'))))
+
+    def test_rebase(self):
+        before, after = B("abc", "100", self.SIGS), B("abc", "101", self.SIGS)
+        rec = iso.Record(before, after)
+        now = B("abz", "101", self.SIGS)
+        rebased = iso.rebase(rec, now)
+        self.assertEqual(rebased.before, B("abz", "100", self.SIGS))
+        self.assertEqual(rebased.after, B("abz", "101", self.SIGS))
+        self.assertTrue(rebased.active)
+        self.assertEqual(iso.decide(rebased, now), iso.RESTORE)
+        # unchanged names: the same record; unmatched: the same record (decide reveals)
+        self.assertIs(iso.rebase(rec, B("abc", "101", self.SIGS)), rec)
+        grown = B("abcd", "1011", self.SIGS + ('s_d',))
+        self.assertIs(iso.rebase(rec, grown), rec)
+        self.assertEqual(iso.decide(rec, grown), iso.RESTORE_TOPOLOGY_CHANGED)
+        inactive = iso.after_restore(rec)
+        self.assertFalse(iso.rebase(inactive, now).active)
+        # mesh-like flags (no sigs) are never rebased
+        mesh = iso.Record(BEFORE, AFTER)
+        self.assertIs(iso.rebase(mesh, F("1", "", "")), mesh)
+
+    def test_revealed_keeps_sigs(self):
+        self.assertEqual(B("ab", "11", (1, 2)).revealed().sigs, (1, 2))
+
+
 if __name__ == '__main__':
     unittest.main()

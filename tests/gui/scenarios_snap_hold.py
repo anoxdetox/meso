@@ -23,7 +23,8 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
   happens to the release is recorded; the next tap of the hold key restores exactly.
 - G13 ``mk_pivot``: Insert toggles Affect Only Origins; with the D hold on, D held + Move-gizmo
   drag moves only the origin, and the release restores the option.
-- ``mk_protected_features``: with every binding on, Shift RMB places and drags the 3D cursor,
+- ``mk_protected_features``: with every binding on, Shift RMB places and drags the 3D cursor
+  (and no add-on item uses Shift RMB, IC's cursor items fire first),
   RMB opens the context menu, Tab the search, Shift Tab (Quick Favorites) reaches no hold, a box
   select drag
   selects, Shift I local view, and typing X C V J D in the Text editor, the Console and 3D text
@@ -666,6 +667,30 @@ def scenarios(drv):
             meso = yield from cursor_drag()
             rec.setdefault("details", {})["shift_rmb_drag_native_vs_meso"] = [native, meso]
             drv.check(rec, "shift_rmb_drag_as_native", native == meso, [native, meso])
+            # the drag above may never start under event simulation, so it cannot see a Meso
+            # item that swallows the drag: no add-on item may use Shift RMB (any value), and
+            # IC's own cursor items fire first on their keys (headless twin:
+            # test_meso_keymap.TestShiftRmbStaysNative)
+            wm = bpy.context.window_manager
+            ours = [kmi for km in wm.keyconfigs.addon.keymaps for kmi in km.keymap_items
+                    if kmi.idname.startswith('meso.') or kmi.idname in {
+                        n for b in mb().BINDINGS for n in mb().operator_idnames(b)}]
+            shift_rmb = [(kmi.idname, kmi.value) for kmi in ours
+                         if kmi.active and kmi.type == 'RIGHTMOUSE'
+                         and (kmi.any or kmi.shift != 0)]
+            drv.check(rec, "shift_rmb_no_meso_item", bool(ours) and shift_rmb == [], shift_rmb)
+            wm.keyconfigs.update()
+            km3d = wm.keyconfigs.user.keymaps.find('3D View', space_type='VIEW_3D',
+                                                   region_type='WINDOW')
+            first = {}
+            for value in ('PRESS', 'CLICK_DRAG'):
+                hit = next((k for k in km3d.keymap_items if k.active
+                            and k.type == 'RIGHTMOUSE' and k.shift == 1 and not k.ctrl
+                            and not k.alt and k.value in (value, 'ANY')), None)
+                first[value] = hit.idname if hit is not None else None
+            drv.check(rec, "shift_rmb_native_first",
+                      first == {'PRESS': 'view3d.cursor3d',
+                                'CLICK_DRAG': 'transform.translate'}, first)
             scene.cursor.location = placed
             # RMB context menu, Tab search, Shift Tab Quick Favorites
             MENU["context"] = 0

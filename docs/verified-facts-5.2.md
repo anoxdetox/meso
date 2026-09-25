@@ -233,9 +233,28 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   `view3d.cursor3d` item handles the press), with or without Meso items: both are real-input checks.
 - Plaza fallbacks: the Object Mode Tool Settings row holds every `snap_elements_base` / `snap_elements_individual`
   member, all `snap_target` values and Affect Move/Rotate/Scale in its Snap cascade, and Affect Only Origins in its
-  "Options" cascade (`VIEW3D_PT_tools_object_options`); the Edit Mesh row the same snap set. Headless, the Options
-  cascade can be missing after a test toggles the sidebar: the tool header region then has no size and is not
-  recorded (never in the GUI).
+  "Options" cascade (`VIEW3D_PT_tools_object_options`); the Edit Mesh row the same snap set.
+- Headless, one `SpaceView3D.show_region_ui` write re-lays the area out at ui_scale 0: HEADER, TOOL_HEADER and
+  TOOLS drop to 1x1 px for the rest of the session (`tag_redraw`, `screen_full_area` and back, a ui_type round trip
+  and a `preferences.view.ui_scale` write do not bring them back; `system.ui_scale` stays 0.0). An unsized tool
+  header is not recorded, so the Plaza Tool Settings row loses its tool-header cascades. The suite stubs the
+  sidebar toggle (`ops.properties_cycle.show_sidebar`) and `TestPlazaSnapFallbacks` fails if the region is unsized.
+
+**Meso Keymap, isolate review fixes (headless `test_isolate_blender.py`, 5.2.2):**
+- A BMesh `hide` write is a plain flag write: it does not deselect. A mesh element left hidden and selected makes the
+  next `transform.translate` segfault (cube: Ctrl H a vertex, isolate, `mesh.reveal(select=True)`, a restore that
+  wrote only the hide flags, then translate). `BMElem.select_set(False)` (and `select = False`) is ignored on a
+  hidden element, so the restore deselects what it is about to hide while it is still visible, re-selects the kept
+  visible selection, then `select_flush_mode()` and drops hidden elements from `select_history`.
+- The native hides deselect what they hide for edit bones (`select`, `select_head`, `select_tail`), pose bones
+  (`PoseBone.select`) and curve points; `mball.hide_metaelems` leaves hidden metaelements selected. `curve.hide`
+  also sets `Spline.hide` on a spline whose points are all hidden (writable; it is saved with the file).
+- `ID.session_uid` stays the same across an object/data rename and across a memfile `ed.undo`.
+- `bm.faces.remove(f)` then `bm.faces.new(...)`, and `mesh.delete(type='ONLY_FACE')` then `mesh.edge_face_add`,
+  put the new face in the freed slot: the face order and indices are unchanged. `mesh.sort_elements` keeps the
+  element counts and reorders them.
+- Edit bones come back in hierarchy order after an Object Mode round trip (a child added after its parent's
+  siblings moves next to its parent); a rename keeps the order of `edit_bones` and `pose.bones`.
 
 ---
 

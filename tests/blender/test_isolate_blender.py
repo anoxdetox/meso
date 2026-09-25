@@ -190,6 +190,112 @@ class TestMesh(IsolateCase):
         self.assertFalse(any(e.hide for seq in (bm.verts, bm.edges, bm.faces) for e in seq))
         self.assertNotIn(key, ops_iso().records())
 
+    def _hidden_and_selected(self, obj):
+        bm = bmesh.from_edit_mesh(obj.data)
+        return [(type(e).__name__, e.index) for seq in (bm.verts, bm.edges, bm.faces)
+                for e in seq if e.hide and e.select]
+
+    def test_restore_after_a_selecting_reveal_deselects_what_it_hides(self):
+        """Isolate, reveal with select=True (IC Alt H), Ctrl 1: the restored hidden elements
+        must not stay selected (a hidden and selected vertex crashes the next transform)."""
+        obj = self._grid()
+        for mode in ('VERT', 'EDGE', 'FACE'):
+            with self.subTest(select_mode=mode):
+                run(bpy.ops.mesh.reveal, select=False)
+                ops_iso().clear_records()
+                run(bpy.ops.mesh.select_mode, type=mode)
+                self._prehide(obj)
+                hidden_before = [s[0] for s in self._state(obj)]
+                self.assertEqual(toggle(), {'FINISHED'})
+                run(bpy.ops.mesh.reveal, select=True)
+                self.assertEqual(toggle(), {'FINISHED'})
+                self.assertEqual([s[0] for s in self._state(obj)], hidden_before)
+                self.assertEqual(self._hidden_and_selected(obj), [])
+                bm = bmesh.from_edit_mesh(obj.data)
+                self.assertEqual(obj.data.total_vert_sel,
+                                 sum(v.select for v in bm.verts))
+                self.assertTrue(all(not e.hide for e in bm.select_history))
+                self.assertEqual(run(bpy.ops.transform.translate, value=(0.1, 0, 0)),
+                                 {'FINISHED'})
+
+    def test_rename_while_isolated_still_restores_exactly(self):
+        obj = self._grid()
+        self._prehide(obj)
+        before = self._state(obj)
+        self.assertEqual(toggle(), {'FINISHED'})
+        obj.name = "meso_renamed_object"
+        obj.data.name = "meso_renamed_mesh"
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual([s[0] for s in self._state(obj)], [s[0] for s in before])
+
+    def _isolated_with_face_8_hidden(self):
+        obj = self._grid()
+        run(bpy.ops.mesh.select_mode, type='FACE')
+        self._select_faces(obj, (8,))
+        run(bpy.ops.mesh.hide, unselected=False)
+        self._user_hidden = self._hidden_centres(obj)
+        self.assertEqual(len(self._user_hidden), 1)
+        self._select_faces(obj, (0, 1))
+        self.assertEqual(toggle(), {'FINISHED'})
+        return obj
+
+    def _hidden_centres(self, obj):
+        bm = bmesh.from_edit_mesh(obj.data)
+        return sorted(tuple(round(c, 4) for c in f.calc_center_median())
+                      for f in bm.faces if f.hide)
+
+    def _assert_exact_or_revealed(self, obj, hidden_before, expect_reveal):
+        """Ctrl 1 after an edit that keeps the element counts: either the same faces (by
+        position) are hidden again, or everything is revealed with the warning; the old
+        per-index bits must never land on other faces."""
+        key = ops_iso().record_key(obj, core_iso().KIND_MESH)
+        self.assertIn(key, ops_iso().records())
+        bm = bmesh.from_edit_mesh(obj.data)
+        self.assertEqual((len(bm.verts), len(bm.edges), len(bm.faces)), (25, 40, 16))
+        self.assertEqual(toggle(), {'FINISHED'})
+        bm = bmesh.from_edit_mesh(obj.data)
+        revealed = not any(e.hide for seq in (bm.verts, bm.edges, bm.faces) for e in seq)
+        if revealed:
+            self.assertNotIn(key, ops_iso().records())
+        else:
+            self.assertEqual(self._hidden_centres(obj), hidden_before)
+        if expect_reveal is not None:
+            self.assertEqual(revealed, expect_reveal)
+
+    def test_delete_and_refill_while_isolated(self):
+        """Delete a visible face (Only Faces) and fill the hole again (F) while isolated."""
+        obj = self._isolated_with_face_8_hidden()
+        bm = bmesh.from_edit_mesh(obj.data)
+        bm.faces.ensure_lookup_table()
+        corners = {tuple(round(c, 4) for c in v.co) for v in bm.faces[0].verts}
+        self._select_faces(obj, (0,))
+        run(bpy.ops.mesh.delete, type='ONLY_FACE')
+        run(bpy.ops.mesh.select_mode, type='VERT')
+        bm = bmesh.from_edit_mesh(obj.data)
+        for v in bm.verts:
+            v.select_set(not v.hide and tuple(round(c, 4) for c in v.co) in corners)
+        bm.select_flush_mode()
+        bmesh.update_edit_mesh(obj.data)
+        run(bpy.ops.mesh.edge_face_add)
+        self.assertEqual(len(self._hidden_centres(obj)), 14)
+        self._assert_exact_or_revealed(obj, self._user_hidden, None)
+
+    def test_sort_elements_is_a_topology_change(self):
+        obj = self._isolated_with_face_8_hidden()
+        run(bpy.ops.mesh.sort_elements, type='REVERSE', elements={'FACE'})
+        self._assert_exact_or_revealed(obj, self._user_hidden, True)
+
+    def test_flipped_normals_keep_the_restore(self):
+        obj = self._isolated_with_face_8_hidden()
+        bm = bmesh.from_edit_mesh(obj.data)
+        before = self._state(obj)
+        run(bpy.ops.mesh.flip_normals)
+        self.assertEqual(toggle(), {'FINISHED'})
+        bm = bmesh.from_edit_mesh(obj.data)
+        bm.faces.ensure_lookup_table()
+        self.assertEqual([f.index for f in bm.faces if f.hide], [8])
+        self.assertNotEqual(self._state(obj), before)
+
     def test_nothing_selected(self):
         obj = self._grid()
         self._select_faces(obj, ())
@@ -256,6 +362,44 @@ class TestCurve(IsolateCase):
         run(bpy.ops.object.mode_set, mode='OBJECT')
         self.assertEqual([p.hide for p in self._points(obj)], before)
 
+    def test_restore_after_a_selecting_reveal_deselects_what_it_hides(self):
+        obj = self.add(bpy.ops.curve.primitive_bezier_circle_add, location=(0, 0, 30))
+        self.edit(obj)
+        self._select(obj, (0,))
+        run(bpy.ops.curve.hide, unselected=False)
+        self._select(obj, (2,))
+        before = [p.hide for p in self._points(obj)]
+        self.assertEqual(toggle(), {'FINISHED'})
+        run(bpy.ops.curve.reveal, select=True)
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual([p.hide for p in self._points(obj)], before)
+        bad = [i for i, p in enumerate(self._points(obj)) if p.hide and (
+            p.select_control_point or p.select_left_handle or p.select_right_handle)]
+        self.assertEqual(bad, [])
+
+    def test_fully_hidden_spline_round_trip(self):
+        """Two splines; the isolate hides every point of the second, so Blender also sets its
+        Spline.hide: the restore must clear it again."""
+        obj = self.add(bpy.ops.curve.primitive_bezier_circle_add, location=(0, 0, 30))
+        other = self.add(bpy.ops.curve.primitive_bezier_circle_add, location=(3, 0, 30))
+        for o in bpy.context.view_layer.objects:
+            o.select_set(o in (obj, other))
+        bpy.context.view_layer.objects.active = obj
+        run(bpy.ops.object.join)
+        self.made.remove(other)
+        self.edit(obj)
+        self.assertEqual(len(obj.data.splines), 2)
+        self._select(obj, (0,))
+        before = ([p.hide for p in self._points(obj)], [s.hide for s in obj.data.splines])
+        self.assertEqual(before[1], [False, False])
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual([s.hide for s in obj.data.splines], [False, True])
+        self.assertEqual(toggle(), {'FINISHED'})
+        after = ([p.hide for p in self._points(obj)], [s.hide for s in obj.data.splines])
+        self.assertEqual(after, before)
+        run(bpy.ops.object.mode_set, mode='OBJECT')
+        self.assertEqual([s.hide for s in obj.data.splines], [False, False])
+
     def test_bezier(self):
         self._round_trip(bpy.ops.curve.primitive_bezier_circle_add, 'EDIT_CURVE')
 
@@ -292,6 +436,78 @@ class TestBones(IsolateCase):
         self.assertEqual([b.name for b in obj.data.edit_bones if not b.hide], ["meso_1"])
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual({b.name: b.hide for b in obj.data.edit_bones}, before)
+
+    def test_edit_bones_rename_while_isolated(self):
+        obj = self._armature()
+        self._edit_select(obj, {"meso_0"})
+        run(bpy.ops.armature.hide, unselected=False)
+        self._edit_select(obj, {"meso_1"})
+        self.assertEqual(toggle(), {'FINISHED'})
+        obj.data.edit_bones["meso_2"].name = "meso_renamed"
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual({b.name: b.hide for b in obj.data.edit_bones},
+                         {"Bone": False, "meso_0": True, "meso_1": False,
+                          "meso_renamed": False})
+
+    def test_edit_bones_reordered_by_a_mode_switch(self):
+        """Bones added out of hierarchy order come back in another order after Object Mode."""
+        obj = self._armature()
+        child = obj.data.edit_bones.new("meso_child")
+        child.head, child.tail = (1.0, 0.0, 1.0), (1.0, 0.0, 2.0)
+        child.parent = obj.data.edit_bones["meso_0"]
+        self._edit_select(obj, {"meso_child"})
+        run(bpy.ops.armature.hide, unselected=False)
+        self._edit_select(obj, {"meso_1"})
+        before = {b.name: b.hide for b in obj.data.edit_bones}
+        order = [b.name for b in obj.data.edit_bones]
+        self.assertEqual(toggle(), {'FINISHED'})
+        run(bpy.ops.object.mode_set, mode='OBJECT')
+        self.edit(obj)
+        self.assertNotEqual([b.name for b in obj.data.edit_bones], order)
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual({b.name: b.hide for b in obj.data.edit_bones}, before)
+
+    def test_edit_bones_added_while_isolated_reveal_everything(self):
+        obj = self._armature()
+        self._edit_select(obj, {"meso_0"})
+        run(bpy.ops.armature.hide, unselected=False)
+        self._edit_select(obj, {"meso_1"})
+        self.assertEqual(toggle(), {'FINISHED'})
+        b = obj.data.edit_bones.new("meso_new")
+        b.head, b.tail = (9.0, 0.0, 0.0), (9.0, 0.0, 1.0)
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertFalse(any(b.hide for b in obj.data.edit_bones))
+
+    def test_edit_bones_restore_after_a_selecting_reveal(self):
+        obj = self._armature()
+        self._edit_select(obj, {"meso_0"})
+        run(bpy.ops.armature.hide, unselected=False)
+        self._edit_select(obj, {"meso_1"})
+        self.assertEqual(toggle(), {'FINISHED'})
+        run(bpy.ops.armature.reveal, select=True)
+        self.assertEqual(toggle(), {'FINISHED'})
+        bad = [b.name for b in obj.data.edit_bones
+               if b.hide and (b.select or b.select_head or b.select_tail)]
+        self.assertEqual(bad, [])
+        self.assertTrue(obj.data.edit_bones["meso_0"].hide)
+
+    def test_pose_bones_rename_while_isolated(self):
+        obj = self._armature()
+        run(bpy.ops.object.mode_set, mode='POSE')
+        bones = obj.pose.bones
+        for pb in bones:
+            pb.select = pb.name == "meso_0"
+        run(bpy.ops.pose.hide, unselected=False)
+        for pb in bones:
+            pb.select = pb.name == "meso_2"
+        self.assertEqual(toggle(), {'FINISHED'})
+        bones["meso_1"].name = "meso_renamed"
+        run(bpy.ops.pose.reveal, select=True)
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual({pb.name: pb.hide for pb in bones},
+                         {"Bone": False, "meso_0": True, "meso_renamed": False,
+                          "meso_2": False})
+        self.assertEqual([pb.name for pb in bones if pb.hide and pb.select], [])
 
     def test_pose_bones(self):
         obj = self._armature()

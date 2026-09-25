@@ -151,7 +151,9 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
       which restore exactly. The Tool Settings row shows the momentary state meanwhile.
   11. **Shift RMB cursor drag:** under `event_simulate`, IC's PRESS `view3d.cursor3d` item keeps the CLICK_DRAG
       cursor drag from starting, with or without Meso's bindings; the sweep checks it behaves the same with every
-      binding off and on (a real-mouse check is listed for the user).
+      binding off and on (a real-mouse check is listed for the user). Since that comparison cannot see a Meso item
+      that swallows the drag, the sweep (`shift_rmb_no_meso_item`, `shift_rmb_native_first`) and the headless
+      `TestShiftRmbStaysNative` also check the keymaps: no add-on item on Shift RMB, IC's cursor items first.
 
 ## Delivery model (user decision 1)
 - **On the first enable** the user chooses: **Use the Meso Keymap** (select IC + register Meso's bindings) or **Keep my
@@ -527,13 +529,20 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
 
   | Kind | Flags (order) | Isolate op | Restore write |
   |---|---|---|---|
-  | MESH | BMesh `verts.hide`, `edges.hide`, `faces.hide` (`bmesh.from_edit_mesh`) | `mesh.hide(unselected=True)` | write all three levels, then `bmesh.update_edit_mesh(me, loop_triangles=False, destructive=False)` |
-  | CURVE | per spline: `bezier_points[i].hide` or `points[i].hide` | `curve.hide(unselected=True)` | write back per point |
-  | ARMATURE | `EditBone.hide` | `armature.hide(unselected=True)` | write back |
-  | POSE | `PoseBone.hide` (not `Bone.hide`) | `pose.hide(unselected=True)` | write back |
-  | METABALL | `MetaElement.hide` | `mball.hide_metaelems(unselected=True)` | write back |
+  | MESH | BMesh `verts.hide`, `edges.hide`, `faces.hide` (`bmesh.from_edit_mesh`); `counts` = the three counts + a connectivity digest | `mesh.hide(unselected=True)` | deselect what is to be hidden while still visible, write all three levels, re-select the kept visible selection, `select_flush_mode()`, drop hidden elements from `select_history`, then `bmesh.update_edit_mesh(me, loop_triangles=False, destructive=False)` |
+  | CURVE | per spline: `bezier_points[i].hide` or `points[i].hide`, then each `Spline.hide` | `curve.hide(unselected=True)` | write back per point and per spline; hidden points deselected (control point and handles) |
+  | ARMATURE | `EditBone.hide`; `counts` = names, `sigs` = head/tail | `armature.hide(unselected=True)` | write back; hidden bones deselected (bone, head, tail) |
+  | POSE | `PoseBone.hide` (not `Bone.hide`); `counts` = names, `sigs` = rest head/tail | `pose.hide(unselected=True)` | write back; hidden bones deselected |
+  | METABALL | `MetaElement.hide` | `mball.hide_metaelems(unselected=True)` | write back (selection left as it is, as natively) |
 
-- **Records** (module dict, key `(object name, data name, kind)`): `Record(before: Flags, after: Flags)`.
+  No hidden element is left selected (as the native hides do; a hidden and selected mesh element crashes the next
+  transform). The MESH digest hashes each edge's and each face's vertex indices in element order (a face's sorted,
+  so a normal flip keeps it): a sort or any reorder that keeps the counts is a topology change, never a restore of
+  per-index bits onto other elements.
+- **Records** (module dict, key `(object session_uid, data session_uid, kind)`, so a rename keeps the record):
+  `Record(before: Flags, after: Flags)`. Bones: before `decide`, `rebase(record, current)` re-expresses the record in
+  the current bone order when the bone names were only reordered or renamed (`remap`: names first, then each renamed
+  bone by its unique head/tail signature); a bone added or removed keeps the topology-change row.
   `decide(record, current)`:
 
   | Situation | Result |
@@ -544,8 +553,8 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
   | record, otherwise | RESTORE: write `before` exactly (also when the user hid more while isolated), keep the record inactive (step 2, deviation 2) |
   | inactive record, `current == after` (the restore was undone) | RESTORE again; any other state → ISOLATE (step 2) |
 
-  The restore never uses the native reveal (it is never exact, spike e). Selection is left as it is. Records are
-  cleared on `load_post`; they survive mode switches (the hide flags live in the data). Undo safety comes from the
+  The restore never uses the native reveal (it is never exact, spike e). The selection of what stays visible is kept.
+  Records are cleared on `load_post`; they survive mode switches (the hide flags live in the data). Undo safety comes from the
   `current == before` row.
 - Ctrl+1 in 'Mesh' moves IC's vertex-mode-with-expand to Ctrl+Alt+1 (`reloc_mesh_vert_expand`). Native hide keys
   (Ctrl+H, Shift+H, Alt+H) and Shift+I local view are untouched.
@@ -623,7 +632,14 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
 - `test_isolate_blender.py`: exact round trip per kind (mesh in VERT/EDGE/FACE select modes with some elements already
   hidden, bezier / NURBS / surface, edit bones, pose bones, metaball); undo row (`current == before`); topology change
   (subdivide) → reveal + warning; LOCAL_VIEW kinds via `temp_override` on the factory 3D View (enter, exit,
-  nothing selected → CANCELLED).
+  nothing selected → CANCELLED). Review fixes: isolate → `reveal(select=True)` → restore leaves nothing hidden and
+  selected (mesh in each select mode, then a translate; curve; edit and pose bones); a rename of the object/mesh or
+  of a bone while isolated still restores exactly; edit bones reordered by a mode switch restore by name; a bone
+  added while isolated reveals; `sort_elements` while isolated → reveal + warning; a delete and refill → exact or
+  reveal, never other faces; a flip keeps the restore; a spline fully hidden by the isolate gets `Spline.hide` back.
+- `test_meso_keymap.py` `TestShiftRmbStaysNative`: with every binding on, on both keyconfigs, no Meso/Plaza item on
+  RIGHTMOUSE with Shift (any value); IC's `view3d.cursor3d` (PRESS) and cursor `transform.translate` (CLICK_DRAG) fire
+  first.
 - `test_snap_hold_blender.py`: the module-level paths without a modal (timers do not fire headless): press/release
   writes on the real `tool_settings` with a non-empty individual set; `save_pre`/`save_post` swap (saved file has the
   baseline); `load_pre` restore; `unregister()` restore; `pivot_toggle` in Object Mode; poll False in Sculpt and

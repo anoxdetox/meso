@@ -393,5 +393,53 @@ class TestApplyInPlaza(MesoKeymapCase):
         self.assertEqual((apply_.kind, apply_.submenu), (dm().DD_SUBMENU, "VIEW3D_MT_pose_apply"))
 
 
+class TestShiftRmbStaysNative(MesoKeymapCase):
+    """Shift RMB (3D cursor place and drag) stays native (user decision 6: the RMB Compass
+    menus are Phase 8+): with every Meso binding on, on either keyconfig, no Meso or Plaza
+    item uses RIGHTMOUSE with Shift (any value), and the native Industry Compatible cursor
+    items are the first to fire on their keys. (The GUI suite cannot start the cursor drag
+    under event simulation, so this is where a Shift RMB drag item would be caught.)"""
+
+    def _meso_items(self):
+        ours = [(km.name, kmi) for km, kmi, _item in mk().registered_items()]
+        ours += [(km.name, kmi) for km, kmi in _mod("keymaps").registered_items()]
+        self.assertTrue(ours)
+        return ours
+
+    def _shift_rmb(self, kmi):
+        return (kmi.active and kmi.type == 'RIGHTMOUSE'
+                and (kmi.any or kmi.shift != 0))
+
+    def test_no_meso_item_on_shift_rmb(self):
+        for keyconfig in ('Industry_Compatible', 'Blender'):
+            with self.subTest(keyconfig=keyconfig):
+                use_keyconfig(keyconfig)
+                self.p.keymap_choice = 'MESO'
+                self.p.bindings_on_other_keymaps = True
+                for b in mb().BINDINGS:
+                    setattr(self.p, mb().pref_name(b.id), True)
+                ids = mk().sync()
+                self.assertEqual(sorted(ids), sorted(ALL_IDS))
+                bad = [(name, kmi.idname, kmi.value) for name, kmi in self._meso_items()
+                       if self._shift_rmb(kmi)]
+                self.assertEqual(bad, [])
+
+    def test_native_cursor_items_fire_first(self):
+        self.meso_on_ic()
+        for b in mb().BINDINGS:
+            setattr(self.p, mb().pref_name(b.id), True)
+        mk().sync()
+        wm().keyconfigs.update()
+        km = wm().keyconfigs.user.keymaps.find('3D View', space_type='VIEW_3D',
+                                               region_type='WINDOW')
+        for value, native in (('PRESS', "view3d.cursor3d()"),
+                              ('CLICK_DRAG', "transform.translate(cursor_transform=True, "
+                                             "release_confirm=True)")):
+            with self.subTest(value=value):
+                key = mb().Key('RIGHTMOUSE', shift=True, value=value)
+                first = next(k for k in km.keymap_items if k.active and key_matches(k, key))
+                self.assertEqual(native_of(first), native)
+
+
 if __name__ == '__main__':
     unittest.main()

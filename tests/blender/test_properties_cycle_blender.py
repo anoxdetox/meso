@@ -125,12 +125,21 @@ class TestSidebarFallback(CycleCase):
         v3d = area_of('VIEW_3D')
         space = v3d.spaces.active
         saved_ui = space.show_region_ui
+        # Headless, a real show_region_ui write re-lays the 3D View out at ui_scale 0 and leaves
+        # its header and tool header at 1 px for every later test (the Plaza Tool Settings row
+        # needs a sized tool header, test_snap_hold_blender): the write is stubbed, the call
+        # is checked.
+        shown = []
+        self.addCleanup(setattr, ops_pc(), 'show_sidebar', ops_pc().show_sidebar)
+        ops_pc().show_sidebar = shown.append
+        tool_header = region_of(v3d, 'TOOL_HEADER')
+        size = (tool_header.width, tool_header.height)
         self.props.ui_type = 'OUTLINER'
         try:
             self.assertIsNone(area_of('PROPERTIES'))
-            space.show_region_ui = False
+            self.assertFalse(space.show_region_ui)
             self.assertEqual(cycle(), {'FINISHED'})
-            self.assertTrue(space.show_region_ui)
+            self.assertEqual(shown, [space])
             self.assertTrue(ops_pc().sidebar_pending())
             address = ops_pc()._pending['address']
             self.assertEqual(ops_pc().resolve(address), v3d)
@@ -146,7 +155,8 @@ class TestSidebarFallback(CycleCase):
         finally:
             ops_pc().cancel_sidebar()
             self.props.ui_type = 'PROPERTIES'
-            space.show_region_ui = saved_ui
+        self.assertEqual(space.show_region_ui, saved_ui)
+        self.assertEqual((tool_header.width, tool_header.height), size)
 
     def test_resolve_refuses_a_changed_screen(self):
         self.assertIsNone(ops_pc().resolve((0, "no such screen", 0)))
