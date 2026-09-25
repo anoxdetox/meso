@@ -9,8 +9,12 @@ empty space closes it after the grace, the Plaza stays open; (b) a sweep across 
 resting on each for less than the delay opens nothing; (c) the Snap toggle, a workspace tab, Recent Commands, Plaza Controls
 and the mode switcher never open anything on hover (no hand-off, nothing native); (d) the
 Pivot cascade opens on hover; (e) a click-pinned File stays open when the pointer leaves, a
-click on a hover-opened File pins it; (f) ``hover_open`` False: hover does nothing.
+click on a hover-opened File pins it; (f) ``hover_open`` False: hover does nothing; (g) the aim guard: Object open, a quick
+diagonal path to the top of its tall panel crosses Help (above Object) and Help never
+opens; stopping and resting on Help switches to it.
 """
+
+import importlib
 
 import bpy
 
@@ -20,6 +24,10 @@ OPEN_WAIT = 0.3           # hover_open_delay 0.05 s + the 0.05 s watchdog tick +
 CLOSE_WAIT = 0.7          # hover_close_delay 0.3 s + a tick + margin
 SWEEP_DELAY = 0.6         # hover_open_delay for the sweep (pref range 0.0-1.0 s)
 SWEEP_REST = 0.1          # rest per label: < SWEEP_DELAY, > two 0.05 s watchdog ticks
+AIM_STEP = 3              # px per simulated move of the diagonal path
+AIM_BATCH = 5             # moves per frame (15 px / frame: a quick, ordinary hand)
+AIM_FRAME = 0.016
+AIM_REST = 0.3            # hover_open_delay (the aim-guard rest) of the rest-switch session
 
 
 def scenarios(drv):
@@ -27,6 +35,9 @@ def scenarios(drv):
 
     def md():
         return drv.model_mod()
+
+    def D():
+        return drv.dd_model_mod()
 
     def bar(st):
         return st.menus.bar if st is not None and st.menus is not None else None
@@ -281,6 +292,127 @@ def scenarios(drv):
             if prefs is not None:
                 prefs.hover_open = old
 
+    # -------------------------------------------------------------------------- (g)
+    def ddg():
+        return importlib.import_module(drv.ADDON_MODULE + ".core.dropdown_geometry")
+
+    def eligible_labels(st):
+        dd = importlib.import_module(drv.ADDON_MODULE + ".ops.dropdowns")
+        return [b.item_id for b in st.layout.items
+                if dd.hover_eligible(st.menus, st, ddg().Hit(D().ZONE_LABEL, label_id=b.item_id))]
+
+    def crossing_path(st, open_id):
+        """A straight path (AIM_STEP px steps) from the open label ``open_id`` to an item of
+        its panel that crosses another hover-eligible label on the way (the reported case:
+        Object open, its tall panel beside the label, Help above Object): ``(points,
+        crossed_id)`` with each point's hit, or ``(None, None)``."""
+        g = ddg()
+        layout, chain = st.layout, st.menus.chain
+        others = set(eligible_labels(st)) - {open_id}
+        box = layout.item(open_id).rect
+        panel = chain.panels[0].rect
+        starts = [(int(box.x + box.w * fx), int(box.y + box.h * 0.5))
+                  for fx in (0.5, 0.3, 0.7, 0.15, 0.85)]
+        ends = [(int(panel.x + panel.w * fx), int(panel.y1 - panel.h * fy))
+                for fx in (0.15, 0.4) for fy in (0.03, 0.1, 0.2, 0.35, 0.65, 0.8, 0.9, 0.97)]
+        for sx, sy in starts:
+            for ex, ey in ends:
+                n = max(2, int(max(abs(ex - sx), abs(ey - sy)) / AIM_STEP))
+                pts = [(round(sx + (ex - sx) * i / n), round(sy + (ey - sy) * i / n))
+                       for i in range(n + 1)]
+                hits = [g.resolve_hit(layout, chain, x, y) for x, y in pts]
+                crossed = [h.label_id for h in hits
+                           if h.zone == D().ZONE_LABEL and h.label_id in others]
+                if crossed and hits[-1].zone == D().ZONE_ITEM:
+                    return list(zip(pts, hits)), crossed[0]
+        return None, None
+
+    def walk(points):
+        """Move along ``points`` like a quick hand: AIM_BATCH moves per ~frame."""
+        for i in range(0, len(points), AIM_BATCH):
+            for xy in points[i:i + AIM_BATCH]:
+                drv.sim('MOUSEMOVE', 'NOTHING', xy)
+            yield AIM_FRAME
+
+    def sc_aim_guard_diagonal(rec):
+        """Object open (click), a quick diagonal path toward the top of its panel crosses
+        another dropdown label (Help, above Object): Object stays open, the crossed menu
+        never opens, the path reaches the panel. Then, re-opened, the pointer stops on the
+        crossed label mid-path: resting there switches to it."""
+        obj = md().contextual_item_id("VIEW3D_MT_object")
+        xy, st = yield from start(rec)
+        if st is None:
+            return
+        if not (yield from drv.open_dropdown(rec, st, obj)):
+            yield from drv.close_plaza(xy, rec)
+            return
+        path, crossed = crossing_path(st, obj)
+        drv.check(rec, "crossing_path", path is not None,
+                  [st.menus.chain.panels[0].rect, eligible_labels(st)])
+        if path is None:
+            yield from drv.close_plaza(xy, rec)
+            return
+        crossed_menu = (st.model.find(crossed).payload or {}).get("menu")
+        rec["crossed"] = crossed
+        drv.check(rec, "crossed_is_dropdown", crossed_menu is not None, crossed)
+        drv.sim('MOUSEMOVE', 'NOTHING', path[0][0])
+        yield AIM_FRAME
+        yield from walk([p for p, _h in path[1:]])
+        yield 0.3
+        drv.check(rec, "object_kept", st.open_label == obj
+                  and drv.dd_keys(st)[:1] == ["VIEW3D_MT_object"],
+                  [st.open_label, drv.dd_keys(st)])
+        drv.check(rec, "crossed_never_opened", crossed_menu not in st.menus.opened,
+                  st.menus.opened)
+        drv.check(rec, "panel_reached", st.dropdown_hover is not None
+                  and st.dropdown_hover[:1] == path[-1][1].path[:1],
+                  [st.dropdown_hover, path[-1][1].path])
+        drv.check(rec, "no_draw_error", not st.failed and st.error is None, st.error)
+        drv.sim('MOUSEMOVE', 'NOTHING', empty(st))
+        yield 0.1
+        ls = yield from finish(rec, empty(st))
+        drv.check(rec, "menus_opened_object_only",
+                  crossed_menu not in (ls.get("menus_opened") or []), ls.get("menus_opened"))
+        # Second session: stop on the crossed label mid-path and rest there: it switches.
+        # hover_open_delay (the rest) raised to AIM_REST so a slow frame can never pass for
+        # a rest before the check that the crossing was deferred.
+        prefs = drv.addon_prefs()
+        old = prefs.hover_open_delay
+        try:
+            prefs.hover_open_delay = AIM_REST
+            xy, st = yield from start(rec)
+            if st is None:
+                return
+            if not (yield from drv.open_dropdown(rec, st, obj, prefix="reopen")):
+                yield from drv.close_plaza(xy, rec)
+                return
+            path, crossed2 = crossing_path(st, obj)
+            drv.check(rec, "same_crossing", crossed2 == crossed, crossed2)
+            if path is None:
+                yield from drv.close_plaza(xy, rec)
+                return
+            i = next(i for i, (_p, h) in enumerate(path) if h.label_id == crossed2)
+            drv.sim('MOUSEMOVE', 'NOTHING', path[0][0])
+            yield AIM_FRAME
+            yield from walk([p for p, _h in path[1:i + 1]])     # up to the crossed label
+            drv.check(rec, "crossing_deferred", st.open_label == obj
+                      and st.hover_id == crossed2, [st.open_label, st.hover_id])
+            yield AIM_REST + 0.3
+            drv.check(rec, "rest_switches", st.open_label == crossed2
+                      and drv.dd_keys(st) == [crossed_menu], [st.open_label, drv.dd_keys(st)])
+            drv.check(rec, "running", drv.plaza().is_running())
+            away = empty(st)
+            drv.sim('MOUSEMOVE', 'NOTHING', away)
+            yield 0.1
+            ls = yield from finish(rec, away)
+            drv.check(rec, "menus_opened_switched",
+                      (ls.get("menus_opened") or [])[:1] == ["VIEW3D_MT_object"]
+                      and crossed_menu in (ls.get("menus_opened") or []), ls.get("menus_opened"))
+        finally:
+            prefs = drv.addon_prefs()
+            if prefs is not None:
+                prefs.hover_open_delay = old
+
     return [
         ("hover_opens_switches_closes", sc_hover_opens_switches_closes),
         ("hover_fast_sweep", sc_fast_sweep),
@@ -288,4 +420,5 @@ def scenarios(drv):
         ("hover_pivot", sc_pivot_hover),
         ("hover_click_pins", sc_click_pins),
         ("hover_open_off", sc_hover_open_off),
+        ("hover_aim_guard_diagonal", sc_aim_guard_diagonal),
     ]
