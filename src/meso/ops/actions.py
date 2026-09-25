@@ -4,7 +4,7 @@
 Every setter pushes exactly one undo step via the positional undo flag (docs/spikes.md D5):
 ``bpy.ops.wm.context_toggle('EXEC_DEFAULT', True, data_path=...)`` etc. Space-owned paths
 (``space_data.*``) return CANCELLED with the value changed and no step (native parity).
-The plaza operator itself never has UNDO.
+The Plaza operator itself never has UNDO.
 
 :class:`MESO_OT_toggle_flag` (``{'UNDO','INTERNAL'}``, see the class) exists because
 ``wm.context_set_enum`` rejects flag enums ("expected a set, not a str") and assigning an

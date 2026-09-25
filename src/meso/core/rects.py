@@ -151,7 +151,7 @@ def clamp_to_bounds(rect: Rect, bounds: Rect) -> Rect:
 
     Per axis: if ``rect`` is larger than ``bounds`` it is aligned to the bounds' low edge
     (left/bottom); otherwise it is shifted by the minimum amount to fit. A rect already
-    inside is returned unchanged (equal value). Used to keep the plaza inside the bounding
+    inside is returned unchanged (equal value). Used to keep the Plaza inside the bounding
     box of ``window.screen.areas`` (the global bars are not drawable, D2).
     """
     x, y = rect.x, rect.y

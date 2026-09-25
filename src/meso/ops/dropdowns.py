@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The plaza's dropdown session: modal events -> ``core.menubar`` -> effects (Phase 4,
+"""The Plaza's dropdown session: modal events -> ``core.menubar`` -> effects (Phase 4,
 implementer D).
 
 ``ops.plaza`` owns the modal; this module owns everything Phase 4 adds to it, so the modal
@@ -35,7 +35,7 @@ which stay in ``ops.plaza``) to :func:`handle_event`, which
                       (a ``space_data.show_region_*`` path animates: re-recorded again on
                       the TIMERs :data:`RERECORD_DELAYS` later);
                       :func:`refresh_after_change` (``cache.invalidate()``;
-                      ``record.rows.refresh_tool_settings`` + re-layout of the plaza, text
+                      ``record.rows.refresh_tool_settings`` + re-layout of the Plaza, text
                       measured here, in the modal; every open level rebuilt, paths
                       re-resolved, ``dropdown_model.valid_depth``, chain re-placed where it
                       was with ``relayout_chain``; a HoverItem at the last pointer); ``step(Changed(key, valid_depth))`` + Opened per
@@ -474,7 +474,7 @@ def _replace_row_item(model: PlazaModel, new: Item) -> PlazaModel:
 
 
 def _relayout(state: Any, session: MenuSession) -> None:
-    """Re-place the plaza after a model change (same anchor, bounds and metrics)."""
+    """Re-place the Plaza after a model change (same anchor, bounds and metrics)."""
     metrics = state.layout.metrics
     state.layout = geometry.layout(state.model, state.anchor, state.layout.window_bounds,
                                    metrics, renderer.text_width_fn(metrics.font_px))
@@ -482,7 +482,7 @@ def _relayout(state: Any, session: MenuSession) -> None:
 
 def _make_native(state: Any, session: MenuSession, label_id: str) -> None:
     """Turn the row label ``label_id`` into a native '…' hand-off (its dropdown could not be
-    built custom) and re-lay out the plaza."""
+    built custom) and re-lay out the Plaza."""
     item = state.model.find(label_id) if state.model is not None else None
     if item is None or (item.payload or {}).get('coverage') == COVERAGE_NATIVE:
         return
@@ -634,10 +634,10 @@ def _close_chain(state: Any, depth: int) -> None:
 
 def refresh_after_change(state: Any, context: Any, changed_key: str) -> int:
     """After an in-place apply: invalidate the cache, re-record the Tool Settings row and
-    re-layout the plaza, rebuild the open chain and re-place it where it was
+    re-layout the Plaza, rebuild the open chain and re-place it where it was
     (``core.dropdown_geometry.relayout_chain``); returns the surviving depth
     (``core.dropdown_model.valid_depth``) for ``Changed``. Never raises (-> 0: the chain
-    closes, the plaza stays)."""
+    closes, the Plaza stays)."""
     session = state.menus
     try:
         from .. import prefs     # lazily (import graph, as ops.invoke.addon_module)
@@ -865,7 +865,7 @@ def execute_effects(op: Any, state: Any, context: Any, effects: tuple[Effect, ..
     effects too (bounded: at most :data:`MAX_FOLLOW_UP_ROUNDS` follow-up rounds). Then syncs
     the draw fields and issues at most one redraw (``before``: the draw snapshot to diff
     against when the caller changed state already). Never raises: an exception is logged,
-    the chain is closed and the plaza keeps running."""
+    the chain is closed and the Plaza keeps running."""
     session = state.menus
     if session is None:
         return None

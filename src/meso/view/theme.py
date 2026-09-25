@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Plaza colours (Phase 2).
 
-The default look is the reference DCC's grey plaza (``docs/reference/reference_plaza.png``): flat dark-grey
+The default look is a grey Plaza (``docs/reference/reference_plaza.png``): flat dark-grey
 translucent strips, light-grey text, a taller centre box in the strip grey, light-grey zone
 ticks and no full-screen dim. ``use_theme_colors`` (pref, default False) maps the Blender theme instead.
 
@@ -39,7 +39,7 @@ class Palette:
     center_back: RGBA       # centre box background
     center_text: RGBA
     ticks: RGBA             # zone ticks
-    dim: RGBA               # full-bounds dim behind the plaza; alpha 0 = none (default)
+    dim: RGBA               # full-bounds dim behind the Plaza; alpha 0 = none (default)
     roundness: float | None = None
 
 
@@ -47,7 +47,7 @@ def _grey(v: float, a: float = 1.0) -> RGBA:
     return (v, v, v, a)
 
 
-# Plaza grey, sampled from the reference image (hex in comments). Background alphas here are
+# Meso grey, sampled from the reference image (hex in comments). Background alphas here are
 # placeholders: meso_palette() replaces them with 1 - transparency / 100.
 MESO_PALETTE = Palette(
     strip=_grey(0x59 / 255, 0.85),          # #595959
@@ -149,7 +149,7 @@ def from_preferences(context: Any, use_theme_colors: bool = False,
         except Exception as ex:
             if not _fallback_logged:
                 _fallback_logged = True
-                print(f"Meso Mode: theme colours unavailable, using Plaza grey: "
+                print(f"Meso Mode: theme colours unavailable, using Meso grey: "
                       f"{type(ex).__name__}: {ex}", file=sys.stderr)
             return meso_palette(transparency)
     except Exception:

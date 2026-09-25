@@ -45,7 +45,7 @@ class MesoAddonPreferences(AddonPreferences):
     tap_threshold: FloatProperty(
         name="Tap Threshold",
         description="A press released faster than this (seconds) runs the tap action "
-                    "instead of leaving the plaza open",
+                    "instead of leaving the Plaza open",
         default=0.10,
         min=0.0,
         max=1.0,
@@ -54,23 +54,23 @@ class MesoAddonPreferences(AddonPreferences):
     )
     tap_action: EnumProperty(
         name="Tap Action",
-        description="What a quick tap of the plaza key does",
+        description="What a quick tap of the Plaza key does",
         items=(
             ('ORIGINAL', "Original", "Run what the key does natively (play, tools or search, "
                                      "per the keymap's Spacebar Action)"),
-            ('MAXIMIZE', "Maximize Area", "Toggle the area under the mouse maximized, like the reference DCC"),
+            ('MAXIMIZE', "Maximize Area", "Toggle the area under the mouse maximized"),
             ('NONE', "Nothing", "A tap does nothing"),
         ),
         default='ORIGINAL',
     )
     tap_action_view3d: EnumProperty(
         name="Tap Action (3D Viewport)",
-        description="What a quick tap of the plaza key does over the 3D Viewport",
+        description="What a quick tap of the Plaza key does over the 3D Viewport",
         items=(
             ('SAME_AS_GLOBAL', "Same as Tap Action", "Use the Tap Action setting"),
             ('ORIGINAL', "Original", "Run what the key does natively (play, tools or search, "
                                      "per the keymap's Spacebar Action)"),
-            ('PANE_TOGGLE', "Toggle Quad View", "pane toggle: single view <-> four views; "
+            ('PANE_TOGGLE', "Toggle Quad View", "Pane toggle: single view <-> four views; "
                                               "over a Top/Front/Side view, maximize that view"),
             ('MAXIMIZE', "Maximize Area", "Toggle the area under the mouse maximized"),
             ('NONE', "Nothing", "A tap does nothing"),
@@ -79,19 +79,19 @@ class MesoAddonPreferences(AddonPreferences):
     )
     text_chord: EnumProperty(
         name="Text/Console Key",
-        description="Chord that opens the plaza in the Text Editor and Python Console, "
+        description="Chord that opens the Plaza in the Text Editor and Python Console, "
                     "where Space types a space",
         items=(
             ('CTRL_SHIFT_SPACE', "Ctrl Shift Space", ""),
             ('SHIFT_ALT_SPACE', "Shift Alt Space", ""),
-            ('NONE', "None", "No plaza in the Text Editor and Python Console text area"),
+            ('NONE', "None", "No Plaza in the Text Editor and Python Console text area"),
         ),
         default='CTRL_SHIFT_SPACE',
         update=_update_text_chord,
     )
     transparency: IntProperty(
         name="Transparency",
-        description="Transparency of the plaza background (percent)",
+        description="Transparency of the Plaza background (percent)",
         default=25,
         min=0,
         max=100,
@@ -99,14 +99,14 @@ class MesoAddonPreferences(AddonPreferences):
     )
     font_scale: FloatProperty(
         name="Font Scale",
-        description="Size of the plaza labels relative to the interface font",
+        description="Size of the Plaza labels relative to the interface font",
         default=1.0,
         min=0.5,
         max=3.0,
     )
     row_spacing: FloatProperty(
         name="Row Spacing",
-        description="Vertical gap between the plaza rows, relative to the default gap",
+        description="Vertical gap between the Plaza rows, relative to the default gap",
         default=1.0,
         min=0.0,
         max=3.0,
@@ -114,7 +114,7 @@ class MesoAddonPreferences(AddonPreferences):
     show_tool_settings_row: BoolProperty(
         name="Tool Settings Row",
         description="Show the header tool settings (orientation, pivot, snapping, proportional "
-                    "editing, ...) as a plaza row",
+                    "editing, ...) as a Plaza row",
         default=True,
     )
     show_display_controls: BoolProperty(
@@ -126,7 +126,7 @@ class MesoAddonPreferences(AddonPreferences):
     submenu_delay: FloatProperty(
         name="Submenu Delay",
         description="Seconds the pointer rests on a dropdown item before its submenu opens "
-                    "(0 opens at once, like the reference DCC)",
+                    "(0 opens at once)",
         default=0.12,
         min=0.0,
         max=1.0,
@@ -166,7 +166,7 @@ class MesoAddonPreferences(AddonPreferences):
     )
     execute_on_release: BoolProperty(
         name="Run on Key Release",
-        description="Releasing the plaza key over a dropdown item runs that item",
+        description="Releasing the Plaza key over a dropdown item runs that item",
         default=False,
     )
     show_shortcuts: BoolProperty(
@@ -176,7 +176,7 @@ class MesoAddonPreferences(AddonPreferences):
     )
     use_theme_colors: BoolProperty(
         name="Use Theme Colors",
-        description="Colour the plaza from the Blender theme instead of Plaza grey",
+        description="Colour the Plaza from the Blender theme instead of Meso grey",
         default=False,
     )
     debug_timing: BoolProperty(

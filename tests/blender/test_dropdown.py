@@ -1,4 +1,4 @@
-"""record/dropdown.py: Menus -> reference-style dropdown models (Phase 4, implementer B).
+"""record/dropdown.py: Menus -> custom dropdown models (Phase 4, implementer B).
 
 Covers the conversion table of the module doc with hand-written test menus (registered in
 this module, ``MESO_MT_ddtest_*``), the factory menus of the spec (VIEW3D_MT_object /

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""pane toggle for the 3D View: Space tap = quad view <-> single view (Phase 3,
+"""Pane toggle for the 3D View: Space tap = quad view <-> single view (Phase 3,
 implementer D; user feedback after Phase 2).
 
 Behaviour (``core.tap.resolve_pane_action`` decides, this module executes):
@@ -29,7 +29,7 @@ an area with that pointer and ``area.type == 'VIEW_3D'``). Nothing here runs hea
 tests: ``region_quadview`` / ``view_axis`` segfault on the 0x0 background window (GUI only).
 
 Entry points: :func:`pane_toggle` (called by the operator) and :class:`MESO_OT_pane_toggle`
-(``meso.pane_toggle``), which the plaza tap runs through ``ops.plaza.run_tap``
+(``meso.pane_toggle``), which the Plaza tap runs through ``ops.plaza.run_tap``
 (``core.tap.resolve_tap_action`` -> ``TapCommand(PANE_TOGGLE_OPERATOR)``) and which users may
 bind to any key in the 3D View (the "other home" for the toggle).
 """
@@ -405,7 +405,7 @@ def _tag_redraw(area: Any) -> None:
 
 
 class MESO_OT_pane_toggle(Operator):
-    """Toggle between the single 3D View and quad view, reference style"""
+    """Toggle between the single 3D View and quad view"""
 
     bl_idname = PANE_TOGGLE_OPERATOR
     bl_label = 'Toggle Pane Layout'

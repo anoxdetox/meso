@@ -217,7 +217,7 @@ class _ProbeModalMixin:
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.05, window=context.window)
         self._space_cls = type(context.space_data)
-        # mimic the plaza: an overlay draw handler that is removed before the action runs
+        # mimic the Plaza: an overlay draw handler that is removed before the action runs
         self._handle = self._space_cls.draw_handler_add(_noop_draw, (), 'WINDOW', 'POST_PIXEL')
         wm.modal_handler_add(self)
         PENDING["running"] = True
@@ -245,7 +245,7 @@ class _ProbeModalMixin:
 
 
 class MESO_PROBE_OT_modal(_ProbeModalMixin, bpy.types.Operator):
-    """Probe modal without UNDO (like the plaza)"""
+    """Probe modal without UNDO (like the Plaza)"""
     bl_idname = "meso_probe.modal"
     bl_label = "Probe Modal"
     bl_options = {'REGISTER'}

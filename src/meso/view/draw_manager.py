@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""POST_PIXEL draw-handler lifecycle for the plaza overlay (docs/spikes.md D2).
+"""POST_PIXEL draw-handler lifecycle for the Plaza overlay (docs/spikes.md D2).
 
 One handler per (Space subclass, region type) pair of verified-facts §5 (86 pairs) is
-installed when the plaza opens and removed when it closes. A handler fires in every
+installed when the Plaza opens and removed when it closes. A handler fires in every
 matching region of every window, so each callback filters on the invoking window pointer,
 skips hidden (1x1) regions, draws only its region's *visible* part (the parts not covered
 by overlapping regions of the same area, which are drawn on top) and draws in window
@@ -21,7 +21,7 @@ label highlighted. The modal swaps these fields (never mutates them) and tags a 
 
 Failure policy (CLAUDE.md): every callback body is wrapped in try/except; the first
 exception of a session prints its traceback and calls ``state.fail(reason)``. Handlers are
-never removed from inside a draw callback; the plaza modal notices ``state.failed`` on its
+never removed from inside a draw callback; the Plaza modal notices ``state.failed`` on its
 next event/timer tick and tears down (which calls :meth:`HandlerSet.stop`).
 """
 
@@ -109,7 +109,7 @@ def fill_alpha(transparency: float, area_type: str | None, region_type: str,
 
 
 class DrawState(Protocol):
-    """What the draw callbacks read/write on the plaza state (ops.plaza.PlazaState).
+    """What the draw callbacks read/write on the Plaza state (ops.plaza.PlazaState).
 
     Every access happens inside the callback's try/except: a state that raises is treated
     as a draw failure.
@@ -130,7 +130,7 @@ class DrawState(Protocol):
     debug_timing: bool              # time each drawing callback into ``timing``
     timing: Any                     # core.timing.TimingStats
     # Phase 4 (docs/phase4-interfaces.md); read with getattr(state, name, None). C draws
-    # them after the plaza in the same pass (panels above strips); culling uses the union
+    # them after the Plaza in the same pass (panels above strips); culling uses the union
     # of ``layout.extent`` and ``dropdowns.extent``.
     dropdowns: Any                  # core.dropdown_geometry.ChainLayout | None (open chain)
     dropdown_hover: Any             # tuple[int, ...] | None: hovered dropdown item path
@@ -318,7 +318,7 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
 
     ``region_rect`` and ``pieces`` are window coords; the framebuffer is region-local with a
     pixel projection (as in a POST_PIXEL callback). A piece that misses every rect of
-    :func:`draw_targets` (the union of the plaza extent, the chain extent and a visible
+    :func:`draw_targets` (the union of the Plaza extent, the chain extent and a visible
     dim) is skipped without GPU work. For each other non-empty piece: scissor to the piece
     translated by ``(-region_rect.x, -region_rect.y)`` (ints), then
     ``renderer.draw_plaza(layout, palette, hover_id, (region_rect.x, region_rect.y),
@@ -416,9 +416,9 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
        ``linear = (area type, region_type) in LINEAR_BLEND_REGIONS``, and
        :func:`draw_region` with ``state.palette or theme.MESO_PALETTE``, ``state.hover_id``
        and this HandlerSet's BatchCache (scissor per piece; ``draw_plaza`` culls pieces
-       away from the plaza); Phase 4: also ``state.dropdowns`` / ``dropdown_hover`` /
+       away from the Plaza); Phase 4: also ``state.dropdowns`` / ``dropdown_hover`` /
        ``dropdown_hover_cell`` / ``open_label`` (getattr, default None) with this HandlerSet's DropdownBatchCache, so
-       the open chain is drawn above the plaza in the same pass. With
+       the open chain is drawn above the Plaza in the same pass. With
        ``state.debug_timing`` the step is timed with
        ``time.perf_counter`` into ``state.timing``.
     5. (in draw_region) restore the previous scissor box / test state, ``blend_set('NONE')``.
@@ -463,7 +463,7 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
 
 
 def installed_count() -> int:
-    """Total handlers installed by every live HandlerSet (tests: 0 when no plaza is open)."""
+    """Total handlers installed by every live HandlerSet (tests: 0 when no Plaza is open)."""
     return sum(handler_set.installed for handler_set in _live)
 
 
@@ -489,7 +489,7 @@ def register() -> None:
 
 
 def unregister() -> None:
-    """Remove any leftover handlers (e.g. disabled while a plaza was open) and drop the
+    """Remove any leftover handlers (e.g. disabled while a Plaza was open) and drop the
     renderer's cached shaders."""
     stop_all()
     try:

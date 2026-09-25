@@ -30,7 +30,7 @@ Vec3 = tuple[float, float, float]
 
 _S = math.sqrt(0.5)
 
-# view3d.view_axis(type=...) ids, in the reference DCC's usual quad order first.
+# view3d.view_axis(type=...) ids, in the usual quad order first.
 VIEW_AXES: tuple[str, ...] = ('TOP', 'FRONT', 'RIGHT', 'BOTTOM', 'BACK', 'LEFT')
 
 # Canonical C viewquat per axis (w, x, y, z): world -> view.

@@ -17,7 +17,7 @@ docs/phase2-interfaces.md):
   outer edge of the widest neighbouring line (the nearest line above and below the centre
   line) but never closer than ``side_gap`` to the centre box;
 - four short 45-degree ticks lie on the diagonals through the centre box's centre, just
-  outside the plaza (they mark the N/S/E/W Compass-menu zone borders, Phase 5);
+  outside the Plaza (they mark the N/S/E/W Compass-menu zone borders, Phase 5);
 - empty rows are skipped (no strip, no gap); a row wider than the bounds (or than the soft
   row width ``max_row_w``, breaking at separators first) wraps into several lines, each its
   own strip centred on the anchor, in reading order (first line on top);
@@ -56,7 +56,7 @@ BASE_CENTER_MIN_W = 64   # ... but at least this wide
 BASE_SIDE_GAP = 120      # min gap between the centre box and a side box (~3 label widths)
 BASE_HOVER_INSET = 2     # hover highlight = item rect inset vertically by this
 BASE_TICK_LEN = 40       # zone tick length (along the diagonal)
-BASE_TICK_MARGIN = 20    # distance (along the diagonal) from the plaza edge to the tick start
+BASE_TICK_MARGIN = 20    # distance (along the diagonal) from the Plaza edge to the tick start
 BASE_TICK_WIDTH = 1.0    # zone tick line width
 BASE_MARGIN = 8          # min distance kept from window_bounds (clamp and wrap)
 CAP_H_FACTOR = 0.72      # cap height estimate when no cap_height_fn is given
@@ -233,7 +233,7 @@ class Strip:
 
 @dataclass(frozen=True, slots=True)
 class Tick:
-    """A zone-border tick segment from (x0, y0) (near the plaza) to (x1, y1)."""
+    """A zone-border tick segment from (x0, y0) (near the Plaza) to (x1, y1)."""
 
     corner: str             # 'NW' | 'NE' | 'SW' | 'SE' (TICK_CORNERS order)
     x0: float

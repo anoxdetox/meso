@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Run an item's :class:`core.model.Action` after the plaza is torn down (Phase 3,
+"""Run an item's :class:`core.model.Action` after the Plaza is torn down (Phase 3,
 implementer C), or in place inside the running modal (Phase 4 :func:`apply_in_place`).
 
 Timing (docs/spikes.md D3/D5): ``ops.plaza`` calls :func:`execute` inside ``modal()`` on the
@@ -107,7 +107,7 @@ def run_call(call: OpCall, window: Any, area: Any, region: Any) -> set[str] | No
 
 
 def apply_in_place(action: Action | None, window: Any, area: Any, region: Any) -> ExecResult:
-    """Phase 4 (D): run an in-place action NOW, inside the running plaza modal (the plaza
+    """Phase 4 (D): run an in-place action NOW, inside the running plaza modal (the Plaza
     stays open): a Tool Settings row toggle or a dropdown DD_TOGGLE / DD_RADIO / DD_FLAG item.
 
     Only ``core.dropdown_model.IN_PLACE_ACTIONS`` kinds are accepted (others ->

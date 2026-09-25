@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (Plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅; next: rename to Meso Mode.
+Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅ (palette approval pending); next: Meso Keymap.
 
 ## Guiding principle — Plaza menus mirror native behaviour (user rule 2026-09-25)
 Wherever the Plaza redraws a native control, it behaves like the native one: the same click conventions (a plain click on a multi-value button is exclusive, Shift extends), the same grouping and labels. See `docs/phase4-interfaces.md` "Native click conventions".
@@ -50,58 +50,30 @@ The prefs panel lists 13 identical "Meso Mode Plaza" rows, so they look like dup
 ## Queued — checkbox drag-toggle in Plaza dropdowns (user request 2026-09-25)
 Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table cell) and drag across its neighbours; every toggle passed gets the first one's **new** state (set, not flip), then release. Scope: toggles of the same kind in one open panel; in a toggle table, stay within the pressed column (Sel and Vis never mix). One in-place apply per changed toggle, and the checks update live. The Plaza stays open. Needs reducer support for a press-drag "paint" gesture that doesn't break press-drag-release onto items. Ask whether it should be one undo step, as natively.
 
-## Queued after the prefs fix (user decisions 2026-09-25)
-1. **Rename to "Meso Mode" ("meso" for short; stands for Mesoamerican).**
-   - Scrub the repo of legacy-term mentions (the shipped add-on, code comments, internal notes and CLAUDE.md), **except the referential uses the user allowed on 2026-09-25:**
-     - The README body may say "Familiar workflows for artists coming from the reference DCC software".
-     - A docs page may hold a comparison table, "reference concept → Meso Mode equivalent", written from public knowledge and paraphrased.
-     - Search tags may include `reference-dcc-users`, but never as the first or only tag. Note that extensions.blender.org uses a fixed tag list, so this applies to GitHub topics and similar.
-     - Legacy names must **never** appear in the extension name, id, icon or tagline.
-     - When the README mentions the vendor/the reference DCC, add the non-affiliation notice: "Not affiliated with, endorsed or sponsored by the vendor, Inc. the vendor and the reference DCC are registered trademarks or trademarks of the vendor, Inc. …" This acknowledges *their* marks and claims nothing for ours. Use the marks as adjectives ("the reference DCC software"), with no logos.
-     - Everywhere else, including code, UI strings and notes, use neutral terms.
-     - **Keep the README disclaimer verbatim** (user request): "This is 100% vibe coded. We're not responsible if this code eats your homework." It stays with the no-warranty pointer to LICENSE.
-   - Rename the reference screenshots and describe them neutrally.
-   - **Terminology (user-chosen):**
-     - The Space overlay is the **Plaza**: operator `meso.plaza`, "Plaza Controls", "Plaza style".
-     - Zone and radial gesture menus are **Compass menus**: "North compass slot", "Compass Editor". They replace the earlier name everywhere.
-     - "Glyph" was dropped after name clearance: a commercial Space-triggered Blender pie-menu add-on named "Glyph" exists. Never use "Glyph" as a feature name, tab or tag.
-   - **Branding:**
-     - Public name "Meso Mode for Blender", written as two words, not "MESO" alone as a logo.
-     - **No trademarks (user decision 2026-09-25):** no ™ marks, no TRADEMARKS.md, no fork-rename clause, no registration.
-     - Upload to extensions.blender.org early to claim the id `meso`.
-   - **Reference screenshots (third-party UI):**
-     - Move `docs/reference/*` out of the tracked tree into a gitignored local dir, e.g. `local/reference/`, which stays usable for dev reviews.
-     - Before any public push, **purge them from git history** (`git filter-repo --path docs/reference --invert-paths`).
-     - Never commit third-party screenshots or documentation text again.
-   - **Legal-exposure findings (2026-09-25 research, not legal advice):**
-     - The overlay and radial-menu patents are expired (US 6,414,700 family, last 2021; US 5,689,667 family, last 2017).
-     - **Live third-party patent US 9,405,404 (to 2031) covers multi-touch chord gestures: never implement finger-chord recognition.**
-     - UI paradigms are not copyrightable: Lotus v. Borland; in the EU, SAS v WPL and BSA C-393/09. Icons, artwork and distinctive styling are.
-   - **Palette:** `MESO_PALETTE` colours were sampled from a screenshot of the other DCC. In the rename phase:
-     - rename it to `MESO_PALETTE`
-     - retune it a few shades to our own values
-     - show the user a before/after screenshot for approval
-     - record the values' provenance in `DESIGN_SOURCES.md`
-   - **Clean room from now on:**
-     - Design only from public sources: expired patents, the CHI '99 Plaza paper, Kurtenbach's thesis, public help pages (paraphrased, never pasted, because they are CC BY-NC-SA) and Blender docs.
-     - Keep an internal `DESIGN_SOURCES.md` listing them.
-     - No running third-party DCC as a design reference.
-     - Never decompile or extract its scripts or configs.
-     - The Meso Keymap gap analysis stays **out of the repo**.
-   - **Pre-publish checklist:**
-     - legacy-term grep over the repo *and* history returns nothing
-     - references purged
-     - a quick name-conflict check (we are not claiming a trademark; this is only to avoid clashing with someone else's)
-     - a Google Patents check for radial-menu/plaza patents: expected expired, to be confirmed
-     - LICENSE (GPL-3.0-or-later) and SPDX headers kept. The project is **free and open source only, never commercial** (user decision). GPL cannot forbid resale, but it forces any redistribution to stay GPL with source; do not switch to an NC license, since that is not OSS and is GPL-incompatible.
-     - CC-BY-SA-4.0 for docs and media via REUSE/SPDX. Everything inside the extension zip is GPL-3.0-or-later.
-     - The repo has **never been pushed**, so run `git filter-repo --path docs/reference --invert-paths` (and the later local path) before the first push, verify with `git log --all --stat -- docs/reference`, and **push from a fresh clone**.
-     - A pre-commit hook blocks `*.png` / `*.jpg` under `docs/` and `local/`.
-     - Grep the tree and history (`git grep -i`, `git log -S`) for every term in `local/rewrite/terms.txt`. Hits are allowed only in the README "coming from" sentence, the non-affiliation notice and the docs comparison page.
-     - No sampled colours, icons, MEL or pasted help text remain.
-     - Files: CONTRIBUTING.md (DCO `git commit -s`, no third-party screenshots, icons or docs) and a README "free; if you paid, get it at <official URL>" line. No trademark files or notices.
-     - Stay non-commercial: no paid support, and no donations exceeding costs. This keeps the project outside the EU CRA and PLD.
-   - The id change makes Blender treat it as a new add-on. Prefs reset once, the dev link must be re-created as `user_default/meso`, and `tools/dev_link.sh` is updated.
+## ✅ Done — rename to Meso Mode (user decisions 2026-09-25)
+"Meso" stands for Mesoamerican. Public name **Meso Mode for Blender**, extension id and package `meso` (`src/meso/`), operators `meso.*`, classes `MESO_*`. The Space overlay is the **Plaza** (`meso.plaza`, "Plaza Controls"). Zone and radial gesture menus are **Compass menus**. "Glyph" is never used as a feature name, tab or tag, because a commercial Space-triggered pie-menu add-on with that name exists.
+- **Naming the reference DCC:** it appears only in the README's "coming from" sentence, the README non-affiliation notice, `docs/comparison.md` (a paraphrased concept table written from public knowledge), and a secondary GitHub topic (never the first or only one; extensions.blender.org uses a fixed tag list). It never appears in the name, id, icon, tagline, UI strings, code or other docs. The concrete legacy-term list for greps and the history rewrite lives in `local/rewrite/terms.txt` (gitignored).
+- **README disclaimer, kept verbatim:** "This is 100% vibe coded. We're not responsible if this code eats your homework.", with the no-warranty pointer to LICENSE.
+- **No trademarks of our own:** no ™ marks, no TRADEMARKS.md, no fork-rename clause, no registration. Upload to extensions.blender.org early to claim the id `meso`.
+- **Reference screenshots (third-party UI)** stay in gitignored `docs/reference/`, renamed neutrally, and are purged from history before any push (see the rewrite below).
+- **Legal-exposure notes (2026-09-25 research, not legal advice, to be re-checked before publishing):**
+  - The overlay and radial-menu patents found are expired (US 6,414,700 family, last 2021; US 5,689,667 family, last 2017).
+  - **Live patent US 9,405,404 (to 2031) covers multi-touch chord gestures: never implement finger-chord recognition.**
+  - UI paradigms are generally not copyrightable (Lotus v. Borland; in the EU, SAS v WPL and BSA C-393/09). Icons, artwork and distinctive styling can be, so none are copied.
+- **Palette:** `MESO_PALETTE` gets independently chosen values, approved by the user from before/after screenshots. Provenance is recorded in `DESIGN_SOURCES.md`.
+- **Clean room from now on:** design only from public sources (expired patents, published HCI papers, public help pages paraphrased and never pasted, Blender docs). Don't run a third-party DCC as a design reference, and never decompile or extract its scripts or configs. The keymap gap analysis stays in `local/`.
+- **Licensing:** the code is GPL-3.0-or-later; everything inside the extension zip is GPL. Docs and media are CC-BY-SA-4.0 via REUSE/SPDX. Contributions are under the DCO (`git commit -s`, see CONTRIBUTING.md). The project is **free and open source only, never commercial**: GPL can't forbid resale, but it forces redistribution to stay GPL with source. Never switch to an NC licence, since that is not OSS and is GPL-incompatible. Stay non-commercial, with no paid support and no donations beyond costs.
+- **Pre-publish checklist:**
+  - legacy-term grep over the tree *and* history: only the allowed hits;
+  - references purged;
+  - a quick name-conflict check (only to avoid clashes, not a trademark claim);
+  - a patent re-check;
+  - no sampled colours, icons, third-party scripts or pasted help text;
+  - a pre-commit hook blocking `*.png` / `*.jpg` under `docs/reference/` and `local/`;
+  - push from a fresh clone.
+- **Upgrade note:** the id change makes Blender treat Meso Mode as a new add-on, so preferences reset once. Re-create the dev link as `user_default/meso` with `tools/dev_link.sh`, and delete the old pre-rename link in `user_default/` (it now points nowhere).
+
+## Queued after the rename (user decisions 2026-09-25)
 2. **Meso Keymap** (replaces "personal keymap export"; deferred analysis).
    - Analyse Blender's **Industry Compatible** keymap against the target DCC's conventions. Keep this analysis internal and never name the other DCC in shipped text.
    - Build a **Meso Keymap** keyconfig preset that closes the gaps: Ctrl+1 isolate, Ctrl+A properties cycle, and so on.
@@ -128,11 +100,11 @@ Goal: nothing personal and no legacy-branding references (beyond the allowed ref
    - Manifest maintainer and commit author become the user's **GitHub noreply address**, `anoxdetox <ID+anoxdetox@users.noreply.github.com>`. **Ask the user for the exact address** from GitHub ▸ Settings ▸ Emails.
    - Set `git config user.email` for this repo.
 3. **Rewrite history, keeping the per-phase commits** (`git filter-repo`, on a backup clone first):
-   - `--invert-paths --path docs/reference --path docs/reference`: drop the third-party screenshots from every commit.
-   - `--replace-text rules.txt`: legacy terms→neutral terms, personal paths→$HOME, the email→noreply. The rules keep the allowed referential sentences, which only exist in the final README and docs.
+   - `--invert-paths` on every historical reference-image path (`docs/reference/`, and the earlier `notes/reference/`): drop the third-party screenshots from every commit.
+   - `--replace-text local/rewrite/rules.txt`: reviewed, targeted rules for the legacy terms (`local/rewrite/terms.txt`), personal paths → `$HOME`, and the email → noreply. The allowed referential sentences exist only in the final README and docs, and are kept.
    - `--replace-message` with the same rules, for commit messages.
    - `--mailmap`: author and committer become the noreply identity. Co-Authored-By trailers stay.
-   - Verify over **all revisions**: `git grep -i -f local/rewrite/terms.txt -e <personal paths> -e <private email> $(git rev-list --all)` → only the allowed hits. Also check `git log --all --format='%an %ae %B'` and that no image blobs remain under the reference paths.
+   - Verify over **all revisions**: `git grep -i` of every term in `local/rewrite/terms.txt`, plus personal paths and the email, over `$(git rev-list --all)` → only the allowed hits. Also check `git log --all --format='%an %ae %B'` and that no image blobs remain under the reference paths.
    - Then **re-clone fresh** for the first push, so no stale refs, reflogs or stashes remain, and run all suites on the fresh clone.
 4. Only then start Phase 5.
 
@@ -141,7 +113,7 @@ References: `docs/reference/reference_plaza_and_rmb.jpg` (right half), `docs/ref
 
 - **Right-click Compass menu (any editor, "Any – Right Click").** Radial component-mode menu at the cursor
   (Blender: Object Mode / Vertex / Edge / Face / UV / multi-select…) with a centre dot, gesture pick,
-  and the editor's context menu drawn as a Plaza list **below** the radial (Blender: recorded
+  and the editor's context menu drawn as a list **below** the radial (Blender: recorded
   `VIEW3D_MT_object_context_menu` / `VIEW3D_MT_edit_mesh_context_menu` etc.).
 - **Shift+Right-click tool Compass menus per component mode** (Object / Edge / Face / Vertex): radial of
   the most-used tools with option boxes (□ → operator redo/settings), plus a long tool list below.

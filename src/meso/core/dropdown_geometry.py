@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Dropdown / cascade panel geometry and hit testing (Phase 4, implementer A).
 
-The Plaza list panel (``docs/reference/reference_plaza_and_rmb.jpg``, right half): one column,
+The reference list panel (``docs/reference/reference_plaza_and_rmb.jpg``, right half): one column,
 item rows about a strip row high, a left check column (hollow / filled square, radio), the
 label, an optional dimmed shortcut hint right-aligned, a right column for the '▸' cascade
 arrow, thin horizontal separator lines, dimmed section headers.
@@ -37,7 +37,7 @@ positions; a table line needs ``check_col + label_w + shortcut_gap + sum(columns
 Each cell (:class:`PlacedCell`) is its column x the line height: the hit rect, the check box
 centred in it, the header title centred over it.
 
-Hit testing priority: deepest open panel -> ... -> the root dropdown -> the plaza strips
+Hit testing priority: deepest open panel -> ... -> the root dropdown -> the Plaza strips
 (``core.geometry.hit_test``) -> empty strip space -> nothing. On a DD_TOGGLE_ROW the hit also
 names the cell under the point (``Hit.cell``; None on the row label).
 
@@ -69,7 +69,7 @@ BASE_DD_ARROW_COL = 16      # right column holding the '▸' arrow
 BASE_DD_SHORTCUT_GAP = 24   # min gap between a label and its shortcut hint
 BASE_DD_MIN_W = 120         # minimum panel width
 BASE_DD_BORDER = 1.0        # panel outline width (scale only)
-BASE_DD_SUBMENU_OVERLAP = 0  # submenu panels touch their parent (the reference DCC); >0 overlaps
+BASE_DD_SUBMENU_OVERLAP = 0  # submenu panels touch their parent; >0 overlaps
 BASE_DD_RADIO_FACTOR = 0.6  # radio dot size relative to check_size
 BASE_DD_CELL_PAD = 6        # toggle-table cell: padding each side of its check box / title
 
@@ -381,7 +381,7 @@ def place_items(model: DropdownModel, rect: Rect, dm: DropdownMetrics,
         highlight = Rect(x + bi, y, max(0, w - 2 * bi), h)
         path = prefix + (index,)
         if item.kind == DD_SEPARATOR:
-            # Nearly the full panel width, like the reference DCC: inset by the border plus one line gap.
+            # Nearly the full panel width: inset by the border plus one line gap.
             sep_in = bi + line_h
             line = Rect(x + sep_in, y + (h - line_h) // 2, max(0, w - 2 * sep_in), line_h)
             placed.append(PlacedItem(path, item.kind, row, highlight, '', x + dm.check_col,
@@ -560,7 +560,7 @@ def layout_chain(models: Sequence[DropdownModel], label_rect: Rect,
 def relayout_panel(model: DropdownModel, old: Panel, bounds: Rect | None,
                    dm: DropdownMetrics, text_width_fn: TextWidthFn) -> Panel:
     """Re-place ``model`` (re-recorded after an in-place change) where its previous panel
-    ``old`` was, so rows never move under a still pointer (reference menus never move while
+    ``old`` was, so rows never move under a still pointer (menus never move while
     open): same left edge and TOP edge (it grows / shrinks at the bottom), at least the old
     width. Falls back to moving only when the panel would leave ``bounds`` (inset by
     ``margin``): up when the bottom would leave them, sideways when the right edge would.

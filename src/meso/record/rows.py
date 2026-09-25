@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Build the whole plaza model for one invoke (Phases 2-3).
+"""Build the whole Plaza model for one invoke (Phases 2-3).
 
 Content:
 - Root row: :func:`record.topbar.root_row` (live, static fallback).

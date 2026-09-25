@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""menu-bar semantics for the plaza dropdowns: a pure reducer (Phase 4, implementer A).
+"""Menu-bar semantics for the Plaza dropdowns: a pure reducer (Phase 4, implementer A).
 
 ``step(state, event) -> (new_state, effects)``. ``ops.dropdowns`` (D) turns every modal event
 into exactly one :data:`Event`, feeds it here, stores the new state and executes the effects
@@ -75,7 +75,7 @@ Open (depth >= 1):
   ROLE_RUN -> RunItem(path, keep_open=False) (terminal: D tears down, then runs; D3);
   ROLE_APPLY -> RunItem(path, True), Redraw;
   ROLE_APPLY_CLOSE -> RunItem(path, True), CloseChain(L - 1), Redraw (a radio pick closes
-  only its own cascade; L == 1 closes the dropdown, the plaza stays);
+  only its own cascade; L == 1 closes the dropdown, the Plaza stays);
   ROLE_SUBMENU -> opens it if not open (as Press);
   ROLE_HANDOFF -> Handoff(t.action) (terminal); ROLE_PASSIVE -> nothing.
 - Release(LMB, label t): the pressed open label with press_opened False -> CloseChain(0),
@@ -85,7 +85,7 @@ Open (depth >= 1):
   ROLE_APPLY / ROLE_APPLY_CLOSE -> RunItem(hover_path, keep_open=False) (terminal: the
   plaza is ending anyway, so in-place items run after teardown like Phase 3); ROLE_HANDOFF
   -> Handoff(hover action); otherwise (and always without ``execute_on_release``) -> Finish.
-- Esc: CloseChain(0), Redraw (a second Esc, now closed, cancels the plaza).
+- Esc: CloseChain(0), Redraw (a second Esc, now closed, cancels the Plaza).
 - Changed(key, valid_depth): after an in-place apply D re-recorded the chain; when
   ``valid_depth`` is not None and < depth -> CloseChain(valid_depth) (0 closes the
   dropdown); roles beyond the new depth are dropped; hover beyond it cleared. Always Redraw.
@@ -150,7 +150,7 @@ from .dropdown_model import (
 )
 from .model import Action
 
-# Timing defaults (seconds). submenu_delay is the pref (0.0..1.0); the reference DCC opens ~immediately.
+# Timing defaults (seconds). submenu_delay is the pref (0.0..1.0); the reference opens ~immediately.
 DEFAULT_SUBMENU_DELAY = 0.12
 SUBMENU_DELAY_RANGE = (0.0, 1.0)
 AIM_TIMEOUT = 0.25          # max time a diagonal move toward an open submenu keeps it open
@@ -387,7 +387,7 @@ class MenuBarState:
     Chain: ``open_label`` (the row label whose dropdown is level 0; None = closed),
     ``submenus`` (opener item paths of levels 1.., ``len(submenus[i]) == i + 1``), ``roles``
     (per open level, from :class:`Opened`; may lag behind the chain until Opened arrives).
-    Hover: ``hover_label`` (row label under the cursor, drawn by the plaza renderer),
+    Hover: ``hover_label`` (row label under the cursor, drawn by the Plaza renderer),
     ``hover_path`` / ``hover_role`` / ``hover_action`` (dropdown item under the cursor),
     ``hover_cell`` (the focused cell of a hovered DD_TOGGLE_ROW, None otherwise; the role /
     action are then the cell's). ``cell_roles``: per open level, the cell roles per item

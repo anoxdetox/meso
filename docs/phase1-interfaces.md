@@ -35,7 +35,7 @@ Unit, Blender and validate all pass on the skeleton.
 | A: core | `core/tap.py`, `core/rects.py`, `tests/unit/test_tap.py`, `tests/unit/test_rects.py` | none |
 | B: keymaps | `keymaps.py`, `tests/blender/test_keymaps.py` (and prefs.py tweaks if needed) | `core.tap.PAINT_MODE_KEYMAP_NAMES` (filled) |
 | C: draw | `view/draw_manager.py`, `tests/blender/test_draw_manager.py` | `core.rects` (A); a fake `DrawState` in the tests |
-| D: Plaza + GUI | `ops/plaza.py`, `tests/gui/run_gui_tests.sh`, `tests/gui/gui_driver.py` | A, C (`HandlerSet`, `installed_count`), B (for the GUI run) |
+| D: plaza + GUI | `ops/plaza.py`, `tests/gui/run_gui_tests.sh`, `tests/gui/gui_driver.py` | A, C (`HandlerSet`, `installed_count`), B (for the GUI run) |
 
 The CLAUDE.md commands block already has the GUI line: `tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl]`.
 
@@ -61,7 +61,7 @@ core.*   -> stdlib only
 **Disable** runs `unregister()` in reverse:
 1. keymaps: removes its items
 2. draw_manager: `stop_all()`
-3. Plaza: `_end(_running)` if a session is open, then unregister the class
+3. plaza: `_end(_running)` if a session is open, then unregister the class
 4. prefs
 
 **Hold / release**, in order:
@@ -191,7 +191,7 @@ Phase 1 needs no timer fallback, because the handoff is always in-modal (D3).
   - `modal()` wraps its whole body: an exception runs `_end`, logs, and returns `CANCELLED`.
 
 ## Invariants (all tests should assert these where they can)
-1. At most one Plaza session. `_running` is None exactly when no modal is open.
+1. At most one plaza session. `_running` is None exactly when no modal is open.
 2. After any session ends (FINISHED, CANCELLED, failure or unregister), all of these hold:
    - `draw_manager.installed_count() == 0`
    - the timer is removed
@@ -211,8 +211,8 @@ Phase 1 needs no timer fallback, because the handoff is always in-modal (D3).
   - `HandlerSet().start(fake_state)` / `.stop()`
   - calling `draw_callback(fake_state, 'SpaceView3D', 'WINDOW')` directly. With no window, the callback must filter cleanly. A fake whose `active` property raises must end with `fake.fail` called once.
   - `keymaps.registered_items()`
-  - `Plaza.set_disabled()`
-- GUI tests: `Plaza.current_state()` (`draw_calls > 0` while held), `Plaza.is_running()`, `window.modal_operators`, `screen.is_animation_playing` and `draw_manager.installed_count()` after release.
+  - `plaza.set_disabled()`
+- GUI tests: `plaza.current_state()` (`draw_calls > 0` while held), `plaza.is_running()`, `window.modal_operators`, `screen.is_animation_playing` and `draw_manager.installed_count()` after release.
 
 ## Deviations from and refinements to the computed spec (deliberate)
 - **Industry_Compatible:** the 4 GP mode maps tap to the asset-shelf popover, per verified-facts §3. Other areas without Frames tap to None instead of play.

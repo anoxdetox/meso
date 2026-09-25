@@ -36,7 +36,7 @@ These measurements come from the reference image (image pixels at about 1x):
   - Rule: align to the outer edge of the widest nearest line above or below, but keep at least `side_gap` (120 px at 1x) from the centre box.
 - **Ticks.** They are at 45° through the **centre box's centre**, not on the lines through the Plaza corners.
   - Measured tick midpoints relative to the centre: NW (−120, +122), SW (−262, −260), and the mirror images on the right.
-  - The spec text says "diagonal from the Plaza centre through that corner". The image puts them on the 45° diagonals, which are also the reference DCC's N/S/E/W zone borders. They start a margin beyond where the diagonal leaves the Plaza rect: `tick_margin` = 20 and `tick_len` = 40 along the diagonal, about 1 px wide, colour #c8c8c8.
+  - The spec text says "diagonal from the Plaza centre through that corner". The image puts them on the 45° diagonals, which are also the N/S/E/W zone borders. They start a margin beyond where the diagonal leaves the Plaza rect: `tick_margin` = 20 and `tick_len` = 40 along the diagonal, about 1 px wide, colour #c8c8c8.
   - The long dark lines in the image are viewport grid axes and are not drawn.
 - **No dim.** `palette.dim` has alpha 0 by default. The `transparency` pref sets the alpha of the strips and the centre box (the hover box and the checked bar stay opaque).
   - The factory pref of 25 gives 0.75. The image looks like about 15, but the pref default stays unchanged (open question 1).
@@ -192,11 +192,11 @@ These are plain data, so it is safe that they outlive the modal. They carry no R
 
 ### view/theme.py (B)
 - `from_preferences(context, use_theme_colors=False, transparency=25) -> Palette`. It never raises.
-  - It returns Plaza grey by default.
+  - It returns Meso grey by default.
   - With the theme option it maps `themes[0].user_interface` (wcol_menu_back, wcol_menu_item, wcol_tooltip; the exact mapping is in the `theme_palette` docstring).
     - Theme `text` and `text_sel` are RGB, so the alpha is appended.
     - `roundness` (0..1) gives a radius of `roundness * row_h / 2`.
-  - On any error it falls back to Plaza grey.
+  - On any error it falls back to Meso grey.
 - Background alpha is `1 - transparency/100`. Text and ticks stay opaque. The linear-blend correction happens only in the renderer.
 
 ### view/renderer.py (B)
@@ -229,9 +229,9 @@ These are plain data, so it is safe that they outlive the modal. They carry no R
 Add these, and draw them after `transparency` in `draw()`:
 - `font_scale: FloatProperty(name="Font Scale", default=1.0, min=0.5, max=3.0)`
 - `row_spacing: FloatProperty(name="Row Spacing", default=1.0, min=0.0, max=3.0)`
-- `use_theme_colors: BoolProperty(name="Use Theme Colors", default=False)`. Its description: "Colour the Plaza from the Blender theme instead of Plaza grey".
+- `use_theme_colors: BoolProperty(name="Use Theme Colors", default=False)`. Its description: "Colour the Plaza from the Blender theme instead of Meso grey".
 
-The session reads them at invoke, so a change applies to the next Plaza with no restart.
+The session reads them at invoke, so a change applies to the next plaza with no restart.
 
 ## Tables: how they were verified (5.2.2, headless `--factory-startup`)
 - **`FACTORY_WORKSPACE_ORDER`.** `bpy.data.workspaces` is alphabetical, and `WorkSpace.order` is DNA-only.
@@ -266,7 +266,7 @@ The session reads them at invoke, so a change applies to the next Plaza with no 
   - `test_timing.py`.
 - **B.**
   - `test_theme.py` (as implemented, a `TestTheme` class inside `test_render_offscreen.py`):
-    - the reference default
+    - the Meso default
     - transparency to alpha
     - the theme mapping, with the RGB→RGBA append
     - the fallback when `ui` raises
@@ -310,6 +310,6 @@ The session reads them at invoke, so a change applies to the next Plaza with no 
 1. **Transparency default.** The reference strips look about 85% opaque (transparency ≈ 15), but the pref default stays 25 → 0.75. Should the default change to 15? It is a one-line change in prefs.py (D) if wanted.
 2. **Centre box height** is 1.5 × row_h, per the image, not "same height as a strip" as the spec text says (`CENTER_H_FACTOR`).
 3. **Tick direction** is 45° through the centre box, per the image, not "through that corner" as the spec text says.
-4. **Tile hit rects.** Label hit rects tile the strip, so there are no dead zones between labels. Hover highlights are those rects inset vertically by 2 px, which matches the reference DCC's hover box.
+4. **Tile hit rects.** Label hit rects tile the strip, so there are no dead zones between labels. Hover highlights are those rects inset vertically by 2 px, which matches the reference hover box.
 5. **Theme mode colours.** `theme_palette` uses `wcol_tooltip` for the centre box and `wcol_menu_item.inner_sel` for hover and checked. The `wcol_pulldown` inner alpha is 0 in the factory theme, so it is not used.
 6. **Hover on the centre-line boxes.** The centre, recent and controls boxes also hit-test and highlight on hover, though clicking them does nothing until Phases 3, 5 and 6.

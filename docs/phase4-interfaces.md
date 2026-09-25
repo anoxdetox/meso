@@ -1,13 +1,13 @@
-# Phase 4 interfaces: reference-style custom dropdowns, menu-bar semantics
+# Phase 4 interfaces: custom dropdowns, menu-bar semantics
 
 The skeleton code is the source of truth: each docstring is its contract, and this page summarises them. If this page and a docstring disagree, fix both in the same change.
 Precedence: `docs/spikes.md` D1–D5 overrides the plan; `docs/phase1-interfaces.md`, `phase2-interfaces.md` and `phase3-interfaces.md` still hold for anything Phase 4 leaves alone.
 
 ## What the user asked for
-1. **Menu-bar semantics (the reference DCC).** While Space is held the Plaza stays open when menus are used:
+1. **Menu-bar semantics.** While Space is held the Plaza stays open when menus are used:
    - a click on a row menu label opens its dropdown directly under the label;
    - while a dropdown is open, hovering another label with a dropdown switches to it (no click);
-   - a click on empty Plaza space or outside every panel closes only the dropdown chain;
+   - a click on empty plaza space or outside every panel closes only the dropdown chain;
    - Space release closes everything; ESC closes the chain, a second ESC cancels the Plaza;
    - press on a label, drag into its dropdown, release over an item runs that item;
    - pref `execute_on_release` (default False): Space release over an enabled item runs it.
@@ -101,7 +101,7 @@ modal(event)                                     ops.plaza (failure / watchdog /
                             → geometry.layout → rebuild + layout_chain → step(Changed(key, valid_depth))
             RunItem(False)/Handoff → _end(state, 'run'|'handoff') → invoke.execute(action, window, area,
                             region=WINDOW region of the invoking area) → return {'FINISHED'}   (D3)
-            Redraw        → handlers.redraw(rects=[old/new Plaza extent, old/new chain extent])
+            Redraw        → handlers.redraw(rects=[old/new plaza extent, old/new chain extent])
             Finish/Cancel → op._finish(context, state) (tap logic) / _end(state, 'cancel')
        6. sync_draw_state(state): hover_id = bar.hover_label, open_label, dropdown_hover, dropdowns
 ```
@@ -239,7 +239,7 @@ Built-in icons cannot be drawn by the Plaza (gpu / blf only; rows are text), so 
 - **Panel:** single column, `item_h = round(row_h × 0.85)` (22 px at 1x).
   - Left `check_col` (24) holds a hollow square, or a filled inner square when checked (toggles, flags); a radio is a round ring with a filled dot when checked, so exclusive and multi-select groups read apart.
   - Right `arrow_col` (16) holds '▸'. An optional dimmed shortcut is right-aligned before the arrow column.
-  - Separator rows are 7 px with a 1-scale-px line spanning the panel inside the border (inset by border + 1 line, like the reference DCC). Headers / labels are dimmed text outdented to `pad_x` (the check column), so they never read as disabled items.
+  - Separator rows are 7 px with a 1-scale-px line spanning the panel inside the border (inset by border + 1 line). Headers / labels are dimmed text outdented to `pad_x` (the check column), so they never read as disabled items.
   - `width = max(check_col + label + [gap + shortcut] + arrow_col + pad_x, min_w 120)`.
   - Scale 2.0 doubles every size (`dropdown_metrics(m, font_scale)`).
 - **Placement:**
@@ -276,7 +276,7 @@ Built-in icons cannot be drawn by the Plaza (gpu / blf only; rows are text), so 
   Update `test_plaza.py` as listed below. GUI: `tests/gui/scenarios_phase4.py` (module contract as `scenarios_panes.py`):
   - **(a)** click File → custom dropdown open (`menus.bar.open_label == 'TOPBAR_MT_file'`, no handoff); hover Edit → it switches without a click.
   - **(b)** a click on empty space closes the dropdown and the Plaza stays open; Space release → finish.
-  - **(c)** Object ▸ Apply ▸ Scale through the custom dropdown with a hover-opened submenu → cube scale applied (compare with native), Plaza ended (`end == 'run'`).
+  - **(c)** Object ▸ Apply ▸ Scale through the custom dropdown with a hover-opened submenu → cube scale applied (compare with native), plaza ended (`end == 'run'`).
   - **(d)** Add ▸ Mesh ▸ Cube by drag-release from the label.
   - **(e) Tool Settings:**
     - the Snap toggle keeps the Plaza open, `use_snap` flips and the label updates, one undo step;

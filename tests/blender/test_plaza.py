@@ -355,7 +355,7 @@ class TestInvoke(_PlazaCase):
         self.assertIs(hb.current_state(), state)
 
     def test_stale_session_is_replaced(self):
-        # Headless there is no plaza modal, so a leftover _running counts as stale.
+        # Headless there is no Plaza modal, so a leftover _running counts as stale.
         hb = _hb()
         stale = _open_state(self.window)
         self._invoke(_stub(), Ev('SPACE'))

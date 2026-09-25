@@ -178,7 +178,7 @@ Controls: VIEW3D_MT_object_apply opens. An unknown name raises
 `RuntimeError: Error: Menu "..." not found`.
 
 **CORRECTED by verifier: click-triggered handoff.** The trials above hand off on the modal's first
-TIMER event. The real Plaza hands off when a row is clicked, so the rest of the click arrives in the new
+TIMER event. The real plaza hands off when a row is clicked, so the rest of the click arrives in the new
 popup, whose first item sits under the cursor. `tools/spikes/menus/probe_handoff.py`
 (`PROBE=probe_handoff.py tools/spikes/menus/run.sh OUT.json`, exit 0, 2 identical runs; results in
 `docs/spikes/menus.json` → `verifier_corrections`) opens a 4-item probe menu from a modal on LMB:

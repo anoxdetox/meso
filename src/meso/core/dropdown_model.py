@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""reference-style dropdown content: the shared pure data of Phase 4 (filled, no owner).
+"""Custom dropdown content: the shared pure data of Phase 4 (filled, no owner).
 
 A :class:`DropdownModel` is one open list panel: a Menu recorded by ``record.dropdown``, a
 Tool Settings cascade built by ``record.popover``, or the inline children of an
@@ -46,7 +46,7 @@ DD_FLAG = 'flag'                # check box; in-place ACTION_TOGGLE_FLAG (flag-e
 DD_VALUE = 'value'              # read-only 'Name: value'; click -> the container's native action
 DD_LABEL = 'label'              # dimmed non-clickable header (label / heading= / subpanel title)
 DD_SEPARATOR = 'separator'      # thin horizontal line; never hit
-DD_NATIVE = 'native'            # hands ``action`` off natively; ends the plaza. A C-only /
+DD_NATIVE = 'native'            # hands ``action`` off natively; ends the Plaza. A C-only /
                                 # native submenu: 'Label' + '▸' (has_arrow); a popover inside a
                                 # menu / an unlistable enum: 'Label…'
 DD_NATIVE_MORE = 'native_more'  # trailing 'More…'; hands the WHOLE container off natively
@@ -106,11 +106,11 @@ DROPDOWN_OPERATOR_CONTEXT = 'INVOKE_REGION_WIN'
 # --- roles (what the reducer does with a label / item; docs/phase4-interfaces.md) ---
 ROLE_PASSIVE = 'passive'        # nothing (disabled, labels, separators, centre box, empty)
 ROLE_DROPDOWN = 'dropdown'      # row label: opens its custom dropdown (press), menu-bar hover
-ROLE_HANDOFF = 'handoff'        # ends the plaza, then ops.invoke.execute(action) (D3): native
+ROLE_HANDOFF = 'handoff'        # ends the Plaza, then ops.invoke.execute(action) (D3): native
                                 # '…' menus, More…, values, workspaces, side boxes
 ROLE_APPLY = 'apply'            # in place, plaza and chain stay open (toggles, flags)
 ROLE_APPLY_CLOSE = 'apply_close'  # in place, closes the item's own level (radio pick)
-ROLE_RUN = 'run'                # operator item: ends the plaza, then runs the operator (D3)
+ROLE_RUN = 'run'                # operator item: ends the Plaza, then runs the operator (D3)
 ROLE_SUBMENU = 'submenu'        # opens a cascade (hover after submenu_delay, or click)
 ROLES = (ROLE_PASSIVE, ROLE_DROPDOWN, ROLE_HANDOFF, ROLE_APPLY, ROLE_APPLY_CLOSE, ROLE_RUN,
          ROLE_SUBMENU)
@@ -124,10 +124,10 @@ IN_PLACE_ACTIONS = frozenset({ACTION_TOGGLE, ACTION_SET_ENUM, ACTION_SET_VALUE,
 # --- hit zones (core.dropdown_geometry.Hit.zone, core.menubar.Target.zone) ---
 ZONE_ITEM = 'item'              # a dropdown item (``path`` set; may be passive)
 ZONE_PANEL = 'panel'            # inside an open panel but on no item (padding, separator)
-ZONE_LABEL = 'label'            # a plaza row item (``label_id`` set; separators excluded)
+ZONE_LABEL = 'label'            # a Plaza row item (``label_id`` set; separators excluded)
 ZONE_STRIP = 'strip'            # empty plaza strip space (gaps, separators, centre-line boxes'
                                 # padding): "clicking empty plaza space"
-ZONE_NONE = 'none'              # outside the plaza and every panel
+ZONE_NONE = 'none'              # outside the Plaza and every panel
 ZONES = (ZONE_ITEM, ZONE_PANEL, ZONE_LABEL, ZONE_STRIP, ZONE_NONE)
 
 
@@ -311,13 +311,13 @@ def label_source(item: Item | None) -> DropdownSource | None:
 
 
 def label_role(item: Item | None) -> str:
-    """The reducer role of a plaza row item.
+    """The reducer role of a Plaza row item.
 
     - Not clickable (``core.model.item_action`` None: disabled, separators, labels, the
       centre box) -> ROLE_PASSIVE.
     - :func:`label_source` not None -> ROLE_DROPDOWN.
     - ``KIND_TOGGLE`` whose action kind is in :data:`IN_PLACE_ACTIONS` -> ROLE_APPLY (Phase 4:
-      Tool Settings toggles keep the plaza open).
+      Tool Settings toggles keep the Plaza open).
     - Everything else (native '…' menus, the mode switcher, workspaces, Recent Commands,
       Plaza Controls) -> ROLE_HANDOFF.
     """

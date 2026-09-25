@@ -63,7 +63,7 @@ GUI harness facts that every future spike needs:
 ### D2. Draw coverage (spikes 4, 5, 6, 11, 12, 17)
 - **Handlers:**
   - Install one POST_PIXEL `draw_handler_add` for each of the 86 (space, region) pairs in verified-facts §5, each in try/except ValueError.
-  - Install on Plaza open and remove on close.
+  - Install on plaza open and remove on close.
   - Each callback does four things:
     - returns immediately unless the Plaza is active and `context.window.as_pointer()` equals the stored invoking-window int (valid only for the modal's lifetime);
     - skips regions with `width <= 1 or height <= 1`;

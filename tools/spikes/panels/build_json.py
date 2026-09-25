@@ -60,7 +60,7 @@ def main(raw_path, out_path):
         ],
         "spike13_call_panel": {
             "question": "Does wm.call_panel(name=P, keep_open=True) open HEADER, TOPBAR (TOOL_HEADER) and TIME_PT_* "
-                        "panels after the plaza modal ends, from the end of modal() and from a timer?",
+                        "panels after the Plaza modal ends, from the end of modal() and from a timer?",
             "answer": "YES (14/14)",
             "evidence": s13,
             "notes": [
@@ -73,7 +73,7 @@ def main(raw_path, out_path):
             "recommendation": "Hand off with bpy.ops.wm.call_panel(name=P, keep_open=True) as the last thing in modal() "
                               "(after removing the draw handler, before returning FINISHED); the timer path under "
                               "temp_override(window, area, region=WINDOW) is an equivalent fallback. Call it from the "
-                              "area the plaza was invoked in; the popover opens at the cursor.",
+                              "area the Plaza was invoked in; the popover opens at the cursor.",
         },
         "spike14_undo": {
             "questions": {
@@ -106,7 +106,7 @@ def main(raw_path, out_path):
                                            "scene.frame_current; NOT restored tool_settings.transform_pivot_point, "
                                            "use_snap, proportional_distance.",
             "verifier_evidence": ver.get("V3_toolsettings_undo"),
-            "recommendation": "Keep the plan: the plaza operator has NO UNDO flag; run actions at the end of modal() or "
+            "recommendation": "Keep the plan: the Plaza operator has NO UNDO flag; run actions at the end of modal() or "
                               "from a timer (both push normal steps); always pass ('EXEC_DEFAULT', True). For "
                               "ToolSettings-owned paths (pivot, snap, snap elements, proportional) accept native parity: a step is pushed "
                               "but undo does not revert it (orientation slots do revert, A6). Do not build a custom tool-settings undo. The Phase 3 "

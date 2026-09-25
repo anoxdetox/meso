@@ -5,7 +5,7 @@ Precedence: `docs/spikes.md` D1–D5 overrides the plan; `docs/phase1-interfaces
 
 ## What the user asked for (relayed request, 2026-09-25)
 1. **Colours and opacity are right.** Leave `view/theme.py`, `MESO_PALETTE` and the transparency default alone. New visuals (separator, check glyph, arrow, disabled text) use existing palette fields only: `text`, `text_disabled`, `ticks`.
-2. **Space tap in the 3D View toggles panes, reference style:**
+2. **Space tap in the 3D View toggles panes:**
    - single view → quad view;
    - a tap over the Top/Front/Side quadrant → that view, maximized;
    - another tap → back to quad view.
@@ -54,7 +54,7 @@ Precedence: `docs/spikes.md` D1–D5 overrides the plan; `docs/phase1-interfaces
   - `MESO_OT_toggle_flag` (`ops/actions.py`);
   - `MESO_MT_mode_switch` (`ops/invoke.py`; its poll is implemented, its draw is a stub);
   - `MESO_OT_pane_toggle` (`ops/panes.py`; its poll is implemented).
-  - `__init__._modules = (prefs, Plaza, actions, invoke, panes, draw_manager, keymaps)`. keymaps stays last.
+  - `__init__._modules = (prefs, plaza, actions, invoke, panes, draw_manager, keymaps)`. keymaps stays last.
 - **Test split:** the `build_model` tests moved from `tests/blender/test_topbar.py` to the new `tests/blender/test_rows.py`. A owns the first file and C the second.
 - **New skeleton tests:**
   - `tests/unit/test_phase3_skeleton.py`: item_action, tables, view quaternions against directions, tap constants.
@@ -125,7 +125,7 @@ Unit (161), Blender (130) and validate all pass on the skeleton.
 ## Import graph (no cycles; `record` never imports `ops`)
 
 ```
-__init__           -> prefs, ops.{Plaza,actions,invoke,panes}, view.draw_manager, keymaps
+__init__           -> prefs, ops.{plaza,actions,invoke,panes}, view.draw_manager, keymaps
 ops.plaza         -> core.{tap,rects,timing,geometry,model,actions}, view.*, record.rows, ops.invoke, prefs
 ops.invoke         -> core.{actions,model,tables}, ops.actions, prefs (lazily: addon_module)
 ops.actions        -> core.actions, record.datapath           (toggle_flag path evaluation)
@@ -392,7 +392,7 @@ core.actions       -> core.model;  core.tap -> core.views;  core.{views,tables,m
 2. **Snap and proportional are two items each** (a toggle plus a cascade), not one item with a check glyph and an arrow. This avoids sub-item hit zones in v0.3; Phase 4's custom cascades can merge them.
 3. **Tool headers are generalised.** They are recorded for IMAGE and SEQUENCER too, not only VIEW3D (`TOOL_HEADER_CLASSES`), when their region is visible.
 4. **The pane toggle is an operator** run through the existing tap path (`TapCommand('meso.pane_toggle')`), not a bare function call in the modal. It stays bindable elsewhere, per the user's "maybe it would find another home".
-5. **menu-bar semantics** (the Plaza stays open while menus are browsed) are deferred to Phase 4 (see the top of this page). Native popups own the events.
+5. **Menu-bar semantics** (the Plaza stays open while menus are browsed) are deferred to Phase 4 (see the top of this page). Native popups own the events.
 6. **Unverified C-only labels:** 'Operations', 'Add Modifier', 'Color Space' (see the facts section).
 7. **`MESO_OT_toggle_flag` has `{'UNDO','INTERNAL'}`, not `{'REGISTER','UNDO','INTERNAL'}`** (C). A REGISTER operator run under an area `temp_override` in `-b` segfaults (HUD / redo-panel path; reproduced with a minimal test operator, with and without HIDDEN props), and in the GUI it would add a redo HUD and a Recent Commands entry. `wm.context_toggle` is `{'UNDO','INTERNAL'}` too. UNDO alone pushes the step ('Toggle Flag', counted in `tests/blender/test_actions.py`).
 8. **Helpers added by C:** `ops.invoke.resolve_targets(window_ptr, area_index, area_type, region_type='WINDOW')` (the `schedule` fire-time lookup, testable without switching a live area's `ui_type`, which zeroes its region sizes headless and breaks later tests) and **`core.actions.normalize_op_idname(idname)`** (pure),: `'MESH_OT_x'` -> `'mesh.x'`, dotted ids unchanged, '' otherwise. `plan_call` ('operator' actions) and `ops.actions.run_operator` use it.

@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 id = "meso"
 version = "0.1.0"
 name = "Meso Mode"
-tagline = "Plaza and Compass menus on Space"
+tagline = "Hold Space for a Plaza of menus, tool settings and Compass menus"
 maintainer = "anoxdetox <5579531+anoxdetox@users.noreply.github.com>"
 type = "add-on"
 

@@ -1,0 +1,17 @@
+# REUSE (https://reuse.software/) annotations. Code: GPL-3.0-or-later (SPDX headers in the
+# files). Documentation and media: CC-BY-SA-4.0. Files carrying their own SPDX header win.
+# LICENSE, LICENSES/ and this file are exempt by the REUSE spec.
+version = 1
+
+[[annotations]]
+path = ["src/**", "tests/**", "tools/**", ".gitignore"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Meso Mode contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["docs/**", "*.md"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Meso Mode contributors"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
+

@@ -4,7 +4,7 @@ Runs inside Blender via tests/run_tests.py (which enables the add-on first). Hea
 handlers install but never fire, so the callback is also called directly, and the drawing
 Phase 2 content (``renderer.draw_plaza`` per visible piece) runs into a GPUOffScreen after
 ``gpu.init()`` (skipped when no GPU is available). Phase 4: the open dropdown chain drawn after
-the plaza (hand-built chains from test_render_offscreen), union-extent culling and the
+the Plaza (hand-built chains from test_render_offscreen), union-extent culling and the
 HandlerSet's DropdownBatchCache.
 """
 
@@ -530,7 +530,7 @@ class TestOffscreenDraw(unittest.TestCase):
         c = layout.center.rect
         cx, cy = self._local(region, c.x + 2, c.y + c.h // 2)
         self.assertGreater(pixel(cx, cy)[2], 0.9)
-        # Outside the plaza: untouched (no dim by default).
+        # Outside the Plaza: untouched (no dim by default).
         self.assertEqual(pixel(2, 2), (0.0, 0.0, 0.0, 0.0))
 
     def test_hover_and_cache_reuse(self):
@@ -582,7 +582,7 @@ class TestOffscreenDraw(unittest.TestCase):
         region = _region(area, 'WINDOW')
         w, h = region.width, region.height
         rrect = _rect(region.x, region.y, w, h)
-        # Anchored at the region's left edge: the clamp shifts the plaza right, so the
+        # Anchored at the region's left edge: the clamp shifts the Plaza right, so the
         # left side box lands under the toolbar (drawn on top by Blender -> scissored out).
         layout = _layout((region.x, region.y + h // 2), bounds=rrect)
         state = FakeState(window_ptr=window.as_pointer(), layout=layout, palette=_palette(),
@@ -643,7 +643,7 @@ def _dd_chain(layout, x, top, hover_items=3):
 
 
 class TestDropdownDraw(unittest.TestCase):
-    """Phase 4: the chain is drawn after the plaza in every visible piece."""
+    """Phase 4: the chain is drawn after the Plaza in every visible piece."""
 
     W, H = 400, 200
 
@@ -718,7 +718,7 @@ class TestDropdownDraw(unittest.TestCase):
         layout = _layout((70, 100))
         chain = _dd_chain(layout, 280, 180)
         piece = _rect(260, 0, 140, self.H)
-        self.assertFalse(piece.intersects(layout.extent), "premise: piece misses the plaza")
+        self.assertFalse(piece.intersects(layout.extent), "premise: piece misses the Plaza")
         panel = chain.panels[0]
         self.assertTrue(piece.intersects(panel.rect))
         drawn, pixel = self._draw(region, [piece], layout, chain, dd_hover=(1,))
@@ -727,13 +727,13 @@ class TestDropdownDraw(unittest.TestCase):
         self.assertEqual(pixel(int(panel.rect.x) + 4, int(panel.rect.y) + 2), (1.0, 0.0, 0.0, 1.0))
         hi = chain.item((1,)).highlight
         self.assertGreater(pixel(int(hi.x1) - 3, int(hi.y + hi.h // 2))[1], 0.9)
-        # The plaza itself was culled in that piece (scissored anyway).
+        # The Plaza itself was culled in that piece (scissored anyway).
         root = layout.strip('root').rect
         self.assertEqual(pixel(int(root.x) + 2, int(root.y + root.h // 2)), (0.0, 0.0, 0.0, 0.0))
         # A piece away from both extents draws nothing.
         drawn, pixel = self._draw(region, [_rect(200, 0, 20, 20)], layout, chain)
         self.assertEqual(drawn, 0)
-        # Both pieces, the plaza one and the chain one: 2 drawn; the open label is lit.
+        # Both pieces, the Plaza one and the chain one: 2 drawn; the open label is lit.
         left = _rect(0, 0, 260, self.H)
         drawn, pixel = self._draw(region, [left, piece], layout, chain,
                                   open_label='TOPBAR_MT_edit')

@@ -23,7 +23,7 @@ import addon_utils
 import bpy
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-REPO_NAME = "Meso Mode Dev"
+REPO_NAME = "Meso Dev"
 REPO_MODULE = "meso_dev"
 ADDON_MODULE = f"bl_ext.{REPO_MODULE}.meso"
 

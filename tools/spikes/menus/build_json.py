@@ -126,10 +126,10 @@ if H is not None:
         "click_triggered_handoff": {
             "probe": "tools/spikes/menus/probe_handoff.py (PROBE=probe_handoff.py tools/spikes/menus/run.sh OUT.json)",
             "finding": "Handing off to wm.call_menu on LMB PRESS lets the following LMB RELEASE activate the popup item under the cursor (item 0) and close the popup, both direct-in-modal() and via a 0-interval timer (the timer only escaped when PRESS and RELEASE were injected in the same WM tick, which a real click never is). Handing off on LMB RELEASE (modal consumes the PRESS) left the popup open with nothing activated in all 4 variants. Reproduced in 2 runs.",
-            "rule": "ops/invoke.py: trigger the native handoff on the RELEASE of the click (or of the plaza key), never on PRESS; direct call in modal() is then fine.",
+            "rule": "ops/invoke.py: trigger the native handoff on the RELEASE of the click (or of the Plaza key), never on PRESS; direct call in modal() is then fine.",
             "trials": H["trials"], "errors": H["errors"]},
         "spike9_one_esc_claim": "Not universal: matched:ShaderNodeTree:direct:UI_MT_color_space_select kept a 1300 px diff after 3 ESCs (rows y=29-30 across the area width, i.e. a node-editor redraw after the ui_type switch, not the popup). Reproduced in raw2 and the verifier run; detection confounder, not a stuck popup.",
-        "spike9_grey_out": "CANCELLED is only known after the plaza has closed and C MenuType.poll is not reachable from Python, so rows cannot be pre-greyed from the return value; gate statically by editor and report CANCELLED at click time.",
+        "spike9_grey_out": "CANCELLED is only known after the Plaza has closed and C MenuType.poll is not reachable from Python, so rows cannot be pre-greyed from the return value; gate statically by editor and report CANCELLED at click time.",
         "spike9_filebrowser": "FILEBROWSER_MT_operations_menu never opened in any tested context; 'only in file-browser dialogs' is untested inference.",
         "spike8_plan_conflict": "Plan Phase 4 says 'EXEC_REGION_WIN is the root default for header menus'; spike 8 shows real header pulldowns draw at INVOKE_REGION_WIN (no 'Search...'). The spike result supersedes the plan wording.",
     }

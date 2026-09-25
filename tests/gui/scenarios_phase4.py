@@ -394,7 +394,7 @@ def scenarios(drv):
 
     def sc_view_sidebar_toggle(rec):
         """View ▸ Sidebar (space_data.show_region_ui) from the custom View dropdown: applies
-        in place, the plaza and the dropdown stay open, and once the region animation ends
+        in place, the Plaza and the dropdown stay open, and once the region animation ends
         the re-recorded check matches the region (the deferred TIMER re-record). A second
         click toggles it back."""
         area = drv.area_by("VIEW_3D")
@@ -440,7 +440,7 @@ def scenarios(drv):
     def sc_popover_more(rec):
         """'More…' at the end of a popover cascade (proportional falloff + the recorded
         VIEW3D_PT_proportional_edit content) hands the whole panel off natively
-        (wm.call_panel keep_open): the popover opens and the plaza ends."""
+        (wm.call_panel keep_open): the popover opens and the Plaza ends."""
         xy = drv.center_of("VIEW_3D")
         st = yield from drv.open_plaza(xy)
         item = next((i for i in (st.model.row(md().ROW_TOOL_SETTINGS).items
@@ -478,7 +478,7 @@ def scenarios(drv):
     def sc_native_item(rec):
         """File > Open Recent is C-only: a DD_NATIVE 'Open Recent' row (drawn as a cascade,
         '▸' and no '…') whose click (on the RELEASE) hands the menu off with wm.call_menu and
-        ends the plaza."""
+        ends the Plaza."""
         xy = drv.center_of("VIEW_3D")
         st = yield from drv.open_plaza(xy)
         if st is None or st.layout is None or not (yield from drv.open_dropdown(rec, st, FILE)):
@@ -571,7 +571,7 @@ def scenarios(drv):
 
     # -------------------------------------------------------------------------- (h)
     def sc_esc_chain(rec):
-        """ESC with the chain open closes the chain only; a second ESC cancels the plaza;
+        """ESC with the chain open closes the chain only; a second ESC cancels the Plaza;
         the late Space release starts nothing."""
         xy = drv.center_of("VIEW_3D")
         st = yield from drv.open_plaza(xy)

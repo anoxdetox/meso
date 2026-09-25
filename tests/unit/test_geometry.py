@@ -426,7 +426,7 @@ class TestClamp(unittest.TestCase):
         bounds = Rect(0, 0, 1600, 900)
         base = do_layout(anchor=(800, 450), bounds=bounds)
         hb = base.plaza_rect
-        # Anchors that put the plaza edge 3 px from the bounds (margin - 3 px too far out).
+        # Anchors that put the Plaza edge 3 px from the bounds (margin - 3 px too far out).
         cases = {
             'left': (800 - hb.x + 3, 450),
             'right': (1600 - (hb.x1 - 800) - 3, 450),

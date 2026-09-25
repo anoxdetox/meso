@@ -275,7 +275,7 @@ def _enable_addon():
     for repo in list(repos):
         if repo.module == REPO_MODULE:
             repos.remove(repo)
-    repo = repos.new(name="Meso Mode Dev", module=REPO_MODULE,
+    repo = repos.new(name="Meso Dev", module=REPO_MODULE,
                      custom_directory=os.path.join(ROOT, "src"), source='USER')
     if not repo.use_custom_directory:
         repo.use_custom_directory = True

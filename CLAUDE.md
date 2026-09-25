@@ -1,8 +1,14 @@
-# Meso Mode — Plaza extension for Blender 5.2 LTS
+# Meso Mode for Blender — the Plaza and Compass menus on Space (Blender 5.2 LTS)
 
 Extension id `meso` (source in `src/meso/`), operator prefix `meso.`. Spec: the approved plan
 (phases 0–7) plus `docs/verified-facts-5.2.md` and `docs/header-controls-5.2.md` — these notes are the
 verified ground truth for Blender 5.2.2 API behaviour; read the relevant section before touching an area.
+
+Terminology: the Space overlay is the **Plaza** (`meso.plaza`); gesture/zone menus are **Compass menus**; never
+"Glyph". Another DCC may be named only in the README "coming from" sentence + non-affiliation notice and in
+`docs/comparison.md`; everywhere else (code, UI strings, docs, commit messages) use neutral terms
+(legacy-term list: `local/rewrite/terms.txt`). Plaza controls mirror the native control they replace, including
+click/modifier conventions.
 
 ## Environment
 - Blender 5.2.2 LTS: `B=~/.local/share/blender/blender` (always use the full path).

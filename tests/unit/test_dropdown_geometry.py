@@ -217,7 +217,7 @@ class TestPlaceDropdown(unittest.TestCase):
             self.assertLessEqual(abs((cr.y + cr.h / 2) - (it.rect.y + it.rect.h / 2)), 1)
         self.assertIsNone(new.checked)
         # separator: short row with a centred 1 px line spanning the panel inside the border
-        # (inset by border + one line height, like the reference DCC)
+        # (inset by border + one line height)
         self.assertEqual(sep.rect.h, d.separator_h)
         self.assertEqual(sep.line_rect, Rect(p.rect.x + 2, sep.rect.y + 3, p.rect.w - 4, 1))
         self.assertEqual(sep.label, '')

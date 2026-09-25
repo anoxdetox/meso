@@ -32,7 +32,7 @@ from mathutils import Matrix
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 
 W, H = 800, 500
-BACKGROUND = (0.62, 0.62, 0.62, 1.0)     # reference viewport grey (#9e9e9e), opaque
+BACKGROUND = (0.62, 0.62, 0.62, 1.0)     # viewport grey (#9e9e9e), opaque
 FACTORY_WORKSPACES = ('Layout', 'Modeling', 'Sculpting', 'UV Editing', 'Texture Paint')
 ROOT_MENUS = (('TOPBAR_MT_blender', 'Blender'), ('TOPBAR_MT_file', 'File'),
               ('TOPBAR_MT_edit', 'Edit'), ('TOPBAR_MT_render', 'Render'),
@@ -773,7 +773,7 @@ def _dmod():
 
 
 def dd_metrics(m):
-    """DropdownMetrics from the plaza Metrics ``m`` per the ``dropdown_metrics`` contract
+    """DropdownMetrics from the Plaza Metrics ``m`` per the ``dropdown_metrics`` contract
     (font_scale 1.0), computed here by hand."""
     dg, r = _dg(), _geo().round_px
     fs = m.scale
@@ -1103,10 +1103,10 @@ class TestOffscreenDropdowns(unittest.TestCase):
         def item(path):
             return chain.item(path)
 
-        # Opaque panel: over the plaza it is pixel-identical to the same chain drawn over
+        # Opaque panel: over the Plaza it is pixel-identical to the same chain drawn over
         # the bare background (nothing of the strips / labels below shows through).
         overlaps = [s for s in layout.strips for p in chain.panels if p.rect.intersects(s.rect)]
-        self.assertTrue(overlaps, "the dropdown covers part of the plaza (test premise)")
+        self.assertTrue(overlaps, "the dropdown covers part of the Plaza (test premise)")
         _, bare, _ = _render_dd(None, chain, None, hover, dd_cache=dd_cache)
         worst = 0.0
         for p in chain.panels:

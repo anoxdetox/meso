@@ -119,7 +119,7 @@ def luminance(color: RGBA) -> float:
 def corrected(color: RGBA, linear_blend: bool) -> RGBA:
     """``color`` with ``core.rects.linear_blend_alpha(alpha, luminance(color))`` applied to its
     alpha when ``linear_blend`` and ``0 < alpha < 1``; unchanged otherwise. Colour-aware: a
-    black dim gets the full D2 correction, the Plaza-grey strips almost none (so a strip that
+    black dim gets the full D2 correction, the Meso-grey strips almost none (so a strip that
     crosses from a side region into the 3D View WINDOW keeps one brightness)."""
     a = color[3]
     if linear_blend and 0.0 < a < 1.0:
@@ -440,7 +440,7 @@ def draw_plaza(layout: Layout, palette: Palette, hover_id: str | None,
                 region_offset: tuple[int, int], linear_blend: bool,
                 cache: BatchCache | None = None, clip: Rect | None = None,
                 open_label: str | None = None) -> bool:
-    """Draw the whole plaza into the bound region framebuffer (single entry point).
+    """Draw the whole Plaza into the bound region framebuffer (single entry point).
 
     ``region_offset`` = ``(region.x, region.y)`` (window coords of the region's origin);
     ``clip`` = the visible piece in window coords (draw_manager's scissor) — when given and
@@ -546,7 +546,7 @@ def _draw_labels(layout: Layout, palette: Palette, hover_id: str | None, ox: int
 
 # --------------------------------------------------------------------------- Phase 4 dropdowns
 
-# Derived tones (docs/phase4-interfaces.md "Colours"; sampled on the Plaza list panel of
+# Derived tones (docs/phase4-interfaces.md "Colours"; sampled on the reference list panel of
 # docs/reference/reference_plaza_and_rmb.jpg: a near-black 1 px outline and separator lines a
 # little LIGHTER than the panel grey).
 DD_BORDER_FACTOR = 0.3          # border RGB = strip RGB x this (a darker strip grey)
@@ -565,7 +565,7 @@ class DropdownColors:
     1.0), so strip labels under a panel never show through. ``border``: 1-scale-px outline
     inside the panel rect, a darker derived tone of the strip grey (strip RGB x
     DD_BORDER_FACTOR). ``separator``: separator lines, a lighter derived tone (strip RGB mixed
-    DD_SEPARATOR_MIX toward ``palette.text``, opaque; the reference DCC's separators are lighter than the
+    DD_SEPARATOR_MIX toward ``palette.text``, opaque; the reference separators are lighter than the
     panel). ``item_hover``: the hover bar across the panel width (``palette.item_hover``).
     ``text`` / ``text_hover`` / ``text_disabled`` (disabled and inactive items, section
     headers) / ``shortcut`` (dimmed hint, ``text_disabled``) / ``glyph`` (check, radio, arrow;
@@ -683,7 +683,7 @@ def _dd_glyph_mesh(items: Iterable[PlacedItem], dm: DropdownMetrics,
     """TRIS mesh of the glyphs of ``items``: GLYPH_BOX = hollow square + filled inner square
     when checked; GLYPH_RADIO = round ring + filled dot when checked (exclusive picks read
     apart from multi-select boxes); '▸' arrows (:func:`arrow_points`, always pointing right,
-    as in the reference DCC); plus the GLYPH_BOX of every toggle-table cell in ``cells``."""
+   ); plus the GLYPH_BOX of every toggle-table cell in ``cells``."""
     verts: list[Point] = []
     tris: list[tuple[int, int, int]] = []
     t = dd_line_px(dm)
@@ -720,7 +720,7 @@ def _hoverable(it: PlacedItem | None) -> bool:
 
 
 def highlight_paths(chain: ChainLayout, hover_path: ItemPath | None) -> tuple[ItemPath, ...]:
-    """The items drawn highlighted: the opener of every open submenu (The reference DCC keeps the parent
+    """The items drawn highlighted: the opener of every open submenu (it keeps the parent
     item of an open cascade lit) plus ``hover_path`` when it is an enabled, non-passive
     placed item. Chain order, no duplicates."""
     out: list[ItemPath] = []
@@ -875,7 +875,7 @@ def draw_dropdowns(chain: ChainLayout | None, palette: Palette, hover_path: Item
                    region_offset: tuple[int, int], linear_blend: bool,
                    cache: DropdownBatchCache | None = None, clip: Rect | None = None,
                    hover_cell: int | None = None) -> bool:
-    """Draw the open chain above the plaza (same framebuffer, scissor set by the caller).
+    """Draw the open chain above the Plaza (same framebuffer, scissor set by the caller).
 
     Returns False without GPU work when ``chain`` is None / empty or ``clip`` misses
     ``chain.extent``. Order per panel, root first (deeper panels on top): panel fill

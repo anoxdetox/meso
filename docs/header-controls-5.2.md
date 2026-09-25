@@ -136,7 +136,7 @@ Snap and proportional availability:
 
 ### 4. Rendering model
 
-| Recorded item | reference-style widget | Activation |
+| Recorded item | Plaza widget | Activation |
 |---|---|---|
 | B prop (toggle / icon_only) | check item | toggle |
 | E prop (dropdown / icon_only / expand) | "Label: Current ▸" cascade, radio list, current value checked, icons from `enum_items[i].icon` | set |

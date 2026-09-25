@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Meso Mode: a Plaza and Compass menus on Space for Blender 5.2 LTS.
+"""Meso Mode for Blender: the Plaza and Compass menus on Space (Blender 5.2 LTS).
 
 Extension entry point. No ``bl_info`` (extensions use ``blender_manifest.toml``).
 ``register()`` runs under RestrictBlend: no ``bpy.data`` / scene access here.

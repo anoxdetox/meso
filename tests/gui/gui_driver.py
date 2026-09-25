@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI event-simulate suite for the plaza: Phase 1 (hold / release / tap / cancel),
+"""GUI event-simulate suite for the Plaza: Phase 1 (hold / release / tap / cancel),
 Phase 2 (screenshots at ui_scale 1.0 / 2.0, hover, click on File), Phase 3 (contextual row,
 Tool Settings row, native handoffs of every item / action kind and the mode switcher,
 workspace switch, per-editor screenshots) and Phase 4 (custom dropdowns: a click on a menu
-label opens its dropdown and the plaza stays open; Tool Settings toggles / cascades apply in
+label opens its dropdown and the Plaza stays open; Tool Settings toggles / cascades apply in
 place); plus every ``tests/gui/scenarios_*.py`` module (the pane toggle, the Phase 4
 dropdown scenarios).
 
@@ -46,7 +46,7 @@ import bpy
 import gpu
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-REPO_NAME = "Meso Mode Dev"
+REPO_NAME = "Meso Dev"
 REPO_MODULE = "meso_dev"
 ADDON_MODULE = f"bl_ext.{REPO_MODULE}.meso"
 OPERATOR_IDNAME = "meso.plaza"
@@ -843,7 +843,7 @@ def sc_draw_failure(rec):
 
 
 def sc_rebound_key(rec):
-    """The user rebinds the Window item to a different key: its RELEASE closes the plaza."""
+    """The user rebinds the Window item to a different key: its RELEASE closes the Plaza."""
     wm = bpy.context.window_manager
     wm.keyconfigs.update()
     km = wm.keyconfigs.user.keymaps.get("Window")
@@ -1102,7 +1102,7 @@ def save_screenshot(name):
 
 
 def empty_point(layout):
-    """A point in the 3D View WINDOW region that hits no plaza item (below/above/beside)."""
+    """A point in the 3D View WINDOW region that hits no Plaza item (below/above/beside)."""
     a = area_by("VIEW_3D")
     r = region_of(a, "WINDOW")
     hb_rect = layout.plaza_rect
@@ -1113,7 +1113,7 @@ def empty_point(layout):
         inside = r.x <= xy[0] < r.x + r.width and r.y <= xy[1] < r.y + r.height
         if inside and geometry().hit_test(layout, *xy) is None:
             return xy
-    raise RuntimeError("no empty point next to the plaza")
+    raise RuntimeError("no empty point next to the Plaza")
 
 
 def open_plaza(xy):
@@ -1165,7 +1165,7 @@ def _shot_at_scale(rec, scale, row_h_1x):
     shot = grab()
     save_screenshot(f"phase3_{backend_name()}_{scale:.1f}")
     # Structural pixels: every strip changed the image at one of a few padding spots (inside
-    # the strip, off the labels); the viewport away from the plaza is untouched (no dim).
+    # the strip, off the labels); the viewport away from the Plaza is untouched (no dim).
     changed = []
     for strip in lay.strips:
         r = strip.rect
@@ -1279,7 +1279,7 @@ def _sc_hover_file(rec):
 
 def sc_click_file(rec):
     """(c) Click 'File' (press + release): Phase 4 opens the custom File dropdown on the
-    PRESS, it stays open after the RELEASE and the plaza keeps running (no native menu, no
+    PRESS, it stays open after the RELEASE and the Plaza keeps running (no native menu, no
     handoff); the Space release then finishes. Native call_menu: scenarios_phase4 (f)."""
     yield from _click_file(rec, center_of("VIEW_3D"))
 
@@ -1345,7 +1345,7 @@ def _click_file(rec, xy, at_invoke=None):
 
 def sc_press_release_elsewhere(rec):
     """(d) Press on 'File' (the custom dropdown opens on the PRESS), release on empty space:
-    the dropdown stays open, nothing runs and nothing native opens; the plaza stays open
+    the dropdown stays open, nothing runs and nothing native opens; the Plaza stays open
     until the Space release (not a tap)."""
     xy = center_of("VIEW_3D")
     st = yield from open_plaza(xy)
@@ -1468,7 +1468,7 @@ def find_clickable(st, prefix, kinds=None):
 
 
 def empty_point_in(layout, bounds, chain=None):
-    """A window point inside ``bounds`` that hits no plaza item (beside the plaza) and,
+    """A window point inside ``bounds`` that hits no Plaza item (beside the Plaza) and,
     with ``chain`` (an open dropdown ChainLayout), no dropdown panel either."""
     hb_rect = layout.plaza_rect
     cx, cy = int(hb_rect.x + hb_rect.w // 2), int(hb_rect.y + hb_rect.h // 2)
@@ -1482,11 +1482,11 @@ def empty_point_in(layout, bounds, chain=None):
         if bounds.contains(*xy) and geometry().hit_test(layout, *xy) is None \
                 and not any(r.contains(*xy) for r in panels):
             return xy
-    raise RuntimeError("no empty point next to the plaza")
+    raise RuntimeError("no empty point next to the Plaza")
 
 
 def shot_open(rec, name, st):
-    """Unhover (mouse to an empty point), then save ``phase3_<name>`` of the open plaza."""
+    """Unhover (mouse to an empty point), then save ``phase3_<name>`` of the open Plaza."""
     far = empty_point_in(st.layout, st.bounds)
     sim('MOUSEMOVE', 'NOTHING', far)
     yield 0.25
@@ -1495,7 +1495,7 @@ def shot_open(rec, name, st):
 
 
 def press_click(xy, **mods):
-    """LMB press + release at ``xy`` (after a move); the plaza reacts on the release.
+    """LMB press + release at ``xy`` (after a move); the Plaza reacts on the release.
     ``mods``: shift / ctrl / alt held during the click."""
     sim('MOUSEMOVE', 'NOTHING', xy, **mods)
     yield 0.1
@@ -1607,7 +1607,7 @@ def dd_keys(st):
 
 def open_dropdown(rec, st, label_id, prefix="open"):
     """Click the row label ``label_id`` of the running session ``st``: its custom dropdown
-    must open and the plaza keep running. Returns True when it did."""
+    must open and the Plaza keep running. Returns True when it did."""
     box = st.layout.item(label_id)
     check(rec, f"{prefix}_label_placed", box is not None, label_id)
     if box is None:
@@ -1698,7 +1698,7 @@ def sc_p3_contextual_rows(rec):
 
 
 def sc_p3_screens(rec):
-    """Screenshots of the plaza in Sculpt mode and over the UV Editor, Shader Editor and
+    """Screenshots of the Plaza in Sculpt mode and over the UV Editor, Shader Editor and
     Timeline, with their contextual rows."""
     md = model_mod()
     set_mode('SCULPT')
@@ -1748,7 +1748,7 @@ def sc_p3_screens(rec):
 
 def sc_p3_click_object_menu(rec):
     """Click 'Object' in the contextual row: Phase 4 opens the custom VIEW3D_MT_object
-    dropdown (not the native menu: probe 0), the plaza stays open."""
+    dropdown (not the native menu: probe 0), the Plaza stays open."""
     md = model_mod()
     xy = center_of("VIEW_3D")
     st = yield from open_plaza(xy)
@@ -1875,7 +1875,7 @@ def _tool_item(st, prefix, kinds=None):
 def sc_p3_pivot_cascade(rec):
     """Phase 4: the Pivot cascade is a custom radio list (current value checked); a click on
     'Individual Origins' changes the pivot in place (``wm.context_set_enum``, at most one undo
-    step), closes the cascade and the plaza stays open. Screenshot phase4_pivot_cascade."""
+    step), closes the cascade and the Plaza stays open. Screenshot phase4_pivot_cascade."""
     md = model_mod()
     D = dd_model_mod()
     ts = bpy.context.scene.tool_settings
@@ -1971,7 +1971,7 @@ def sc_p3_orientation_cascade(rec):
 
 
 def sc_p3_snap_toggle(rec):
-    """Click the Snap toggle: tool_settings.use_snap flips in place, the plaza STAYS OPEN
+    """Click the Snap toggle: tool_settings.use_snap flips in place, the Plaza STAYS OPEN
     (Phase 4), the toggle's checked state re-records, one undo step; Space release finishes."""
     md = model_mod()
     ts = bpy.context.scene.tool_settings

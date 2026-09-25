@@ -1,4 +1,4 @@
-"""Phase 4 (D): the plaza modal driven by the dropdown session (ops/dropdowns.py,
+"""Phase 4 (D): the Plaza modal driven by the dropdown session (ops/dropdowns.py,
 docs/phase4-interfaces.md "Event flow", "Run semantics").
 
 The modal runs on a plain stub (as in test_plaza.py) against hand-built PlazaModels and
@@ -922,7 +922,7 @@ class TestRuns(_Case):
         self.move(self.item_xy((4,)))
         self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
         self.assertEqual(self.executed[0]['action'].kind, md().ACTION_TOGGLE)
-        self.assertEqual(self.run_calls, [], "not in place: the plaza was ending")
+        self.assertEqual(self.run_calls, [], "not in place: the Plaza was ending")
 
     def test_execute_raising_still_finishes(self):
         def boom(*args, **kwargs):
@@ -1008,7 +1008,7 @@ class TestInPlace(_Case):
         self.assertEqual(self.run_calls[-1]['call'].op_idname, 'wm.context_set_enum')
         self.assertEqual(self.run_calls[-1]['call'].kwargs['value'], 'INDIVIDUAL_ORIGINS')
         self.assertIsNone(self.state.dropdowns, "a radio closes its own level (the dropdown)")
-        self.assertTrue(hb.is_running(), "the plaza stays")
+        self.assertTrue(hb.is_running(), "the Plaza stays")
         self.assertEqual(self.executed, [])
 
     def test_tool_cascade_toggle_keeps_cascade_open(self):
@@ -1147,7 +1147,7 @@ class TestRobustness(_Case):
         self.assertEqual(self.executed[0]['action'].target, 'wm.read_homefile')
 
     def test_unarmed_return_release_does_nothing(self):
-        """A RETURN RELEASE without its PRESS in this session (pressed before the plaza
+        """A RETURN RELEASE without its PRESS in this session (pressed before the Plaza
         or the chain opened) never activates the hovered item."""
         self.click(self.label_xy('TOPBAR_MT_file'))
         self.ev('DOWN_ARROW', 'PRESS')

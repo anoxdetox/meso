@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Menus -> reference-style dropdown models (Phase 4, implementer B).
+"""Menus -> custom dropdown models (Phase 4, implementer B).
 
 :func:`build_dropdown` records one Menu with ``record.recorder.record_menu`` under
 ``temp_override(window, area, region=<WINDOW region of the invoking area>)`` (only

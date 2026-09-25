@@ -294,7 +294,7 @@ schema_version = "1.0.0"
 id = "meso"
 version = "0.1.0"
 name = "Meso Mode"
-tagline = "Plaza and Compass menus on Space"
+tagline = "Hold Space for a Plaza of menus, tool settings and Compass menus"
 maintainer = "Alex <5579531+anoxdetox@users.noreply.github.com>"
 type = "add-on"
 tags = ["User Interface", "3D View"]
@@ -319,7 +319,7 @@ license = ["SPDX:GPL-3.0-or-later"]
 **Dev install:**
 ```
 mkdir -p ~/.config/blender/5.2/extensions/user_default    # does not exist yet
-ln -s <repo>/src/meso ~/.config/blender/5.2/extensions/user_default/meso
+ln -s "$PWD/src/meso" ~/.config/blender/5.2/extensions/user_default/meso
 ```
 - The module is `bl_ext.user_default.meso`.
 - Scanning follows symlinks (bl_extension_utils.py:346), and Uninstall only unlinks (blender_ext.py:557-595).
@@ -350,7 +350,7 @@ Meso Mode/  .gitignore  CLAUDE.md  README.md  LICENSE(GPL-3.0-or-later)
 
 **Test harness** (unittest, not pytest):
 1. `run_tests.py` asserts `bpy.app.factory_startup`.
-2. It calls `bpy.context.preferences.extensions.repos.new(name='Meso Mode Dev', module='meso_dev', custom_directory=<ROOT>/src, source='USER')`. This was verified not to write userpref.blend.
+2. It calls `bpy.context.preferences.extensions.repos.new(name='Meso Dev', module='meso_dev', custom_directory=<ROOT>/src, source='USER')`. This was verified not to write userpref.blend.
 3. It calls `addon_utils.enable('bl_ext.meso_dev.meso', default_set=True, handle_error=<raise>)` and asserts the result is not None.
 4. It calls `bpy.utils.keyconfig_set(<SCRIPTS>/presets/keyconfig/Blender.py)`.
 5. It runs discover. Pass the arguments after `--` through `testNamePatterns`.
@@ -391,7 +391,7 @@ Each spike: launch the GUI with the dev link enabled through Preferences, and us
 6. **Global areas.** Print `[a.type for a in bpy.context.window.screen.areas]` in the GUI. Check whether TOPBAR or STATUSBAR are present, and whether they can be the target of `temp_override`.
 7. **`UILayout.introspect()` schema.** Register a probe Menu whose draw calls `VIEW3D_MT_add.draw(self, ctx)` and then prints `self.layout.introspect()`. Open it with `wm.call_menu`. Record the dict keys and whether operator idnames and props, text, and C-generated asset items appear. Never call popup_menu or popover in `-b`: it segfaulted 5.2.2. `_bpy._wm_capabilities()` also segfaults in `-b` (5.2.2; `rna_keymap_ui.draw_kmi` calls it when an item is expanded).
 8. **operator_context inheritance.** Open VIEW3D_MT_add, which sets EXEC_REGION_WIN, then a submenu such as OBJECT_MT_modifier_add. Check whether 'Search...' appears, i.e. whether submenus inherit operator_context at the call site.
-9. **wm.call_menu for C MenuTypes.** From a modal operator, call `bpy.ops.wm.call_menu(name=X)` for each of the 9 C ids. Check that each opens at the cursor and that the modal Plaza can end cleanly first.
+9. **wm.call_menu for C MenuTypes.** From a modal operator, call `bpy.ops.wm.call_menu(name=X)` for each of the 9 C ids. Check that each opens at the cursor and that the modal plaza can end cleanly first.
 10. **`template_node_operator_asset_root_items`.** Mark a Geometry Nodes group as a Tool asset with a catalog. Compare the 3D View header menus against the recorder output.
 11. **Asset browser header recording.** Open an Asset Browser (`params` is not None) and record FILEBROWSER_HT_header with the ASSETS buttons.
 12. **Pie slot order.** Recreate VIEW3D_MT_view_pie with items labelled by index and note where each index appears. The expected order is W, E, S, N, NW, NE, SW, SE.
@@ -437,7 +437,7 @@ Each spike: launch the GUI with the dev link enabled through Preferences, and us
 25. Add-on merge order: all add-on items come before the built-ins, in **reverse** registration order, and `head=True` makes an item the lowest-priority add-on item. Register in reverse priority and don't use `head`.
 26. Don't bind plain Space in the 'Text' or 'Console' keymaps. A per-editor add-on item would come before TEXTINPUT and break typing. Remove the "Ctrl+Space = autocomplete" claim: it is Screen maximize everywhere, and autocomplete is TAB.
 27. Record the Ctrl+Shift+Space conflict: it is Frames reverse play. Make it an option, and valid in Text/Console only if spike 1 shows those regions lack Frames.
-28. spacebar_action: use the guarded read plus `kc.name`. Support Blender (PLAY/TOOL/SEARCH), Blender_27x (Space = search at Window level, no attribute) and Industry_Compatible (Frames Space = play, GP modes Space = asset shelf, Shift+Space = asset shelf toggle). Offer "replace Space" and "Shift+Space" modes. In TOOL mode, give wm.toolbar and the asset shelf their own Plaza slots.
+28. spacebar_action: use the guarded read plus `kc.name`. Support Blender (PLAY/TOOL/SEARCH), Blender_27x (Space = search at Window level, no attribute) and Industry_Compatible (Frames Space = play, GP modes Space = asset shelf, Shift+Space = asset shelf toggle). Offer "replace Space" and "Shift+Space" modes. In TOOL mode, give wm.toolbar and the asset shelf their own plaza slots.
 29. Paint/sculpt mode keymaps bind Space (TOOL) or Shift+Space (PLAY) to the asset shelf and beat 'Window'. Document this or bind in the mode keymaps too.
 30. Don't disable built-in keymap items from the add-on. Point users to Preferences > Keymap and optionally show `rna_keymap_ui.draw_kmi`. Keep `if kc is None: return`. Bind with `repeat=False` and ignore `event.is_repeat`. Detect release with `SPACE` + `RELEASE`.
 31. GPU: use only unprefixed builtin shader names. No bgl, and no `GPUShader(vs, fs)` (use `create_from_info`). Set `viewportSize` and `lineWidth` on POLYLINE shaders every draw. `blend_set('ALPHA')`, then reset.

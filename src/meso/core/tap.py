@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Tap detection and the tap-action table (docs/spikes.md D1, "Tap = ORIGINAL table").
 
-A *tap* is a plaza-key press released within ``tap_threshold`` seconds with no
-interaction in between. The reference DCC's tap is purely time-based: moving the mouse is not
-interaction; pressing a mouse button is. On a tap the plaza closes and runs the
+A *tap* is a Plaza-key press released within ``tap_threshold`` seconds with no
+interaction in between. The tap is purely time-based: moving the mouse is not
+interaction; pressing a mouse button is. On a tap the Plaza closes and runs the
 command that native Space would have run (``tap_action`` pref).
 
 Pure Python: every input is a plain string / number, so the table is unit-tested
@@ -117,7 +117,7 @@ def is_tap(elapsed_s: float, threshold_s: float, interacted: bool) -> bool:
     Contract: ``not interacted and threshold_s > 0 and elapsed_s < threshold_s``.
     A threshold <= 0 disables taps; a negative ``elapsed_s`` (never produced by
     ``time.perf_counter`` deltas) is treated as 0. ``interacted`` is True once any
-    mouse button was pressed while the plaza was open.
+    mouse button was pressed while the Plaza was open.
     """
     return not interacted and threshold_s > 0 and max(elapsed_s, 0.0) < threshold_s
 
@@ -223,7 +223,7 @@ def effective_tap_action(tap_action: str, tap_action_view3d: str | None,
 
 def resolve_pane_action(is_quad: bool, hovered_is_persp_quadrant: bool | None,
                         quadrant_axis: str | None, has_saved_state: bool) -> str:
-    """pane toggle decision (one of :data:`PANE_ACTIONS`).
+    """Pane toggle decision (one of :data:`PANE_ACTIONS`).
 
     - ``not is_quad``: :data:`PANE_QUAD_ON_RESTORE` if ``has_saved_state`` else
       :data:`PANE_QUAD_ON`.

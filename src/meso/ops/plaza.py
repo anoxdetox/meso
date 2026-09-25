@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-4).
+"""The Plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-4).
 
 Lifecycle (docs/spikes.md D1/D2/D3/D5):
 
@@ -178,7 +178,7 @@ _disabled: bool = False
 
 
 def is_running() -> bool:
-    """True while a plaza modal is open."""
+    """True while a Plaza modal is open."""
     return _running is not None
 
 
@@ -270,7 +270,7 @@ def _window_region(area):
 
 
 def release_key_for(event, fallback: str = 'SPACE') -> str:
-    """The key whose RELEASE closes the plaza: the invoking key/button (follows user rebinds
+    """The key whose RELEASE closes the Plaza: the invoking key/button (follows user rebinds
     of the keymap item), else ``fallback`` (the ``release_key`` property)."""
     etype = getattr(event, 'type', None)
     if (getattr(event, 'value', None) == 'PRESS' and isinstance(etype, str)
@@ -435,7 +435,7 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
 
 
 def _is_stale(state: PlazaState, context) -> bool:
-    """True if ``state`` claims to run but its window has no plaza modal any more."""
+    """True if ``state`` claims to run but its window has no Plaza modal any more."""
     window = _find_window(context, state.window_ptr)
     if window is None:
         return True
@@ -456,7 +456,7 @@ class MESO_OT_plaza(Operator):
 
     release_key: StringProperty(
         name="Release Key",
-        description="Event type whose release closes the plaza when the invoking event is "
+        description="Event type whose release closes the Plaza when the invoking event is "
                     "not a key or button press",
         default='SPACE',
         options={'SKIP_SAVE', 'HIDDEN'},
@@ -471,7 +471,7 @@ class MESO_OT_plaza(Operator):
         """Open a session.
 
         - ``{'CANCELLED'}`` if :func:`is_running` (a second press never stacks plazaes).
-          A stale session (its window has no plaza modal any more) is ended first.
+          A stale session (its window has no Plaza modal any more) is ended first.
         - ``window = context.window``; :func:`hit_test` on ``window.screen`` with
           ``event.mouse_x/y``; bars / no area -> ``area_type`` from ``context.area.type`` when it
           is TOPBAR/STATUSBAR else None, ``area``/``region``/``area_index`` None.
@@ -584,7 +584,7 @@ class MESO_OT_plaza(Operator):
                      f"({area_type}/{region_type})")
             return {'RUNNING_MODAL'}
         except Exception:
-            _log_exc("opening the plaza failed")
+            _log_exc("opening the Plaza failed")
             _end(state, 'error')
             self._state = None
             return {'CANCELLED'}
@@ -774,7 +774,7 @@ def register() -> None:
 
 
 def unregister() -> None:
-    # Close a plaza left open (Blender drops the modal handler when the type is removed).
+    # Close a Plaza left open (Blender drops the modal handler when the type is removed).
     if _running is not None:
         try:
             _end(_running, 'unregister')

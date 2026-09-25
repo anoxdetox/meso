@@ -367,7 +367,7 @@ class TestRuns(unittest.TestCase):
         self.assertEqual(r, (mb.RunItem((1, 1), True), mb.CloseChain(1), mb.Redraw()))
         self.assertEqual((s.depth, s.open_label, s.submenus), (1, FILE, ()))
         self.assertFalse(s.done)
-        # a radio in the root dropdown closes the dropdown; the plaza stays
+        # a radio in the root dropdown closes the dropdown; the Plaza stays
         s, (p, r) = run(s, press(itm((5,), AC)), release(itm((5,), AC)))
         self.assertEqual(r, (mb.RunItem((5,), True), mb.CloseChain(0), mb.Redraw()))
         self.assertFalse(s.is_open)

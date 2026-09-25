@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The plaza content model: rows of items plus the centre-line boxes (Phases 2-3).
+"""The Plaza content model: rows of items plus the centre-line boxes (Phases 2-3).
 
 Built once per invoke by ``record.rows.build_model`` from live Blender data, then consumed by
 ``core.geometry.layout`` (placement), ``view.renderer`` (drawing) and ``ops.plaza`` (hit ->
@@ -9,7 +9,7 @@ modal safely (it never does in practice: it lives in ``PlazaState`` for one sess
 Row placement (the Plaza look, docs/phase2-interfaces.md "PLAZA LOOK"): rows whose key is in
 :data:`ROWS_ABOVE` sit above the centre line in that top->bottom order; every other row sits
 below it in model order. Empty rows are skipped by the layout. Only the single-line menu
-strips (root + contextual) sit above, at a fixed offset from the centre like the reference DCC's main /
+strips (root + contextual) sit above, at a fixed offset from the centre's main /
 pane menus; the Tool Settings row, which wraps to 1-3 lines, goes below the workspace tabs
 so it grows away from the centre and never moves the strips aimed at by muscle memory.
 
@@ -52,7 +52,7 @@ ROW_CONTEXTUAL = 'contextual'           # hovered editor's header menus (Phase 3
 ROW_TOOL_SETTINGS = 'tool_settings'     # header centre/right controls (Phase 3)
 ROW_WORKSPACE = 'workspace'             # workspace tabs (bottom-most strip)
 # Rows above the centre line, top -> bottom. Any other key goes below, in model order,
-# except ROWS_LAST, which always close the plaza at the bottom (in ROWS_LAST order).
+# except ROWS_LAST, which always close the Plaza at the bottom (in ROWS_LAST order).
 ROWS_ABOVE = (ROW_ROOT, ROW_CONTEXTUAL)
 ROWS_LAST = (ROW_WORKSPACE,)
 
@@ -195,7 +195,7 @@ class Row:
 
 @dataclass(frozen=True, slots=True)
 class PlazaModel:
-    """Everything the plaza shows for one session.
+    """Everything the Plaza shows for one session.
 
     ``rows``: any order; the layout places :data:`ROWS_ABOVE` keys above the centre line (in
     ROWS_ABOVE order, whatever their order here) and the rest below (in this order, then the
