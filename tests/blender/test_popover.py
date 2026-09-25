@@ -127,7 +127,30 @@ class MESO_PT_poptest_child(bpy.types.Panel):
         self.layout.prop(context.tool_settings, "use_snap_rotate")
 
 
-_CLASSES = (MESO_PT_poptest, MESO_PT_poptest_child)
+class MESO_PT_poptest_rows(bpy.types.Panel):
+    """Icon-only toggles outside a toggle table (two label rows: below MIN_TABLE_ROWS)."""
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Pop Rows"
+
+    def draw(self, context):
+        layout = self.layout
+        view = context.space_data
+        ts = context.tool_settings
+        col = layout.column()
+        row = col.row(align=True)
+        row.label(text="Alpha")
+        row.prop(view, "show_object_viewport_mesh", text="", icon='HIDE_OFF', emboss=False)
+        row = col.row(align=True)
+        row.label(text="Beta")
+        sub = row.row(align=True)
+        sub.prop(view, "show_object_select_mesh", text="", icon='RESTRICT_SELECT_OFF')
+        row.prop(ts, "use_snap")
+        layout.prop(view, "show_object_viewport_curve", text="", icon='HIDE_ON')
+        layout.prop(view, "show_object_viewport_light", text="", icon='SNAP_ON')
+
+
+_CLASSES = (MESO_PT_poptest, MESO_PT_poptest_child, MESO_PT_poptest_rows)
 
 
 def setUpModule():
@@ -335,6 +358,131 @@ class TestToolCascades(unittest.TestCase):
                          m.COVERAGE_NATIVE)
         self.assertEqual(pop().build_tool_cascade(None, None, broken).coverage,
                          m.COVERAGE_NATIVE)
+
+
+# Object types of VIEW3D_PT_object_type_visibility.draw_ex (space_view3d.py), in draw order.
+OBJECT_TYPES = (
+    ("mesh", "Mesh"), ("curve", "Curve"), ("surf", "Surface"), ("meta", "Meta"),
+    ("font", "Text"), ("curves", "Hair Curves"), ("pointcloud", "Point Cloud"),
+    ("volume", "Volume"), ("grease_pencil", "Grease Pencil"), ("armature", "Armature"),
+    ("lattice", "Lattice"), ("empty", "Empty"), ("light", "Light"),
+    ("light_probe", "Light Probe"), ("camera", "Camera"), ("speaker", "Speaker"),
+)
+VISIBILITY_ID = 'ts:display:VIEW3D_PT_object_type_visibility'
+
+
+def visibility_cascade(info=None):
+    info = info or view3d_info()
+    _model, row = tool_row(info)
+    item = next((i for i in row.items if i.id == VISIBILITY_ID), None)
+    if item is None:        # display controls off: the same Item by hand
+        item = cm().Item(VISIBILITY_ID, "Selectability & Visibility", cm().KIND_CASCADE,
+                         {'panel': 'VIEW3D_PT_object_type_visibility'})
+    return pop().build_tool_cascade(bpy.context, info, item)
+
+
+def assert_unique_siblings(testcase, items, where='root'):
+    names = [i.label for i in items if i.kind not in (dm().DD_SEPARATOR,)]
+    testcase.assertEqual(len(names), len(set(names)), f"{where}: {names}")
+    for item in items:
+        if item.children:
+            assert_unique_siblings(testcase, item.children, f"{where}/{item.label}")
+
+
+class TestToggleTable(unittest.TestCase):
+    """VIEW3D_PT_object_type_visibility: 16 rows [label] + select / viewport icon toggles
+    collapse into a Selectable and a Visible cascade (core.icon_toggles)."""
+
+    def test_shape(self):
+        m = dm()
+        model = visibility_cascade()
+        self.assertEqual(model.coverage, m.COVERAGE_CUSTOM)
+        self.assertEqual(model.title, "Selectability & Visibility")
+        kinds = [i.kind for i in model.items if i.kind != m.DD_SEPARATOR]
+        self.assertEqual(kinds, [m.DD_LABEL, m.DD_ENUM_CASCADE, m.DD_ENUM_CASCADE,
+                                 m.DD_NATIVE_MORE], labels(model))
+        self.assertEqual(model.items[0].label, "Selectability & Visibility")
+        cascades = [i for i in model.items if i.kind == m.DD_ENUM_CASCADE]
+        self.assertEqual([c.label for c in cascades], ["Selectable", "Visible"])
+        self.assertEqual({c.source for c in cascades}, {m.ITEM_SOURCE_TOGGLE_TABLE})
+        names = [name for _attr, name in OBJECT_TYPES]
+        for cascade_item, prefix in zip(cascades, ("show_object_select_",
+                                                   "show_object_viewport_")):
+            self.assertEqual(m.item_role(cascade_item), m.ROLE_SUBMENU)
+            self.assertEqual([c.label for c in cascade_item.children], names)
+            self.assertEqual({c.kind for c in cascade_item.children}, {m.DD_TOGGLE})
+            self.assertEqual([c.action.data_path for c in cascade_item.children],
+                             [f"space_data.{prefix}{attr}" for attr, _n in OBJECT_TYPES])
+            self.assertEqual({m.item_role(c) for c in cascade_item.children}, {m.ROLE_APPLY})
+        self.assertEqual(model.items[-1].action,
+                         m.native_panel_action("VIEW3D_PT_object_type_visibility"))
+        assert_unique_siblings(self, model.items)
+
+    def test_checked_active_and_toggle(self):
+        m = dm()
+        info = view3d_info()
+        space = info.area.spaces.active
+        with restored(space, "show_object_viewport_mesh", "show_object_select_curve"):
+            space.show_object_viewport_mesh = False
+            space.show_object_select_curve = False
+            model = visibility_cascade(info)
+            index = next(n for n, i in enumerate(model.items) if i.label == "Visible")
+            visible = m.enum_child_model(model, index)
+            self.assertEqual((visible.source, visible.title), (m.SOURCE_ENUM, "Visible"))
+            mesh = visible.item(0)
+            self.assertEqual((mesh.label, mesh.checked), ("Mesh", False))
+            selectable = next(i for i in model.items if i.label == "Selectable")
+            by_name = {c.label: c for c in selectable.children}
+            # the select toggle of an invisible type is dimmed (rowsub.active), still clickable
+            self.assertEqual((by_name["Mesh"].active, by_name["Mesh"].enabled), (False, True))
+            self.assertTrue(by_name["Camera"].active)
+            self.assertIs(by_name["Curve"].checked, False)
+            self.assertIs(by_name["Camera"].checked, space.show_object_select_camera)
+
+            # Space-owned paths: wm.context_toggle returns CANCELLED with the value changed
+            # (docs/spikes.md D5), so the value is what is checked.
+            inv = _mod("ops.invoke")
+            res = inv.apply_in_place(mesh.action, info.window, info.area, info.region)
+            self.assertEqual(res.call[0], 'wm.context_toggle')
+            self.assertTrue(space.show_object_viewport_mesh)
+            again = visibility_cascade(info)
+            self.assertTrue(m.same_opener(model.items[index], again.items[index]))
+            self.assertIs(m.enum_child_model(again, index).item(0).checked, True)
+            inv.apply_in_place(mesh.action, info.window, info.area, info.region)
+            self.assertFalse(space.show_object_viewport_mesh)
+
+
+class TestIconOnlyRows(unittest.TestCase):
+    """Icon-only toggles outside a table: 'Row Label Meaning', meaning alone, RNA name."""
+
+    def setUp(self):
+        rec = _mod("record.recorder")
+        with _mod("record.dropdown").invoking_context(bpy.context, view3d_info()) as ctx:
+            self.recording = rec.record_panel("MESO_PT_poptest_rows", ctx)
+            self.items = pop().panel_items(self.recording, ctx)
+            self.light = rec._prop_label(ctx.space_data, "show_object_viewport_light")
+
+    def test_record_lines(self):
+        r = _mod("record.recorder")
+        recs = [x for x in self.recording.records if x.kind in (r.REC_LABEL, r.REC_PROP)]
+        alpha, alpha_vis, beta, beta_sel, snap, curve, light = recs
+        self.assertEqual(alpha.line, alpha_vis.line)
+        self.assertNotEqual(alpha.line, 0)
+        self.assertEqual({beta.line, beta_sel.line, snap.line}, {beta.line})   # nested row
+        self.assertNotEqual(alpha.line, beta.line)
+        self.assertEqual((curve.line, light.line), (0, 0))
+
+    def test_labels(self):
+        m = dm()
+        got = [(i.kind, i.label, i.action.data_path if i.action else None) for i in self.items]
+        self.assertEqual(got, [
+            (m.DD_TOGGLE, "Alpha Visible", "space_data.show_object_viewport_mesh"),
+            (m.DD_LABEL, "Beta", None),
+            (m.DD_TOGGLE, "Beta Selectable", "space_data.show_object_select_mesh"),
+            (m.DD_TOGGLE, "Snap", "tool_settings.use_snap"),
+            (m.DD_TOGGLE, "Visible", "space_data.show_object_viewport_curve"),
+            (m.DD_TOGGLE, self.light, "space_data.show_object_viewport_light"),
+        ])
 
 
 class TestRefreshToolSettings(unittest.TestCase):
