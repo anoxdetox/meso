@@ -310,7 +310,8 @@ BINDINGS: tuple[Binding, ...] = (
     Binding(
         'reloc_mesh_vert_expand', 'ISOLATE', "Vertex Select Mode with Expand",
         "Ctrl Alt 1 switches Edit Mesh to vertex select mode with expand, the new home of "
-        "Industry Compatible's Ctrl 1. Registered only while Ctrl 1 isolates",
+        "Industry Compatible's Ctrl 1 (Ctrl click on the vertex select button of the header or "
+        "the Plaza does the same). Registered only while Ctrl 1 isolates",
         True,
         (Item('Mesh', KEY_VERT_EXPAND, 'mesh.select_mode',
               (('type', 'VERT'), ('use_expand', True))),),

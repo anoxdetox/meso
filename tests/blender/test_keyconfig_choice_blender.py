@@ -13,7 +13,7 @@ import unittest
 import addon_utils
 import bpy
 
-from tests.blender.test_meso_keymap import (ADDON_MODULE, STEP1_IDS, MesoKeymapCase, mk,
+from tests.blender.test_meso_keymap import (ADDON_MODULE, LIVE_IDS, MesoKeymapCase, mk,
                                             prefs, use_keyconfig, wm)
 
 
@@ -34,7 +34,7 @@ class TestChoose(MesoKeymapCase):
         self.assertEqual(self.p.keymap_choice, 'MESO')
         self.assertTrue(self.p.keymap_prompted)
         self.assertTrue(bpy.context.preferences.is_dirty)
-        self.assertEqual(mk().registered_ids(), STEP1_IDS)
+        self.assertEqual(mk().registered_ids(), LIVE_IDS)
         # A second "Use" keeps the recorded keyconfig.
         bpy.ops.meso.keymap_choose(choice='MESO')
         self.assertEqual(self.p.previous_keyconfig, 'Blender')
@@ -65,7 +65,7 @@ class TestChoose(MesoKeymapCase):
         bpy.ops.meso.keymap_choose(choice='MESO')   # "Select Industry Compatible"
         self.assertEqual(active_name(), 'Industry_Compatible')
         self.assertEqual(self.p.previous_keyconfig, 'Blender')
-        self.assertEqual(mk().registered_ids(), STEP1_IDS)
+        self.assertEqual(mk().registered_ids(), LIVE_IDS)
 
     def test_keyconfig_without_preset_is_assigned_back(self):
         kcs = wm().keyconfigs
@@ -142,7 +142,7 @@ class TestUnregisterRestore(MesoKeymapCase):
             self.assertFalse(_data_ok())        # really restricted
             mk().register()
         self.assertEqual(active_name(), 'Industry_Compatible')
-        self.assertEqual(mk().registered_ids(), STEP1_IDS)
+        self.assertEqual(mk().registered_ids(), LIVE_IDS)
 
     def test_background_never_prompts(self):
         self.p.keymap_choice = 'UNDECIDED'
@@ -179,7 +179,7 @@ class TestAddonReload(MesoKeymapCase):
         self.assertEqual(active_name(), 'Industry_Compatible')
         self.assertFalse(self.p.keyconfig_restored)
         self.assertEqual(importlib.import_module(ADDON_MODULE + ".meso_keymap").registered_ids(),
-                         STEP1_IDS)
+                         LIVE_IDS)
 
 
 if __name__ == '__main__':

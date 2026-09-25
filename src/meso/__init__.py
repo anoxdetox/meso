@@ -6,7 +6,7 @@ Extension entry point. No ``bl_info`` (extensions use ``blender_manifest.toml``)
 """
 
 from . import keymap_prefs, keymaps, meso_keymap, prefs
-from .ops import actions, keymap_choice, plaza, invoke, panes
+from .ops import actions, invoke, isolate, keymap_choice, panes, plaza, properties_cycle
 from .view import draw_manager
 
 # Ordered list of submodules exposing register()/unregister().
@@ -22,6 +22,8 @@ _modules = (
     panes,
     draw_manager,
     keymap_choice,
+    isolate,
+    properties_cycle,
     keymaps,
     meso_keymap,
 )

@@ -18,9 +18,10 @@ ADDON_MODULE = "bl_ext.meso_dev.meso"
 
 MODIFIERS = ('ctrl', 'shift', 'alt', 'oskey')
 
-# The bindings whose operators exist after implementation step 1.
-STEP1_IDS = ('select_all', 'deselect_all', 'select_invert', 'reloc_clip_show_disabled',
-             'select_keys_extra', 'apply_menu')
+# The bindings whose operators exist after implementation step 2 (table order).
+LIVE_IDS = ('select_all', 'deselect_all', 'select_invert', 'reloc_clip_show_disabled',
+            'select_keys_extra', 'isolate', 'reloc_mesh_vert_expand', 'properties_cycle',
+            'apply_menu')
 
 
 def _mod(name):
@@ -136,8 +137,7 @@ class TestTable(MesoKeymapCase):
                     self.assertFalse(km.is_modal)
 
     def test_every_table_operator_exists_except_later_steps(self):
-        later = {'meso.isolate_toggle', 'meso.properties_cycle', 'meso.snap_hold',
-                 'meso.pivot_hold', 'meso.pivot_toggle'}
+        later = {'meso.snap_hold', 'meso.pivot_hold', 'meso.pivot_toggle'}
         for b in mb().BINDINGS:
             for idname in mb().operator_idnames(b):
                 with self.subTest(binding=b.id, op=idname):
@@ -150,7 +150,7 @@ class TestTable(MesoKeymapCase):
                     for item in b.items:
                         for prop, value in item.props:
                             self.assertIn(prop, rna.properties, f"{idname}.{prop}")
-        self.assertEqual(sorted(mk().available_ids()), sorted(STEP1_IDS))
+        self.assertEqual(sorted(mk().available_ids()), sorted(LIVE_IDS))
         self.assertFalse(mk().operator_exists('clip.graph_select_all'))  # IC's dead Ctrl+A
 
     def test_bind_prefs_generated(self):
@@ -240,15 +240,15 @@ class TestRegistration(MesoKeymapCase):
                 self.p.bindings_on_other_keymaps = allow
                 self.p.keymap_choice = choice
                 ids = mk().sync()
-                self.assertEqual(ids, STEP1_IDS if registers else ())
+                self.assertEqual(ids, LIVE_IDS if registers else ())
                 self.assertEqual(bool(self._addon_meso_items()), registers)
 
     def test_items_on_ic(self):
-        self.assertEqual(self.meso_on_ic(), STEP1_IDS)
+        self.assertEqual(self.meso_on_ic(), LIVE_IDS)
         live = mk().registered_items()
-        expected = [item for b in mb().BINDINGS if b.id in STEP1_IDS for item in b.items]
+        expected = [item for b in mb().BINDINGS if b.id in LIVE_IDS for item in b.items]
         self.assertEqual([item for _km, _kmi, item in live], expected)
-        self.assertEqual(len(live), 18 + 19 + 24 + 1 + 10 + 2)
+        self.assertEqual(len(live), 18 + 19 + 24 + 1 + 10 + 10 + 1 + 14 + 2)
         addon = wm().keyconfigs.addon
         for km, kmi, item in live:
             with self.subTest(keymap=item.keymap, key=item.key.label()):
@@ -340,7 +340,7 @@ class TestRegistration(MesoKeymapCase):
         self.meso_on_ic()
         mk().remove_all()
         self.assertEqual(self._addon_meso_items(), [])
-        self.assertEqual(mk().sync(), STEP1_IDS)
+        self.assertEqual(mk().sync(), LIVE_IDS)
 
     def test_tolerates_items_removed_behind_its_back(self):
         self.meso_on_ic()
@@ -359,7 +359,7 @@ class TestRegistration(MesoKeymapCase):
         self.assertEqual(mk().registered_ids(), ())
         use_keyconfig('Industry_Compatible')
         self.assertEqual(mk()._watch_keyconfig(), mk().WATCH_INTERVAL)   # the GUI watcher tick
-        self.assertEqual(mk().registered_ids(), STEP1_IDS)
+        self.assertEqual(mk().registered_ids(), LIVE_IDS)
         use_keyconfig('Blender')
         mk()._watch_keyconfig()
         self.assertEqual(mk().registered_ids(), ())

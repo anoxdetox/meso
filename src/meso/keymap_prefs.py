@@ -26,6 +26,7 @@ from . import meso_keymap, prefs
 from .prefs import space_key_items as key_items
 from .core import keymap_tree
 from .core import meso_bindings as mb
+from .core import properties_cycle as pc
 from .keymaps import KEYMAP_SET, KIND_SPACE, OPERATOR_IDNAME
 
 INDENT_PX = 16
@@ -229,6 +230,27 @@ def _draw_binding(layout, addon_prefs, b):
         _wrapped(hint, line)
 
 
+def cycle_hint_lines(text) -> tuple[list[str], list[str]]:
+    """``(hint lines, alert lines)`` under the Properties Tab Cycle field."""
+    hints = ["Cycle: " + " > ".join(pc.parse(text)),
+             "Tab ids: " + ", ".join(pc.KNOWN_TABS)]
+    bad = pc.unknown(text)
+    alerts = [f"Not a tab id (ignored): {', '.join(bad)}"] if bad else []
+    return hints, alerts
+
+
+def _draw_cycle_hint(layout, text):
+    hints, alerts = cycle_hint_lines(text)
+    for line in alerts:
+        row = layout.column(align=True)
+        row.alert = True
+        _wrapped(row, line, icon='ERROR')
+    col = layout.column(align=True)
+    col.active = False
+    for line in hints:
+        _wrapped(col, line)
+
+
 _GROUP_EXTRAS = {
     'PROPERTIES': ('properties_cycle_order',),
     'ISOLATE': ('isolate_frame_selected',),
@@ -290,6 +312,8 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
             _draw_binding(body, addon_prefs, b)
         for prop in _GROUP_EXTRAS.get(group_id, ()):
             body.prop(addon_prefs, prop)
+        if group_id == 'PROPERTIES':
+            _draw_cycle_hint(body, addon_prefs.properties_cycle_order)
         if group_id == 'SNAPPING':
             hint = body.row()
             hint.active = False
