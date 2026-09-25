@@ -33,10 +33,16 @@ Closed (depth 0):
 - SpaceRelease -> Finish. Esc -> Cancel. Changed / Opened / Nav -> nothing.
 
 Open (depth >= 1):
-- HoverLabel(x, ROLE_DROPDOWN), x != open_label: CloseChain(0), OpenDropdown(x), Redraw
-  (menu-bar switch, no click needed; the new chain keeps ``opened_by``). Other labels /
-  None: hover := x, chain unchanged, pending submenu cancelled; Redraw when the hover
-  changed. A transient chain (opened_by 'hover'): x == open_label clears the leave timer;
+- HoverLabel(x, ROLE_DROPDOWN), x != open_label, not ``aiming``: CloseChain(0),
+  OpenDropdown(x), Redraw (menu-bar switch, no click needed; the new chain keeps
+  ``opened_by``). With ``aiming`` (the move heads toward a panel of the open chain: the
+  pointer crosses x on its way to the open dropdown or one of its submenus) the switch is
+  deferred (aim guard): hover := x as for other labels, switch_wait := x, switch_since :=
+  now (every aimed move over x refreshes it). A later non-aimed HoverLabel(x) switches at
+  once; Timer switches once the pointer rests on x (``now - switch_since >=``
+  :func:`switch_rest`, the hover-open delay with a one-tick floor). Other labels / None:
+  hover := x, chain unchanged, pending submenu and switch_wait cancelled; Redraw when the
+  hover changed. A transient chain (opened_by 'hover'): x == open_label clears the leave timer;
   anything else starts it (leave_since := now unless set) and ``aiming`` (the pointer moves
   toward a panel of the chain) marks leave_aim := now.
 - HoverItem(path, role, aiming): hover := path. With ``child`` = the open submenu opener at
@@ -50,8 +56,11 @@ Open (depth >= 1):
     pending_since := now.
   - Redraw when the hover or the chain changed.
 - HoverItem(None): inside a panel on no item; hover cleared, pending cleared.
-- HoverItem (any, also None): the pointer is inside the chain: leave timer cleared.
-- Timer(now): a transient chain whose ``now - leave_since > hover_close_delay`` and whose
+- HoverItem (any, also None): the pointer is inside the chain: leave timer and switch_wait
+  cleared.
+- Timer(now): a deferred switch (switch_wait == hover_label, rested for
+  :func:`switch_rest`) -> CloseChain(0), OpenDropdown(switch_wait), Redraw (nothing else this
+  step). Then a transient chain whose ``now - leave_since > hover_close_delay`` and whose
   last aim is ``>= aim_timeout`` old -> CloseChain(0), Redraw (nothing else this step).
   Then an expired aim (``now - aim_since >= AIM_TIMEOUT``) closes the stale child of
   the hovered level (CloseChain(L)); then a pending submenu whose delay has passed opens
@@ -154,6 +163,9 @@ from .model import Action
 DEFAULT_SUBMENU_DELAY = 0.12
 SUBMENU_DELAY_RANGE = (0.0, 1.0)
 AIM_TIMEOUT = 0.25          # max time a diagonal move toward an open submenu keeps it open
+# Aim guard for label switching: the least rest on a label crossed toward the open chain
+# before the bar switches to it (one 0.05 s watchdog tick; see switch_rest()).
+SWITCH_REST_MIN = 0.05
 # Hover-open (prefs hover_open_delay / hover_close_delay).
 DEFAULT_HOVER_OPEN_DELAY = 0.05
 HOVER_OPEN_DELAY_RANGE = (0.0, 1.0)
@@ -403,6 +415,8 @@ class MenuBarState:
     label waiting for ``hover_open_delay``), ``leave_since`` (a transient chain: when the
     pointer left the open label and every panel; None while inside) and ``leave_aim`` (the
     last move outside that aimed at a panel of the chain).
+    Aim guard: ``switch_wait`` (the ROLE_DROPDOWN label crossed toward the open chain whose
+    switch is deferred; None otherwise) and ``switch_since`` (its last aimed move).
     """
 
     submenu_delay: float = DEFAULT_SUBMENU_DELAY
@@ -431,6 +445,8 @@ class MenuBarState:
     hover_wait_since: float = 0.0
     leave_since: float | None = None
     leave_aim: float | None = None
+    switch_wait: str | None = None
+    switch_since: float = 0.0
     done: bool = False
 
     @property
@@ -490,6 +506,13 @@ def hover_opens(target: Target | None) -> bool:
     if target.zone == ZONE_ITEM:
         return target.path is not None and target.role == ROLE_SUBMENU
     return False
+
+
+def switch_rest(state: MenuBarState) -> float:
+    """How long the pointer must rest on a label crossed toward the open chain (the aim
+    guard) before the bar switches to it: ``hover_open_delay``, at least
+    :data:`SWITCH_REST_MIN` (a 0 delay still needs one quiet watchdog tick)."""
+    return max(state.hover_open_delay, SWITCH_REST_MIN)
 
 
 def step(state: MenuBarState, event: Event) -> tuple[MenuBarState, tuple[Effect, ...]]:
@@ -555,7 +578,7 @@ def _closed_to(s: MenuBarState, depth: int) -> MenuBarState:
                        hover_path=None, hover_cell=None,
                        hover_role=ROLE_PASSIVE, hover_action=None, pending=None,
                        aim_since=None, nav_enter=False, opened_by=None, hover_wait=None,
-                       leave_since=None, leave_aim=None)
+                       leave_since=None, leave_aim=None, switch_wait=None)
     kw = {'submenus': s.submenus[:depth - 1], 'roles': s.roles[:depth],
           'cell_roles': s.cell_roles[:depth], 'aim_since': None}
     if s.hover_path is not None and len(s.hover_path) > depth:
@@ -595,7 +618,7 @@ class _Step:
                  hover_label=label_id, hover_path=None, hover_cell=None,
                  hover_role=ROLE_PASSIVE, hover_action=None, pending=None,
                  aim_since=None, nav_enter=False, opened_by=by, hover_wait=None,
-                 leave_since=None, leave_aim=None)
+                 leave_since=None, leave_aim=None, switch_wait=None)
         self.redraw = True
 
     def pin(self, by: str = OPENED_CLICK) -> None:
@@ -677,18 +700,21 @@ def _on_hover_label(s: MenuBarState, e: HoverLabel):
     o = _Step(s)
     x = e.label_id
     eligible = x is not None and e.role == ROLE_DROPDOWN
-    if s.is_open and eligible and x != s.open_label:
-        # The switched chain keeps how the bar was opened (a pinned bar stays pinned).
-        o.open_dropdown(x, s.opened_by or OPENED_CLICK)
-        # Opened by a gesture that is still going on (press-drag across the bar): its
-        # release on this label must not close it.
-        o.set(press_opened=s.pressed is not None)
+    switching = s.is_open and eligible and x != s.open_label
+    guard = switching and e.aiming is True
+    if switching and not guard:
+        _switch(o, x)
         return o.result()
     entered = s.hover_label != x
     if entered or s.hover_path is not None:
         o.redraw = True
     o.set(hover_label=x, hover_path=None, hover_cell=None, hover_role=ROLE_PASSIVE,
-          hover_action=None, pending=None, aim_since=None)
+          hover_action=None, pending=None, aim_since=None,
+          switch_wait=x if guard else None)
+    if guard:
+        # Aim guard: x is crossed on the way to the open chain; the bar switches only once
+        # the pointer rests on x (Timer) or moves over it without heading for the chain.
+        o.set(switch_since=e.now)
     if not s.is_open:
         if not (s.hover_open and eligible) or s.pressed is not None:
             # A held press (a toggle / hand-off label pressed, then slid off to cancel) never
@@ -712,11 +738,21 @@ def _on_hover_label(s: MenuBarState, e: HoverLabel):
     return o.result()
 
 
+def _switch(o: _Step, x: str) -> None:
+    """Menu-bar switch to the ROLE_DROPDOWN label ``x`` while a chain is open."""
+    s = o.s
+    # The switched chain keeps how the bar was opened (a pinned bar stays pinned).
+    o.open_dropdown(x, s.opened_by or OPENED_CLICK)
+    # Opened by a gesture that is still going on (press-drag across the bar): its
+    # release on this label must not close it.
+    o.set(press_opened=s.pressed is not None)
+
+
 def _on_hover_item(s: MenuBarState, e: HoverItem):
     if not s.is_open:
         return s, ()
     o = _Step(s)
-    o.set(leave_since=None, leave_aim=None)     # inside the chain
+    o.set(leave_since=None, leave_aim=None, switch_wait=None)     # inside the chain
     path = e.path
     if path is None:
         if s.hover_path is not None or s.hover_label is not None:
@@ -757,6 +793,13 @@ def _on_timer(s: MenuBarState, e: Timer):
                 and e.now - s.hover_wait_since >= s.hover_open_delay):
             o.open_dropdown(w, OPENED_HOVER)
         return o.result()
+    w = s.switch_wait
+    if w is not None:
+        if w == s.hover_label and e.now - s.switch_since >= switch_rest(s):
+            _switch(o, w)       # rested on a label crossed toward the chain
+            return o.result()
+        if w != s.hover_label:
+            o.set(switch_wait=None)
     if s.transient and s.leave_since is not None:
         aimed = s.leave_aim is not None and e.now - s.leave_aim < s.aim_timeout
         if e.now - s.leave_since > s.hover_close_delay and not aimed:

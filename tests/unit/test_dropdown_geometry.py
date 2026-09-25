@@ -602,6 +602,65 @@ class TestApproaching(unittest.TestCase):
                     (prev, (160, 200), Rect(0, 0, 0, 0))):
             self.assertFalse(dg.is_approaching(*bad))
 
+    def test_slack_accepts_steps_along_the_facing_edge(self):
+        """A steep path toward a tall panel beside the pointer is made of pixel steps
+        straight up / down (dx == 0): the exact triangle rejects them, 2 px of slack
+        accepts them; a move away by more than the slack still fails, on every side."""
+        tall = Rect(200, 0, 150, 1000)             # x 200..350, y 0..1000
+        prev = (180, 500)
+        for cur in ((180, 503), (180, 497)):
+            self.assertFalse(dg.is_approaching(prev, cur, tall))
+            self.assertTrue(dg.is_approaching(prev, cur, tall, slack=2.0))
+        self.assertFalse(dg.is_approaching(prev, (177, 500), tall, slack=2.0))  # away
+        self.assertFalse(dg.is_approaching(prev, (170, 509), tall, slack=2.0))
+        wide = Rect(0, 200, 1000, 150)             # y 200..350
+        self.assertTrue(dg.is_approaching((500, 180), (503, 180), wide, slack=2.0))
+        self.assertFalse(dg.is_approaching((500, 180), (500, 177), wide, slack=2.0))
+        self.assertTrue(dg.is_approaching((500, 370), (497, 370), wide, slack=2.0))
+        self.assertFalse(dg.is_approaching((500, 370), (500, 373), wide, slack=2.0))
+        self.assertTrue(dg.is_approaching((370, 500), (370, 503), tall, slack=2.0))
+        self.assertFalse(dg.is_approaching((370, 500), (373, 500), tall, slack=2.0))
+        # The checks that do not depend on the triangle are unchanged by the slack.
+        self.assertFalse(dg.is_approaching(prev, prev, tall, slack=2.0))
+        self.assertFalse(dg.is_approaching(prev, (210, 500), tall, slack=2.0))
+        self.assertFalse(dg.is_approaching((210, 500), (180, 500), tall, slack=2.0))
+        for bad in (float('nan'), float('inf'), -3, 'x'):
+            dg.is_approaching(prev, (181, 503), tall, slack=bad)     # never raises
+        self.assertFalse(dg.is_approaching(prev, (180, 503), tall, slack=-3))
+
+
+class TestAimOrigin(unittest.TestCase):
+    """aim_origin: the heading of an aim test is measured over a few pixels of travel."""
+
+    def test_newest_point_far_enough(self):
+        trail = [(0, 0), (0, 3), (0, 6), (1, 9), (1, 12)]
+        self.assertEqual(dg.aim_origin(trail, (1, 15), 8), (0, 6))
+        self.assertEqual(dg.aim_origin(trail, (1, 12), 8), (0, 3))
+        self.assertEqual(dg.aim_origin(trail, (1, 12), 3), (1, 9))
+
+    def test_short_trail_gives_the_oldest(self):
+        self.assertEqual(dg.aim_origin([(5, 5), (6, 6)], (7, 7), 8), (5, 5))
+
+    def test_empty(self):
+        self.assertIsNone(dg.aim_origin([], (1, 1), 8))
+        self.assertIsNone(dg.aim_origin([(1, 1)], None, 8))
+
+    def test_steep_path_toward_a_tall_panel(self):
+        """The reported path, 3 px steps of a line with dx/dy ~ 0.055 toward a panel 23 px to
+        the right: with the trail origin and the slack every step aims."""
+        tall = Rect(1075, 8, 120, 974)
+        pts = [(round(1050 + 35 * i / 140), 541 + 3 * i) for i in range(141)]
+        trail, aimed = [pts[0]], []
+        for cur in pts[1:]:
+            origin = dg.aim_origin(trail, cur, dg.AIM_TRAIL_PX)
+            if not tall.contains(*cur):
+                aimed.append(dg.is_approaching(origin, cur, tall, dg.AIM_SLACK_PX))
+            trail = (trail + [cur])[-dg.AIM_TRAIL_LEN:]
+        self.assertTrue(aimed and all(aimed), aimed)
+        exact = [dg.is_approaching(a, b, tall) for a, b in zip(pts, pts[1:])
+                 if not tall.contains(*b)]
+        self.assertIn(False, exact, "the per-step exact triangle misses steps")
+
 
 def flags_model(n=20, extra=True, key='SNAP'):
     """A Snap-like cascade: ``n`` flags, a separator, optionally one extra row (the

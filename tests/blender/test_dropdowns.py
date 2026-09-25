@@ -512,6 +512,192 @@ class TestOpenAndSwitch(_Case):
         self.assertEqual(len(self.state.dropdowns.panels), 1)
 
 
+TALL_ID = 'TEST_MT_tall'
+HELP_ID = 'TOPBAR_MT_help'
+
+
+def aim_model():
+    """The reported layout: a root row ending in Help above a contextual row ending in a
+    tall Object menu, so its dropdown opens beside the label and reaches above the root
+    row; the way from Object to the top of that panel crosses Help."""
+    M = md()
+
+    def menu(idname, label, row_id=None, **payload):
+        return M.Item(row_id or idname, label, M.KIND_MENU, {'menu': idname, **payload})
+
+    root = M.Row(M.ROW_ROOT, [menu('TOPBAR_MT_file', 'File'), menu('TOPBAR_MT_edit', 'Edit'),
+                              menu(HELP_ID, 'Help')])
+    ctx = M.Row(M.ROW_CONTEXTUAL, [
+        menu('TEST_MT_native', 'View…', 'ctx:view', coverage=dm().COVERAGE_NATIVE),
+        menu('TEST_MT_native', 'Select…', 'ctx:select', coverage=dm().COVERAGE_NATIVE),
+        menu(TALL_ID, 'Object', M.contextual_item_id(TALL_ID))])
+    return M.make_model([root, ctx], M.Item(M.CENTER_ID, '3D Viewport', M.KIND_CENTER),
+                        M.Item(M.RECENT_ID, 'Recent Commands', M.KIND_RECENT),
+                        M.Item(M.CONTROLS_ID, 'Plaza Controls', M.KIND_CONTROLS))
+
+
+def aim_dropdowns():
+    M, D = md(), dm()
+    A, I = M.Action, D.DropdownItem
+    op = A(M.ACTION_OPERATOR, target='object.join')
+    return {
+        HELP_ID: D.DropdownModel(HELP_ID, 'Help', (I(D.DD_OP, 'Manual', action=op),)),
+        TALL_ID: D.DropdownModel(TALL_ID, 'Object', tuple(
+            I(D.DD_OP, f'Item {i}', action=op) for i in range(60))),
+    }
+
+
+class TestAimGuard(_Case):
+    """Label switching while a chain is open (docs/phase4-interfaces.md "Aim guard"): a
+    straight path from the open Object label to the top of its panel crosses the Help label
+    (the reported case) and keeps Object open; resting on Help or moving over it away from
+    the chain switches. Real geometry and the real modal, on :func:`aim_model`."""
+
+    OBJECT = None
+
+    def setUp(self):
+        super().setUp()
+        self.install_aim_layout()
+
+    def install_aim_layout(self):
+        geo = _mod("core.geometry")
+        rec_dd = _mod("record.dropdown")
+        fake = rec_dd.build_dropdown
+        extra = aim_dropdowns()
+
+        def build(context, info, menu_id, operator_context='INVOKE_REGION_WIN', **kw):
+            if menu_id in extra:
+                self.builds.append((menu_id, operator_context, info.region))
+                return extra[menu_id]
+            return fake(context, info, menu_id, operator_context, **kw)
+
+        self.addCleanup(setattr, rec_dd, 'build_dropdown', fake)
+        rec_dd.build_dropdown = build
+        st = self.state
+        st.model = aim_model()
+        st.layout = geo.layout(st.model, st.anchor, st.bounds, geo.metrics_for(1.0, 11),
+                               _fake_width)
+        self.OBJECT = md().contextual_item_id(TALL_ID)
+
+    def tick(self, dt):
+        self.clock[0] += dt
+        return self.ev('TIMER', 'NOTHING')
+
+    def crossing_path(self):
+        """A straight path (3 px steps) from the open Object label to a point of its panel
+        that crosses Help on the way; each point with its hit."""
+        ddg = _mod("core.dropdown_geometry")
+        layout, chain = self.state.layout, self.state.menus.chain
+        box = layout.item(self.OBJECT).rect
+        panel = chain.panels[0].rect
+        starts = [(int(box.x + box.w * fx), int(box.y + box.h * 0.5))
+                  for fx in (0.5, 0.3, 0.2, 0.1)]
+        ends = [(int(panel.x + panel.w * fx), int(panel.y1 - panel.h * fy))
+                for fx in (0.1, 0.3) for fy in (0.05, 0.15, 0.3)]
+        for sx, sy in starts:
+            for ex, ey in ends:
+                n = max(2, int(max(abs(ex - sx), abs(ey - sy)) / 3))
+                pts = [(round(sx + (ex - sx) * i / n), round(sy + (ey - sy) * i / n))
+                       for i in range(n + 1)]
+                hits = [ddg.resolve_hit(layout, chain, x, y) for x, y in pts]
+                if (any(h.label_id == HELP_ID for h in hits)
+                        and hits[-1].zone == dm().ZONE_ITEM):
+                    return list(zip(pts, hits))
+        return None
+
+    def open_object(self):
+        self.click(self.label_xy(self.OBJECT))
+        self.assertEqual(self.state.open_label, self.OBJECT)
+        panel = self.state.menus.chain.panels[0].rect
+        help_box = self.state.layout.item(HELP_ID).rect
+        self.assertGreater(panel.y1, help_box.y1, "the tall panel reaches above Help")
+        self.assertGreaterEqual(panel.x, help_box.x1, "Help is left of the panel")
+        path = self.crossing_path()
+        self.assertIsNotNone(path, "a straight path from Object to its panel over Help")
+        self.move(path[0][0])
+        return path
+
+    def walk(self, path, dt=0.008):
+        """Move along ``path`` like a mouse at 125 Hz, a watchdog TIMER every 0.05 s."""
+        since_tick = 0.0
+        for (x, y), _hit in path[1:]:
+            self.clock[0] += dt
+            since_tick += dt
+            self.move((x, y))
+            if since_tick >= 0.05:
+                since_tick = 0.0
+                self.ev('TIMER', 'NOTHING')
+
+    def first_on_help(self, path):
+        return next(i for i, (_, h) in enumerate(path) if h.label_id == HELP_ID)
+
+    def test_diagonal_path_keeps_the_open_dropdown(self):
+        path = self.open_object()
+        self.walk(path)
+        self.assertEqual(self.state.open_label, self.OBJECT, "Help stole the path")
+        self.assertEqual(self.state.menus.opened, [TALL_ID], "Help never opened")
+        self.assertEqual(self.state.dropdown_hover, path[-1][1].path, "the item is reached")
+        self.tick(0.5)
+        self.assertEqual(self.state.open_label, self.OBJECT)
+        self.assertNotIn(HELP_ID, [b[0] for b in self.builds])
+        self.assertEqual((self.executed, self.run_calls), ([], []))
+
+    def test_rest_on_the_crossed_label_switches(self):
+        path = self.open_object()
+        i = self.first_on_help(path)
+        self.walk(path[:i + 1])
+        self.assertEqual(self.state.open_label, self.OBJECT, "crossing toward the panel")
+        self.assertEqual(self.state.hover_id, HELP_ID)
+        self.assertEqual(self.bar().switch_wait, HELP_ID)
+        self.tick(0.06)
+        self.assertEqual(self.state.open_label, HELP_ID, "resting on Help switches")
+        self.assertEqual([p.key for p in self.state.dropdowns.panels], [HELP_ID])
+        self.assertIsNone(self.bar().switch_wait)
+
+    def test_move_away_from_the_chain_switches(self):
+        ddg = _mod("core.dropdown_geometry")
+        path = self.open_object()
+        i = self.first_on_help(path)
+        self.walk(path[:i + 1])
+        self.assertEqual(self.state.open_label, self.OBJECT)
+        layout, chain = self.state.layout, self.state.menus.chain
+        cur = path[i][0]
+        box = layout.item(HELP_ID).rect
+        away = next(((x, y) for x in range(int(box.x) + 1, int(box.x1) - 1)
+                     for y in range(int(box.y) + 1, int(box.y1) - 1)
+                     if (x, y) != cur and ddg.resolve_hit(layout, chain, x, y).label_id == HELP_ID
+                     and not any(ddg.is_approaching(cur, (x, y), p.rect)
+                                 for p in chain.panels)), None)
+        self.assertIsNotNone(away, "a point of Help away from the chain")
+        self.clock[0] += 0.008
+        self.move(away)
+        self.assertEqual(self.state.open_label, HELP_ID, "not heading for the chain: switch")
+
+    def test_along_the_bar_switches_at_once(self):
+        """The Phase 4 switch is unchanged: File open, a move along the root row to Edit."""
+        self.click(self.label_xy('TOPBAR_MT_file'))
+        self.move(self.label_xy('TOPBAR_MT_edit'))
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
+
+    def test_hover_opened_chain_is_guarded_too(self):
+        self.stub, self.state = self._session(hover_open=True)
+        self.install_aim_layout()
+        path = None
+        xy = self.label_xy(self.OBJECT)
+        self.move(xy)
+        self.tick(0.06)
+        self.assertEqual((self.state.open_label, self.bar().opened_by), (self.OBJECT, 'hover'))
+        path = self.crossing_path()
+        self.assertIsNotNone(path)
+        self.move(path[0][0])
+        self.walk(path)
+        self.assertEqual(self.state.open_label, self.OBJECT, "Help stole the path")
+        self.assertEqual(self.bar().opened_by, 'hover', "still transient")
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, self.OBJECT, "inside the panel: stays")
+        self.assertEqual(self.state.menus.opened, [TALL_ID])
+
+
 class TestHoverOpen(_Case):
     """Hover-open (docs/phase4-interfaces.md "Hover-open") through the real modal: labels
     with a custom dropdown open after hover_open_delay on the watchdog TIMER, a hover-opened
@@ -1816,3 +2002,5 @@ class TestToggleFlagOperator(unittest.TestCase):
         self.assertEqual(ts.snap_elements_base, {'VERTEX', 'EDGE'})
         bpy.ops.meso.toggle_flag(data_path=path, flag='VERTEX')
         self.assertEqual(ts.snap_elements_base, {'EDGE'})
+
+

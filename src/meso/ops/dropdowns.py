@@ -148,6 +148,8 @@ class MenuSession:
     placed levels (``state.dropdowns`` mirrors it). ``metrics``: dropdown metrics of the
     session (``core.dropdown_geometry.dropdown_metrics(layout.metrics, font_scale)``,
     computed on first use). ``prev_xy``: the previous pointer of a move (aim test);
+    ``trail``: the last ``core.dropdown_geometry.AIM_TRAIL_LEN`` move pointers, oldest first
+    (the heading of the aim test from outside the panels, ``aim_origin``);
     ``last_xy``: of any pointer event (the re-hover after an in-place change). ``target``: the
     Target of the last press / release / hover event (which item a terminal effect came
     from). ``show_shortcuts``: the pref snapshot (switched off for the session when
@@ -170,6 +172,7 @@ class MenuSession:
     chain: ChainLayout = EMPTY_CHAIN
     metrics: DropdownMetrics | None = None
     prev_xy: tuple[float, float] | None = None
+    trail: list[tuple[float, float]] = field(default_factory=list)
     opened: list[str] = field(default_factory=list)
     opened_by: list[str | None] = field(default_factory=list)
     in_place: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
@@ -332,11 +335,17 @@ def hover_eligible(session: MenuSession, state: Any, hit: Hit) -> bool:
 
 
 def _aiming_chain(session: MenuSession, xy: tuple[float, float]) -> bool:
-    """Hover-open: the move from ``prev_xy`` to ``xy`` (outside every panel) heads toward a
-    panel of the open chain (``core.dropdown_geometry.is_approaching``)."""
-    if not session.bar.transient:
+    """The pointer at ``xy`` (outside every panel) heads toward a panel of the open chain:
+    ``core.dropdown_geometry.is_approaching`` from ``aim_origin(trail, xy, AIM_TRAIL_PX)``
+    (``prev_xy`` before the first move) with ``AIM_SLACK_PX`` of slack, both at the session
+    scale. Feeds the leave grace of a hover-opened chain and the aim guard of label
+    switching (any open chain)."""
+    if not session.bar.is_open or session.chain is None:
         return False
-    return any(ddg.is_approaching(session.prev_xy, xy, panel.rect)
+    scale = session.chain.metrics.scale if session.chain.metrics is not None else 1.0
+    origin = ddg.aim_origin(session.trail, xy, ddg.AIM_TRAIL_PX * scale) or session.prev_xy
+    slack = ddg.AIM_SLACK_PX * scale
+    return any(ddg.is_approaching(origin, xy, panel.rect, slack)
                for panel in session.chain.panels)
 
 
@@ -358,7 +367,7 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
     """The one reducer event of a modal event (None = not ours: the modal keeps its Phase 1
     handling): MOUSEMOVE / INBETWEEN_MOUSEMOVE -> HoverItem (inside a panel; ``aiming`` from
     ``is_aiming(prev_xy, xy, <rect of the submenu below the hovered level>)``) or HoverLabel
-    (``aiming``: toward a panel of a hover-opened chain, ``is_approaching``);
+    (``aiming``: toward a panel of the open chain, ``is_approaching``);
     LMB PRESS / DOUBLE_CLICK / RELEASE -> Press / Release; the release key's RELEASE ->
     SpaceRelease; ESC PRESS -> Esc; TIMER -> Timer; ``core.menubar.NAV_KEYS`` PRESS -> Nav,
     except the enter keys: their PRESS only arms (``session.enter_armed``; None = swallowed
@@ -393,6 +402,7 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
         inside = hit.zone in (ZONE_ITEM, ZONE_PANEL)
         aiming = _aiming(session, xy, hit) if inside else _aiming_chain(session, xy)
         session.prev_xy = xy
+        session.trail = (session.trail + [xy])[-ddg.AIM_TRAIL_LEN:]
         session.target = target
         if inside:
             return HoverItem(hit.path if hit.zone == ZONE_ITEM else None, target.role, now,

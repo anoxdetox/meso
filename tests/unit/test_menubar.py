@@ -1107,6 +1107,186 @@ class TestHoverOpen(unittest.TestCase):
         self.assertEqual((s.opened_by, s.hover_wait), (None, None))
 
 
+# --------------------------------------------------------------------------- aim guard
+
+HELP = 'TOPBAR_MT_help'
+
+
+class TestAimGuard(unittest.TestCase):
+    """Label switching while a chain is open: a label crossed on the way to the open chain
+    (``HoverLabel.aiming``) does not steal it; resting on it or a move over it that does
+    not head for the chain switches (docs/phase4-interfaces.md "Aim guard")."""
+
+    def assert_open(self, s, label):
+        self.assertEqual(s.open_label, label, s)
+
+    def test_aimed_crossing_defers_the_switch(self):
+        s = opened_file()
+        s, (e,) = run(s, hl(HELP, 1.0, aiming=True))
+        self.assert_open(s, FILE)
+        self.assertEqual(e, (mb.Redraw(),), "only the hover changes")
+        self.assertEqual((s.hover_label, s.switch_wait, s.switch_since), (HELP, HELP, 1.0))
+        self.assertNotIn(mb.OpenDropdown(HELP), e)
+        self.assertNotIn(mb.CloseChain(0), e)
+
+    def test_crossing_into_the_panel_never_switches(self):
+        """The reported path: File open, the pointer crosses Help diagonally toward the
+        panel and enters it: File stays open, Help never opens."""
+        s = opened_file()
+        s, outs = run(s, hl(HELP, 1.0, aiming=True), hl(HELP, 1.016, aiming=True),
+                      mb.Timer(1.03), hl(HELP, 1.032, aiming=True), mb.Timer(1.06),
+                      hover_item((0,), R_, 1.07), mb.Timer(1.2), mb.Timer(2.0))
+        self.assert_open(s, FILE)
+        self.assertFalse([e for fx in outs for e in fx if isinstance(e, mb.OpenDropdown)])
+        self.assertFalse([e for fx in outs for e in fx if isinstance(e, mb.CloseChain)])
+        self.assertIsNone(s.switch_wait, "the panel clears the deferred switch")
+        self.assertEqual(s.hover_path, (0,))
+
+    def test_crossing_toward_a_submenu_keeps_the_chain(self):
+        s = with_sub(opened_file(delay=0.0))
+        s, outs = run(s, hl(HELP, 1.0, aiming=True), mb.Timer(1.02),
+                      hover_item((1, 0), R_, 1.03), mb.Timer(1.5))
+        self.assertEqual((s.open_label, s.submenus), (FILE, ((1,),)))
+        self.assertFalse([e for fx in outs for e in fx
+                          if isinstance(e, (mb.OpenDropdown, mb.CloseChain))])
+
+    def test_rest_on_the_label_switches(self):
+        s = opened_file()
+        self.assertEqual(mb.switch_rest(s), mb.DEFAULT_HOVER_OPEN_DELAY)
+        s, (e1, e2) = run(s, hl(HELP, 1.0, aiming=True), mb.Timer(1.03))
+        self.assertEqual(e2, (), "not rested yet")
+        s, (e,) = run(s, mb.Timer(1.05))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(HELP), mb.Redraw()))
+        self.assert_open(s, HELP)
+        self.assertEqual(s.opened_by, mb.OPENED_CLICK, "a pinned bar stays pinned")
+        self.assertIsNone(s.switch_wait)
+
+    def test_every_aimed_move_restarts_the_rest(self):
+        s = opened_file()
+        s, outs = run(s, hl(HELP, 1.0, aiming=True), hl(HELP, 1.04, aiming=True),
+                      mb.Timer(1.06), hl(HELP, 1.08, aiming=True), mb.Timer(1.1))
+        self.assertEqual(outs[2], ())
+        self.assertEqual(outs[4], ())
+        self.assert_open(s, FILE)
+        s, (e,) = run(s, mb.Timer(1.14))
+        self.assertIn(mb.OpenDropdown(HELP), e)
+
+    def test_non_aimed_move_switches_at_once(self):
+        s = opened_file()
+        s, (e1, e2) = run(s, hl(HELP, 1.0, aiming=True), hl(HELP, 1.01, aiming=False))
+        self.assertEqual(e2, (mb.CloseChain(0), mb.OpenDropdown(HELP), mb.Redraw()))
+        self.assert_open(s, HELP)
+
+    def test_unaimed_label_switches_at_once(self):
+        """Unchanged Phase 4 switch: a move along the bar (not toward the chain)."""
+        s = opened_file()
+        s, (e,) = run(s, hl(EDIT, 1.0))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
+        self.assertIsNone(s.switch_wait)
+
+    def test_leaving_the_label_cancels(self):
+        for away in (hl(None, 1.02, P, aiming=True), hl(NATIVE, 1.02, H),
+                     hl(FILE, 1.02, aiming=True), hover_item(None, P, 1.02)):
+            with self.subTest(away=away):
+                s = opened_file()
+                s, _ = run(s, hl(HELP, 1.0, aiming=True), away)
+                self.assertIsNone(s.switch_wait)
+                s, outs = run(s, mb.Timer(1.5), mb.Timer(3.0))
+                self.assert_open(s, FILE)
+                self.assertEqual(outs, [(), ()])
+
+    def test_another_aimed_label_moves_the_wait(self):
+        s = opened_file()
+        s, _ = run(s, hl(HELP, 1.0, aiming=True), hl(RENDER, 1.02, aiming=True))
+        self.assertEqual((s.switch_wait, s.switch_since), (RENDER, 1.02))
+        s, (e,) = run(s, mb.Timer(1.08))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(RENDER), mb.Redraw()))
+
+    def test_rest_follows_the_hover_open_delay(self):
+        s = with_opened(hover_state(delay=0.3))
+        self.assertEqual(mb.switch_rest(s), 0.3)
+        s, outs = run(s, hl(HELP, 1.0, aiming=True), mb.Timer(1.2))
+        self.assertEqual(outs[-1], ())
+        s, (e,) = run(s, mb.Timer(1.3))
+        self.assertIn(mb.OpenDropdown(HELP), e)
+
+    def test_zero_delay_still_needs_one_quiet_tick(self):
+        s = with_opened(hover_state(delay=0.0))
+        self.assertEqual(mb.switch_rest(s), mb.SWITCH_REST_MIN)
+        s, outs = run(s, hl(HELP, 1.0, aiming=True), mb.Timer(1.02))
+        self.assert_open(s, FILE)
+        s, (e,) = run(s, mb.Timer(1.05))
+        self.assertIn(mb.OpenDropdown(HELP), e)
+
+    def test_click_only_bar_guards_too(self):
+        s = opened_file()
+        self.assertFalse(s.hover_open)
+        s, _ = run(s, hl(HELP, 1.0, aiming=True))
+        self.assert_open(s, FILE)
+
+    def test_press_on_the_crossed_label_opens_it(self):
+        s = opened_file()
+        s, (e1, e2) = run(s, hl(HELP, 1.0, aiming=True), press(lbl(HELP), 1.01))
+        self.assertEqual(e2, (mb.CloseChain(0), mb.OpenDropdown(HELP), mb.Redraw()))
+        self.assertIsNone(s.switch_wait)
+
+    def test_transient_chain(self):
+        """A hover-opened chain: the crossing starts the leave timer and aims, so it
+        neither closes nor switches while the pointer heads for it; a rest switches and
+        the new chain stays transient."""
+        s = hover_opened(FILE)
+        s, outs = run(s, hl(HELP, 1.0, aiming=True), mb.Timer(1.03))
+        self.assert_open(s, FILE)
+        self.assertEqual((s.leave_since, s.leave_aim), (1.0, 1.0))
+        s, (e,) = run(s, mb.Timer(1.05))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(HELP), mb.Redraw()))
+        self.assertEqual(s.opened_by, mb.OPENED_HOVER)
+        self.assertIsNone(s.leave_since)
+
+    def test_transient_chain_reaching_the_panel_stays(self):
+        s = hover_opened(FILE)
+        s, outs = run(s, hl(HELP, 1.0, aiming=True), hover_item((0,), R_, 1.02),
+                      mb.Timer(1.5), mb.Timer(3.0))
+        self.assert_open(s, FILE)
+        self.assertEqual(outs[1:], [(mb.Redraw(),), (), ()])
+
+    def test_press_drag_across_keeps_the_gesture(self):
+        """Press File, drag across Help toward the panel (deferred), rest there: the switch
+        keeps press_opened so the release on Help does not close it."""
+        s = mb.initial_state(0.12)
+        s, _ = run(s, press(lbl(FILE)), mb.Opened(0, FILE_ROLES),
+                   hl(HELP, 1.0, aiming=True))
+        self.assert_open(s, FILE)
+        s, (e,) = run(s, mb.Timer(1.1))
+        self.assert_open(s, HELP)
+        self.assertTrue(s.press_opened)
+        s, (e,) = run(s, release(lbl(HELP), 1.2))
+        self.assert_open(s, HELP)
+
+    def test_stale_wait_is_dropped(self):
+        s = opened_file()
+        s, _ = run(s, hl(HELP, 1.0, aiming=True), mb.Nav(mb.NAV_DOWN))
+        self.assertIsNone(s.hover_label)
+        s, (e,) = run(s, mb.Timer(2.0))
+        self.assertNotIn(mb.OpenDropdown(HELP), e)
+        self.assertIsNone(s.switch_wait)
+        self.assert_open(s, FILE)
+
+    def test_esc_and_closed_bar_clear(self):
+        s = opened_file()
+        s, _ = run(s, hl(HELP, 1.0, aiming=True), mb.Esc())
+        self.assertFalse(s.is_open)
+        self.assertIsNone(s.switch_wait)
+        s, (e,) = run(s, mb.Timer(2.0))
+        self.assertEqual(e, ())
+
+
+def with_opened(s, label=FILE):
+    """``s`` with ``label`` opened by a completed click."""
+    s, _ = run(s, press(lbl(label)), mb.Opened(0, FILE_ROLES), release(lbl(label)))
+    return s
+
+
 class TestInvariants(unittest.TestCase):
     """Property-style: random plausible event sequences (with D's Opened follow-ups)."""
 
@@ -1194,6 +1374,12 @@ class TestInvariants(unittest.TestCase):
             self.assertIsNone(s.leave_since)
         if s.is_open:
             self.assertIsNone(s.hover_wait)
+        # Aim guard: a deferred switch only while open, never to the open label, and only
+        # to a label last hovered as ROLE_DROPDOWN.
+        if s.switch_wait is not None:
+            self.assertTrue(s.is_open, s)
+            self.assertNotEqual(s.switch_wait, s.open_label)
+            self.assertEqual(label_roles.get(s.switch_wait), dm.ROLE_DROPDOWN)
         if not s.transient:
             self.assertIsNone(s.leave_since)
         if isinstance(ev, (mb.HoverLabel, mb.Timer, mb.HoverItem)):

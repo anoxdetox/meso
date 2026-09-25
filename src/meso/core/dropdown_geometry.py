@@ -787,6 +787,13 @@ def resolve_hit(layout: Layout | None, chain: ChainLayout | None, x: float, y: f
     return NO_HIT
 
 
+# Aim test from outside a panel (is_approaching via aim_origin; px at ui scale 1.0): the
+# heading is measured over at least AIM_TRAIL_PX of travel, with AIM_SLACK_PX of slack.
+AIM_TRAIL_PX = 8.0
+AIM_TRAIL_LEN = 16          # recent pointer positions kept for aim_origin
+AIM_SLACK_PX = 2.0
+
+
 def is_aiming(prev: tuple[float, float] | None, cur: tuple[float, float],
               target: Rect | None) -> bool:
     """Safe-triangle test: True when ``cur`` lies inside the triangle ``prev`` -> the two
@@ -812,12 +819,17 @@ def is_aiming(prev: tuple[float, float] | None, cur: tuple[float, float],
 
 
 def is_approaching(prev: tuple[float, float] | None, cur: tuple[float, float] | None,
-                   target: Rect | None) -> bool:
+                   target: Rect | None, slack: float = 0.0) -> bool:
     """Hover-open aim test from OUTSIDE a panel: True when ``cur`` lies inside the
     triangle ``prev`` -> the two corners of the edge of ``target`` that faces ``prev`` (the
     side ``prev`` is farthest outside of: left / right / bottom / top), i.e. the pointer
     heads toward that panel. False for None inputs, a zero move, ``prev`` inside
-    ``target`` or ``cur`` inside it (the caller then sees the panel hit)."""
+    ``target`` or ``cur`` inside it (the caller then sees the panel hit).
+
+    ``slack`` (px, >= 0): the apex of the triangle moves that far back from the facing edge,
+    widening it a little: a steep path toward a panel beside the pointer is made of
+    pixel-rounded steps, many of them straight along the edge (dx == 0), which the exact
+    triangle rejects. Moves away from the panel by more than ``slack`` still fail."""
     if prev is None or cur is None or target is None or target.is_empty():
         return False
     px, py = prev
@@ -825,11 +837,14 @@ def is_approaching(prev: tuple[float, float] | None, cur: tuple[float, float] | 
     if (px, py) == (cx, cy) or target.contains(cx, cy):
         return False
     x0, y0, x1, y1 = target.x, target.y, target.x + target.w, target.y + target.h
-    out = ((x0 - px, (x0, y0, x0, y1)), (px - x1, (x1, y0, x1, y1)),
-           (y0 - py, (x0, y0, x1, y0)), (py - y1, (x0, y1, x1, y1)))
-    dist, (ax, ay, bx, by) = max(out, key=lambda o: o[0])
+    out = ((x0 - px, (x0, y0, x0, y1), (-1, 0)), (px - x1, (x1, y0, x1, y1), (1, 0)),
+           (y0 - py, (x0, y0, x1, y0), (0, -1)), (py - y1, (x0, y1, x1, y1), (0, 1)))
+    dist, (ax, ay, bx, by), (nx, ny) = max(out, key=lambda o: o[0])
     if dist <= 0:
         return False                    # prev inside the target
+    slack = _finite_or(slack, 0.0)
+    if slack > 0:
+        px, py = px + nx * slack, py + ny * slack
     if _cross(px, py, ax, ay, bx, by) == 0:
         return False
     d1 = _cross(px, py, ax, ay, cx, cy)
@@ -838,6 +853,21 @@ def is_approaching(prev: tuple[float, float] | None, cur: tuple[float, float] | 
     has_neg = d1 < 0 or d2 < 0 or d3 < 0
     has_pos = d1 > 0 or d2 > 0 or d3 > 0
     return not (has_neg and has_pos)
+
+
+def aim_origin(trail: Sequence[tuple[float, float]], cur: tuple[float, float] | None,
+               min_dist: float) -> tuple[float, float] | None:
+    """The reference point of an aim test at ``cur``: the newest point of ``trail`` (recent
+    pointer positions, oldest first) at least ``min_dist`` px from ``cur`` (Chebyshev), else
+    the oldest one; None for an empty trail or no ``cur``. Measuring the heading over a few
+    pixels keeps one pixel-rounded step from deciding it."""
+    if cur is None or not trail:
+        return None
+    cx, cy = cur
+    for point in reversed(trail):
+        if max(abs(point[0] - cx), abs(point[1] - cy)) >= min_dist:
+            return point
+    return trail[0]
 
 
 def chain_rects(chain: ChainLayout | None) -> list[Rect]:
