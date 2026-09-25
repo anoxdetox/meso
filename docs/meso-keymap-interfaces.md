@@ -844,6 +844,8 @@ Snapping and pivot (Xwayland):
   the Plaza, a straight path (3 px steps, 15 px per frame) from the Object label to the top of its panel crosses
   `TOPBAR_MT_help`: Object stays open, Help never opens, the path reaches the panel; a second session
   (hover_open_delay 0.3 s) stops on Help mid-path: deferred, then resting switches to Help.
+  `hover_aim_guard_slide_bar` (review fix): File clicked open (its panel below the bar, Edit above it), a slide
+  along the root row to Edit in 3 px steps (hover_open_delay 0.3 s): Edit opens on arrival, no `switch_wait`.
 - G11 window deactivate during a hold; file load during a hold; Space during a hold (Plaza opens, restore after it
   closes); X then V together (union), release order both ways.
 - G12 a pie opened by another key during a hold (the known limit; documents the behaviour).

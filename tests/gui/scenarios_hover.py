@@ -11,7 +11,8 @@ and the mode switcher never open anything on hover (no hand-off, nothing native)
 Pivot cascade opens on hover; (e) a click-pinned File stays open when the pointer leaves, a
 click on a hover-opened File pins it; (f) ``hover_open`` False: hover does nothing; (g) the aim guard: Object open, a quick
 diagonal path to the top of its tall panel crosses Help (above Object) and Help never
-opens; stopping and resting on Help switches to it.
+opens; stopping and resting on Help switches to it; (h) File open, a quick slide along the
+root row to Edit switches on arrival (the aim guard never delays a slide along the bar).
 """
 
 import importlib
@@ -413,6 +414,40 @@ def scenarios(drv):
             if prefs is not None:
                 prefs.hover_open_delay = old
 
+    def sc_aim_guard_slide_bar(rec):
+        """File open (click; its panel below the bar and wider than File, so Edit sits above
+        it), then a quick slide along the root row to Edit in AIM_STEP px steps: Edit opens on
+        arrival, well before the aim-guard rest (hover_open_delay raised to AIM_REST)."""
+        prefs = drv.addon_prefs()
+        old = prefs.hover_open_delay
+        try:
+            prefs.hover_open_delay = AIM_REST
+            xy, st = yield from start(rec)
+            if st is None:
+                return
+            if not (yield from drv.open_dropdown(rec, st, FILE, prefix="file")):
+                yield from drv.close_plaza(xy, rec)
+                return
+            panel = st.menus.chain.panels[0].rect
+            edit = st.layout.item(EDIT).rect
+            drv.check(rec, "edit_above_the_file_panel",
+                      panel.y1 <= edit.y and panel.x1 > edit.x, [panel, edit])
+            (x0, y0), (x1, _y1) = label_xy(st, FILE), label_xy(st, EDIT)
+            points = [(x, y0) for x in range(x0 + AIM_STEP, x1 + 1, AIM_STEP)]
+            yield from walk(points)
+            yield AIM_FRAME
+            drv.check(rec, "switched_on_arrival", st.open_label == EDIT
+                      and drv.dd_keys(st) == [EDIT], [st.open_label, drv.dd_keys(st)])
+            drv.check(rec, "no_switch_wait", bar(st).switch_wait is None, bar(st).switch_wait)
+            away = empty(st)
+            drv.sim('MOUSEMOVE', 'NOTHING', away)
+            yield 0.1
+            yield from finish(rec, away)
+        finally:
+            prefs = drv.addon_prefs()
+            if prefs is not None:
+                prefs.hover_open_delay = old
+
     return [
         ("hover_opens_switches_closes", sc_hover_opens_switches_closes),
         ("hover_fast_sweep", sc_fast_sweep),
@@ -421,4 +456,5 @@ def scenarios(drv):
         ("hover_click_pins", sc_click_pins),
         ("hover_open_off", sc_hover_open_off),
         ("hover_aim_guard_diagonal", sc_aim_guard_diagonal),
+        ("hover_aim_guard_slide_bar", sc_aim_guard_slide_bar),
     ]
