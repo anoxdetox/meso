@@ -87,6 +87,7 @@ Re-record on every invoke; never cache (5 ms for the whole VIEW3D tree). Never c
 from __future__ import annotations
 
 import inspect
+import itertools
 import types
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -183,6 +184,10 @@ class Record:
     - ``operator_context``, ``enabled``, ``active``, ``alert``: the layout state in effect.
     - ``depth``: container nesting depth (root 0); ``section``: number of separator_spacer
       records before this one in the same recording (layout HINT only, never classification);
+      ``line``: id of the layout row the record was drawn in (a ``row()`` and the rows nested
+      directly in it share one id: one visual line), unique per session; 0 when not in a row
+      (root, column, box, ...). Consecutive records with the same non-zero ``line`` sit on
+      one line (``record.dropdown`` names icon-only toggles after the row label with it);
       ``inline_from``: the ``menu_contents`` idname this record was expanded from, else ''.
     - ``context_pointers``: context_pointer_set / context_string_set names in effect.
     - ``template``: the template_* name (dynamic, opaque); ``error``: repr (error).
@@ -212,6 +217,7 @@ class Record:
     template: str = ''
     error: str = ''
     children: list[Record] = field(default_factory=list)
+    line: int = 0
 
 
 @dataclass(slots=True)
@@ -655,6 +661,9 @@ _COPIED_STATE = ('alert', 'emboss', 'use_property_split', 'use_property_decorate
 # Local layout direction (uiLayoutGetLocalDir): root / row / pie are horizontal.
 _HORIZONTAL = frozenset({'root', 'row', 'menu_pie'})
 
+# ``Record.line`` ids: a ``row()`` not nested directly in another row starts a new line.
+_LINE_IDS = itertools.count(1)
+
 
 class _Shared:
     """State shared by every layout of one recording (one layout root)."""
@@ -734,6 +743,12 @@ class FakeLayout:
         d['_state'] = state
         d['_container'] = _container
         d['_log'] = recording.records if _log is None else _log
+        if _container != 'row':
+            d['_line'] = 0
+        elif parent is not None and parent._container == 'row':
+            d['_line'] = parent._line
+        else:
+            d['_line'] = next(_LINE_IDS)
 
     # --- state ---------------------------------------------------------------------------
     def __getattr__(self, name: str) -> Any:
@@ -773,7 +788,7 @@ class FakeLayout:
                      enabled=bool(state['enabled']), active=bool(state['active']),
                      alert=bool(state['alert']), depth=self.depth,
                      section=self._shared.section, inline_from=self._inline_from,
-                     context_pointers=dict(self._pointers), **fields)
+                     context_pointers=dict(self._pointers), line=self._line, **fields)
         self._log.append(rec)
         self._shared.pending.append((rec, self, proxy))
         return rec

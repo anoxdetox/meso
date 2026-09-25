@@ -40,7 +40,19 @@ prop BOOLEAN               DD_TOGGLE ``checked`` = value, ``Action(ACTION_TOGGLE
                            data_path)`` (``record.datapath.resolve``; unresolvable ->
                            DD_VALUE); a property read-only in this context
                            (``is_property_readonly``) is disabled, like the native
-                           button (also enum radio / flag items)
+                           button (also enum radio / flag items). An icon-only
+                           toggle (``text=''`` / ``icon_only``) is named by its icon
+                           family (``core.icon_toggles``: HIDE_* 'Visible',
+                           RESTRICT_SELECT_* 'Selectable', ...; unknown -> RNA name);
+                           after a label on the same layout row (``Record.line``)
+                           'Row Label Meaning', and a row of only such toggles drops its
+                           label item
+toggle table               >= 3 consecutive rows [label T] + k icon-only toggles (same
+                           k, same known family per column): one DD_ENUM_CASCADE per
+                           column in draw order, labelled by the meaning ('Selectable',
+                           'Visible'), children = DD_TOGGLE 'T' per row (actions,
+                           checked, active, enabled as the inline toggles); source
+                           ``ITEM_SOURCE_TOGGLE_TABLE``
 prop ENUM (not expanded) / DD_ENUM_CASCADE 'Name: Current' (prop_menu_enum: 'Name', as
 prop_menu_enum             Blender draws it) of DD_RADIO children
                            (``Action(ACTION_SET_ENUM, data_path, value=id)``, current
@@ -80,7 +92,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import bpy
@@ -88,8 +100,12 @@ import bpy
 from ..core.dropdown_model import (
     COVERAGE_CUSTOM, COVERAGE_MORE, COVERAGE_NATIVE, DD_ENUM_CASCADE, DD_FLAG, DD_LABEL,
     DD_NATIVE, DD_NATIVE_MORE, DD_OP, DD_RADIO, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE, DD_VALUE,
-    DROPDOWN_OPERATOR_CONTEXT, MORE_LABEL, NATIVE_ONLY_MENUS, NATIVE_SUFFIX, SOURCE_MENU,
-    DropdownItem, DropdownModel, native_label, native_menu_action, native_panel_action,
+    DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_TOGGLE_TABLE, MORE_LABEL, NATIVE_ONLY_MENUS,
+    NATIVE_SUFFIX, SOURCE_MENU, DropdownItem, DropdownModel, native_label, native_menu_action,
+    native_panel_action,
+)
+from ..core.icon_toggles import (
+    RowShape, column_meanings, icon_family, icon_meaning, row_toggle_label, table_runs,
 )
 from ..core.model import (
     ACTION_OPERATOR, ACTION_SET_ENUM, ACTION_TOGGLE, ACTION_TOGGLE_FLAG, KIND_MENU,
@@ -521,6 +537,19 @@ def _scalar_text(value: Any, rna: Any, context: Any) -> str:
         return str(value)
 
 
+def line_groups(records: list[Record]) -> list[list[Record]]:
+    """``records`` split into consecutive groups: records sharing a non-zero
+    ``Record.line`` (one layout row) form one group, every other record is its own."""
+    groups: list[list[Record]] = []
+    for rec in records:
+        line = getattr(rec, 'line', 0) or 0
+        if line and groups and (getattr(groups[-1][0], 'line', 0) or 0) == line:
+            groups[-1].append(rec)
+        else:
+            groups.append([rec])
+    return groups
+
+
 def normalise_separators(items: list[DropdownItem]) -> list[DropdownItem]:
     """No leading / trailing / consecutive DD_SEPARATOR items."""
     out: list[DropdownItem] = []
@@ -620,15 +649,118 @@ class Converter:
 
     # --- records -------------------------------------------------------------------------
     def convert(self, records: list[Record]) -> list[DropdownItem]:
+        """Records -> items: layout rows (:func:`line_groups`) are converted together (icon-
+        only toggles named after the row label), toggle tables collapse into one cascade
+        per column (module doc)."""
         items: list[DropdownItem] = []
-        for rec in records:
-            try:
-                items.extend(self.record(rec))
-            except Exception as ex:
-                _log_once(f'convert:{rec.kind}', f"converting a {rec.kind} record failed: {ex!r}")
-                if not self.panel:
-                    self._native(CAUSE_FAILED)
+        groups = line_groups(list(records))
+        shapes = [self._row_shape(group) for group in groups]
+        ends = dict(table_runs([shape[0] if shape is not None else None for shape in shapes]))
+        index = 0
+        while index < len(groups):
+            end = ends.get(index)
+            if end is not None:
+                table = self._table([shape for shape in shapes[index:end] if shape is not None])
+                if table:
+                    items.extend(table)
+                    index = end
+                    continue
+            items.extend(self._line(groups[index]))
+            index += 1
         return normalise_separators(items)
+
+    def _safe(self, rec: Record) -> list[DropdownItem]:
+        try:
+            return self.record(rec)
+        except Exception as ex:
+            _log_once(f'convert:{rec.kind}', f"converting a {rec.kind} record failed: {ex!r}")
+            if not self.panel:
+                self._native(CAUSE_FAILED)
+            return []
+
+    def _meaning(self, rec: Record) -> str:
+        """The (untranslated) meaning of an icon-only bool prop record
+        (``core.icon_toggles.icon_meaning`` of its icon), '' for anything else."""
+        if rec.kind != REC_PROP or rec.owner is None or not rec.prop:
+            return ''
+        kwargs = rec.kwargs if isinstance(rec.kwargs, dict) else {}
+        if rec.text and not kwargs.get('icon_only'):
+            return ''
+        meaning = icon_meaning(rec.icon)
+        if not meaning:
+            return ''
+        rna = _rna_prop(rec.owner, rec.prop)
+        return meaning if rna is not None and rna.type == 'BOOLEAN' else ''
+
+    @staticmethod
+    def _row_label(rec: Record) -> str:
+        kwargs = rec.kwargs if isinstance(rec.kwargs, dict) else {}
+        if rec.kind != REC_LABEL or not rec.text or kwargs.get('subpanel'):
+            return ''
+        return rec.text
+
+    def _line(self, group: list[Record]) -> list[DropdownItem]:
+        """One layout row: an icon-only toggle after a label reads 'Label Meaning'; a row
+        of a label and only such toggles drops the label item."""
+        if len(group) == 1:
+            return self._safe(group[0])
+        out: list[DropdownItem] = []
+        row_label = ''
+        label_at = -1
+        absorbed = bool(self._row_label(group[0])) and all(self._meaning(r) for r in group[1:])
+        for rec in group:
+            got = self._safe(rec)
+            text = self._row_label(rec)
+            if text:
+                row_label, label_at = text, len(out)
+            elif row_label and self._meaning(rec) and len(got) == 1 \
+                    and got[0].kind == DD_TOGGLE:
+                got = [replace(got[0], label=row_toggle_label(row_label, got[0].label))]
+            elif got:
+                absorbed = False
+            out.extend(got)
+        if absorbed and label_at == 0 and len(out) > 1 and out[0].kind == DD_LABEL \
+                and all(i.kind == DD_TOGGLE for i in out[1:]):
+            out.pop(0)
+        return out
+
+    def _row_shape(self, group: list[Record]) -> tuple[RowShape, list[DropdownItem]] | None:
+        """``(RowShape, cells)`` of a row ``[label] + icon-only toggles`` whose toggles all
+        convert to one DD_TOGGLE each (the table candidates), else None."""
+        try:
+            if len(group) < 2:
+                return None
+            label = self._row_label(group[0])
+            if not label or group[0].kind != REC_LABEL:
+                return None
+            families: list[str] = []
+            cells: list[DropdownItem] = []
+            for rec in group[1:]:
+                if not self._meaning(rec):
+                    return None
+                got = self.record(rec)
+                if len(got) != 1 or got[0].kind != DD_TOGGLE:
+                    return None
+                families.append(icon_family(rec.icon))
+                cells.append(got[0])
+            return RowShape(label, tuple(families)), cells
+        except Exception:
+            return None
+
+    def _table(self, rows: list[tuple[RowShape, list[DropdownItem]]]) -> list[DropdownItem]:
+        """A toggle table (``core.icon_toggles.table_runs``) -> one DD_ENUM_CASCADE per
+        column, labelled by the column meaning, children = the row toggles labelled by the
+        row labels. [] when ``rows`` is empty."""
+        if not rows:
+            return []
+        out: list[DropdownItem] = []
+        for column, meaning in enumerate(column_meanings(rows[0][0])):
+            children = tuple(replace(cells[column], label=shape.label) for shape, cells in rows)
+            out.append(DropdownItem(
+                DD_ENUM_CASCADE, _iface(meaning), enabled=any(c.enabled for c in children),
+                active=any(c.active for c in children), children=children,
+                source=ITEM_SOURCE_TOGGLE_TABLE))
+        return out
 
     def record(self, rec: Record) -> list[DropdownItem]:
         kind = rec.kind
@@ -883,7 +1015,9 @@ class Converter:
             return [item] if item is not None else []
         if kwargs.get('invert_checkbox'):
             checked = not checked
-        label = rec.text or recorder._prop_label(owner, prop) or prop
+        meaning = self._meaning(rec)
+        label = (_iface(meaning) if meaning else rec.text) or recorder._prop_label(owner, prop) \
+            or prop
         enabled = bool(rec.enabled) and not _readonly(owner, prop)
         return [DropdownItem(DD_TOGGLE, label, enabled=enabled,
                              active=bool(rec.active), checked=checked,
@@ -1214,5 +1348,5 @@ def classify_rows(context: Any, info: Any, model: PlazaModel,
 __all__ = ('COVERAGE_CUSTOM', 'COVERAGE_MORE', 'COVERAGE_NATIVE', 'CacheKey', 'Converter',
            'DropdownCache', 'SHORTCUT_BUDGET', 'build_dropdown', 'build_in_context',
            'classify_menu', 'classify_rows', 'convert_recording', 'dropdown_items',
-           'enum_choices', 'invoking_context', 'menu_coverage', 'more_label',
+           'enum_choices', 'invoking_context', 'line_groups', 'menu_coverage', 'more_label',
            'normalise_separators', 'override_kwargs', 'recording_coverage', 'shortcut_hint')

@@ -83,6 +83,12 @@ NATIVE_ONLY_MENUS = frozenset({MODE_SWITCH_MENU})
 # open like the toggles next to it (ROLE_APPLY), as Blender's popover does.
 ITEM_SOURCE_PANEL = 'panel_content'
 
+# DropdownItem.source of a DD_ENUM_CASCADE that collapses one column of a toggle table
+# (``core.icon_toggles.table_runs``: the eye / arrow columns of Selectability & Visibility);
+# its children are DD_TOGGLE items labelled by the row labels (ROLE_APPLY: a pick keeps the
+# chain open).
+ITEM_SOURCE_TOGGLE_TABLE = 'toggle_table'
+
 # --- DropdownSource.kind ---
 SOURCE_MENU = 'menu'            # a Menu idname recorded by record.dropdown.build_dropdown
 SOURCE_TOOL = 'tool'            # a Tool Settings cascade built by record.popover.build_tool_cascade
@@ -138,7 +144,8 @@ class DropdownItem:
       Not part of ``hash()``.
     - ``submenu``: DD_SUBMENU: the child Menu idname ('' otherwise).
     - ``children``: DD_ENUM_CASCADE: the inline child items (DD_RADIO for a property enum,
-      DD_OP for ``operator_menu_enum``), shown by :func:`enum_child_model`.
+      DD_OP for ``operator_menu_enum``, DD_TOGGLE for a toggle-table column), shown by
+      :func:`enum_child_model`.
     - ``heading``: DD_LABEL drawn as a section title (subpanel titles) rather than a plain
       label; both are dimmed and non-clickable.
     - ``source``: the recorder kind it came from (``record.recorder.REC_*``; coverage and
