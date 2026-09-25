@@ -231,6 +231,20 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   swallows the hold key's release and the watcher restores once the Plaza closes.
 - `event_simulate` has no repeat flag, and a simulated Shift RMB drag in IC never starts the cursor drag (its PRESS
   `view3d.cursor3d` item handles the press), with or without Meso items: both are real-input checks.
+- Key auto-repeat (`docs/spikes/meso-hold-long-press.md`, real X11 input): Blender cancels a pending CLICK_DRAG
+  whenever a keyboard or button event is *handled* ("Canceling CLICK_DRAG (button event was handled)",
+  `wm_handlers_do`); an unhandled repeat (`WM_EVENT_IS_REPEAT`) does not cancel it. So a modal that returns
+  RUNNING_MODAL for the repeats of a held key stops every LMB tool/gizmo drag that starts while the key repeats.
+  The hold modals pass their own key's repeats through (step 6). Xwayland repeats a held key after 600 ms at
+  25 Hz; GHOST X11 flags every further press `is_repeat`; Blender's Wayland backend repeats from its own timer,
+  which mouse buttons do not stop. Modal-map items from keymap data ignore repeats (`repeat=False`): 23 X repeats
+  inside a translate toggled no axis.
+- Real-input GUI tests (`tests/gui/realinput_driver.py`, the `realinput` session): Blender without
+  `--enable-event-simulate` (with it, every real GHOST event is dropped) on X11 inside the nested
+  `kwin_wayland --virtual --xwayland`; XTEST reaches KWin 6.7 through libei only with `[Xwayland]
+  XwaylandEisNoPrompt=true` in the (private) kwinrc. KWin drops an EI press of a key that is already down, so the
+  repeats come from Xwayland's own auto-repeat (`XAutoRepeatOff` for a no-repeat control). Real events carry the
+  held-key modifier (`keymodifier`), simulated ones never do.
 - Plaza fallbacks: the Object Mode Tool Settings row holds every `snap_elements_base` / `snap_elements_individual`
   member, all `snap_target` values and Affect Move/Rotate/Scale in its Snap cascade, and Affect Only Origins in its
   "Options" cascade (`VIEW3D_PT_tools_object_options`); the Edit Mesh row the same snap set.

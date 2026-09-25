@@ -136,8 +136,8 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
      in that keymap of the user keyconfig, then in '3D View' (a mode map item, e.g. C, falls back there).
   3. **Tap rule:** a tap also needs no other hold key down (`step(..., others_held=)`); a quick X while V is held
      only changes the snapped elements.
-  4. **ENDED phase:** an own-key auto-repeat is swallowed; a new press (the release went unseen) finishes the old
-     operator and passes on, so the keymap starts a new hold.
+  4. **ENDED phase:** an own-key auto-repeat passes through (step 6; it was swallowed before); a new press (the
+     release went unseen) finishes the old operator and passes on, so the keymap starts a new hold.
   5. **`HoldSession.user_set`**: Insert during a D hold changes the value the release restores (it does not fight
      the overlay). `HoldSession.written` is the set of fields any overlay of the session touched.
   6. **Watcher reset:** after 3 ticks with a session or state but no hold operator in any window (a class
@@ -148,12 +148,13 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
   8. **GUI runner:** `tests/gui/run_gui_tests.sh` runs two sessions by default: the nested Wayland session without
      the scenario modules that set `NEEDS_GRAB = True`, then a nested `kwin_wayland --virtual --xwayland` session
      (Blender on X11) with only those. `--xwayland` runs everything in one Xwayland session; `--host` everything
-     on the host display.
+     on the host display. Step 6 adds a third nested session with real input (`realinput`, see Status step 6).
   9. **Not simulable** (manual checks): key auto-repeat of a held X during a drag (G10/UH1: `event_simulate` has no
      repeat flag; a second simulated X press while held is swallowed, checked in G9), and D + LMB annotate while D
      is held (UH2: simulated events never set the held-key modifier). Both were later measured with real X11 input
      in the nested XTEST spikes: `docs/spikes/meso-hold-long-press.md` and `docs/spikes/meso-pivot-hold.md` (UH2:
-     no conflict, step 5). File load during a hold (G11) is covered
+     no conflict, step 5). Key auto-repeat is a GUI regression test since step 6 (the `realinput` session).
+     File load during a hold (G11) is covered
      headless (`load_pre`) and by the API spike: the GUI driver's timer does not survive a file load.
   10. **G12 result:** a pie opened by another key during a hold (IC's Period pivot pie) swallows the hold key's
       release; the overlay stays until the next press and release of that key (or Esc, or a window deactivate),
@@ -211,10 +212,37 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     the pivot item and its tap displacement), `tests/blender/test_isolate_blender.py` (`TestEditIsolatesObjects`
     and the updated mesh rows), `tests/blender/test_meso_keymap.py` (D off gives Annotate back), GUI `mk_isolate`
     (local view with real keys, Ctrl Z), `mk_snap_taps` (D tap, D switched off) and `mk_pivot` (the default).
-  - Known limit: the D hold shares the long-hold key-repeat bug of the X hold
-    (`docs/spikes/meso-hold-long-press.md`; a D held longer than the repeat delay before the drag moves nothing
-    until own-key repeats pass through the hold). The fix of that bug covers D (`_HoldMixin`; the patched case in
-    `docs/spikes/meso-pivot-hold.md`).
+  - The D hold shared the long-hold key-repeat bug of the X hold (a D held longer than the repeat delay before
+    the drag moved nothing); fixed in step 6.
+
+- **Step 6 implemented** (user item 3 of 2026-09-25: "if I long-hold X then try a translate... nothing moves"):
+  - **Cause** (`docs/spikes/meso-hold-long-press.md`): the OS auto-repeats a held key (X11: 600 ms delay, 25 Hz;
+    Blender's Wayland backend has its own repeat timer that mouse buttons do not stop). The hold modal consumed
+    its own key repeats, and Blender cancels a pending click-drag whenever a key or button event is *handled*.
+    The next repeat after the LMB press (15–25 ms later) always came before the 3 px drag threshold, so the Tweak
+    drag, the Move-tool drag and the Move-gizmo drag never started a transform. A short hold worked because the
+    repeats start after the transform is running (it swallows them). Snapping, the hold duration and the native
+    X item were ruled out.
+  - **Fix:** `core.snap_hold.step` passes an own-key repeat (`EV_OWN_REPEAT`) through and changes no state, in
+    every phase (HELD, FOREIGN, ENDED); a non-repeat own press is still consumed while HELD. `_HoldMixin.invoke`
+    returns PASS_THROUGH for an `is_repeat` event, so a user who ticks Repeat on a hold item in the keymap editor
+    never starts a second hold. This covers X, C, V, J and D (all `_HoldMixin`). The native items on the bare hold
+    keys ignore repeats (`repeat=False`), so nothing else runs on them (audited headless).
+  - **Tests:** unit (`TestStep`: a press is consumed; a repeat is `NOTHING` in every phase and flag combination;
+    the OS repeat pattern of a long hold around a mouse press, a transform and the late release; a long hold
+    with repeats is not a tap); headless (`TestAutoRepeat`: `classify`/`_result`, the running hold modal fed the
+    OS repeat pattern with stand-in events for X, C, V, J and D, a repeat never starts a hold;
+    `TestNoRepeatItemsOnHoldKeys`: in the Meso keyconfig the only active non-modal item that takes repeats of a
+    bare hold key is Sculpt's `object.subdivision_set` on D, and Sculpt is not a hold mode); GUI (G14 below: the
+    `realinput` session of `run_gui_tests.sh`, which fails without the fix and passes with it).
+  - **GUI runner:** a third nested session, `realinput` (`tests/gui/realinput_driver.py`): `kwin_wayland --virtual
+    --xwayland`, Blender on X11 **without** `--enable-event-simulate`, real X11 input through XTEST (ctypes
+    libXtst), the private kwinrc with `[Xwayland] XwaylandEisNoPrompt=true` (KWin accepts the XTEST input Xwayland
+    forwards through libei). The driver refuses to run unless `MESO_REALINPUT_NESTED=1` (set by the runner only
+    for a nested session) and `XDG_RUNTIME_DIR` is the run's private dir; `--host` never runs it. About 35 s.
+  - Side effect (decision 31): while a hold runs and the pointer is over an editor whose keymap takes repeats of
+    the bare key (the Text editor, the Console: TEXTINPUT with `repeat=True`), those repeats type the letter, as
+    for any held key in Blender. The first press is still the hold's.
 
 ## Delivery model (user decision 1; step 4)
 - The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
@@ -532,7 +560,8 @@ transform happened), `release_pending`. Events → effects:
 |---|---|
 | Release of its own key, HELD, `now − pressed_at ≤ hold_tap_threshold`, not `used` | **tap**: release the overlay, replay the native action, FINISH, consume |
 | Release of its own key, HELD, otherwise | release the overlay, FINISH, consume |
-| Press/repeat of its own key | consume (no repeats reach the native X/C/V items) |
+| Press of its own key (not a repeat: the release went unseen) | consume while HELD or FOREIGN; in ENDED finish and PASS_THROUGH (a new hold starts) |
+| Auto-repeat of its own key (`is_repeat`), any phase | PASS_THROUGH, no state change (step 6: a handled repeat cancels Blender's pending click-drag; the native items on the bare keys have `repeat=False`) |
 | A mouse button press | `used = True`, PASS_THROUGH (the tool/gizmo drag starts) |
 | Any other event (G/R/S, Space, other hold keys, navigation) | PASS_THROUGH |
 | Watcher: `foreign_above(modal_ids, OWN_IDS)` became True | phase FOREIGN, `used = True` |
@@ -708,7 +737,8 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
 - `test_snap_hold.py`: overlay per key; union for X+V; J Affect; baseline taken at first press only; last release
   restores exactly; mid release writes the remaining overlay; `restore_writes` writes `snap_elements` first and once
   and only changed fields; `step` table rows (tap, long hold, used by mouse, FOREIGN defer, deactivate, ESC, cancel,
-  own-key repeat consumed); `foreign_above` with `None` entries, own ids, Plaza.
+  own-key press consumed; own-key repeat passes through in every phase; the OS repeat pattern of a long hold, step 6);
+  `foreign_above` with `None` entries, own ids, Plaza.
 - `test_isolate.py`: `ISOLATE_KIND_BY_MODE`; `decide` rows; Flags equality; `edit_plan` rows (step 5).
 - `test_properties_cycle.py`: `parse` (unknown, duplicate, empty); `next_tab` wrap, skip missing (camera, empty, none
   active), current outside the order; `pick_area` mouse / largest / tie / none.
@@ -780,7 +810,13 @@ Snapping and pivot (Xwayland):
 - G8 X held → G / Tweak drag / Move-gizmo drag lands on grid; exact restore after confirm and cancel, release during
   and after (the spike's 8 scenarios, with a non-empty individual set).
 - G9 taps: X toggles snap, C cycles the Cursor tool, V opens the View pie click-style, J does nothing (UH5).
-- G10 holding X during a drag never toggles AXIS_X through key repeat (UH1).
+- G10 holding X during a drag never toggles AXIS_X through key repeat (UH1): measured with real input
+  (`docs/spikes/meso-hold-long-press.md`, the invoke case: 23 repeats reached the transform, nothing toggled).
+- G14 (step 6, `realinput` session, real X11 input with key auto-repeat): X held 1.5 s and kept down through a
+  Tweak drag, a Move-tool drag and a Move-gizmo drag: the transform runs, the cube lands on the grid, every repeat
+  the hold saw returned PASS_THROUGH (also between the LMB press and the drag), exact restore; the short hold and
+  the long hold with auto-repeat off (controls); a long hold with no drag is not a tap; V held long before a Tweak
+  drag; D held long before a Move-gizmo drag moves only the origin.
 - G11 window deactivate during a hold; file load during a hold; Space during a hold (Plaza opens, restore after it
   closes); X then V together (union), release order both ways.
 - G12 a pie opened by another key during a hold (the known limit; documents the behaviour).
@@ -828,6 +864,10 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
 - Files: `core/isolate.py` (`EditPlan`, `edit_plan`), `ops/isolate.py` (local view enter/exit, area keys),
   `core/meso_bindings.py` (`pivot_hold` on), `prefs.py` (the framing description), the tests above,
   `tools/spikes/meso_keymap/longhold.py` + `run.sh pivothold` (UH2), README, roadmap.
+
+### Step 6 — key auto-repeat during a hold (✅ implemented, see Status; user item 3 of 2026-09-25)
+- Files: `core/snap_hold.py` (`step`), `ops/snap_hold.py` (`invoke`), `tests/unit/test_snap_hold.py`,
+  `tests/blender/test_snap_hold_blender.py`, `tests/gui/realinput_driver.py`, `tests/gui/run_gui_tests.sh`.
 
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
@@ -908,3 +948,7 @@ anything in Phase 5+.
     objects (the restore would then not give the old local view back).
 30. **New in step 5 (DEFAULT in force: a).** Edit-mode Ctrl 1 with every visible element selected: (a) **in force:**
     the objects still isolate (local view), Ctrl 1 again leaves it; (b) "Nothing to isolate" as before step 5.
+31. **New in step 6 (DEFAULT in force: a).** Own-key repeats during a hold: (a) **in force:** they always pass
+    through (measured; the same as any held key: over the Text editor or the Console the repeats type the letter);
+    (b) pass them through only after a mouse button press during the hold (`HoldState.used`), swallowing them
+    before: narrower side effect, one more rule, not measured.

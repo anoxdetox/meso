@@ -27,7 +27,7 @@ click/modifier conventions.
 $PY -m unittest discover -s tests/unit -t .                          # pure tests (no bpy)
 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 $B --command extension validate src/meso                          # positional path
-timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules; ~5-8 min)
+timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules + a real-input session; ~5-8 min)
 timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Keymap restart check (real start-ups, temp config)
 $PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate docs/inventory_5_2.json (subprocesses)
 $B --command extension build --source-dir src/meso --output-dir dist
@@ -98,6 +98,9 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   backend" and "the nested Xwayland fixes it" must be re-checked. A `tests/gui/scenarios_*.py` module whose scenarios start a transform
   sets `NEEDS_GRAB = True`: `run_gui_tests.sh` then runs it in its second (Xwayland) session only. A fresh enable in a GUI scenario opens the first-enable keymap question
   after 0.5 s: `gui_driver.enable_addon()` marks it asked unless `prompt=True`.
+  `event_simulate` cannot send key auto-repeat or the held-key modifier: such checks go in the third, real-input
+  session (`tests/gui/realinput_driver.py`: no `--enable-event-simulate`, XTEST on the nested Xwayland, nested only,
+  never `--host`).
 - Phase 0 decisions in `docs/spikes.md` (D1–D5) supersede the plan where they differ.
 - IP hygiene: never commit third-party screenshots, icons, docs text or sampled colours; never implement
   multi-touch finger-chord gesture recognition (live third-party patent until 2031). See `docs/roadmap.md`.

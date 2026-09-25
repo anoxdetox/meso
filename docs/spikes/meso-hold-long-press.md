@@ -1,5 +1,9 @@
 # Long hold of X, then a drag: nothing moves — Blender 5.2.2 LTS
 
+**Fixed** in Meso Keymap step 6 (`docs/meso-keymap-interfaces.md`, Status): the proposed fix below, as
+measured; the regression test is the `realinput` session of `tests/gui/run_gui_tests.sh`
+(`tests/gui/realinput_driver.py`).
+
 User report (Meso Keymap, 3D View, real keyboard): "if I long-hold X then try a translate... nothing
 moves". This spike reproduces it with real key auto-repeat and finds the cause. Nothing in `src/` was
 changed. Answers are **verified** (run in the spike), **source-verified** (read in the 5.2 source) or
