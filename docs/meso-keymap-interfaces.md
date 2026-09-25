@@ -575,6 +575,11 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
   window index + screen name + area index, no stored pointers) sets `active_panel_category = 'Item'` once the region
   has drawn (retry up to 5 times while it reads `UNSUPPORTED`). Already shown on Item → nothing (DEFAULT).
 - The operator is not bound in Sculpt, Font, the Properties editor or other editors (C8).
+- Blender 5.2.2 can segfault the first time a data-block preview is rendered (e.g. the material icon the Material tab
+  draws), however the tab was reached: a render-list race between the preview worker thread and the main thread
+  (`docs/verified-facts-5.2.md`, "Preview render race"). The cycle does not change for it. The GUI suite renders the
+  previews on the main thread first (`gui_driver.warm_previews()`), and G6 checks that no preview job starts while
+  it cycles.
 
 ## Shift+RMB (recorded only; nothing is bound)
 Meso binds nothing on Shift+RMB or Ctrl+Shift+RMB in this work; IC's `view3d.cursor3d` (PRESS) and cursor drag
@@ -664,7 +669,8 @@ Selection, isolate, Properties, Apply:
   Alt+D over a driven property (incl. a node socket, UH3) still removes the driver.
 - G5 Ctrl+1 object (local view in/out), edit mesh with pre-hidden elements (exact restore), pose; Ctrl+Alt+1 expands.
 - G6 Ctrl+A cycles Object → Data → Modifiers → Material with a mesh; skips for a camera; maximized 3D View → sidebar
-  Item; Sculpt Ctrl+A still opens the mask pie.
+  Item; Sculpt Ctrl+A still opens the mask pie. The previews are rendered first (`previews_ready`), and no preview job
+  runs during the cycle (`no_preview_job`), see "Preview render race" in `docs/verified-facts-5.2.md`.
 - G7 Ctrl+Alt+A opens Object ▸ Apply / Pose ▸ Apply; the Plaza Object ▸ Apply entry works.
 
 Snapping and pivot (Xwayland):

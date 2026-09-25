@@ -898,7 +898,17 @@ def scenarios(drv):
         saved_tab = pspace.context
         maximized = False
         bpy.types.VIEW3D_MT_sculpt_mask_edit_pie.append(_pie_probe)
+        jobs = []
         try:
+            # The Material tab draws the material icon; rendered by a preview job it could crash
+            # Blender 5.2.2 (gui_driver.warm_previews): render every preview first, then no
+            # preview job may start while the tabs cycle.
+            warmed = drv.warm_previews()
+            if warmed and cube is not None:
+                sizes = [tuple(m.preview.image_size) if m.preview else None
+                         for m in cube.data.materials if m is not None]
+                drv.check(rec, "previews_ready", bool(sizes) and all(s and all(s) for s in sizes),
+                          sizes)
             choose('MESO')
             yield 0.3
             v3d = drv.center_of("VIEW_3D")
@@ -910,9 +920,13 @@ def scenarios(drv):
             seen = []
             for _ in range(4):
                 yield from key(v3d, 'A', ctrl=True)
+                jobs.append(bpy.app.is_job_running('RENDER_PREVIEW'))
                 yield 0.15
+                jobs.append(bpy.app.is_job_running('RENDER_PREVIEW'))
                 seen.append(pspace.context)
             drv.check(rec, "mesh_cycle", seen == ['DATA', 'MODIFIER', 'MATERIAL', 'OBJECT'], seen)
+            if warmed:
+                drv.check(rec, "no_preview_job", not any(jobs), jobs)
             drv.check(rec, "selection_untouched", selected_names() == ["Cube"], selected_names())
             if camera is not None:
                 select_only(camera)

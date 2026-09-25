@@ -194,5 +194,22 @@ class TestCtrlAKeys(MesoKeymapCase):
         self.assertEqual((k.idname, k.properties.action), ('object.select_all', 'SELECT'))
 
 
+class TestPreviewWarmFact(unittest.TestCase):
+    """The GUI suite's guard against the Blender 5.2.2 preview render race
+    (tests/gui/gui_driver.py ``warm_previews``; docs/verified-facts-5.2.md, "Preview render
+    race") relies on ``wm.previews_ensure`` rendering the previews inside the call, on the
+    calling (main) thread: the start-up material has only its 32 px icon until then."""
+
+    def test_previews_ensure_renders_synchronously(self):
+        material = bpy.data.objects["Cube"].data.materials[0]
+        with bpy.context.temp_override(window=window()):
+            self.assertEqual(bpy.ops.wm.previews_ensure(), {'FINISHED'})
+        preview = material.preview
+        self.assertIsNotNone(preview)
+        self.assertEqual(tuple(preview.image_size), (128, 128))
+        self.assertTrue(any(preview.image_pixels[:]))
+        self.assertFalse(bpy.app.is_job_running('RENDER_PREVIEW'))
+
+
 if __name__ == '__main__':
     unittest.main()

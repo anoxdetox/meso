@@ -31,6 +31,7 @@ Scenario modules: every ``tests/gui/scenarios_*.py`` exports ``scenarios(drv) ->
 pane toggle since Phase 3.
 """
 
+import faulthandler
 import importlib
 import importlib.util
 import json
@@ -44,6 +45,9 @@ import traceback
 import addon_utils
 import bpy
 import gpu
+
+# A segfault prints the Python stack of every thread to stderr (the Blender log).
+faulthandler.enable(all_threads=True)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPO_NAME = "Meso Dev"
@@ -155,6 +159,25 @@ def ensure_blender_keyconfig():
     if kc is None or kc.name != "Blender":
         path = os.path.join(bpy.utils.system_resource('SCRIPTS'), "presets", "keyconfig", "Blender.py")
         bpy.utils.keyconfig_set(path)
+
+
+def warm_previews():
+    """Render every data-block preview now, on the main thread (``wm.previews_ensure``).
+
+    Blender 5.2.2 race (docs/verified-facts-5.2.md, "Preview render race"): the first preview
+    of a data-block (e.g. the cube's material icon, drawn when the Properties editor first shows
+    the Material tab) is rendered by a worker thread that adds a ``Render`` to the global render
+    list without a lock, while the main thread walks that list after every notifier pass
+    (``RE_FreeUnusedGPUResources``); now and then it reads the half-built entry and segfaults.
+    Rendered here, the previews get their ``Render`` on the main thread, and no worker thread
+    adds one later. Call it again after a scenario adds data-blocks that the UI will show with
+    a preview. ``MESO_GUI_NO_PREVIEW_WARM=1`` skips it (tools/spikes/meso_keymap/preview_race
+    shows the crash that way)."""
+    if os.environ.get("MESO_GUI_NO_PREVIEW_WARM"):
+        return False
+    with bpy.context.temp_override(window=win()):
+        bpy.ops.wm.previews_ensure()
+    return True
 
 
 def spacebar_action():
@@ -2287,6 +2310,7 @@ def setup():
     add_menu_probe()
     add_p3_probes()
     enable_addon()
+    META["previews_warmed"] = warm_previews()
     w = win()
     META.update({"blender": bpy.app.version_string, "window": [w.width, w.height],
                  "ui_scale": bpy.context.preferences.system.ui_scale,

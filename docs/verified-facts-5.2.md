@@ -367,6 +367,39 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
 | SpaceTextEditor | WINDOW, HEADER, UI, FOOTER |
 | SpaceConsole / SpaceInfo / SpaceOutliner | WINDOW, HEADER |
 
+### Preview render race (Blender 5.2.2 bug, not Meso)
+
+V (GUI, official build d13f752e3b9c, Vulkan, nested KWin). The first time a data-block's preview is rendered in a
+session (e.g. the start-up cube's material icon, drawn when the Properties editor first shows the Material tab), the
+preview job's **worker thread** calls `RE_NewRender` (`render/intern/pipeline.cc`), which `push_front`s a new `Render`
+onto the global `std::forward_list` `RenderGlobal.render_list` without a lock. The **main thread** walks that list
+after every notifier pass (`RE_FreeUnusedGPUResources`, called from `wm_event_do_notifiers`). In the release build
+the new list head is stored *before* the node is written, so a walk in between reads an unset `Render *` and
+segfaults at `re->owner` (exit 139, faulthandler "<no Python frame>"). Preview `Render`s are never freed, so the
+window opens once per preview owner per session. It is still wide enough to hit: about 2 GUI runs in 6 were
+reported, and 1 in 9 was measured here. The crashing nodes all sat at the end of a page, which fits a first-touch page
+fault between the two stores.
+- Evidence: 4 of 4 cores from the suite crash at the same instruction (0x16121fc, `mov 0x90(%rbp),%rsi` in
+  `RE_FreeUnusedGPUResources`). The list head points at one node at a page end (`…fff0`) whose `Render *` was 0 when
+  read and set by dump time. The owner is the `PreviewImage` of `MAMaterial`, and a worker thread is inside
+  `RE_PreviewRender`. `tools/spikes/meso_keymap/preview_race/run.sh` holds the worker thread between the two stores
+  (gdb non-stop mode). Without the warm-up below, `mk_properties_cycle` crashes 4 runs of 4. A tab set from Python
+  (`space.context = 'MATERIAL'`, no Meso operator) also crashes 2 of 2, and Meso's Ctrl A 2 of 2. With a new
+  material and only the Data tab shown, it is 0 of 2.
+- Not the Properties cycle: `buttons_context_compute` re-validates `mainb` against the path flags on every layout, so
+  a tab accepted from a stale path cannot crash (it only falls back to Object). Not the isolate restore or the
+  keyconfig switches: none of them are needed to reproduce it.
+- No Meso-side guard: any click on the Material tab, or any other UI that draws a preview not rendered yet, starts
+  the same job, and the only synchronous alternative, `wm.previews_ensure`, renders the preview of **every**
+  data-block in the file on the main thread, which is too slow to run on a key press.
+- The GUI suite's guard: `wm.previews_ensure()` renders the previews inside the call, on the main thread (headless
+  too: the start-up material then has a 128 px image; `tests/blender/test_properties_cycle_blender.py`), so the
+  `Render` is created on the main thread and later jobs find it with `RE_GetRender`. `gui_driver.warm_previews()`
+  runs it in `setup()` and again at the start of `mk_properties_cycle`. The second call made new main-thread `Render`s
+  for three new preview owners, so the setup call alone is not relied on. With both calls, the widened run creates
+  every `Render` on the main thread and passes 4 of 4. In `--mode count`, the whole suite (81 scenarios) creates
+  6 `Render`s, all on the main thread. `MESO_GUI_NO_PREVIEW_WARM=1` skips the warm-up.
+
 ---
 
 ## 6. Packaging and repo layout
