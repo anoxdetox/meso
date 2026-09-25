@@ -194,7 +194,7 @@ HELD, FOREIGN, ENDED = 'HELD', 'FOREIGN', 'ENDED'
 
 # Events as a hold operator (or its watcher) sees them.
 EV_OWN_PRESS = 'OWN_PRESS'          # its own key, a new press (the release went unseen)
-EV_OWN_REPEAT = 'OWN_REPEAT'        # its own key, auto-repeat
+EV_OWN_REPEAT = 'OWN_REPEAT'        # its own key, auto-repeat (always passes through)
 EV_OWN_RELEASE = 'OWN_RELEASE'
 EV_MOUSE_PRESS = 'MOUSE_PRESS'      # any mouse button press (a tool or gizmo drag may start)
 EV_OTHER = 'OTHER'                  # everything else (G/R/S, Space, other hold keys, navigation)
@@ -234,13 +234,19 @@ def step(state: HoldState, event: str, now: float = 0.0, tap_threshold: float = 
     modal in between and no other hold key down, is a tap: the overlay goes and the native
     action of the key is replayed. A foreign modal (a transform) swallows every event while it
     runs, so the hold ends when it is gone: one snapped drag per hold.
+
+    An auto-repeat of its own key (the OS repeats a held key, 600 ms delay, 25 Hz on X11) always
+    passes through and changes nothing, in every phase: a handled key event cancels Blender's
+    pending click-drag, so a consumed repeat just after the mouse press stopped every tool and
+    gizmo drag of a long hold (docs/spikes/meso-hold-long-press.md). The native items on the
+    bare hold keys ignore repeats (``repeat=False``), so nothing else runs on them.
     """
     phase = state.phase
+    if event == EV_OWN_REPEAT:
+        return state, NOTHING
     if event == EV_CANCEL:
         return replace(state, phase=ENDED), Effect(release=phase != ENDED, finish=True)
     if phase == ENDED:
-        if event == EV_OWN_REPEAT:
-            return state, Effect(consume=True)
         if event in (EV_FOREIGN_ON, EV_FOREIGN_OFF):
             return state, NOTHING
         # The late release is swallowed; anything else finishes and passes on.
@@ -258,7 +264,7 @@ def step(state: HoldState, event: str, now: float = 0.0, tap_threshold: float = 
     if phase == FOREIGN:
         if event == EV_OWN_RELEASE:
             return replace(state, release_pending=True), Effect(consume=True)
-        if event in (EV_OWN_PRESS, EV_OWN_REPEAT):
+        if event == EV_OWN_PRESS:
             return state, Effect(consume=True)
         if event == EV_DEACTIVATE:
             return replace(state, release_pending=True), NOTHING
@@ -269,7 +275,7 @@ def step(state: HoldState, event: str, now: float = 0.0, tap_threshold: float = 
                and now - state.pressed_at <= tap_threshold)
         return replace(state, phase=ENDED), Effect(release=True, tap=tap, finish=True,
                                                    consume=True)
-    if event in (EV_OWN_PRESS, EV_OWN_REPEAT):
+    if event == EV_OWN_PRESS:
         return state, Effect(consume=True)
     if event == EV_MOUSE_PRESS:
         return replace(state, used=True), NOTHING

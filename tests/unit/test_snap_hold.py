@@ -195,11 +195,53 @@ class TestStep(unittest.TestCase):
         _st, eff = sh.step(self.st(), sh.EV_OWN_RELEASE, 10.1, 0.2, others_held=True)
         self.assertFalse(eff.tap)
 
-    def test_own_press_and_repeat_consumed(self):
-        for ev in (sh.EV_OWN_PRESS, sh.EV_OWN_REPEAT):
-            st, eff = sh.step(self.st(), ev, 10.3)
-            self.assertEqual(eff, sh.Effect(consume=True), ev)
-            self.assertEqual(st.phase, sh.HELD)
+    def test_own_press_consumed(self):
+        st, eff = sh.step(self.st(), sh.EV_OWN_PRESS, 10.3)
+        self.assertEqual(eff, sh.Effect(consume=True))
+        self.assertEqual(st, self.st())
+
+    def test_own_repeat_passes_through_in_every_phase(self):
+        # A handled repeat cancels Blender's pending click-drag (the long-hold bug): repeats
+        # pass through and change nothing, whatever the phase and flags.
+        for phase in (sh.HELD, sh.FOREIGN, sh.ENDED):
+            for used in (False, True):
+                for pending in (False, True):
+                    st = self.st(phase=phase, used=used, release_pending=pending)
+                    new, eff = sh.step(st, sh.EV_OWN_REPEAT, 12.0, others_held=pending)
+                    self.assertEqual((new, eff), (st, sh.NOTHING), (phase, used, pending))
+                    self.assertFalse(eff.consume or eff.finish or eff.release or eff.tap)
+
+    def test_os_key_repeat_pattern_long_hold_then_drag(self):
+        """The OS pattern of a long hold (docs/spikes/meso-hold-long-press.md): X down, repeats
+        from 0.6 s at 25 Hz, the mouse press at 1.5 s with repeats before and after it, a
+        transform that swallows the rest, the transform ends with X still held (more repeats),
+        then the late release. Every repeat passes through; nothing is a tap."""
+        t0 = 10.0
+        st = sh.HoldState('X', t0)
+        events = [(t0 + 0.6 + i / 25, sh.EV_OWN_REPEAT) for i in range(23)]   # to ~1.48 s
+        events.append((t0 + 1.5, sh.EV_MOUSE_PRESS))
+        events += [(t0 + 1.5 + (i + 1) / 25, sh.EV_OWN_REPEAT) for i in range(3)]
+        events += [(t0 + 1.62, sh.EV_FOREIGN_ON), (t0 + 2.0, sh.EV_FOREIGN_OFF)]
+        events += [(t0 + 2.0 + (i + 1) / 25, sh.EV_OWN_REPEAT) for i in range(5)]
+        effects = []
+        for now, ev in events:
+            st, eff = sh.step(st, ev, now, 0.2)
+            effects.append((ev, eff))
+        for ev, eff in effects:
+            if ev == sh.EV_OWN_REPEAT:
+                self.assertEqual(eff, sh.NOTHING)
+        self.assertEqual([e for ev, e in effects if e.release], [sh.Effect(release=True)])
+        self.assertEqual(st.phase, sh.ENDED)
+        _st, eff = sh.step(st, sh.EV_OWN_RELEASE, t0 + 2.4, 0.2)
+        self.assertEqual(eff, sh.Effect(finish=True, consume=True))    # the late release
+
+    def test_long_hold_with_repeats_then_release_is_not_a_tap(self):
+        st = sh.HoldState('X', 10.0)
+        for i in range(10):
+            st, eff = sh.step(st, sh.EV_OWN_REPEAT, 10.6 + i / 25, 0.2)
+            self.assertEqual(eff, sh.NOTHING)
+        st, eff = sh.step(st, sh.EV_OWN_RELEASE, 11.0, 0.2)
+        self.assertEqual(eff, sh.Effect(release=True, finish=True, consume=True))
 
     def test_other_events_pass(self):
         st, eff = sh.step(self.st(), sh.EV_OTHER, 10.3)
@@ -224,7 +266,7 @@ class TestStep(unittest.TestCase):
                          sh.Effect(finish=True, consume=True))
         self.assertEqual(sh.step(ended, sh.EV_OTHER)[1], sh.Effect(finish=True))
         self.assertEqual(sh.step(ended, sh.EV_OWN_PRESS)[1], sh.Effect(finish=True))
-        self.assertEqual(sh.step(ended, sh.EV_OWN_REPEAT)[1], sh.Effect(consume=True))
+        self.assertEqual(sh.step(ended, sh.EV_OWN_REPEAT), (ended, sh.NOTHING))   # keeps running
         self.assertEqual(sh.step(ended, sh.EV_FOREIGN_ON)[1], sh.NOTHING)
         self.assertEqual(sh.step(ended, sh.EV_CANCEL)[1], sh.Effect(finish=True))
 

@@ -14,6 +14,9 @@
   watcher timer reads ``Window.modal_operators`` and ends the hold once the transform is gone
   (one snapped drag per hold). **Nothing is ever written to tool_settings while a foreign modal
   operator runs** (a transform, the Plaza, a box select): such writes wait for it to end.
+- The OS auto-repeats a held key: the hold passes those repeats through and never starts on one.
+  A handled repeat would cancel Blender's pending click-drag, so after a long hold no tool or
+  gizmo drag would start (docs/spikes/meso-hold-long-press.md).
 - Other restore points: ``WINDOW_DEACTIVATE`` (a focus loss never sends the key release), Esc,
   ``cancel()`` (window closed, file load), ``load_pre``, a ``save_pre``/``save_post`` swap (a
   saved file never holds the momentary state) and ``unregister()`` (from module state, before
@@ -371,6 +374,10 @@ class _HoldMixin:
     def invoke(self, context, event):
         if not _is_key_event(event):
             return {'CANCELLED'}
+        if event.is_repeat:
+            # An auto-repeat never starts a hold (a user may tick Repeat on the item in the
+            # keymap editor): the running hold lets its repeats through, see core.snap_hold.step.
+            return {'PASS_THROUGH'}
         key = event.type
         if not start_hold(context, key, self._element()):
             return {'PASS_THROUGH'}

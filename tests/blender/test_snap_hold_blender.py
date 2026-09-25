@@ -16,6 +16,7 @@ import importlib
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 import bpy
 
@@ -203,6 +204,110 @@ class TestForeignGuard(HoldCase):
         self.assertEqual(hold().running_keys(), ())
         with modal_ids([]):
             self.assertIsNone(hold()._watch())          # nothing left: the watcher stops
+
+
+def ev(etype, value='PRESS', is_repeat=False):
+    """A stand-in for a ``bpy.types.Event`` (the fields the hold operator reads)."""
+    return SimpleNamespace(type=etype, value=value, is_repeat=is_repeat)
+
+
+class TestAutoRepeat(HoldCase):
+    """The long-hold bug (docs/spikes/meso-hold-long-press.md): the OS auto-repeats a held key
+    (600 ms delay, 25 Hz on X11); a hold that consumed those repeats cancelled Blender's pending
+    click-drag, so after a long hold no tool or gizmo drag started. The running hold modal gets
+    the OS repeat pattern here (stand-in events; ``event_simulate`` cannot set ``is_repeat``)."""
+
+    def modal_self(self, key):
+        return SimpleNamespace(_key=key, _threshold=0.2, keymap='3D View')
+
+    def run_modal(self, op, event):
+        with ctx():
+            return hold()._HoldMixin.modal(op, bpy.context, event)
+
+    def test_classify(self):
+        sh = core()
+        self.assertEqual(hold().classify(ev('X', is_repeat=True), 'X'), sh.EV_OWN_REPEAT)
+        self.assertEqual(hold().classify(ev('X'), 'X'), sh.EV_OWN_PRESS)
+        self.assertEqual(hold()._result(sh.step(sh.HoldState('X', 0.0), sh.EV_OWN_REPEAT)[1]),
+                         {'PASS_THROUGH'})
+        self.assertEqual(hold()._result(sh.step(sh.HoldState('X', 0.0), sh.EV_OWN_PRESS)[1]),
+                         {'RUNNING_MODAL'})
+
+    def test_long_hold_repeats_pass_through_around_the_mouse_press(self):
+        sh = core()
+        for key, element in (('X', 'GRID'), ('C', 'EDGE'), ('V', 'VERTEX'), ('J', 'INCREMENT'),
+                             ('D', 'PIVOT')):
+            with self.subTest(key=key):
+                self.press(key, element)
+                overlay = state()
+                op = self.modal_self(key)
+                with modal_ids(['MESO_OT_snap_hold']):
+                    for _ in range(22):                     # 0.6 s .. 1.5 s of repeats
+                        self.assertEqual(self.run_modal(op, ev(key, is_repeat=True)),
+                                         {'PASS_THROUGH'})
+                    self.assertEqual(self.run_modal(op, ev('LEFTMOUSE')), {'PASS_THROUGH'})
+                    for _ in range(3):                      # before the drag threshold
+                        self.assertEqual(self.run_modal(op, ev(key, is_repeat=True)),
+                                         {'PASS_THROUGH'})
+                    self.assertEqual(hold()._ops[key].phase, sh.HELD)
+                    self.assertTrue(hold()._ops[key].used)
+                with modal_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']):
+                    hold()._watch()
+                    self.assertEqual(hold()._ops[key].phase, sh.FOREIGN)
+                    self.assertEqual(self.run_modal(op, ev(key, is_repeat=True)),
+                                     {'PASS_THROUGH'})
+                    self.assertEqual(state(), overlay)      # nothing written meanwhile
+                with modal_ids(['MESO_OT_snap_hold']):
+                    hold()._watch()                         # the transform ended
+                    self.assertEqual(state(), USER)
+                    self.assertEqual(hold()._ops[key].phase, sh.ENDED)
+                    # still held: the repeats go on and still pass; the hold keeps running
+                    self.assertEqual(self.run_modal(op, ev(key, is_repeat=True)),
+                                     {'PASS_THROUGH'})
+                    self.assertIn(key, hold().running_keys())
+                    self.assertEqual(self.run_modal(op, ev(key, 'RELEASE')), {'FINISHED'})
+                self.assertEqual(state(), USER)
+                self.assertEqual(hold().running_keys(), ())
+
+    def test_long_hold_with_repeats_is_not_a_tap(self):
+        self.press('X', 'GRID')
+        op = self.modal_self('X')
+        hold()._ops['X'] = core().HoldState('X', hold()._ops['X'].pressed_at - 1.0)   # 1 s ago
+        with modal_ids(['MESO_OT_snap_hold']):
+            for _ in range(10):
+                self.assertEqual(self.run_modal(op, ev('X', is_repeat=True)), {'PASS_THROUGH'})
+            self.assertTrue(ts().use_snap)
+            self.assertEqual(self.run_modal(op, ev('X', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(state(), USER)             # restored; the X toggle did not run
+
+    def test_a_repeat_never_starts_a_hold(self):
+        # A user may tick Repeat on a hold item in Blender's keymap editor.
+        op = SimpleNamespace(_element=lambda: 'GRID', keymap='3D View')
+        with ctx():
+            self.assertEqual(hold()._HoldMixin.invoke(op, bpy.context, ev('X', is_repeat=True)),
+                             {'PASS_THROUGH'})
+        self.assertFalse(hold().session().active)
+        self.assertEqual(state(), USER)
+
+
+class TestNoRepeatItemsOnHoldKeys(MesoKeymapCase):
+    """Repeats of a held key now pass through: no active item on a bare hold key may take
+    them in the Meso keyconfig (besides Sculpt, not a hold mode, and modal maps, which run
+    above the hold)."""
+
+    def test_audit(self):
+        self.meso_on()
+        found = set()
+        for km in wm().keyconfigs.user.keymaps:
+            if km.is_modal:
+                continue
+            for kmi in km.keymap_items:
+                if (kmi.type in ('X', 'C', 'V', 'J', 'D') and kmi.repeat and kmi.active
+                        and kmi.key_modifier == 'NONE'
+                        and (kmi.any or not (kmi.shift or kmi.ctrl or kmi.alt or kmi.oskey))):
+                    found.add((km.name, kmi.idname))
+        self.assertEqual(found, {('Sculpt', 'object.subdivision_set')})
+        self.assertNotIn('SCULPT', hold().SNAP_MODES | hold().PIVOT_MODES)
 
 
 class TestTeardown(HoldCase):
