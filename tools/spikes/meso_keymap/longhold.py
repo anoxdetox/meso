@@ -314,6 +314,20 @@ def native_x_items():
             and not (k.shift or k.ctrl or k.alt or k.oskey)]
 
 
+def d_items():
+    """The active items on a bare D press / D key modifier in the keymaps that matter."""
+    out = []
+    user = bpy.context.window_manager.keyconfigs.user
+    for name in ('Object Mode', 'Grease Pencil', '3D View'):
+        km = user.keymaps.get(name)
+        for k in (km.keymap_items if km else ()):
+            if (k.type == 'D' or k.key_modifier == 'D') and k.active and not (
+                    k.shift or k.ctrl or k.alt or k.oskey):
+                out.append({"keymap": name, "idname": k.idname, "type": k.type,
+                            "value": k.value, "key_modifier": k.key_modifier})
+    return out
+
+
 def setup():
     global XT
     nested_or_die()
@@ -323,6 +337,8 @@ def setup():
     R["meta"]["choose"] = choose_meso()
     R["meta"]["keyconfig"] = bpy.context.window_manager.keyconfigs.active.name
     R["meta"]["x_hold_items"] = x_hold_items()
+    R["meta"]["set"] = SET
+    R["meta"]["d_items"] = d_items()
     R["meta"]["native_x_items"] = native_x_items()
     R["meta"]["blender"] = bpy.app.version_string
     R["meta"]["backend_display"] = "x11" if not os.environ.get("WAYLAND_DISPLAY") else "wayland"
@@ -469,11 +485,132 @@ def run_case(name, path, hold, patched=False):
         yield 0.4
 
 
+# ------------------------------------------------------------------------------ pivot (hold D)
+#
+# MESO_SPIKE_SET=pivot (run.sh pivothold): UH2 of docs/meso-keymap-interfaces.md with real input.
+# Real events carry the held-key modifier (event_simulate never sets it), so these cases show what
+# D + LMB does while the pivot hold runs: the Move gizmo (the gizmo handler runs before the
+# 'Grease Pencil' keymap's D+LMB annotate), or an annotation stroke off the gizmo (native).
+
+def annotation_strokes():
+    n = 0
+    for ann in getattr(bpy.data, "annotations", ()):
+        for layer in ann.layers:
+            for frame in layer.frames:
+                n += len(frame.strokes)
+    return n
+
+
+def world_verts(obj):
+    mw = obj.matrix_world
+    return [tuple(round(x, 4) for x in (mw @ v.co)) for v in obj.data.vertices]
+
+
+def run_pivot_case(name, path, hold, patched=False):
+    """``path``: 'tap' (D tap, no drag), 'gizmo' (Move-gizmo centre drag), 'off_gizmo' (LMB drag
+    in empty space, Move tool active), 'select_off_gizmo' (the same with the Tweak tool)."""
+    case = {"name": name, "path": path, "hold": hold, "patched": patched,
+            "repeats": hold != "long_norepeat", "modals_seen": [],
+            "snap_during": None, "transform_started_at": None}
+    PATCH["pass_repeats"] = patched
+    (XT.x11.XAutoRepeatOn if case["repeats"] else XT.x11.XAutoRepeatOff)(XT.dpy)
+    XT.flush()
+    cube = bpy.data.objects["Cube"]
+    me = cube.data
+    original = [tuple(v.co) for v in me.vertices]
+    try:
+        hold_mod().end_all()
+        tool({"tap": "builtin.select_box", "gizmo": "builtin.move", "off_gizmo": "builtin.move",
+              "select_off_gizmo": "builtin.select"}[path])
+        cube.location = (0.0, 0.0, 0.0)
+        for o in bpy.context.view_layer.objects:
+            o.select_set(o is cube)
+        bpy.context.view_layer.objects.active = cube
+        set_user()
+        yield 0.3
+        c = to_win(cube.location)
+        if path in ("off_gizmo", "select_off_gizmo"):
+            r = region(area3d())
+            c = (r.x + r.width // 6, r.y + r.height // 6)
+        if path == "gizmo":
+            XT.move_win((c[0] - 3, c[1] - 3))
+            yield 0.15
+        XT.move_win(c)
+        yield 0.3
+        case["snap_before"] = snap_state()
+        case["verts_before"] = world_verts(cube)[:2]
+        verts_before = world_verts(cube)
+        strokes_before = annotation_strokes()
+        t_start = len(TRACE)
+        XT.key("d", True)
+        if path == "tap":
+            yield from wait(case, 0.08)
+            XT.key("d", False)
+            yield from wait(case, 0.4)
+            case["active_tool"] = bpy.context.workspace.tools.from_space_view3d_mode(
+                bpy.context.mode).idname
+            case["annotate_tool"] = case["active_tool"] == "builtin.annotate"
+        else:
+            yield from wait(case, {"short": 0.2, "long": 1.5, "long_norepeat": 1.5}[hold])
+            case["overlay"] = snap_state()
+            x, y = c
+            XT.button(1, True)
+            yield from wait(case, 0.12)
+            for i in range(1, 7):
+                XT.move_win((x + 17 * i, y - 7 * i))
+                yield from wait(case, 0.05)
+            XT.button(1, False)
+            yield from wait(case, 0.4)
+            case["location"] = [round(v, 4) for v in cube.location]
+            case["origin_moved"] = any(abs(v) > 1e-3 for v in cube.location)
+            case["shape_in_place"] = world_verts(cube) == verts_before
+            case["strokes_added"] = annotation_strokes() - strokes_before
+            case["annotated"] = case["strokes_added"] > 0
+            case["snap_after_drag"] = snap_state()
+            XT.key("d", False)
+            yield from wait(case, 0.3)
+        case["snap_after_release"] = snap_state()
+        case["snap_restored"] = case["snap_after_release"] == case["snap_before"]
+        case["hold_trace"] = TRACE[t_start:]
+        case["hold_saw_repeats"] = sum(1 for e in case["hold_trace"]
+                                       if e["type"] == 'D' and e["is_repeat"])
+        case["holds_running_after"] = [i for i in modal_ids() if i and i.startswith("MESO_OT")]
+    except Exception:
+        case["error"] = traceback.format_exc()
+        traceback.print_exc()
+    finally:
+        for k in list(XT.down):
+            XT.key(k, False)
+        PATCH["pass_repeats"] = False
+        for v, co in zip(me.vertices, original):
+            v.co = co
+        me.update()
+        cube.location = (0.0, 0.0, 0.0)
+        tool("builtin.select_box")
+        R["cases"].append(case)
+        log(f"CASE {name}: origin_moved={case.get('origin_moved')} "
+            f"shape_in_place={case.get('shape_in_place')} annotated={case.get('annotated')} "
+            f"annotate_tool={case.get('annotate_tool')} "
+            f"transform={'TRANSFORM_OT_translate' in case['modals_seen']} "
+            f"modals={case['modals_seen']} repeats={case.get('hold_saw_repeats')} "
+            f"restored={case.get('snap_restored')}")
+        flush()
+        yield 0.4
+
+
+SET = os.environ.get("MESO_SPIKE_SET", "longhold")
 CASES = []
-for path in ("tweak", "move_drag", "gizmo", "invoke"):
-    for hold in ("none", "short", "long", "long_norepeat"):
-        CASES.append((f"{path}_{hold}", path, hold, False))
-    CASES.append((f"{path}_long_patched", path, "long", True))
+if SET == "pivot":
+    CASES.append(("d_tap", "tap", "none", False))
+    for path in ("gizmo", "off_gizmo", "select_off_gizmo"):
+        CASES.append((f"d_{path}_short", path, "short", False))
+    for hold, patched in (("long", False), ("long_norepeat", False), ("long", True)):
+        CASES.append((f"d_gizmo_{hold}{'_patched' if patched else ''}", "gizmo", hold, patched))
+else:
+    for path in ("tweak", "move_drag", "gizmo", "invoke"):
+        for hold in ("none", "short", "long", "long_norepeat"):
+            CASES.append((f"{path}_{hold}", path, hold, False))
+        CASES.append((f"{path}_long_patched", path, "long", True))
 
 
 def flush():
@@ -489,7 +626,8 @@ def main():
         if only and not any(p in name for p in only):
             continue
         log(f"BEGIN {name}")
-        yield from run_case(name, path, hold, patched)
+        runner = run_pivot_case if SET == "pivot" else run_case
+        yield from runner(name, path, hold, patched)
 
 
 GEN = main()

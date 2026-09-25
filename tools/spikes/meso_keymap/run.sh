@@ -6,6 +6,7 @@
 #   tools/spikes/meso_keymap/run.sh startup OUT_DIR [--host]  # startup_ext  -> OUT_DIR/startup_*.json
 #   tools/spikes/meso_keymap/run.sh keyconfig OUT_DIR [--host] # keyconfig_ext -> OUT_DIR/kc_*.json
 #   tools/spikes/meso_keymap/run.sh longhold OUT_DIR          # longhold.py -> OUT_DIR/longhold.{json,log}
+#   tools/spikes/meso_keymap/run.sh pivothold OUT_DIR         # longhold.py, set pivot -> OUT_DIR/pivothold.{json,log}
 #
 # GUI runs go inside a nested, virtual-framebuffer KWin (kwin_wayland --virtual) unless --host.
 # Every Blender launch gets throw-away BLENDER_USER_CONFIG / BLENDER_USER_EXTENSIONS (and
@@ -15,8 +16,8 @@ set -eu
 # No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
 # which would pop up on the user's session and offer to restart Blender there.
 ulimit -c 0
-WHAT=${1:?usage: run.sh headless|gui|startup|keyconfig|longhold OUT_DIR [--host]}
-OUT=${2:?usage: run.sh headless|gui|startup|keyconfig|longhold OUT_DIR [--host]}
+WHAT=${1:?usage: run.sh headless|gui|startup|keyconfig|longhold|pivothold OUT_DIR [--host]}
+OUT=${2:?usage: run.sh headless|gui|startup|keyconfig|longhold|pivothold OUT_DIR [--host]}
 MODE=${3:-nested}
 HERE=$(cd "$(dirname "$0")" && pwd)
 B=${B:-$HOME/.local/share/blender/blender}
@@ -129,7 +130,7 @@ echo \"blender_exit=\$?\" >> \"$T/kc_$1.log\""
     kc_headless h_read read_nokeep "MESO_KC_KEEP=0"
     kc_headless h_read read_other_ops "MESO_KC_KEEP=1 MESO_KC_READ_NONE=0 MESO_KC_OTHER_OP_REMOVAL=3"
     ;;
-longhold)
+longhold|pivothold)
     # docs/spikes/meso-hold-long-press.md: real X11 input through XTEST with key auto-repeat, so
     # Blender runs WITHOUT --enable-event-simulate (it drops every real GHOST event). Nested only:
     # XTEST input must never reach the desktop session (longhold.py refuses to run otherwise).
@@ -137,12 +138,13 @@ longhold)
     # Xwayland sends XTEST input to KWin through libei; the nested KWin (private kwinrc) accepts it
     # without a portal prompt.
     printf '[Xwayland]\nXwaylandEisNoPrompt=true\n' > "$T/xdg/kwinrc"
-    gui_session "unset WAYLAND_DISPLAY; MESO_SPIKE_NESTED=1 vblank_mode=0 TMPDIR=\"$T/tmp\" \
+    SET=longhold; [ "$WHAT" = "pivothold" ] && SET=pivot
+    gui_session "unset WAYLAND_DISPLAY; MESO_SPIKE_NESTED=1 MESO_SPIKE_SET=$SET vblank_mode=0 TMPDIR=\"$T/tmp\" \
 BLENDER_USER_CONFIG=\"$T/cfg\" BLENDER_USER_EXTENSIONS=\"$T/ext\" timeout 200 stdbuf -oL -eL \"$B\" \
 --factory-startup --debug-handlers --log event --log-level debug --python \"$HERE/longhold.py\" \
--- --out \"$OUT/longhold.json\" > \"$T/blender.log\" 2>&1
+-- --out \"$OUT/$WHAT.json\" > \"$T/blender.log\" 2>&1
 echo \"blender_exit=\$?\" >> \"$T/blender.log\""
-    cp "$T/blender.log" "$OUT/longhold.log"
+    cp "$T/blender.log" "$OUT/$WHAT.log"
     grep '^MESO_SPIKE' "$T/blender.log" | cut -c1-400
     grep -E 'Traceback|Error' "$T/blender.log" | head -10 || true
     tail -1 "$T/blender.log"
