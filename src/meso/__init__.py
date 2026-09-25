@@ -5,7 +5,7 @@ Extension entry point. No ``bl_info`` (extensions use ``blender_manifest.toml``)
 ``register()`` runs under RestrictBlend: no ``bpy.data`` / scene access here.
 """
 
-from . import keymaps, prefs
+from . import keymap_prefs, keymaps, prefs
 from .ops import actions, plaza, invoke, panes
 from .view import draw_manager
 
@@ -14,6 +14,7 @@ from .view import draw_manager
 # need the operator class, and are removed first on unregister.
 _modules = (
     prefs,
+    keymap_prefs,
     plaza,
     actions,
     invoke,

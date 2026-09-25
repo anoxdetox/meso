@@ -6,7 +6,7 @@ this module is a direct child of the root, so ``__package__`` is exactly that.
 """
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty
 from bpy.types import AddonPreferences
 
 
@@ -14,6 +14,29 @@ def _update_text_chord(self, context):
     # Imported lazily: keymaps imports this module's get_prefs.
     from . import keymaps
     keymaps.reregister_text_chord(context)
+
+
+# Keys offered by "Set all Space items" (keymap_prefs): the keyboard block of the event-type
+# enum, without the bare modifier keys (they are the modifier toggles) and Esc (it cancels
+# the Plaza). Items keep the event values, like KeyMapItem.type.
+_EXCLUDED_KEYS = frozenset({
+    'LEFT_CTRL', 'LEFT_ALT', 'LEFT_SHIFT', 'RIGHT_ALT', 'RIGHT_CTRL', 'RIGHT_SHIFT',
+    'OSKEY', 'HYPER', 'ESC',
+})
+_space_key_items: list[tuple[str, str, str, str, int]] = []
+
+
+def space_key_items():
+    """Static EnumProperty items ``(identifier, name, '', 'NONE', event value)``, built once."""
+    if not _space_key_items:
+        inside = False
+        for e in bpy.types.KeyMapItem.bl_rna.properties['type'].enum_items:
+            inside = inside or e.identifier == 'A'
+            if inside and e.identifier not in _EXCLUDED_KEYS:
+                _space_key_items.append((e.identifier, e.name, "", 'NONE', e.value))
+            if e.identifier == 'MEDIA_LAST':
+                break
+    return _space_key_items
 
 
 class MesoAddonPreferences(AddonPreferences):
@@ -162,6 +185,23 @@ class MesoAddonPreferences(AddonPreferences):
         default=False,
     )
 
+    keymap_expanded: StringProperty(
+        name="Expanded Keymap Sections",
+        description="Keymap sections shown expanded in these preferences",
+        default="",
+        options={'HIDDEN'},
+    )
+    space_items_key: EnumProperty(
+        name="Key",
+        description="Key given to every Space binding by Set All Space Items",
+        items=space_key_items(),
+        default='SPACE',
+    )
+    space_items_shift: BoolProperty(name="Shift", default=False)
+    space_items_ctrl: BoolProperty(name="Ctrl", default=False)
+    space_items_alt: BoolProperty(name="Alt", default=False)
+    space_items_oskey: BoolProperty(name="OS", default=False)
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -188,29 +228,8 @@ class MesoAddonPreferences(AddonPreferences):
         col.prop(self, "show_shortcuts")
         col.prop(self, "use_theme_colors")
         col.prop(self, "debug_timing")
-        _draw_keymap_items(context, layout)
-
-
-def _draw_keymap_items(context, layout):
-    """Show the add-on's items as merged into the user keyconfig (editable there)."""
-    import rna_keymap_ui
-    from .keymaps import KEYMAP_SET, OPERATOR_IDNAME
-
-    kc = context.window_manager.keyconfigs.user
-    if kc is None:
-        return
-    box = layout.box()
-    box.label(text="Keymap")
-    col = box.column()
-    col.use_property_split = False
-    for name, _space, _region, _kind in KEYMAP_SET:
-        km = kc.keymaps.get(name)
-        if km is None:
-            continue
-        for kmi in km.keymap_items:
-            if kmi.idname == OPERATOR_IDNAME:
-                col.context_pointer_set("keymap", km)
-                rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
+        from . import keymap_prefs  # lazy: keymap_prefs imports this module
+        keymap_prefs.draw(context, layout, self)
 
 
 def get_prefs(context):

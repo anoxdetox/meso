@@ -47,7 +47,8 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - GPU: unprefixed builtin shader names; POLYLINE shaders need `viewportSize` + `lineWidth` every draw;
   `gpu.state.blend_set('ALPHA')` then reset; `blf.size(font, px)` (2 args); scale = `preferences.system.ui_scale or 1.0`.
 - Headless caveats: `ui_scale` is 0.0; the keyconfig preset is not loaded (call `bpy.utils.keyconfig_set`);
-  timers don't fire; NEVER call `popup_menu`/popover/`call_panel` in `-b` (segfaults).
+  timers don't fire; NEVER call `popup_menu`/popover/`call_panel` in `-b` (segfaults), nor
+  `_bpy._wm_capabilities()` (segfaults; `rna_keymap_ui.draw_kmi` calls it for an expanded item).
 - Never write under `~/.config/blender` except the dev symlink. EVERY Blender launch (headless or GUI) sets
   `BLENDER_USER_CONFIG=$(mktemp -d)` and `BLENDER_USER_EXTENSIONS=$(mktemp -d)` — a GUI quit rewrites
   `config/recent-searches.txt` even with `--factory-startup`.

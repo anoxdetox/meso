@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (Plaza on Space). Status: 0–4 ✅, notes→docs merge ✅; next: prefs keymap sections.
+Phases 0–7 are in the approved plan (Plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅; next: rename to Meso Mode.
 
 ## Guiding principle — never erase native Blender features (user rule 2026-09-25)
 Meso Mode **adds** and **relocates**. It never removes a Blender feature. Every native action we displace must stay reachable, and each binding must be individually switchable off.
@@ -33,7 +33,9 @@ Meso Mode **adds** and **relocates**. It never removes a Blender feature. Every 
 - The local 939 MB Blender API HTML was removed. Docs now link to https://docs.blender.org/api/5.2/ and the source to the `blender-v5.2-release` branch (projects.blender.org, GitHub mirror). The installed `bl_ui` scripts stay the local ground truth.
 - `.gitignore` covers `/docs/reference/` and `/local/`.
 
-## Queued fix (after Phase 4 lands) — prefs keymap UI, grouped by section (user report 2026-09-25)
+## ✅ Done — prefs keymap UI, grouped by section (user report 2026-09-25)
+Implemented in `keymap_prefs.py` + `core/keymap_tree.py`; contract in `docs/phase4-interfaces.md` "Preferences keymap". 'Image Paint' is listed twice by the hierarchy (3D View and Image) and is shown once, under 3D View (first occurrence).
+
 The prefs panel lists 13 identical "Meso Mode Plaza" rows, so they look like duplicates. There are 11 Space items (Window, Frames and 9 paint/sculpt mode maps, per D1) and 2 Ctrl+Shift+Space items (Text and Console). The user wants them **by section, like Blender's Keymap editor**:
 - **Sections:** collapsible, named after the keymap, and nested like Blender's hierarchy. Examples: `Window`, `Screen ▸ Frames`, `3D View ▸ Sculpt` / `Vertex Paint` / `Weight Paint` / … , `Text`, `Console`.
 - **Nesting source:** `bl_keymap_utils.keymap_hierarchy.generate()`, not a hard-coded tree. The same parent/child layout as `rna_keymap_ui.draw_hierarchy`.
