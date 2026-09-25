@@ -9,6 +9,9 @@ A quick tap keeps Blender's original Space action.
 - Target: Blender 5.2 LTS / Python 3.13 only
 - License: GPL-3.0-or-later
 
+> **Disclaimer:** This is 100% vibe coded. We're not responsible if this code eats your homework.
+> It comes WITHOUT ANY WARRANTY (see `LICENSE`, GPL-3.0 §§15–16).
+
 ## Status
 
 **Phase 0** (skeleton, test harness, inventory and spikes). The add-on currently registers only
