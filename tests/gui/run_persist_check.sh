@@ -29,7 +29,8 @@ cp -r "$ROOT/src/meso" "$T/ext/user_default/meso"
 find "$T/ext/user_default/meso" -name __pycache__ -prune -exec rm -rf {} +
 
 headless() {  # $1 phase, $2 config dir, $3 out name
-    MESO_PERSIST_PHASE=$1 MESO_PERSIST_OUT="$T/out/$3.json" TMPDIR="$T/tmp" \
+    env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
+        MESO_PERSIST_PHASE=$1 MESO_PERSIST_OUT="$T/out/$3.json" TMPDIR="$T/tmp" \
         BLENDER_USER_CONFIG="$2" BLENDER_USER_EXTENSIONS="$T/ext" \
         timeout 120 "$B" -b --python-exit-code 1 --python "$HERE/persist_phase.py" \
         > "$T/$3.log" 2>&1
