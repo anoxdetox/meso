@@ -83,8 +83,10 @@ class MESO_OT_keymap_choice_dialog(bpy.types.Operator):
 
 
 class MESO_OT_keymap_reset(bpy.types.Operator):
-    """Undo every change you made to the Meso keymap in the keymap editor (changed keys, \
-switched-off and added items); the Plaza's Space items keep your changes"""
+    """Undo your changes to the keymaps the Meso keymap changes (changed keys, switched-off, \
+added and removed items). Blender shares each keymap's changes between keymaps: these keymaps \
+lose them under Blender and Industry Compatible too. Other keymaps and the Plaza's Space items \
+keep your changes"""
     bl_idname = "meso.keymap_reset"
     bl_label = "Reset to Default (Meso)"
     bl_options = {'INTERNAL'}

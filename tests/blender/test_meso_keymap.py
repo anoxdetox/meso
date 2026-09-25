@@ -424,7 +424,8 @@ class TestReset(MesoKeymapCase):
         plaza.type = 'F16'
         kcs.update()
         self.addCleanup(self._restore_plaza)
-        self.assertGreaterEqual(mk().modified_count(), 5)
+        self.addCleanup(self._restore_keymap, 'Transform Modal Map')
+        self.assertEqual(mk().modified_count(), 5)     # apply_menu: Object Mode and Pose
         self.assertEqual(bpy.ops.meso.keymap_reset(), {'FINISHED'})
         kcs.update()
         self.assertEqual(mk().modified_count(), 0)
@@ -437,13 +438,132 @@ class TestReset(MesoKeymapCase):
         self.assertFalse([k for k in km.keymap_items if k.type == 'F14'])
         self.assertTrue(next(k for k in km.keymap_items
                              if k.idname == 'object.duplicate_move').active)
+        # a keymap without Meso items (Industry Compatible's, shared with the user's other
+        # keymaps): not the Meso reset's
         confirm = next(k for k in kcs.user.keymaps['Transform Modal Map'].keymap_items
                        if k.propvalue == 'CONFIRM' and k.map_type == 'KEYBOARD')
-        self.assertEqual(confirm.type, confirm_type)
+        self.assertEqual(confirm.type, 'F15')
+        self.assertNotEqual(confirm_type, 'F15')
         window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
         self.assertEqual([k.type for k in window.keymap_items if k.idname == 'meso.plaza'],
                          ['F16'])
         self.assertEqual(bpy.ops.meso.keymap_reset(), {'CANCELLED'})   # nothing left
+
+    def _restore_keymap(self, name, space_type='EMPTY', region_type='WINDOW'):
+        kcs = wm().keyconfigs
+        km = kcs.user.keymaps.find(name, space_type=space_type, region_type=region_type)
+        if km is not None and km.is_user_modified:
+            km.restore_to_default()
+        kcs.update()
+
+    def _find_user(self, name):
+        return find_builtin(wm().keyconfigs.user, name)
+
+    def test_reset_gives_back_deleted_items(self):
+        """The keymap editor's X button deletes a default item (a 'remove' edit): the item is
+        gone from the user keymap, and the reset must still bring it back."""
+        self.meso_on()
+        kcs = wm().keyconfigs
+        km = self._object_mode()
+        iso = next(k for k in km.keymap_items if k.idname == 'meso.isolate_toggle')
+        km.keymap_items.remove(iso)
+        mesh = self._find_user('Mesh')
+        native = next(k for k in mesh.keymap_items if k.idname == 'mesh.select_mode')
+        native_sig = signature(native)
+        mesh.keymap_items.remove(native)
+        kcs.update()
+        self.assertEqual(mk().modified_count(), 2)
+        self.assertEqual(mk().reset_to_default(), (2, 0))
+        km = self._object_mode()
+        self.assertFalse(km.is_user_modified)
+        self.assertEqual([(k.type, k.ctrl) for k in km.keymap_items
+                          if k.idname == 'meso.isolate_toggle'], [('ONE', True)])
+        mesh = self._find_user('Mesh')
+        self.assertFalse(mesh.is_user_modified)
+        self.assertIn(native_sig, [signature(k) for k in mesh.keymap_items])
+        self.assertEqual(mk().live_ids(), LIVE_IDS)
+        self.assertEqual(mk().modified_count(), 0)
+        self.assertEqual(bpy.ops.meso.keymap_reset(), {'CANCELLED'})
+
+    def test_reset_keeps_the_edits_of_keymaps_without_meso_items(self):
+        """Blender keeps edits per keymap name for every keyconfig: an edit of 'Window' made
+        under Blender shows under Meso too, but it is not a Meso edit and survives the reset."""
+        kcs = wm().keyconfigs
+        use_keyconfig('Blender')
+        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
+        window.keymap_items.new('wm.search_menu', 'F19', 'PRESS')
+        kcs.update()
+        self.addCleanup(self._restore_keymap, 'Window')
+        self.meso_on()
+        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
+        self.assertEqual([k.idname for k in window.keymap_items if k.type == 'F19'],
+                         ['wm.search_menu'])
+        self.assertEqual(mk().modified_count(), 0)
+        self.assertEqual(bpy.ops.meso.keymap_reset(), {'CANCELLED'})
+        use_keyconfig('Blender')
+        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
+        self.assertEqual([k.idname for k in window.keymap_items if k.type == 'F19'],
+                         ['wm.search_menu'])
+
+    def test_reset_keeps_edits_that_do_not_apply_to_meso(self):
+        """An edit made under Blender to an item the Meso keymap lacks (Blender's X delete in
+        'Object Mode') leaves the keymap marked modified under Meso with nothing to reset:
+        the reset must not drop it."""
+        kcs = wm().keyconfigs
+        use_keyconfig('Blender')
+        km = self._object_mode()
+        delete = next(k for k in km.keymap_items if k.idname == 'object.delete'
+                      and k.type == 'X' and not k.shift)
+        delete.active = False
+        kcs.update()
+        self.addCleanup(self._restore_keymap, 'Object Mode')
+        self.meso_on()
+        self.assertTrue(self._object_mode().is_user_modified)
+        self.assertEqual(mk().modified_count(), 0)
+        self.assertEqual(mk().reset_to_default(), (0, 0))
+        use_keyconfig('Blender')
+        km = self._object_mode()
+        self.assertEqual([k.active for k in km.keymap_items if k.idname == 'object.delete'
+                          and k.type == 'X' and not k.shift], [False])
+
+    def test_reset_keeps_the_plazas_edits_in_a_meso_keymap(self):
+        """'Sculpt Curves' holds Meso items and a Plaza Space item: the keymap is restored whole
+        (a deleted Meso item comes back) and the Plaza item keeps the user's key."""
+        self.meso_on()
+        kcs = wm().keyconfigs
+        name = 'Sculpt Curves'
+        km = self._find_user(name)
+        ours = [(_km, k, i) for _km, k, i in mk().user_items() if i.keymap == name]
+        self.assertTrue(ours)
+        ours_sig = signature(ours[0][1])
+        km.keymap_items.remove(ours[0][1])
+        plaza = next(k for k in km.keymap_items if k.idname == 'meso.plaza')
+        plaza.type = 'F16'
+        plaza.alt = True
+        kcs.update()
+        self.addCleanup(self._restore_keymap, name)
+        self.assertEqual(mk().modified_count(), 1)
+        self.assertEqual(mk().reset_to_default(), (1, 0))
+        km = self._find_user(name)
+        self.assertIn(ours_sig, [signature(k) for k in km.keymap_items])
+        self.assertEqual([(k.type, k.alt) for k in km.keymap_items if k.idname == 'meso.plaza'],
+                         [('F16', True)])
+        self.assertEqual(mk().modified_count(), 0)
+
+    def test_reset_keeps_a_deleted_plaza_item_deleted(self):
+        self.meso_on()
+        kcs = wm().keyconfigs
+        name = 'Sculpt Curves'
+        km = self._find_user(name)
+        ours = next(k for _km, k, i in mk().user_items() if i.keymap == name)
+        ours.active = False
+        km.keymap_items.remove(next(k for k in km.keymap_items if k.idname == 'meso.plaza'))
+        kcs.update()
+        self.addCleanup(self._restore_keymap, name)
+        self.assertEqual(mk().reset_to_default(), (1, 0))
+        km = self._find_user(name)
+        self.assertEqual([k for k in km.keymap_items if k.idname == 'meso.plaza'], [])
+        self.assertTrue(all(k.active for _km, k, i in mk().user_items() if i.keymap == name))
 
     def _restore_plaza(self):
         kcs = wm().keyconfigs
@@ -452,6 +572,26 @@ class TestReset(MesoKeymapCase):
             if k.idname == 'meso.plaza' and k.is_user_modified:
                 window.restore_item_to_default(k)
         kcs.update()
+
+    def test_an_edit_under_another_keymap_replaces_the_meso_edits(self):
+        """Blender's own behaviour (decision 26, SHARED_EDITS_HINT): an edit of 'Object Mode'
+        under Blender rebuilds that keymap's stored edits against Blender, so the Meso rebind
+        of it is gone when Meso is picked again. If this ever fails, Blender changed: update
+        the hint and decision 26."""
+        self.meso_on()
+        kcs = wm().keyconfigs
+        iso = next(k for k in self._object_mode().keymap_items
+                   if k.idname == 'meso.isolate_toggle')
+        iso.type = 'F13'
+        kcs.update()
+        use_keyconfig('Blender')
+        self.addCleanup(self._restore_keymap, 'Object Mode')
+        delete = next(k for k in self._object_mode().keymap_items if k.idname == 'object.delete')
+        delete.active = False
+        kcs.update()
+        use_keyconfig('Meso')
+        self.assertEqual([k.type for k in self._object_mode().keymap_items
+                          if k.idname == 'meso.isolate_toggle'], ['ONE'])
 
     def test_reset_needs_the_meso_keymap(self):
         self.assertFalse(bpy.ops.meso.keymap_reset.poll())

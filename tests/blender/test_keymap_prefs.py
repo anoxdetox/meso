@@ -345,6 +345,37 @@ class TestMesoKeymapPrefs(_PrefsCase):
                  and o[1] == 'meso.keymap_reset']
         self.assertEqual(texts, ["Reset to Default (Meso) (2 changes)"])
 
+    def test_reset_button_counts_a_deleted_item(self):
+        self._meso_on()
+        km = self.kc.keymaps.find('Object Mode', space_type='EMPTY', region_type='WINDOW')
+        km.keymap_items.remove(next(k for k in km.keymap_items
+                                    if k.idname == 'meso.isolate_toggle'))
+        self.wm.keyconfigs.update()
+        texts = [o[3].get('text') for o in self._draw() if o[0] == 'operator'
+                 and o[1] == 'meso.keymap_reset']
+        self.assertEqual(texts, ["Reset to Default (Meso) (1 changes)"])
+
+    def test_binding_list_shows_a_deleted_item(self):
+        """A Meso item deleted in the keymap editor reads "removed", not its table key."""
+        self._meso_on()
+        tree = _mod("core.keymap_tree")
+        root = self.kp.MESO_ROOT
+        self.prefs.keymap_expanded = tree.EXPANDED_SEP.join(
+            [root] + [f"{root}/{label}" for _g, label in self.mb.GROUPS])
+        for _km, kmi, item in self.mk.user_items('pivot_toggle'):
+            km = self.kc.keymaps.find(item.keymap, space_type='EMPTY', region_type='WINDOW')
+            km.keymap_items.remove(kmi)
+        self.wm.keyconfigs.update()
+        labels = self._labels(self._draw())
+        self.assertIn("removed", labels)
+        self.assertNotIn("Insert", labels)
+
+    def test_meso_box_warns_that_keymap_edits_are_shared(self):
+        """Blender keeps one set of edits per keymap name: the box says so (editing a keymap
+        under another keymap replaces the Meso edits of it; the reset resets it there too)."""
+        text = " ".join(self._labels(self._draw()))
+        self.assertIn(self.kp.SHARED_EDITS_HINT, text)
+
     def test_binding_groups_draw_every_binding(self):
         self._meso_on()
         tree = _mod("core.keymap_tree")

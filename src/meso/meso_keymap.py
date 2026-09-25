@@ -302,8 +302,7 @@ def choose(context, new_choice: str) -> tuple[bool, str]:
 
 def _addon_item_ptrs(km, addon_kc) -> set[int]:
     """Pointers of the user-keymap copies of add-on items (the Plaza's and other add-ons')."""
-    km_addon = addon_kc.keymaps.find(km.name, space_type=km.space_type,
-                                     region_type=km.region_type) if addon_kc else None
+    km_addon = _addon_keymap(km, addon_kc)
     if km_addon is None:
         return set()
     out = set()
@@ -314,48 +313,175 @@ def _addon_item_ptrs(km, addon_kc) -> set[int]:
     return out
 
 
+def _addon_keymap(km, addon_kc):
+    if addon_kc is None:
+        return None
+    return addon_kc.keymaps.find(km.name, space_type=km.space_type, region_type=km.region_type)
+
+
+def reset_keymap_names() -> tuple[str, ...]:
+    """The keymaps "Reset to default (Meso)" covers: the ones that hold Meso items, i.e. where
+    the Meso keyconfig differs from Industry Compatible. Blender keeps one set of user edits
+    per keymap name for every keyconfig, so resetting any other keymap would reset the edits
+    of the user's own Blender / Industry Compatible keymap too."""
+    return tuple(mb.items_by_keymap())
+
+
+def _keymap_edits(ukm, dkm, addon_kc) -> tuple[int, int, int]:
+    """(modified, added, removed) user edits of the user keymap ``ukm`` against the Meso
+    keymap ``dkm``, add-on items left out. ``removed`` counts the Meso keymap's items the user
+    deleted (the keymap editor's X button): they are no longer in ``ukm``."""
+    skip = _addon_item_ptrs(ukm, addon_kc)
+    modified = added = 0
+    for kmi in ukm.keymap_items:
+        if kmi.as_pointer() in skip:
+            continue
+        if kmi.is_user_defined:
+            added += 1
+        elif kmi.is_user_modified:
+            modified += 1
+    removed = sum(1 for dkmi in dkm.keymap_items
+                  if ukm.keymap_items.find_match(dkm, dkmi) is None)
+    return modified, added, removed
+
+
+def _reset_scope(context=None):
+    """``[(name, user km, Meso km)]`` of the reset keymaps with user edits (Meso active)."""
+    keyconfigs = _keyconfigs(context)
+    kc = meso_keyconfig(context)
+    if kc is None:
+        return []
+    out = []
+    for name in reset_keymap_names():
+        ukm, dkm = _find(keyconfigs.user, name), _find(kc, name)
+        if ukm is not None and dkm is not None and ukm.is_user_modified:
+            out.append((name, ukm, dkm))
+    return out
+
+
 def modified_count(context=None) -> int:
     """How many user edits of the Meso keyconfig ``reset_to_default`` would undo."""
     if not is_meso_active(context):
         return 0
-    keyconfigs = _keyconfigs(context)
-    n = 0
-    for km in keyconfigs.user.keymaps:
-        if not km.is_user_modified:
+    addon_kc = _keyconfigs(context).addon
+    return sum(sum(_keymap_edits(ukm, dkm, addon_kc)) for _n, ukm, dkm in _reset_scope(context))
+
+
+# The fields of a keymap item the keymap editor edits (``_kmi_state`` / ``_kmi_apply``).
+_KMI_FIELDS = ('type', 'value', 'any', 'shift', 'ctrl', 'alt', 'oskey', 'hyper', 'key_modifier',
+               'direction', 'repeat', 'active')
+
+
+def _props_state(kmi) -> list:
+    ptr = kmi.properties
+    out = []
+    if ptr is None:
+        return out
+    for prop in ptr.bl_rna.properties:
+        name = prop.identifier
+        if name == 'rna_type' or prop.type in ('POINTER', 'COLLECTION') \
+                or not ptr.is_property_set(name):
             continue
-        skip = _addon_item_ptrs(km, keyconfigs.addon)
-        n += sum(1 for kmi in km.keymap_items if kmi.as_pointer() not in skip
-                 and (kmi.is_user_defined or kmi.is_user_modified))
-    return n
+        value = getattr(ptr, name)
+        if getattr(prop, 'is_array', False) or (prop.type != 'STRING' and hasattr(value, '__len__')
+                                                 and not isinstance(value, (set, str))):
+            value = tuple(value)
+        out.append((name, value))
+    return out
+
+
+def _kmi_state(kmi) -> dict:
+    state = {name: getattr(kmi, name) for name in _KMI_FIELDS}
+    state['idname'] = kmi.idname
+    state['props'] = _props_state(kmi)
+    return state
+
+
+def _kmi_apply(kmi, state: dict) -> None:
+    if kmi.idname != state['idname']:
+        kmi.idname = state['idname']
+    for name in _KMI_FIELDS:
+        if getattr(kmi, name) != state[name]:
+            try:
+                setattr(kmi, name, state[name])
+            except (AttributeError, TypeError, ValueError):
+                pass
+    ptr = kmi.properties
+    for name, value in state['props']:
+        try:
+            if getattr(ptr, name) != value:
+                setattr(ptr, name, value)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+
+def _addon_edits(ukm, addon_kc) -> list:
+    """``[(add-on item index, state | None)]``: the user's edits of the add-on items of
+    ``ukm`` (None = the user deleted it), in the add-on keymap's order."""
+    akm = _addon_keymap(ukm, addon_kc)
+    if akm is None:
+        return []
+    out = []
+    for i, akmi in enumerate(akm.keymap_items):
+        found = ukm.keymap_items.find_match(akm, akmi)
+        if found is None:
+            out.append((i, None))
+        elif found.is_user_modified:
+            out.append((i, _kmi_state(found)))
+    return out
+
+
+def _restore_addon_edits(ukm, addon_kc, edits) -> None:
+    akm = _addon_keymap(ukm, addon_kc)
+    if akm is None:
+        return
+    akmis = akm.keymap_items
+    for i, state in edits:
+        if i >= len(akmis):
+            continue
+        found = ukm.keymap_items.find_match(akm, akmis[i])
+        if found is None:
+            continue
+        if state is None:
+            ukm.keymap_items.remove(found)
+        else:
+            _kmi_apply(found, state)
 
 
 def reset_to_default(context=None) -> tuple[int, int]:
-    """"Reset to default (Meso)": undo every user edit of the Meso keyconfig.
+    """"Reset to default (Meso)": undo every user edit of the Meso keyconfig's own keymaps.
 
-    Each modified item is restored (``restore_item_to_default``) and each user-added item is
-    removed, in every keymap, modal maps included. Add-on items (the Plaza's Space items and
-    other add-ons') keep the user's edits. Only while Meso is active: the user keymap edits are
-    stored per keymap name, so a reset under another keymap would reset that keymap's edits.
-    Returns (restored, removed).
+    Covers the keymaps that hold Meso items (``reset_keymap_names``): the others are Industry
+    Compatible's unchanged, and their edits are shared with the user's other keymaps. Each
+    covered keymap with an edit (a changed, switched-off, added or deleted item) is restored
+    whole (``KeyMap.restore_to_default``, which also brings back the items the user deleted);
+    then the user's edits of add-on items there (the Plaza's Space items, other add-ons') are
+    put back. Keymaps whose stored edits do not apply to the Meso keymap (made under another
+    keymap) are left alone. Only while Meso is active. Returns (restored, removed): restored =
+    changed + deleted items given back, removed = user-added items.
     """
     if not is_meso_active(context):
         return 0, 0
     keyconfigs = _keyconfigs(context)
     keyconfigs.update()
+    addon_kc = keyconfigs.addon
+    todo = []
+    for name, ukm, dkm in _reset_scope(context):
+        modified, added, removed = _keymap_edits(ukm, dkm, addon_kc)
+        if modified or added or removed:
+            todo.append((name, modified + removed, added, _addon_edits(ukm, addon_kc)))
     restored = removed = 0
-    for km in keyconfigs.user.keymaps:
-        if not km.is_user_modified:
+    for name, n_restored, n_removed, addon_edits in todo:
+        # restore_to_default rebuilds the user keyconfig: never reuse an older km pointer.
+        ukm = _find(keyconfigs.user, name)
+        if ukm is None:
             continue
-        skip = _addon_item_ptrs(km, keyconfigs.addon)
-        for kmi in list(km.keymap_items):
-            if kmi.as_pointer() in skip:
-                continue
-            if kmi.is_user_defined:
-                km.keymap_items.remove(kmi)
-                removed += 1
-            elif kmi.is_user_modified:
-                km.restore_item_to_default(kmi)
-                restored += 1
+        ukm.restore_to_default()
+        ukm = _find(keyconfigs.user, name)
+        if ukm is not None and addon_edits:
+            _restore_addon_edits(ukm, addon_kc, addon_edits)
+        restored += n_restored
+        removed += n_removed
     keyconfigs.update()
     if restored or removed:
         _mark_dirty(context)

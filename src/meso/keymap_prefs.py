@@ -229,14 +229,16 @@ def _wrapped(layout, text, width=WRAP_CHARS, **kwargs):
         layout.label(text=line, **(kwargs if i == 0 else {}))
 
 
-def binding_keys(b: mb.Binding, user) -> list[str]:
+def binding_keys(b: mb.Binding, user, meso_active: bool = False) -> list[str]:
     """The keys of a binding's items: as the user has them in the active Meso keymap (``user``:
-    ``{id(Item): user kmi}``), "off" for a switched-off item; the table keys otherwise."""
+    ``{id(Item): user kmi}``), "off" for a switched-off item, "removed" for an item the user
+    deleted in the keymap editor (``meso_active`` and not in ``user``); the table keys
+    otherwise."""
     keys = []
     for item in b.items:
         kmi = user.get(id(item))
         if kmi is None:
-            text = item.key.label()
+            text = "removed" if meso_active else item.key.label()
         elif not kmi.active:
             text = "off"
         else:
@@ -248,11 +250,11 @@ def binding_keys(b: mb.Binding, user) -> list[str]:
     return list(dict.fromkeys(keys))
 
 
-def _draw_binding(layout, b, user):
+def _draw_binding(layout, b, user, meso_active=False):
     col = layout.column(align=True)
     split = col.split(factor=0.55, align=True)
     split.label(text=b.label)
-    split.label(text=" / ".join(binding_keys(b, user)))
+    split.label(text=" / ".join(binding_keys(b, user, meso_active)))
     for line in displaced_lines(b):
         hint = col.column(align=True)
         hint.active = False
@@ -304,6 +306,12 @@ _GROUP_EXTRAS = {
 
 KEYMAP_EDITOR_HINT = ("Switch off, rebind or add Meso keys in Preferences > Keymap (the Meso "
                       "keymap), or in the sections below; Reset to Default (Meso) undoes it.")
+# Blender keeps one set of edits per keymap name, shared by every keymap (Meso, Blender,
+# Industry Compatible), and rebuilds it against the active keymap on every edit.
+SHARED_EDITS_HINT = ("Blender stores one set of changes per keymap name for all keymaps: "
+                     "changing a keymap (e.g. Object Mode) while Blender or Industry Compatible "
+                     "is active replaces your Meso changes of that keymap, and Reset to Default "
+                     "(Meso) resets its changes there too.")
 
 
 def _draw_meso_keymap(context, layout, addon_prefs, expanded):
@@ -345,6 +353,7 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     hint = col.column(align=True)
     hint.active = False
     _wrapped(hint, KEYMAP_EDITOR_HINT)
+    _wrapped(hint, SHARED_EDITS_HINT)
     live = meso_keymap.live_bindings(context)
     for message in mb.warnings(live):
         warn = col.column(align=True)
@@ -364,7 +373,7 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
             continue
         body = _indented(sub, 1)
         for b in bindings:
-            _draw_binding(body, b, user)
+            _draw_binding(body, b, user, meso_active)
         for prop in _GROUP_EXTRAS.get(group_id, ()):
             body.prop(addon_prefs, prop)
         if group_id == 'PROPERTIES':
