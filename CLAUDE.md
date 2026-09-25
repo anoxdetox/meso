@@ -27,7 +27,7 @@ click/modifier conventions.
 $PY -m unittest discover -s tests/unit -t .                          # pure tests (no bpy)
 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 $B --command extension validate src/meso                          # positional path
-timeout 700 tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland; ~4-8 min)
+timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules; ~5-8 min)
 timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Keymap restart check (real start-ups, temp config)
 $PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate docs/inventory_5_2.json (subprocesses)
 $B --command extension build --source-dir src/meso --output-dir dist
@@ -75,7 +75,8 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - GUI spikes: drive with `--enable-event-simulate` + a timer state machine that quits itself, wrapped in `timeout`;
   if the desktop session is locked, run inside `kwin_wayland --virtual` (see `tools/spikes/*/run.sh`); `vblank_mode=0` for OpenGL.
   Scenarios that start a transform run Blender on Xwayland (`--xwayland`, no `WAYLAND_DISPLAY`); on the nested
-  Wayland backend a cursor grab segfaults. A fresh enable in a GUI scenario opens the first-enable keymap question
+  Wayland backend a cursor grab segfaults. A `tests/gui/scenarios_*.py` module whose scenarios start a transform
+  sets `NEEDS_GRAB = True`: `run_gui_tests.sh` then runs it in its second (Xwayland) session only. A fresh enable in a GUI scenario opens the first-enable keymap question
   after 0.5 s: `gui_driver.enable_addon()` marks it asked unless `prompt=True`.
 - Phase 0 decisions in `docs/spikes.md` (D1–D5) supersede the plan where they differ.
 - IP hygiene: never commit third-party screenshots, icons, docs text or sampled colours; never implement

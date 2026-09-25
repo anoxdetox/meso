@@ -41,12 +41,22 @@ its bindings are add-on items, each with its own switch in the preferences.
 | Ctrl 1 | Isolate the selection, again to go back: local view in Object Mode; hide the unselected elements in Edit Mesh, Curve, Armature, Pose and Metaball, and give back exactly what was hidden before | 3D View |
 | Ctrl Alt 1 | Vertex select mode with expand (Industry Compatible's Ctrl 1; Ctrl click on the vertex select button does the same) | Edit Mesh |
 | Ctrl A | Next Properties tab (Object ▸ Object Data ▸ Modifiers ▸ Material, set in the preferences); with no Properties editor on the screen, the sidebar Item tab | 3D View (not Sculpt or text editing) |
+| Hold X / C / V / J | Hold before a drag (G-style transform, tool drag or gizmo drag) to snap to the grid / edges / vertices / in increments (J also for rotate and scale); several keys together snap to all of them. Your snap settings come back when the drag ends. A quick tap still does what the key does in Industry Compatible: X toggles snapping, C picks the Cursor tool, V opens the View pie (click style); J has nothing | 3D View: Object, Edit, Pose and Particle modes |
+| Insert | Toggle Affect Only Origins (move origins, not the shapes) | Object Mode |
+| Hold D | Affect Only Origins while held; a tap still picks the Annotate tool. **Off by default** (switch it on in the preferences) | Object Mode |
 
 In the other editors Ctrl A still selects all; in the 3D View select all is Ctrl Shift A. Shift I
 stays local view and Ctrl H / Shift H / Alt H keep hiding and revealing. In the Outliner, Node
 Editor, Clip Editor, Info and the channel lists, Ctrl Shift A stays Industry Compatible's Deselect All: Alt D cannot reach those editors, because
 Blender uses it there to remove the driver of the property under the mouse. Alt D over a driven
 property still removes its driver everywhere.
+
+A snap hold snaps one drag: when that drag ends your own snap settings are back, even with the
+key still down. Every snap option stays in the header and in the Plaza's Tool Settings row, so
+nothing depends on the hold keys. During a drag, hold Ctrl to invert snapping (Blender's own
+key). Holding J *during* a drag cannot do that: add-ons cannot add keys to Blender's Transform
+Modal Map. You can add J there yourself in Preferences ▸ Keymap ▸ Transform Modal Map (Snap
+Invert).
 
 Target: Blender 5.2 LTS / Python 3.13 only. Extension id `meso`, operators `meso.*`.
 

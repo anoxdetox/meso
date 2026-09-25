@@ -214,6 +214,29 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
 - `view3d.localview` enters and leaves local view from Edit Lattice too; `PoseBone.select` and `PoseBone.hide` are
   the pose-mode flags `pose.hide(unselected=True)` uses (there is no `Bone.select` in 5.2).
 
+**Meso Keymap, step 3 (headless `test_snap_hold_blender.py`; GUI `scenarios_snap_hold.py` on Xwayland, 5.2.2):**
+- `ToolSettings.snap_elements` reads as the base+individual union and a write splits it exactly (also an
+  individual-only set such as `{'FACE_PROJECT'}`); writing `set()` is silently ignored, so a snapshot is never empty.
+- A pre-drag hold on X lands `transform.translate` (started like G), a Tweak-tool drag, a Move-gizmo drag and an Edit
+  Mesh transform on the grid; the control drag without the key does not. The user's state (non-empty individual
+  set, `snap_target` MEDIAN) comes back exactly when the transform ends, with the key released after it, during it
+  (the transform swallows the release) and on Esc.
+- On X11 the main loop can stall about 0.5 s when a drag transform confirms; every `bpy.app.timers` function waits,
+  and the one due first after the stall runs first. GUI checks after a drag wait for the hold watcher (up to 2 s).
+- Tap replays from a hold modal's key release work: `wm.context_toggle` (X), `wm.tool_set_by_id(cycle=True)` (C, D),
+  and `wm.call_menu_pie('VIEW3D_MT_view_pie')` (V) opens the pie and it stays open click-style.
+- A pie opened by another key during a hold (IC Period, the pivot pie) is not a modal operator and swallows the
+  hold key's release; the hold modal gets the next press and release of that key.
+- Space during a hold opens the Plaza (a foreign modal: the hold writes nothing while it is open); the Plaza
+  swallows the hold key's release and the watcher restores once the Plaza closes.
+- `event_simulate` has no repeat flag, and a simulated Shift RMB drag in IC never starts the cursor drag (its PRESS
+  `view3d.cursor3d` item handles the press), with or without Meso items: both are real-input checks.
+- Plaza fallbacks: the Object Mode Tool Settings row holds every `snap_elements_base` / `snap_elements_individual`
+  member, all `snap_target` values and Affect Move/Rotate/Scale in its Snap cascade, and Affect Only Origins in its
+  "Options" cascade (`VIEW3D_PT_tools_object_options`); the Edit Mesh row the same snap set. Headless, the Options
+  cascade can be missing after a test toggles the sidebar: the tool header region then has no size and is not
+  recorded (never in the GUI).
+
 ---
 
 ## 4. Recorder

@@ -113,6 +113,45 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
   6. The prefs Properties group shows "Cycle: …", the valid tab ids and an alert for unknown ids under the field.
   7. The sidebar timer gives up quietly after 5 tries (the Item tab needs an active object). Ctrl A over a sidebar
      already on Item does nothing and returns CANCELLED.
+- **Step 3 implemented** (pre-drag snapping, D/Insert pivot, Plaza snap fallbacks; hold-J inversion stays an API
+  blocker): `core/snap_hold.py`, `ops/snap_hold.py`, registered after `properties_cycle` in `__init__._modules`.
+  Live bindings added: `snap_hold_grid`, `snap_hold_edge`, `snap_hold_vertex`, `snap_hold_increment`, `pivot_toggle`
+  (`pivot_hold` ships off, C3). Tests: `tests/unit/test_snap_hold.py`, `tests/blender/test_snap_hold_blender.py`
+  (incl. the Plaza Tool Settings fallback test), the Snapping/Pivot part of `tests/blender/test_keymap_prefs.py`,
+  and `tests/gui/scenarios_snap_hold.py` (G8 `mk_snap_drag`, G9 `mk_snap_taps`, G11 `mk_snap_teardown`, G12
+  `mk_snap_pie_limit`, G13 `mk_pivot`, `mk_protected_features`). `record/rows.py` is unchanged: the Object Mode
+  Tool Settings row already has Affect Only Origins (its "Options" cascade, `VIEW3D_PT_tools_object_options`).
+- **Deviations from this contract in step 3** (the sections below are updated where marked):
+  1. **Write guard = any foreign modal in any window** (`foreign_running`, used for every write), not only one
+     newer than the hold (`foreign_above` stays as a helper). A hold never starts while a foreign modal runs (its
+     invoke returns PASS_THROUGH, so nothing is written under it either).
+  2. **The hold items carry a `keymap` property** (their own keymap name). The tap replay looks up the native item
+     in that keymap of the user keyconfig, then in '3D View' (a mode map item, e.g. C, falls back there).
+  3. **Tap rule:** a tap also needs no other hold key down (`step(..., others_held=)`); a quick X while V is held
+     only changes the snapped elements.
+  4. **ENDED phase:** an own-key auto-repeat is swallowed; a new press (the release went unseen) finishes the old
+     operator and passes on, so the keymap starts a new hold.
+  5. **`HoldSession.user_set`**: Insert during a D hold changes the value the release restores (it does not fight
+     the overlay). `HoldSession.written` is the set of fields any overlay of the session touched.
+  6. **Watcher reset:** after 3 ticks with a session or state but no hold operator in any window (a class
+     unregistered while it ran, a handler killed without `cancel()`), the watcher ends everything.
+  7. **Teardown writes follow the rule too:** `load_pre` and `save_pre` skip the write (logged once) while a foreign
+     modal runs; `unregister()` does not count Meso's own modals (the Plaza is torn down with it) but a native
+     transform blocks it (logged).
+  8. **GUI runner:** `tests/gui/run_gui_tests.sh` runs two sessions by default: the nested Wayland session without
+     the scenario modules that set `NEEDS_GRAB = True`, then a nested `kwin_wayland --virtual --xwayland` session
+     (Blender on X11) with only those. `--xwayland` runs everything in one Xwayland session; `--host` everything
+     on the host display.
+  9. **Not simulable** (manual checks): key auto-repeat of a held X during a drag (G10/UH1: `event_simulate` has no
+     repeat flag; a second simulated X press while held is swallowed, checked in G9), and D + LMB annotate while D
+     is held (UH2: simulated events never set the held-key modifier). File load during a hold (G11) is covered
+     headless (`load_pre`) and by the API spike: the GUI driver's timer does not survive a file load.
+  10. **G12 result:** a pie opened by another key during a hold (IC's Period pivot pie) swallows the hold key's
+      release; the overlay stays until the next press and release of that key (or Esc, or a window deactivate),
+      which restore exactly. The Tool Settings row shows the momentary state meanwhile.
+  11. **Shift RMB cursor drag:** under `event_simulate`, IC's PRESS `view3d.cursor3d` item keeps the CLICK_DRAG
+      cursor drag from starting, with or without Meso's bindings; the sweep checks it behaves the same with every
+      binding off and on (a real-mouse check is listed for the user).
 
 ## Delivery model (user decision 1)
 - **On the first enable** the user chooses: **Use the Meso Keymap** (select IC + register Meso's bindings) or **Keep my
@@ -436,8 +475,10 @@ transform happened), `release_pending`. Events → effects:
   before the first own id (guards the `None` entry of an unregistered class, spike b).
 - **Watcher**: one `bpy.app.timers` function, `persistent=True`, 0.03 s, running while a session is active. It only
   **reads** `window.modal_operators` of every window. It writes tool settings only when no foreign modal runs in any
-  window. **No timer ever writes snap settings while a native transform runs.**
-- **Tap replay**: the native item is looked up at tap time in `wm.keyconfigs.user`: same keymap, same type, value and
+  window. **No timer ever writes snap settings while a native transform runs.** (Step 3: every write, also from the
+  modal and the teardown handlers, uses the same any-foreign guard; Status, step 3 deviations 1 and 7.)
+- **Tap replay**: the native item is looked up at tap time in `wm.keyconfigs.user`: same keymap (the hold item's
+  `keymap` property, then '3D View'; step 3 deviation 2), same type, value and
   modifiers, active, idname not `meso.*`, first in order (so a user's edit of the native item is honoured). It runs
   with `INVOKE_DEFAULT` and its set properties, in the modal's context. IC today: X → `wm.context_toggle(
   tool_settings.use_snap)`, C/D → `wm.tool_set_by_id(builtin.cursor|builtin.annotate, cycle=True)`, V →
@@ -453,7 +494,7 @@ transform happened), `release_pending`. Events → effects:
 the baseline and `save_post` puts the overlay back, so a saved file never holds the temporary state; 6.
 `ops/snap_hold.unregister()` from module state (defensive: skip with a log line if `bpy.data` is restricted).
 Known limit: a pie or popup opened by another key during a hold swallows the release and is not a modal operator;
-the overlay then stays until the next own-key press/release, ESC or window deactivate (GUI case G12). Autosave may
+the overlay then stays until the next own-key press/release, ESC or window deactivate (GUI case G12, verified in step 3 with IC's Period pivot pie). Autosave may
 write the momentary state (it does not run `save_pre`); the Tool Settings row shows it.
 
 ### Hold-J snap inversion during a transform: API blocker
@@ -470,7 +511,8 @@ every `snap_elements_base` and `snap_elements_individual` member, Snap Base / `s
 VIEW3D_PT_snapping content). A headless test walks the Object Mode and Edit Mesh Tool Settings models and asserts
 every member and `snap_target`, the three Affect toggles, and, in Object Mode, **Affect Only Origins**
 (`use_transform_data_origin`, a `.objectmode` Options child panel) are present. If Affect Only Origins is missing,
-`record/rows.py` adds it as a toggle item after the snap items.
+`record/rows.py` adds it as a toggle item after the snap items. Step 3: it is present (the "Options" cascade), so
+`record/rows.py` is unchanged (`tests/blender/test_snap_hold_blender.py`, `TestPlazaSnapFallbacks`).
 
 ## Isolate (Ctrl+1; `core/isolate.py`, `ops/isolate.py`)
 
@@ -644,7 +686,7 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
 - Files: `core/isolate.py`, `core/properties_cycle.py`, `ops/isolate.py`, `ops/properties_cycle.py`, tests, GUI G5–G6.
 - Bindings live: `isolate`, `reloc_mesh_vert_expand`, `properties_cycle`.
 
-### Step 3 — pre-drag snapping, hold-J (documented blocker), D/Insert pivot, Plaza snap fallbacks
+### Step 3 — pre-drag snapping, hold-J (documented blocker), D/Insert pivot, Plaza snap fallbacks (✅ implemented, see Status)
 - Files: `core/snap_hold.py`, `ops/snap_hold.py`, `record/rows.py` (only if Affect Only Origins is missing), the
   `--xwayland` runner flag, tests, GUI G8–G13 and the protected-feature sweep.
 - Bindings live: `snap_hold_grid`, `snap_hold_edge`, `snap_hold_vertex`, `snap_hold_increment`, `pivot_toggle`,
@@ -699,3 +741,11 @@ anything in Phase 5+.
       those six editors.
     - (c) Take Ctrl Shift A for select all there too and give deselect another key in those editors (a new
       inconsistency; no free candidate was audited).
+24. **New in step 3 (DEFAULT in force: a).** Every foreign modal operator ends a hold when it finishes, not only
+    transforms: an orbit, pan or zoom drag (MMB, Alt+LMB), a box select or the Plaza during a hold also give the
+    snap settings back when they end, so a drag after them does not snap until the key is pressed again. Options:
+    - (a) **In force now:** any foreign modal ends the hold (the verified "one snapped drag per hold" rule; simple
+      and never leaves snapping on).
+    - (b) Navigation modals (`VIEW3D_OT_rotate`, `_move`, `_zoom`, `_dolly`, ...) keep the hold alive (still no
+      writes while they run). Risk: a key released during the orbit is swallowed, so snapping stays on until the
+      next tap of the key.
