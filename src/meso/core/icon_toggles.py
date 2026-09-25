@@ -10,10 +10,12 @@ icons on one row would read the same. ``record.dropdown.Converter`` uses this mo
 1. name an icon-only toggle by its icon family (:data:`ICON_FAMILY_MEANINGS`, e.g.
    ``HIDE_ON`` / ``HIDE_OFF`` -> 'Visible'); on a layout row after a label the item reads
    '<row label> <meaning>' (:func:`row_toggle_label`); an unknown family keeps the RNA name;
-2. collapse a toggle table (:func:`table_runs`): at least :data:`MIN_TABLE_ROWS` consecutive
+2. find toggle tables (:func:`table_runs`): at least :data:`MIN_TABLE_ROWS` consecutive
    rows, each ``[label T] + k`` icon-only toggles with the same ``k`` and the same known,
-   distinct icon family per column, become one cascade per column (labelled by the column
-   meaning) that lists the row labels as toggles.
+   distinct icon family per column. They are drawn as a table, as natively: a column header
+   of short titles (:func:`column_titles`: 'Sel', 'Vis', ...; the Plaza draws text only, no
+   icons) and one row per element with a checkbox per column
+   (``core.dropdown_model.DD_COLUMN_HEADER`` / ``DD_TOGGLE_ROW``).
 
 Pure Python (no bpy): unit-tested with the bundled interpreter.
 """
@@ -33,6 +35,18 @@ ICON_FAMILY_MEANINGS: dict[str, str] = {
     'RESTRICT_VIEW': 'Show in Viewports',
 }
 _STATE_SUFFIXES = ('_ON', '_OFF')
+
+# Icon family -> the short column title of a toggle table header (English msgid). The
+# header stands in for the native column icons, so it must stay narrow.
+ICON_FAMILY_TITLES: dict[str, str] = {
+    'HIDE': 'Vis',
+    'RESTRICT_SELECT': 'Sel',
+    'RESTRICT_RENDER': 'Render',
+    'RESTRICT_VIEW': 'View',
+}
+# A fallback column title (an unknown family: :func:`short_title` of the RNA name) keeps at
+# most this many characters.
+SHORT_TITLE_MAX = 6
 
 # A toggle table needs at least this many consecutive rows (fewer stay inline rows).
 MIN_TABLE_ROWS = 3
@@ -79,8 +93,8 @@ class RowShape:
 
     @property
     def tabular(self) -> bool:
-        """A label, at least one toggle, every family known and no family twice (the
-        column cascades would share a label)."""
+        """A label, at least one toggle, every family known and no family twice (two
+        columns would share a title)."""
         fams = self.families
         return (bool(self.label) and bool(fams) and all(f in ICON_FAMILY_MEANINGS for f in fams)
                 and len(set(fams)) == len(fams))
@@ -110,10 +124,28 @@ def table_runs(shapes: Sequence[RowShape | None],
     return runs
 
 
-def column_meanings(shape: RowShape) -> tuple[str, ...]:
-    """The meaning of each column of a tabular row, in draw order (cascade labels)."""
-    return tuple(ICON_FAMILY_MEANINGS.get(f, '') for f in shape.families)
+def short_title(name: str | None, max_len: int = SHORT_TITLE_MAX) -> str:
+    """A short column title from a longer name: its first word, cut to ``max_len``
+    characters ('Show in Viewports' -> 'Show', 'Selectable' -> 'Select'); '' for ''."""
+    words = (name or '').split()
+    if not words:
+        return ''
+    return words[0][:max(1, int(max_len))]
 
 
-__all__ = ('ICON_FAMILY_MEANINGS', 'MIN_TABLE_ROWS', 'RowShape', 'column_meanings',
-           'icon_family', 'icon_meaning', 'row_toggle_label', 'table_runs')
+def column_title(family: str, name: str = '') -> str:
+    """The header title of a toggle-table column: :data:`ICON_FAMILY_TITLES` of ``family``,
+    else :func:`short_title` of ``name`` (the RNA name of the column's property)."""
+    return ICON_FAMILY_TITLES.get(family or '', '') or short_title(name)
+
+
+def column_titles(shape: RowShape, names: Sequence[str] = ()) -> tuple[str, ...]:
+    """The header title of each column of a tabular row, in draw order; ``names[i]`` is the
+    fallback name of column ``i`` (:func:`column_title`)."""
+    return tuple(column_title(family, names[i] if i < len(names) else '')
+                 for i, family in enumerate(shape.families))
+
+
+__all__ = ('ICON_FAMILY_MEANINGS', 'ICON_FAMILY_TITLES', 'MIN_TABLE_ROWS', 'RowShape',
+           'SHORT_TITLE_MAX', 'column_title', 'column_titles', 'icon_family', 'icon_meaning',
+           'row_toggle_label', 'short_title', 'table_runs')

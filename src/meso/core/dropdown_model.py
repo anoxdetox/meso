@@ -50,8 +50,15 @@ DD_NATIVE = 'native'            # hands ``action`` off natively; ends the plaza.
                                 # native submenu: 'Label' + '▸' (has_arrow); a popover inside a
                                 # menu / an unlistable enum: 'Label…'
 DD_NATIVE_MORE = 'native_more'  # trailing 'More…'; hands the WHOLE container off natively
+DD_TOGGLE_ROW = 'toggle_row'    # a toggle-table row: label left + one check box per column
+                                # (``cells``); a click on a cell applies that cell in place,
+                                # a click on the label does nothing (as natively)
+DD_COLUMN_HEADER = 'column_header'  # a toggle-table header: dimmed column titles
+                                # (``columns``) centred over the check boxes; never hit
 DD_KINDS = (DD_OP, DD_SUBMENU, DD_ENUM_CASCADE, DD_TOGGLE, DD_RADIO, DD_FLAG, DD_VALUE,
-            DD_LABEL, DD_SEPARATOR, DD_NATIVE, DD_NATIVE_MORE)
+            DD_LABEL, DD_SEPARATOR, DD_NATIVE, DD_NATIVE_MORE, DD_TOGGLE_ROW, DD_COLUMN_HEADER)
+# Kinds laid out as toggle-table lines (shared column positions; ``core.dropdown_geometry``).
+TABLE_KINDS = frozenset({DD_TOGGLE_ROW, DD_COLUMN_HEADER})
 # Kinds drawn with an arrow in the right column.
 CASCADE_KINDS = frozenset({DD_SUBMENU, DD_ENUM_CASCADE})
 # DropdownItem.source values (``record.recorder.REC_MENU`` / ``REC_NATIVE``; repeated here,
@@ -61,7 +68,7 @@ NATIVE_CASCADE_SOURCES = frozenset({'menu', 'native'})
 # Kinds drawn with a glyph in the left check column (``checked`` is a bool for them).
 CHECK_KINDS = frozenset({DD_TOGGLE, DD_RADIO, DD_FLAG})
 # Kinds that never react to the pointer (hover highlight none, clicks ignored).
-PASSIVE_DD_KINDS = frozenset({DD_LABEL, DD_SEPARATOR})
+PASSIVE_DD_KINDS = frozenset({DD_LABEL, DD_SEPARATOR, DD_COLUMN_HEADER})
 
 # --- DropdownModel.coverage (docs/phase4-interfaces.md "Native fallback policy") ---
 COVERAGE_CUSTOM = 'custom'      # drawn fully custom
@@ -83,10 +90,9 @@ NATIVE_ONLY_MENUS = frozenset({MODE_SWITCH_MENU})
 # open like the toggles next to it (ROLE_APPLY), as Blender's popover does.
 ITEM_SOURCE_PANEL = 'panel_content'
 
-# DropdownItem.source of a DD_ENUM_CASCADE that collapses one column of a toggle table
-# (``core.icon_toggles.table_runs``: the eye / arrow columns of Selectability & Visibility);
-# its children are DD_TOGGLE items labelled by the row labels (ROLE_APPLY: a pick keeps the
-# chain open).
+# DropdownItem.source of the DD_COLUMN_HEADER / DD_TOGGLE_ROW items of a toggle table
+# (``core.icon_toggles.table_runs``: the arrow / eye columns of Selectability & Visibility);
+# a cell click is ROLE_APPLY (the chain stays open).
 ITEM_SOURCE_TOGGLE_TABLE = 'toggle_table'
 
 # --- DropdownSource.kind ---
@@ -126,6 +132,24 @@ ZONES = (ZONE_ITEM, ZONE_PANEL, ZONE_LABEL, ZONE_STRIP, ZONE_NONE)
 
 
 @dataclass(frozen=True, slots=True)
+class DropdownCell:
+    """One check box of a DD_TOGGLE_ROW (plain data): the toggle of one table column.
+
+    ``label``: the long name of the toggle ('Mesh Visible': run records, tests; never
+    drawn). ``checked``: the current value. ``active`` False: dimmed but clickable (the
+    native Selectable cell of a hidden object type). ``enabled`` False: dimmed, never runs.
+    ``action``: what a click applies in place (ACTION_TOGGLE / ACTION_OPERATOR, as a
+    DD_TOGGLE); not part of ``hash()``.
+    """
+
+    label: str = ''
+    checked: bool = False
+    active: bool = True
+    enabled: bool = True
+    action: Action | None = field(default=None, hash=False)
+
+
+@dataclass(frozen=True, slots=True)
 class DropdownItem:
     """One row of a dropdown panel (plain data).
 
@@ -144,12 +168,14 @@ class DropdownItem:
       Not part of ``hash()``.
     - ``submenu``: DD_SUBMENU: the child Menu idname ('' otherwise).
     - ``children``: DD_ENUM_CASCADE: the inline child items (DD_RADIO for a property enum,
-      DD_OP for ``operator_menu_enum``, DD_TOGGLE for a toggle-table column), shown by
-      :func:`enum_child_model`.
+      DD_OP for ``operator_menu_enum``), shown by :func:`enum_child_model`.
     - ``heading``: DD_LABEL drawn as a section title (subpanel titles) rather than a plain
       label; both are dimmed and non-clickable.
     - ``source``: the recorder kind it came from (``record.recorder.REC_*``; coverage and
       debugging only).
+    - ``cells``: DD_TOGGLE_ROW: one :class:`DropdownCell` per table column, in draw order
+      (``label`` is the row label; ``action`` None: a click on the row itself does nothing).
+    - ``columns``: DD_COLUMN_HEADER: the column titles, in draw order ('Sel', 'Vis').
     """
 
     kind: str
@@ -163,10 +189,13 @@ class DropdownItem:
     children: tuple[DropdownItem, ...] = field(default=(), hash=False)
     heading: bool = False
     source: str = ''
+    cells: tuple[DropdownCell, ...] = ()
+    columns: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.children, tuple):
-            object.__setattr__(self, 'children', tuple(self.children))
+        for name in ('children', 'cells', 'columns'):
+            if not isinstance(getattr(self, name), tuple):
+                object.__setattr__(self, name, tuple(getattr(self, name)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,6 +343,12 @@ def item_role(item: DropdownItem | None) -> str:
                                            -> ROLE_PASSIVE)
     DD_OP                                  ROLE_RUN
     DD_TOGGLE, DD_FLAG                     ROLE_APPLY
+    DD_TOGGLE_ROW                          ROLE_APPLY when a cell is (:func:`cell_role`;
+                                           keyboard navigation stops there), else
+                                           ROLE_PASSIVE. The pointer target of a
+                                           row is its CELL: ``cell_role`` of the
+                                           hovered cell, ROLE_PASSIVE on the label
+    DD_COLUMN_HEADER                       ROLE_PASSIVE
     DD_RADIO                               ROLE_APPLY_CLOSE (``source`` ==
                                            :data:`ITEM_SOURCE_PANEL`: ROLE_APPLY)
     DD_VALUE, DD_NATIVE, DD_NATIVE_MORE    ROLE_HANDOFF
@@ -329,6 +364,8 @@ def item_role(item: DropdownItem | None) -> str:
         return ROLE_SUBMENU if item.submenu else ROLE_PASSIVE
     if kind == DD_ENUM_CASCADE:
         return ROLE_SUBMENU if item.children else ROLE_PASSIVE
+    if kind == DD_TOGGLE_ROW:
+        return ROLE_APPLY if ROLE_APPLY in cell_roles(item) else ROLE_PASSIVE
     if item.action is None:
         return ROLE_PASSIVE
     if kind == DD_OP:
@@ -340,6 +377,39 @@ def item_role(item: DropdownItem | None) -> str:
     if kind in (DD_VALUE, DD_NATIVE, DD_NATIVE_MORE):
         return ROLE_HANDOFF
     return ROLE_PASSIVE
+
+
+def cell_role(cell: DropdownCell | None) -> str:
+    """The reducer role of a toggle-table cell: ROLE_APPLY (in place, the chain stays
+    open) when it is enabled and has an action, else ROLE_PASSIVE. Inactive cells apply."""
+    if cell is None or not cell.enabled or cell.action is None:
+        return ROLE_PASSIVE
+    return ROLE_APPLY
+
+
+def cell_roles(item: DropdownItem | None) -> tuple[str, ...]:
+    """:func:`cell_role` of every cell of a DD_TOGGLE_ROW (all ROLE_PASSIVE when the row is
+    disabled); () for any other item."""
+    if item is None or item.kind != DD_TOGGLE_ROW:
+        return ()
+    if not item.enabled:
+        return (ROLE_PASSIVE,) * len(item.cells)
+    return tuple(cell_role(cell) for cell in item.cells)
+
+
+def item_cell(item: DropdownItem | None, cell: int | None) -> DropdownCell | None:
+    """``item.cells[cell]`` of a DD_TOGGLE_ROW, or None (another kind, None, out of range)."""
+    if item is None or item.kind != DD_TOGGLE_ROW or not isinstance(cell, int):
+        return None
+    return item.cells[cell] if 0 <= cell < len(item.cells) else None
+
+
+def model_cell_roles(model: DropdownModel | None) -> tuple[tuple[str, ...], ...]:
+    """:func:`cell_roles` of every item of ``model`` (``core.menubar.Opened.cells``: ()
+    for the items that are not table rows); () for None."""
+    if model is None:
+        return ()
+    return tuple(cell_roles(item) for item in model.items)
 
 
 def model_roles(model: DropdownModel | None) -> tuple[str, ...]:

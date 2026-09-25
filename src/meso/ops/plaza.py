@@ -89,7 +89,7 @@ class PlazaState:
     the draw callbacks: ``active``, ``failed``, ``window_ptr``, ``anchor``, ``bounds``,
     ``transparency``, ``draw_calls``, ``draw_filtered``, ``fail()``; from Phase 2 also
     ``layout``, ``palette``, ``hover_id``, ``debug_timing`` and ``timing``; from Phase 4
-    ``dropdowns``, ``dropdown_hover`` and ``open_label``.
+    ``dropdowns``, ``dropdown_hover``, ``dropdown_hover_cell`` and ``open_label``.
     """
 
     # --- identity of the target (plain data; safe to keep) ---
@@ -147,6 +147,7 @@ class PlazaState:
     # Read by the draw callbacks (swapped, never mutated in place):
     dropdowns: Any = None                 # core.dropdown_geometry.ChainLayout | None
     dropdown_hover: tuple[int, ...] | None = None   # hovered dropdown item path
+    dropdown_hover_cell: int | None = None          # focused cell of a hovered table row
     open_label: str | None = None         # row label whose dropdown is open
 
     # --- live objects: modal lifetime only, dropped by drop_live() ---

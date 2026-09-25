@@ -47,6 +47,9 @@ The prefs panel lists 13 identical "Meso Mode Plaza" rows, so they look like dup
 - **Set all row (confirmed by the user):** a "Set all Space items" row above the tree. It rebinds all 11 Space items at once (key + modifiers), and the Text/Console chord pair is left untouched.
 - **Tests:** every registered item appears exactly once under its keymap's section, and the hierarchy parents match `keymap_hierarchy`.
 
+## Queued — checkbox drag-toggle in Plaza dropdowns (user request 2026-09-25)
+Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table cell) and drag across its neighbours; every toggle passed gets the first one's **new** state (set, not flip), then release. Scope: toggles of the same kind in one open panel; in a toggle table, stay within the pressed column (Sel and Vis never mix). One in-place apply per changed toggle, and the checks update live. The Plaza stays open. Needs reducer support for a press-drag "paint" gesture that doesn't break press-drag-release onto items. Ask whether it should be one undo step, as natively.
+
 ## Queued after the prefs fix (user decisions 2026-09-25)
 1. **Rename to "Meso Mode" ("meso" for short; stands for Mesoamerican).**
    - Scrub the repo of legacy-term mentions (the shipped add-on, code comments, internal notes and CLAUDE.md), **except the referential uses the user allowed on 2026-09-25:**

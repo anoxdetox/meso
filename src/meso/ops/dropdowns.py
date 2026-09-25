@@ -49,9 +49,16 @@ which stay in ``ops.plaza``) to :func:`handle_event`, which
    ================== =========================================================================
 
 4. copies the reducer / chain state into the draw fields of ``PlazaState`` (``hover_id`` =
-   ``bar.hover_label``, ``open_label``, ``dropdown_hover``, ``dropdowns``, and the Phase 2
-   ``pressed_id``) by swapping whole values (the draw callbacks read them; they never see a
-   half-built chain).
+   ``bar.hover_label``, ``open_label``, ``dropdown_hover``, ``dropdown_hover_cell``,
+   ``dropdowns``, and the Phase 2 ``pressed_id``) by swapping whole values (the draw
+   callbacks read them; they never see a half-built chain).
+
+Toggle tables (docs/phase4-interfaces.md "Toggle tables"): a hit on a DD_TOGGLE_ROW names
+its cell (``Hit.cell``); :func:`target_for` makes the Target that cell's (role
+``cell_role``, the cell's action, ``cell``), and ROLE_PASSIVE on the row label. The cell
+travels through HoverItem / RunItem (``RunItem.cell``) and :func:`_chain_action` runs that
+cell's action (in place: the re-record updates the checks; the chain stays open).
+``Opened`` carries ``model_cell_roles`` for keyboard navigation between cells.
 
 Hover-open (docs/phase4-interfaces.md "Hover-open"): the pref snapshots ``hover_open`` /
 ``hover_open_delay`` / ``hover_close_delay`` go into the reducer; the reducer opens a
@@ -83,10 +90,11 @@ from ..core import geometry
 from ..core import menubar
 from ..core.dropdown_geometry import EMPTY_CHAIN, ChainLayout, DropdownMetrics, Hit
 from ..core.dropdown_model import (
-    COVERAGE_NATIVE, DD_ENUM_CASCADE, DD_NATIVE, DD_NATIVE_MORE, DD_SUBMENU, DD_VALUE,
-    DROPDOWN_OPERATOR_CONTEXT, SOURCE_MENU, SOURCE_TOOL, ZONE_ITEM, ZONE_LABEL, ZONE_NONE,
-    ZONE_PANEL, DropdownModel, enum_child_model, item_at, item_role, label_role, label_source,
-    native_label, native_menu_action, same_opener, valid_depth,
+    COVERAGE_NATIVE, DD_ENUM_CASCADE, DD_NATIVE, DD_NATIVE_MORE, DD_SUBMENU, DD_TOGGLE_ROW,
+    DD_VALUE, DROPDOWN_OPERATOR_CONTEXT, ROLE_PASSIVE, SOURCE_MENU, SOURCE_TOOL, ZONE_ITEM,
+    ZONE_LABEL, ZONE_NONE, ZONE_PANEL, DropdownModel, cell_role, enum_child_model, item_at,
+    item_cell, item_role, label_role, label_source, model_cell_roles, native_label,
+    native_menu_action, same_opener, valid_depth,
 )
 from ..core.menubar import (
     Cancel, Changed, CloseChain, Effect, Esc, Event, Finish, HoverItem, HoverLabel,
@@ -281,15 +289,34 @@ def _chain_item(session: MenuSession, path: Any) -> Any:
     return _item_with_action(session.models[len(path) - 1], item_at(session.models, path))
 
 
+def _chain_action(session: MenuSession, path: Any, cell: int | None) -> tuple[Any, Any]:
+    """``(item, action)`` of the chain item at ``path``; on a DD_TOGGLE_ROW the action of
+    its cell ``cell`` (None without a valid cell: a click on the row label runs nothing)."""
+    item = _chain_item(session, path)
+    if item is None:
+        return None, None
+    if item.kind == DD_TOGGLE_ROW:
+        c = item_cell(item, cell) if item.enabled else None
+        return item, (c.action if c is not None else None)
+    return item, item.action
+
+
 def target_for(session: MenuSession, state: Any, hit: Hit) -> Target:
     """``core.menubar.Target`` of ``hit``: ZONE_LABEL -> ``label_role(model.find(id))`` +
-    ``item_action``; ZONE_ITEM -> ``item_role(item_at(models, path))`` + ``item.action``;
-    other zones -> passive targets."""
+    ``item_action``; ZONE_ITEM -> ``item_role(item_at(models, path))`` + ``item.action``
+    (a DD_TOGGLE_ROW: the hit cell's ``cell_role`` + action + ``cell``, ROLE_PASSIVE on the
+    row label); other zones -> passive targets."""
     if hit.zone == ZONE_LABEL:
         item = state.model.find(hit.label_id) if state.model is not None else None
         return Target(ZONE_LABEL, hit.label_id, None, label_role(item), item_action(item))
     if hit.zone == ZONE_ITEM:
         item = _chain_item(session, hit.path)
+        if item is not None and item.kind == DD_TOGGLE_ROW:
+            c = item_cell(item, hit.cell)
+            if c is None:
+                return Target(ZONE_ITEM, None, hit.path, ROLE_PASSIVE)
+            role = cell_role(c) if item.enabled else ROLE_PASSIVE
+            return Target(ZONE_ITEM, None, hit.path, role, c.action, cell=hit.cell)
         return Target(ZONE_ITEM, None, hit.path, item_role(item),
                       item.action if item is not None else None)
     return Target(hit.zone or ZONE_NONE)
@@ -369,7 +396,7 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
         session.target = target
         if inside:
             return HoverItem(hit.path if hit.zone == ZONE_ITEM else None, target.role, now,
-                             aiming, target.action)
+                             aiming, target.action, target.cell)
         return HoverLabel(hit.label_id if hit.zone == ZONE_LABEL else None, target.role, now,
                           target.action, aiming)
     session.target = target
@@ -396,6 +423,12 @@ def _roles(model: DropdownModel) -> tuple[str, ...]:
     """``model_roles`` with the container hand-off filled into DD_VALUE / DD_NATIVE_MORE
     items (keyboard navigation reaches them too)."""
     return tuple(item_role(_item_with_action(model, item)) for item in model.items)
+
+
+def _opened(level: int, model: DropdownModel) -> Opened:
+    """The ``Opened`` event of ``model`` placed as level ``level``: its roles and the cell
+    roles of its table rows."""
+    return Opened(level, _roles(model), model_cell_roles(model))
 
 
 def _openable(model: DropdownModel | None) -> bool:
@@ -469,7 +502,8 @@ def _fits_area(ab: Any, model: DropdownModel, dm: DropdownMetrics, tw: Any) -> t
     margin), else None."""
     if ab is None or ab.is_empty():
         return None
-    w = ddg.panel_width(model, ddg.measure_items(model, tw), dm)
+    w = ddg.panel_width(model, ddg.measure_items(model, tw), dm,
+                        ddg.table_columns(model, dm, tw))
     h = ddg.panel_height(model, dm)
     if w + 2 * dm.margin > ab.w or h + 2 * dm.margin > ab.h:
         return None
@@ -532,7 +566,7 @@ def _open_dropdown(state: Any, context: Any, label_id: str) -> list[Event]:
     session.chain = ddg.extend_chain(ChainLayout(metrics=dm), panel)
     session.opened.append(model.key)
     session.opened_by.append(session.bar.opened_by)
-    return [Opened(0, _roles(model))]
+    return [_opened(0, model)]
 
 
 def _open_submenu(state: Any, context: Any, path: tuple[int, ...]) -> list[Event]:
@@ -562,7 +596,7 @@ def _open_submenu(state: Any, context: Any, path: tuple[int, ...]) -> list[Event
         full = _native_submenu(full, path[-1]) if full is not None else None
         if full is not None and native.source == SOURCE_MENU:
             session.cache.put(full)         # survives a rebuild from the cache this session
-        return [Changed(key, level), Opened(level - 1, _roles(native))]
+        return [Changed(key, level), _opened(level - 1, native)]
     dm = session_metrics(session, state)
     tw = _text_width(session, state)
     parent_panel = session.chain.panel(level - 1)
@@ -574,7 +608,7 @@ def _open_submenu(state: Any, context: Any, path: tuple[int, ...]) -> list[Event
     session.chain = ddg.extend_chain(session.chain, panel)
     session.opened.append(child.key)
     session.opened_by.append(None)
-    return [Opened(level, _roles(child))]
+    return [_opened(level, child)]
 
 
 def _native_submenu(parent: DropdownModel, index: int) -> DropdownModel | None:
@@ -659,8 +693,7 @@ def _apply_in_place(state: Any, context: Any, effect: RunItem) -> list[Event]:
         item = state.model.find(effect.label_id) if state.model is not None else None
         action, key = item_action(item), effect.label_id or ''
     else:
-        item = _chain_item(session, effect.path)
-        action = item.action if item is not None else None
+        item, action = _chain_action(session, effect.path, effect.cell)
         level = len(effect.path)
         key = session.models[level - 1].key if level <= len(session.models) else ''
     if action is None:
@@ -684,13 +717,13 @@ def _refresh_events(state: Any, context: Any, key: str) -> list[Event]:
     session = state.menus
     depth = refresh_after_change(state, context, key)
     events: list[Event] = [Changed(key, depth)]
-    events.extend(Opened(i, _roles(m)) for i, m in enumerate(session.models))
+    events.extend(_opened(i, m) for i, m in enumerate(session.models))
     if session.last_xy is not None and session.chain.panels:
         hit = ddg.resolve_hit(state.layout, session.chain, *session.last_xy)
         if hit.zone in (ZONE_ITEM, ZONE_PANEL):
             target = target_for(session, state, hit)
             events.append(HoverItem(hit.path if hit.zone == ZONE_ITEM else None, target.role,
-                                    time.perf_counter(), False, target.action))
+                                    time.perf_counter(), False, target.action, target.cell))
     return events
 
 
@@ -725,11 +758,14 @@ def _terminal_source(state: Any, effect: Effect) -> tuple[Any, tuple]:
     session = state.menus
     if isinstance(effect, RunItem):
         if effect.path is not None:
-            item = _chain_item(session, effect.path)
+            item, action = _chain_action(session, effect.path, effect.cell)
             level = len(effect.path)
             key = session.models[level - 1].key if level <= len(session.models) else None
-            action = item.action if item is not None else None
-            return action, (key, effect.path, item.label if item is not None else '')
+            label = item.label if item is not None else ''
+            cell = item_cell(item, effect.cell)
+            if cell is not None:
+                label = cell.label or label
+            return action, (key, effect.path, label)
         item = state.model.find(effect.label_id) if state.model is not None else None
         return item_action(item), (effect.label_id, None, item.label if item else '')
     action = effect.action
@@ -778,7 +814,7 @@ def _run_terminal(op: Any, state: Any, effect: Effect) -> set[str]:
 
 def _draw_snapshot(state: Any) -> tuple:
     return (state.layout, state.hover_id, state.open_label, state.dropdowns,
-            state.dropdown_hover)
+            state.dropdown_hover, getattr(state, 'dropdown_hover_cell', None))
 
 
 def _redraw(state: Any, before: tuple) -> None:
@@ -788,7 +824,7 @@ def _redraw(state: Any, before: tuple) -> None:
     if handlers is None:
         return
     rects = []
-    for layout, hover_id, open_label, chain, _hover in (before, _draw_snapshot(state)):
+    for layout, hover_id, open_label, chain, *_hover in (before, _draw_snapshot(state)):
         for label_id in (hover_id, open_label):
             box = layout.item(label_id) if layout is not None else None
             if box is not None:
@@ -801,7 +837,8 @@ def _redraw(state: Any, before: tuple) -> None:
 
 def sync_draw_state(state: Any) -> None:
     """Copy ``state.menus`` into the draw fields (``hover_id``, ``open_label``,
-    ``dropdown_hover``, ``dropdowns``, ``pressed_id``) by whole-value assignment;
+    ``dropdown_hover``, ``dropdown_hover_cell``, ``dropdowns``, ``pressed_id``) by
+    whole-value assignment;
     ``hover_redraws`` counts hover-label changes (Phase 2 meaning)."""
     session = state.menus
     if session is None:
@@ -813,6 +850,7 @@ def sync_draw_state(state: Any) -> None:
     state.hover_id = bar.hover_label
     state.open_label = bar.open_label if open_ else None
     state.dropdown_hover = bar.hover_path if open_ else None
+    state.dropdown_hover_cell = bar.hover_cell if open_ else None
     state.dropdowns = session.chain if open_ else None
     pressed = bar.pressed
     state.pressed_id = pressed.label_id if (pressed is not None
@@ -889,7 +927,8 @@ def _reset_chain(session: MenuSession) -> None:
     session.models, session.chain = (), EMPTY_CHAIN
     try:
         session.bar = dataclasses.replace(
-            session.bar, open_label=None, submenus=(), roles=(), hover_path=None,
+            session.bar, open_label=None, submenus=(), roles=(), cell_roles=(),
+            hover_path=None, hover_cell=None,
             pending=None, aim_since=None, pressed=None, press_opened=False, nav_enter=False,
             opened_by=None, hover_wait=None, leave_since=None, leave_aim=None)
     except Exception:

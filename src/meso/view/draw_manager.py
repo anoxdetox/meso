@@ -134,6 +134,7 @@ class DrawState(Protocol):
     # of ``layout.extent`` and ``dropdowns.extent``.
     dropdowns: Any                  # core.dropdown_geometry.ChainLayout | None (open chain)
     dropdown_hover: Any             # tuple[int, ...] | None: hovered dropdown item path
+    dropdown_hover_cell: Any        # int | None: focused cell of a hovered table row
     open_label: str | None          # row label whose dropdown is open (drawn highlighted)
 
     def fail(self, reason: str) -> None:
@@ -310,7 +311,8 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
                 hover_id: str | None, linear_blend: bool,
                 cache: renderer.BatchCache | None, chain: Any = None,
                 dropdown_hover: Any = None, open_label: str | None = None,
-                dropdown_cache: renderer.DropdownBatchCache | None = None) -> int:
+                dropdown_cache: renderer.DropdownBatchCache | None = None,
+                dropdown_hover_cell: Any = None) -> int:
     """Draw ``layout`` (and, Phase 4, the open dropdown ``chain`` above it) into the bound
     region framebuffer, once per visible piece.
 
@@ -322,7 +324,8 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
     ``renderer.draw_plaza(layout, palette, hover_id, (region_rect.x, region_rect.y),
     linear_blend, cache=cache, clip=piece, open_label=open_label)`` followed by
     ``renderer.draw_dropdowns(chain, palette, dropdown_hover, ..., cache=dropdown_cache,
-    clip=piece)`` (each culls against its own extent; panels land above the strips).
+    clip=piece, hover_cell=dropdown_hover_cell)`` (each culls against its own extent;
+    panels land above the strips).
     Restores the scissor box, disables the scissor test when the previous box was the full
     viewport (gpu.state has no getter for the test; with a full box both states clip
     identically) and resets the blend mode. Returns the number of pieces where anything was
@@ -345,7 +348,7 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
                                        cache=cache, clip=piece, open_label=open_label)
             dd = chain is not None and renderer.draw_dropdowns(
                 chain, palette, dropdown_hover, (ox, oy), linear_blend, cache=dropdown_cache,
-                clip=piece)
+                clip=piece, hover_cell=dropdown_hover_cell)
             if hot or dd:
                 drawn += 1
     finally:
@@ -414,7 +417,7 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
        :func:`draw_region` with ``state.palette or theme.MESO_PALETTE``, ``state.hover_id``
        and this HandlerSet's BatchCache (scissor per piece; ``draw_plaza`` culls pieces
        away from the plaza); Phase 4: also ``state.dropdowns`` / ``dropdown_hover`` /
-       ``open_label`` (getattr, default None) with this HandlerSet's DropdownBatchCache, so
+       ``dropdown_hover_cell`` / ``open_label`` (getattr, default None) with this HandlerSet's DropdownBatchCache, so
        the open chain is drawn above the plaza in the same pass. With
        ``state.debug_timing`` the step is timed with
        ``time.perf_counter`` into ``state.timing``.
@@ -450,7 +453,8 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
                         chain=getattr(state, 'dropdowns', None),
                         dropdown_hover=getattr(state, 'dropdown_hover', None),
                         open_label=getattr(state, 'open_label', None),
-                        dropdown_cache=_dropdown_cache_for(state))
+                        dropdown_cache=_dropdown_cache_for(state),
+                        dropdown_hover_cell=getattr(state, 'dropdown_hover_cell', None))
             if timing:
                 state.timing.add(time.perf_counter() - t0)
         state.draw_calls += 1

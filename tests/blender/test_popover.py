@@ -384,6 +384,8 @@ def visibility_cascade(info=None):
 def assert_unique_siblings(testcase, items, where='root'):
     names = [i.label for i in items if i.kind not in (dm().DD_SEPARATOR,)]
     testcase.assertEqual(len(names), len(set(names)), f"{where}: {names}")
+    cells = [c.label for i in items for c in i.cells]
+    testcase.assertEqual(len(cells), len(set(cells)), f"{where} cells: {cells}")
     for item in items:
         if item.children:
             assert_unique_siblings(testcase, item.children, f"{where}/{item.label}")
@@ -391,30 +393,35 @@ def assert_unique_siblings(testcase, items, where='root'):
 
 class TestToggleTable(unittest.TestCase):
     """VIEW3D_PT_object_type_visibility: 16 rows [label] + select / viewport icon toggles
-    collapse into a Selectable and a Visible cascade (core.icon_toggles)."""
+    become a table, as natively: a column header 'Sel' / 'Vis' and one DD_TOGGLE_ROW per
+    object type with a check box per column (core.icon_toggles)."""
 
     def test_shape(self):
         m = dm()
         model = visibility_cascade()
         self.assertEqual(model.coverage, m.COVERAGE_CUSTOM)
         self.assertEqual(model.title, "Selectability & Visibility")
-        kinds = [i.kind for i in model.items if i.kind != m.DD_SEPARATOR]
-        self.assertEqual(kinds, [m.DD_LABEL, m.DD_ENUM_CASCADE, m.DD_ENUM_CASCADE,
-                                 m.DD_NATIVE_MORE], labels(model))
-        self.assertEqual(model.items[0].label, "Selectability & Visibility")
-        cascades = [i for i in model.items if i.kind == m.DD_ENUM_CASCADE]
-        self.assertEqual([c.label for c in cascades], ["Selectable", "Visible"])
-        self.assertEqual({c.source for c in cascades}, {m.ITEM_SOURCE_TOGGLE_TABLE})
-        names = [name for _attr, name in OBJECT_TYPES]
-        for cascade_item, prefix in zip(cascades, ("show_object_select_",
-                                                   "show_object_viewport_")):
-            self.assertEqual(m.item_role(cascade_item), m.ROLE_SUBMENU)
-            self.assertEqual([c.label for c in cascade_item.children], names)
-            self.assertEqual({c.kind for c in cascade_item.children}, {m.DD_TOGGLE})
-            self.assertEqual([c.action.data_path for c in cascade_item.children],
-                             [f"space_data.{prefix}{attr}" for attr, _n in OBJECT_TYPES])
-            self.assertEqual({m.item_role(c) for c in cascade_item.children}, {m.ROLE_APPLY})
-        self.assertEqual(model.items[-1].action,
+        items = [i for i in model.items if i.kind != m.DD_SEPARATOR]
+        kinds = [i.kind for i in items]
+        self.assertEqual(kinds, [m.DD_LABEL, m.DD_COLUMN_HEADER] + [m.DD_TOGGLE_ROW] * 16
+                         + [m.DD_NATIVE_MORE], labels(model))
+        self.assertEqual(items[0].label, "Selectability & Visibility")
+        header = items[1]
+        self.assertEqual(header.columns, ("Sel", "Vis"))
+        self.assertEqual((header.source, m.item_role(header)),
+                         (m.ITEM_SOURCE_TOGGLE_TABLE, m.ROLE_PASSIVE))
+        rows_ = items[2:18]
+        self.assertEqual([r.label for r in rows_], [name for _attr, name in OBJECT_TYPES])
+        self.assertEqual({r.source for r in rows_}, {m.ITEM_SOURCE_TOGGLE_TABLE})
+        for (attr, name), r in zip(OBJECT_TYPES, rows_):
+            self.assertEqual(m.item_role(r), m.ROLE_APPLY, name)
+            self.assertEqual(m.cell_roles(r), (m.ROLE_APPLY, m.ROLE_APPLY), name)
+            self.assertEqual([c.action.data_path for c in r.cells],
+                             [f"space_data.show_object_select_{attr}",
+                              f"space_data.show_object_viewport_{attr}"])
+            self.assertEqual([c.label for c in r.cells],
+                             [f"{name} Selectable", f"{name} Visible"])
+        self.assertEqual(items[-1].action,
                          m.native_panel_action("VIEW3D_PT_object_type_visibility"))
         assert_unique_siblings(self, model.items)
 
@@ -426,30 +433,46 @@ class TestToggleTable(unittest.TestCase):
             space.show_object_viewport_mesh = False
             space.show_object_select_curve = False
             model = visibility_cascade(info)
-            index = next(n for n, i in enumerate(model.items) if i.label == "Visible")
-            visible = m.enum_child_model(model, index)
-            self.assertEqual((visible.source, visible.title), (m.SOURCE_ENUM, "Visible"))
-            mesh = visible.item(0)
-            self.assertEqual((mesh.label, mesh.checked), ("Mesh", False))
-            selectable = next(i for i in model.items if i.label == "Selectable")
-            by_name = {c.label: c for c in selectable.children}
+            by_name = {i.label: i for i in model.items if i.kind == m.DD_TOGGLE_ROW}
+            mesh = by_name["Mesh"]
+            sel, vis = mesh.cells
+            self.assertIs(vis.checked, False)
             # the select toggle of an invisible type is dimmed (rowsub.active), still clickable
-            self.assertEqual((by_name["Mesh"].active, by_name["Mesh"].enabled), (False, True))
-            self.assertTrue(by_name["Camera"].active)
-            self.assertIs(by_name["Curve"].checked, False)
-            self.assertIs(by_name["Camera"].checked, space.show_object_select_camera)
+            self.assertEqual((sel.active, sel.enabled, m.cell_role(sel)),
+                             (False, True, m.ROLE_APPLY))
+            self.assertTrue(vis.active)
+            self.assertTrue(by_name["Camera"].cells[0].active)
+            self.assertIs(by_name["Curve"].cells[0].checked, False)
+            self.assertIs(by_name["Camera"].cells[0].checked, space.show_object_select_camera)
 
             # Space-owned paths: wm.context_toggle returns CANCELLED with the value changed
             # (docs/spikes.md D5), so the value is what is checked.
             inv = _mod("ops.invoke")
-            res = inv.apply_in_place(mesh.action, info.window, info.area, info.region)
+            res = inv.apply_in_place(vis.action, info.window, info.area, info.region)
             self.assertEqual(res.call[0], 'wm.context_toggle')
             self.assertTrue(space.show_object_viewport_mesh)
-            again = visibility_cascade(info)
-            self.assertTrue(m.same_opener(model.items[index], again.items[index]))
-            self.assertIs(m.enum_child_model(again, index).item(0).checked, True)
-            inv.apply_in_place(mesh.action, info.window, info.area, info.region)
+            again = {i.label: i for i in visibility_cascade(info).items
+                     if i.kind == m.DD_TOGGLE_ROW}["Mesh"]
+            self.assertIs(again.cells[1].checked, True)
+            self.assertTrue(again.cells[0].active, "visible again: Selectable not dimmed")
+            inv.apply_in_place(vis.action, info.window, info.area, info.region)
             self.assertFalse(space.show_object_viewport_mesh)
+
+    def test_placed_as_a_table(self):
+        m, ddg = dm(), _mod("core.dropdown_geometry")
+        geo = _mod("core.geometry")
+        model = visibility_cascade()
+        d = ddg.dropdown_metrics(geo.metrics_for(1.0, 11))
+        tw = _mod("view.renderer").text_width_fn(d.font_px)
+        rects = _mod("core.rects")
+        panel = ddg.place_dropdown(model, rects.Rect(100, 1900, 80, 20),
+                                   rects.Rect(0, 0, 2000, 2000), d, tw)
+        lines = [p for p in panel.items if p.kind in m.TABLE_KINDS]
+        self.assertEqual(len(lines), 17)
+        columns = {tuple((c.rect.x, c.rect.w) for c in p.cells) for p in lines}
+        self.assertEqual(len(columns), 1, "header and rows share the column x positions")
+        for p in lines[1:]:
+            self.assertLess(p.text_x + tw(p.label), p.cells[0].rect.x, p.label)
 
 
 class TestIconOnlyRows(unittest.TestCase):

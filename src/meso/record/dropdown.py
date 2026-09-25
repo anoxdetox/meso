@@ -48,10 +48,12 @@ prop BOOLEAN               DD_TOGGLE ``checked`` = value, ``Action(ACTION_TOGGLE
                            'Row Label Meaning', and a row of only such toggles drops its
                            label item
 toggle table               >= 3 consecutive rows [label T] + k icon-only toggles (same
-                           k, same known family per column): one DD_ENUM_CASCADE per
-                           column in draw order, labelled by the meaning ('Selectable',
-                           'Visible'), children = DD_TOGGLE 'T' per row (actions,
-                           checked, active, enabled as the inline toggles); source
+                           k, same known family per column): a table, as natively: one
+                           DD_COLUMN_HEADER (``columns`` = the short column titles,
+                           ``core.icon_toggles.column_titles``: 'Sel', 'Vis', ...), then
+                           one DD_TOGGLE_ROW 'T' per row whose ``cells`` are the row's
+                           toggles in draw order (actions, checked, active, enabled as the
+                           inline toggles; cell label 'T Meaning'); source
                            ``ITEM_SOURCE_TOGGLE_TABLE``
 prop ENUM (not expanded) / DD_ENUM_CASCADE 'Name: Current' (prop_menu_enum: 'Name', as
 prop_menu_enum             Blender draws it) of DD_RADIO children
@@ -98,14 +100,14 @@ from typing import Any
 import bpy
 
 from ..core.dropdown_model import (
-    COVERAGE_CUSTOM, COVERAGE_MORE, COVERAGE_NATIVE, DD_ENUM_CASCADE, DD_FLAG, DD_LABEL,
-    DD_NATIVE, DD_NATIVE_MORE, DD_OP, DD_RADIO, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE, DD_VALUE,
-    DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_TOGGLE_TABLE, MORE_LABEL, NATIVE_ONLY_MENUS,
-    NATIVE_SUFFIX, SOURCE_MENU, DropdownItem, DropdownModel, native_label, native_menu_action,
-    native_panel_action,
+    COVERAGE_CUSTOM, COVERAGE_MORE, COVERAGE_NATIVE, DD_COLUMN_HEADER, DD_ENUM_CASCADE,
+    DD_FLAG, DD_LABEL, DD_NATIVE, DD_NATIVE_MORE, DD_OP, DD_RADIO, DD_SEPARATOR, DD_SUBMENU,
+    DD_TOGGLE, DD_TOGGLE_ROW, DD_VALUE, DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_TOGGLE_TABLE,
+    MORE_LABEL, NATIVE_ONLY_MENUS, NATIVE_SUFFIX, SOURCE_MENU, DropdownCell, DropdownItem,
+    DropdownModel, native_label, native_menu_action, native_panel_action,
 )
 from ..core.icon_toggles import (
-    RowShape, column_meanings, icon_family, icon_meaning, row_toggle_label, table_runs,
+    RowShape, column_titles, icon_family, icon_meaning, row_toggle_label, table_runs,
 )
 from ..core.model import (
     ACTION_OPERATOR, ACTION_SET_ENUM, ACTION_TOGGLE, ACTION_TOGGLE_FLAG, KIND_MENU,
@@ -650,8 +652,8 @@ class Converter:
     # --- records -------------------------------------------------------------------------
     def convert(self, records: list[Record]) -> list[DropdownItem]:
         """Records -> items: layout rows (:func:`line_groups`) are converted together (icon-
-        only toggles named after the row label), toggle tables collapse into one cascade
-        per column (module doc)."""
+        only toggles named after the row label), toggle tables become a column header plus
+        one table row per line (module doc)."""
         items: list[DropdownItem] = []
         groups = line_groups(list(records))
         shapes = [self._row_shape(group) for group in groups]
@@ -724,9 +726,11 @@ class Converter:
             out.pop(0)
         return out
 
-    def _row_shape(self, group: list[Record]) -> tuple[RowShape, list[DropdownItem]] | None:
-        """``(RowShape, cells)`` of a row ``[label] + icon-only toggles`` whose toggles all
-        convert to one DD_TOGGLE each (the table candidates), else None."""
+    def _row_shape(self, group: list[Record]
+                   ) -> tuple[RowShape, list[DropdownItem], list[str]] | None:
+        """``(RowShape, cells, names)`` of a row ``[label] + icon-only toggles`` whose
+        toggles all convert to one DD_TOGGLE each (the table candidates; ``names``: the RNA
+        name of each toggle, the fallback column title), else None."""
         try:
             if len(group) < 2:
                 return None
@@ -735,6 +739,7 @@ class Converter:
                 return None
             families: list[str] = []
             cells: list[DropdownItem] = []
+            names: list[str] = []
             for rec in group[1:]:
                 if not self._meaning(rec):
                     return None
@@ -743,23 +748,30 @@ class Converter:
                     return None
                 families.append(icon_family(rec.icon))
                 cells.append(got[0])
-            return RowShape(label, tuple(families)), cells
+                names.append(recorder._prop_label(rec.owner, rec.prop) or rec.prop)
+            return RowShape(label, tuple(families)), cells, names
         except Exception:
             return None
 
-    def _table(self, rows: list[tuple[RowShape, list[DropdownItem]]]) -> list[DropdownItem]:
-        """A toggle table (``core.icon_toggles.table_runs``) -> one DD_ENUM_CASCADE per
-        column, labelled by the column meaning, children = the row toggles labelled by the
-        row labels. [] when ``rows`` is empty."""
+    def _table(self, rows: list[tuple[RowShape, list[DropdownItem], list[str]]]
+               ) -> list[DropdownItem]:
+        """A toggle table (``core.icon_toggles.table_runs``) -> a DD_COLUMN_HEADER of the
+        short column titles, then one DD_TOGGLE_ROW per row: label = the row label, one
+        DropdownCell per toggle (action, checked, active, enabled; label 'Row Meaning').
+        [] when ``rows`` is empty."""
         if not rows:
             return []
-        out: list[DropdownItem] = []
-        for column, meaning in enumerate(column_meanings(rows[0][0])):
-            children = tuple(replace(cells[column], label=shape.label) for shape, cells in rows)
-            out.append(DropdownItem(
-                DD_ENUM_CASCADE, _iface(meaning), enabled=any(c.enabled for c in children),
-                active=any(c.active for c in children), children=children,
-                source=ITEM_SOURCE_TOGGLE_TABLE))
+        shape0, _cells0, names0 = rows[0]
+        titles = tuple(_iface(t) for t in column_titles(shape0, names0))
+        out: list[DropdownItem] = [DropdownItem(DD_COLUMN_HEADER, columns=titles,
+                                                source=ITEM_SOURCE_TOGGLE_TABLE)]
+        for shape, cells, _names in rows:
+            row_cells = tuple(DropdownCell(row_toggle_label(shape.label, c.label),
+                                           bool(c.checked), bool(c.active), bool(c.enabled),
+                                           c.action) for c in cells)
+            out.append(DropdownItem(DD_TOGGLE_ROW, shape.label,
+                                    enabled=any(c.enabled for c in row_cells),
+                                    cells=row_cells, source=ITEM_SOURCE_TOGGLE_TABLE))
         return out
 
     def record(self, rec: Record) -> list[DropdownItem]:

@@ -786,7 +786,7 @@ def dd_metrics(m):
         arrow_col=r(dg.BASE_DD_ARROW_COL * fs), arrow_size=m.arrow_size,
         shortcut_gap=r(dg.BASE_DD_SHORTCUT_GAP * fs), min_w=r(dg.BASE_DD_MIN_W * fs),
         border=dg.BASE_DD_BORDER * m.scale, hover_inset=m.hover_inset, margin=m.margin,
-        submenu_overlap=r(dg.BASE_DD_SUBMENU_OVERLAP * fs))
+        submenu_overlap=r(dg.BASE_DD_SUBMENU_OVERLAP * fs), cell_pad=r(dg.BASE_DD_CELL_PAD * fs))
 
 
 def hand_panel(items, x, top, dm, width_fn, depth=0, opener=None, key='TEST_MT_menu'):
@@ -887,7 +887,7 @@ def _dd_chain(layout, submenu=True):
 
 def _render_dd(layout, chain, hover_id=None, dd_hover=None, open_label=None, palette=None,
                linear=False, cache=None, dd_cache=None, clip=None, region_offset=(0, 0),
-               w=DW, h=DH):
+               w=DW, h=DH, dd_hover_cell=None):
     """draw_plaza (when ``layout``) then draw_dropdowns into a fresh offscreen;
     returns (dropdowns_drawn, pixels, gpu_state_after)."""
     rd = _rd()
@@ -904,7 +904,7 @@ def _render_dd(layout, chain, hover_id=None, dd_hover=None, open_label=None, pal
                     rd.draw_plaza(layout, palette, hover_id, region_offset, linear,
                                    cache=cache, clip=clip, open_label=open_label)
                 drawn = rd.draw_dropdowns(chain, palette, dd_hover, region_offset, linear,
-                                          cache=dd_cache, clip=clip)
+                                          cache=dd_cache, clip=clip, hover_cell=dd_hover_cell)
                 after = SimpleNamespace(
                     blend=gpu.state.blend_get(),
                     mv_restored=(gpu.matrix.get_model_view_matrix() == mv_before))
@@ -949,9 +949,124 @@ class TestDropdownColors(unittest.TestCase):
             self.assertEqual((c.shortcut, c.glyph, c.glyph_disabled),
                              (palette.text_disabled, palette.text, palette.text_disabled))
             self.assertEqual(rd.dropdown_colors(palette), c)
+            lo, hi = sorted((rd.luminance(palette.item_hover), rd.luminance(palette.text)))
+            self.assertTrue(lo <= rd.luminance(c.cell_hover) <= hi,
+                            "the focused cell box: between the hover bar and the text")
+        self.assertGreater(rd.luminance(rd.dropdown_colors(th.MESO_PALETTE).cell_hover),
+                           rd.luminance(th.MESO_PALETTE.item_hover), "lighter than the bar")
         # The transparency pref never makes the panel translucent.
         self.assertEqual(rd.dropdown_colors(th.meso_palette(80)).panel,
                          rd.dropdown_colors(th.meso_palette(0)).panel)
+
+
+def _table_chain(scale=1.0):
+    """A placed toggle table (core geometry): title, header Sel / Vis, Mesh (both checked),
+    Curve (Sel checked but inactive, Vis unchecked), Light (Sel unchecked), More…."""
+    d, dg, g, rd = _dmod(), _dg(), _geo(), _rd()
+    I, C = d.DropdownItem, d.DropdownCell                               # noqa: E741
+    act = _mod("core.model").Action(_mod("core.model").ACTION_TOGGLE, data_path='x')
+
+    def row(name, sel, vis, sel_active=True):
+        return I(d.DD_TOGGLE_ROW, name, cells=(C(name + ' Selectable', sel, sel_active, True, act),
+                                               C(name + ' Visible', vis, True, True, act)))
+
+    items = (I(d.DD_LABEL, 'Selectability & Visibility'),
+             I(d.DD_COLUMN_HEADER, columns=('Sel', 'Vis')),
+             row('Mesh', True, True), row('Curve', True, False, sel_active=False),
+             row('Light', False, True), I(d.DD_SEPARATOR), I(d.DD_NATIVE_MORE, 'More…'))
+    model = d.DropdownModel('ts:vis', 'Selectability & Visibility', items)
+    met = g.metrics_for(scale, 11.0, cap_height_fn=rd.cap_height)
+    dm = dg.dropdown_metrics(met)
+    panel = dg.place_dropdown(model, _Rect(200, 800, 80, 22), _Rect(0, 0, DW, DH), dm,
+                              rd.text_width_fn(dm.font_px))
+    return dg.layout_chain((model,), _Rect(200, 800, 80, 22), (), _Rect(0, 0, DW, DH), dm,
+                           rd.text_width_fn(dm.font_px)), panel
+
+
+class TestOffscreenToggleTable(unittest.TestCase):
+    """A toggle table: check boxes per cell, inactive cells dimmed, the hovered row's bar and
+    its focused cell's lighter box, dim header titles (renderer.draw_dropdowns)."""
+
+    def setUp(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+        self.palette = _th().meso_palette(25)
+        self.colors = _rd().dropdown_colors(self.palette)
+
+    @staticmethod
+    def grey(c):
+        return sum(c[:3]) / 3
+
+    def test_table_pixels(self):
+        rd = _rd()
+        for scale in (1.0, 2.0):
+            with self.subTest(scale=scale):
+                chain, _panel = _table_chain(scale)
+                cache = _dd_cache(self)
+                drawn, px, after = _render_dd(None, chain, dd_hover=(2,), dd_hover_cell=1,
+                                              dd_cache=cache)
+                path = _save_png(px.data, DW, DH, f"dropdown_table_scale{scale:g}")
+                msg = f"(see {path})"
+                self.assertTrue(drawn, msg)
+                self.assertEqual(after.blend, 'NONE')
+                mesh, curve, light = (chain.item((i,)) for i in (2, 3, 4))
+                c = self.colors
+
+                def fill(cell):
+                    cr = cell.check_rect
+                    return px.grey(int(cr.x + cr.w // 2), int(cr.y + cr.h // 2))
+
+                def box_bg(cell):
+                    # inside the cell box, left of the check box
+                    return px.grey(int(cell.highlight.x) + 1, int(cell.rect.y + cell.rect.h // 2))
+
+                # hovered row: the focused Vis cell gets the lighter box, the Sel cell the bar
+                self.assertAlmostEqual(box_bg(mesh.cells[1]), self.grey(c.cell_hover),
+                                       delta=0.02, msg=f"focused cell box {msg}")
+                self.assertAlmostEqual(box_bg(mesh.cells[0]), self.grey(c.item_hover),
+                                       delta=0.02, msg=f"row hover bar {msg}")
+                self.assertAlmostEqual(fill(mesh.cells[1]), self.grey(c.text_hover), delta=0.03,
+                                       msg=f"checked, lit {msg}")
+                # other rows: checked = filled in the glyph colour, unchecked = the panel grey
+                self.assertAlmostEqual(fill(light.cells[1]), self.grey(c.glyph), delta=0.03,
+                                       msg=f"checked {msg}")
+                self.assertAlmostEqual(fill(light.cells[0]), self.grey(c.panel), delta=0.02,
+                                       msg=f"unchecked {msg}")
+                self.assertAlmostEqual(fill(curve.cells[0]), self.grey(c.glyph_disabled),
+                                       delta=0.03, msg=f"inactive cell dimmed {msg}")
+                self.assertAlmostEqual(box_bg(light.cells[1]), self.grey(c.panel), delta=0.02,
+                                       msg=f"no box off the hover {msg}")
+                # the outline of an unchecked box is drawn
+                cr = light.cells[0].check_rect
+                self.assertGreater(px.region_max(_Rect(cr.x, cr.y, cr.w, 1)),
+                                   self.grey(c.panel) + 0.2, msg)
+                # header titles: drawn, dim
+                header = chain.item((1,))
+                wf = rd.text_width_fn(chain.metrics.font_px)
+                for cell in header.cells:
+                    box = _Rect(cell.text_x, header.text_y, math.ceil(wf(cell.label)) + 1,
+                                chain.metrics.cap_h + 1)
+                    top = px.region_max(box)
+                    self.assertGreater(top, self.grey(c.panel) + 0.1, f"{cell.label} {msg}")
+                    self.assertLess(top, self.grey(c.text) + 0.02, f"{cell.label} dim {msg}")
+
+    def test_cell_box_cache(self):
+        chain, _panel = _table_chain()
+        cache = _dd_cache(self)
+        self.assertIsNone(cache.cell_box(chain, (2,), None))
+        self.assertIsNone(cache.cell_box(chain, None, 1))
+        self.assertIsNone(cache.cell_box(chain, (1,), 0), "the header never gets a box")
+        self.assertIsNone(cache.cell_box(chain, (2,), 5))
+        entry = cache.cell_box(chain, (2,), 1)
+        self.assertEqual(entry[0], 0)
+        self.assertIs(cache.cell_box(chain, (2,), 1), entry, "cached")
+        # hover bars / glyphs still come from hover(); a lit row lights only active cells
+        bars, glyphs = cache.hover(chain, (3,))
+        self.assertIsNotNone(bars[0])
+        self.assertIsNotNone(glyphs[0])
+        cache.clear()
+        self.assertEqual(cache._cells, {})
 
 
 class TestOffscreenDropdowns(unittest.TestCase):

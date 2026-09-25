@@ -92,9 +92,26 @@ class TestTables(unittest.TestCase):
         self.assertEqual(it.table_runs([a, a, a, a], min_rows=5), [])
         self.assertEqual(it.table_runs([a, a], min_rows=2), [(0, 2)])
 
-    def test_column_meanings(self):
-        self.assertEqual(it.column_meanings(RS('Mesh', (SEL, VIS))), ('Selectable', 'Visible'))
-        self.assertEqual(it.column_meanings(RS('Mesh', ('RESTRICT_RENDER',))), ('Renderable',))
+    def test_column_titles(self):
+        self.assertEqual(it.column_titles(RS('Mesh', (SEL, VIS))), ('Sel', 'Vis'))
+        self.assertEqual(it.column_titles(RS('Mesh', ('RESTRICT_RENDER', 'RESTRICT_VIEW'))),
+                         ('Render', 'View'))
+        # an unknown family: a short form of the RNA name
+        self.assertEqual(it.column_title('', 'Show in Viewports'), 'Show')
+        self.assertEqual(it.column_title('SNAP', 'Selectable'), 'Select')
+        self.assertEqual(it.column_title('', ''), '')
+        self.assertEqual(it.column_titles(RS('Mesh', (VIS, 'X')), ['Mesh', 'Holdout Mask']),
+                         ('Vis', 'Holdou'))
+        self.assertEqual(it.column_titles(RS('Mesh', (VIS, 'X'))), ('Vis', ''))
+        # the long meanings stay for the single-toggle names ('Mesh Visible')
+        self.assertEqual(it.icon_meaning('HIDE_OFF'), 'Visible')
+
+    def test_short_title(self):
+        self.assertEqual(it.short_title('Show in Viewports'), 'Show')
+        self.assertEqual(it.short_title('  Holdout '), 'Holdou')
+        self.assertEqual(it.short_title('Holdout', 3), 'Hol')
+        self.assertEqual(it.short_title(None), '')
+        self.assertEqual(it.short_title(''), '')
 
 
 if __name__ == "__main__":

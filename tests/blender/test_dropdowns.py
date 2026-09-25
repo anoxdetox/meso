@@ -1650,6 +1650,152 @@ class TestNativeClickConventions(_Case):
                 self.assertEqual(self.last_call(), ('mesh.select_mode', {'type': 'EDGE', **extra}))
 
 
+class TestToggleTableModal(_Case):
+    """A toggle table (DD_COLUMN_HEADER + DD_TOGGLE_ROW) through the real modal: a click on
+    a cell runs exactly that cell's toggle in place, the Plaza and the dropdown stay open and
+    the re-recorded check updates; a click on the row label runs nothing."""
+
+    TYPES = ('Mesh', 'Curve', 'Light')
+
+    def setUp(self):
+        super().setUp()
+        self.values = {}
+        for name in self.TYPES:
+            key = name.lower()
+            self.values[f'space_data.show_object_select_{key}'] = True
+            self.values[f'space_data.show_object_viewport_{key}'] = True
+        rec_pop = _mod("record.popover")
+        self.addCleanup(setattr, rec_pop, 'build_tool_cascade', rec_pop.build_tool_cascade)
+        rec_pop.build_tool_cascade = lambda context, info, item: self.table()
+        inner = self.inv.run_call
+
+        def run_call(call, window, area, region):
+            path = call.kwargs.get('data_path')
+            if call.op_idname == 'wm.context_toggle' and path in self.values:
+                self.values[path] = not self.values[path]
+            return inner(call, window, area, region)
+
+        self.inv.run_call = run_call
+
+    def table(self):
+        M, D = md(), dm()
+        A, I, C = M.Action, D.DropdownItem, D.DropdownCell
+        rows = []
+        for name in self.TYPES:
+            key = name.lower()
+            sel, vis = (f'space_data.show_object_select_{key}',
+                        f'space_data.show_object_viewport_{key}')
+            rows.append(I(D.DD_TOGGLE_ROW, name, source=D.ITEM_SOURCE_TOGGLE_TABLE, cells=(
+                C(f'{name} Selectable', self.values[sel], self.values[vis], True,
+                  A(M.ACTION_TOGGLE, data_path=sel)),
+                C(f'{name} Visible', self.values[vis], True, True,
+                  A(M.ACTION_TOGGLE, data_path=vis)))))
+        items = (I(D.DD_LABEL, 'Selectability & Visibility'),
+                 I(D.DD_COLUMN_HEADER, columns=('Sel', 'Vis'),
+                   source=D.ITEM_SOURCE_TOGGLE_TABLE),
+                 *rows, I(D.DD_SEPARATOR), I(D.DD_NATIVE_MORE, D.MORE_LABEL))
+        return D.DropdownModel(PIVOT_ID, 'Selectability & Visibility', items,
+                               source=D.SOURCE_TOOL,
+                               native_action=D.native_panel_action(
+                                   'VIEW3D_PT_object_type_visibility'))
+
+    def cell_xy(self, path, cell):
+        placed = self.state.menus.chain.item(tuple(path))
+        self.assertIsNotNone(placed, path)
+        r = placed.cells[cell].rect
+        return int(r.x + r.w // 2), int(r.y + r.h // 2)
+
+    def calls(self):
+        return [(c['call'].op_idname, dict(c['call'].kwargs), c['running'])
+                for c in self.run_calls]
+
+    def test_click_cell_runs_that_cell_and_stays_open(self):
+        hb = _hb()
+        self.click(self.label_xy(PIVOT_ID))
+        self.assertEqual(self.state.open_label, PIVOT_ID)
+        mesh = (2,)
+        self.assertEqual([c.checked for c in self.state.dropdowns.item(mesh).cells],
+                         [True, True])
+        vis = 'space_data.show_object_viewport_mesh'
+        self.assertEqual(self.click(self.cell_xy(mesh, 1)),
+                         ({'RUNNING_MODAL'}, {'RUNNING_MODAL'}))
+        self.assertEqual(self.calls(), [('wm.context_toggle', {'data_path': vis}, True)])
+        self.assertTrue(hb.is_running(), "the Plaza stays open")
+        self.assertEqual(self.state.open_label, PIVOT_ID, "the dropdown stays open")
+        self.assertFalse(self.values[vis])
+        placed = self.state.dropdowns.item(mesh)
+        self.assertEqual([c.checked for c in placed.cells], [True, False], "re-recorded")
+        self.assertEqual([c.active for c in placed.cells], [False, True],
+                         "Selectable dimmed while the type is hidden")
+        self.assertEqual((self.state.dropdown_hover, self.state.dropdown_hover_cell), (mesh, 1))
+        # the dimmed Selectable cell still applies
+        sel = 'space_data.show_object_select_mesh'
+        self.click(self.cell_xy(mesh, 0))
+        self.assertEqual(self.calls()[1:], [('wm.context_toggle', {'data_path': sel}, True)])
+        self.assertEqual(self.state.dropdown_hover_cell, 0)
+        self.assertEqual(self.executed, [])
+        self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
+        self.assertEqual(hb.last_session()['in_place'], [
+            ('wm.context_toggle', {'data_path': vis}),
+            ('wm.context_toggle', {'data_path': sel})])
+
+    def test_click_on_row_label_runs_nothing(self):
+        self.click(self.label_xy(PIVOT_ID))
+        placed = self.state.dropdowns.item((3,))
+        xy = (placed.text_x + 2, placed.rect.y + placed.rect.h // 2)
+        self.click(xy)
+        self.assertEqual(self.run_calls, [])
+        self.assertEqual((self.state.dropdown_hover, self.state.dropdown_hover_cell), ((3,), None))
+        self.assertTrue(_hb().is_running())
+        # the header is passive too
+        header = self.state.dropdowns.item((1,))
+        self.click(self.cell_xy((1,), 1))
+        self.assertEqual(self.run_calls, [])
+        self.assertIsNotNone(header)
+
+    def test_execute_on_release_over_a_cell(self):
+        self.stub, self.state = self._session(execute_on_release=True)
+        self.click(self.label_xy(PIVOT_ID))
+        self.move(self.cell_xy((4,), 1))
+        self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
+        self.assertEqual([(e['action'].kind, e['action'].data_path) for e in self.executed],
+                         [(md().ACTION_TOGGLE, 'space_data.show_object_viewport_light')])
+        self.assertEqual(self.run_calls, [], "after teardown, not in place")
+        self.assertEqual(_hb().last_session()['run_item'][2], 'Light Visible')
+
+    def test_execute_on_release_over_a_row_label_runs_nothing(self):
+        self.stub, self.state = self._session(execute_on_release=True)
+        self.click(self.label_xy(PIVOT_ID))
+        placed = self.state.dropdowns.item((4,))
+        self.move((placed.text_x + 2, placed.rect.y + placed.rect.h // 2))
+        self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
+        self.assertEqual((self.executed, self.run_calls), ([], []))
+        self.assertEqual(_hb().last_session()['end'], 'finish')
+
+    def test_keyboard_cells(self):
+        self.click(self.label_xy(PIVOT_ID))
+        self.move(self.outside())
+        self.ev('DOWN_ARROW', 'PRESS')
+        self.assertEqual((self.state.dropdown_hover, self.state.dropdown_hover_cell), ((2,), 1),
+                         "the header is skipped; the Vis column is focused")
+        self.ev('LEFT_ARROW', 'PRESS')
+        self.assertEqual(self.state.dropdown_hover_cell, 0)
+        self.ev('DOWN_ARROW', 'PRESS')
+        self.assertEqual((self.state.dropdown_hover, self.state.dropdown_hover_cell), ((3,), 0))
+        self.ev('RIGHT_ARROW', 'PRESS')
+        self.ev('RIGHT_ARROW', 'PRESS')
+        self.assertEqual(self.state.dropdown_hover_cell, 1, "clamped")
+        self.assertEqual(len(self.state.dropdowns.panels), 1)
+        self.ev('RET', 'PRESS')
+        self.assertEqual(self.run_calls, [])
+        self.assertEqual(self.ev('RET', 'RELEASE'), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls(), [('wm.context_toggle',
+                                         {'data_path': 'space_data.show_object_viewport_curve'},
+                                         True)])
+        self.assertFalse(self.state.dropdowns.item((3,)).cells[1].checked)
+        self.assertEqual((self.state.dropdown_hover, self.state.dropdown_hover_cell), ((3,), 1))
+
+
 class TestToggleFlagOperator(unittest.TestCase):
     """meso.toggle_flag: exclusive sets the property to the flag only; otherwise XOR."""
 

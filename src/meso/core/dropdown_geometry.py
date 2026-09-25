@@ -28,8 +28,18 @@ Placement:
   shortcut) + arrow_col + pad_x``, at least ``min_w``; one width per panel, every item row
   spans it (the hover bar is the panel width, inset by ``border``).
 
+Toggle tables (``DD_COLUMN_HEADER`` + ``DD_TOGGLE_ROW`` lines, :func:`table_columns`): a header
+and the rows after it with the same number of cells form one table (rows without a header
+form one of their own); column ``j`` is ``max(title_w + 2 * cell_pad, check_size + 2 *
+cell_pad, item_h)`` wide (the title width comes from the header). The columns are
+right-aligned at ``panel right - pad_x``, so every line of a table shares the column x
+positions; a table line needs ``check_col + label_w + shortcut_gap + sum(columns) + pad_x``.
+Each cell (:class:`PlacedCell`) is its column x the line height: the hit rect, the check box
+centred in it, the header title centred over it.
+
 Hit testing priority: deepest open panel -> ... -> the root dropdown -> the plaza strips
-(``core.geometry.hit_test``) -> empty strip space -> nothing.
+(``core.geometry.hit_test``) -> empty strip space -> nothing. On a DD_TOGGLE_ROW the hit also
+names the cell under the point (``Hit.cell``; None on the row label).
 
 Pure Python (no bpy): unit-tested with the bundled interpreter.
 """
@@ -41,9 +51,9 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 
 from .dropdown_model import (
-    CHECK_KINDS, DD_LABEL, DD_NATIVE_MORE, DD_RADIO, DD_SEPARATOR, MORE_LABEL, ZONE_ITEM,
-    ZONE_LABEL, ZONE_NONE, ZONE_PANEL, ZONE_STRIP, DropdownItem, DropdownModel, Path,
-    has_arrow,
+    CHECK_KINDS, DD_COLUMN_HEADER, DD_LABEL, DD_NATIVE_MORE, DD_RADIO, DD_SEPARATOR,
+    DD_TOGGLE_ROW, MORE_LABEL, TABLE_KINDS, ZONE_ITEM, ZONE_LABEL, ZONE_NONE, ZONE_PANEL,
+    ZONE_STRIP, DropdownItem, DropdownModel, Path, has_arrow,
 )
 from .geometry import FONT_SCALE_RANGE, Layout, Metrics, TextWidthFn, hit_test, round_px
 from .rects import Rect, bounding_box
@@ -61,6 +71,7 @@ BASE_DD_MIN_W = 120         # minimum panel width
 BASE_DD_BORDER = 1.0        # panel outline width (scale only)
 BASE_DD_SUBMENU_OVERLAP = 0  # submenu panels touch their parent (the reference DCC); >0 overlaps
 BASE_DD_RADIO_FACTOR = 0.6  # radio dot size relative to check_size
+BASE_DD_CELL_PAD = 6        # toggle-table cell: padding each side of its check box / title
 
 # PlacedItem.check_style values.
 GLYPH_BOX = 'box'           # hollow square, filled inner square when checked (toggle, flag)
@@ -90,6 +101,7 @@ class DropdownMetrics:
     hover_inset: int
     margin: int
     submenu_overlap: int
+    cell_pad: int = 0
 
 
 def dropdown_metrics(m: Metrics, font_scale: float = 1.0) -> DropdownMetrics:
@@ -99,8 +111,8 @@ def dropdown_metrics(m: Metrics, font_scale: float = 1.0) -> DropdownMetrics:
     ``fs = m.scale * font_scale``. Taken over from ``m``: ``scale``, ``font_px``, ``cap_h``,
     ``check_size``, ``arrow_size``, ``hover_inset``, ``margin``. ``item_h =
     max(round_px(m.row_h * DD_ITEM_H_FACTOR), m.cap_h + 2 * m.pad_y)``. ``separator_h``,
-    ``pad_y``, ``pad_x``, ``check_col``, ``arrow_col``, ``shortcut_gap``, ``min_w`` and
-    ``submenu_overlap`` = ``round_px(BASE_DD_* * fs)``; ``border = BASE_DD_BORDER * m.scale``;
+    ``pad_y``, ``pad_x``, ``check_col``, ``arrow_col``, ``shortcut_gap``, ``min_w``,
+    ``submenu_overlap`` and ``cell_pad`` = ``round_px(BASE_DD_* * fs)``; ``border = BASE_DD_BORDER * m.scale``;
     ``radio_size = max(1, round_px(check_size * BASE_DD_RADIO_FACTOR))``. Deterministic."""
     fs = m.scale * _clamped(font_scale, FONT_SCALE_RANGE)
     check_size = max(1, int(m.check_size))
@@ -114,7 +126,31 @@ def dropdown_metrics(m: Metrics, font_scale: float = 1.0) -> DropdownMetrics:
         arrow_col=round_px(BASE_DD_ARROW_COL * fs), arrow_size=m.arrow_size,
         shortcut_gap=round_px(BASE_DD_SHORTCUT_GAP * fs), min_w=round_px(BASE_DD_MIN_W * fs),
         border=BASE_DD_BORDER * m.scale, hover_inset=m.hover_inset, margin=m.margin,
-        submenu_overlap=round_px(BASE_DD_SUBMENU_OVERLAP * fs))
+        submenu_overlap=round_px(BASE_DD_SUBMENU_OVERLAP * fs),
+        cell_pad=round_px(BASE_DD_CELL_PAD * fs))
+
+
+@dataclass(frozen=True, slots=True)
+class PlacedCell:
+    """One placed toggle-table cell (window coords): column ``index`` of a DD_TOGGLE_ROW /
+    DD_COLUMN_HEADER line.
+
+    ``rect``: the hit rect (column width x line height; the cells of a line tile its column
+    area); ``highlight``: the hover box (``rect`` inset by the border). Rows: ``check_rect``
+    (the GLYPH_BOX check box centred in ``rect``), ``checked`` / ``active`` / ``enabled``
+    from the ``DropdownCell``. Header: ``label`` (the column title) at ``text_x`` (centred
+    over the column; the line's ``text_y``), ``check_rect`` None.
+    """
+
+    index: int
+    rect: Rect
+    highlight: Rect
+    check_rect: Rect | None = None
+    checked: bool = False
+    active: bool = True
+    enabled: bool = True
+    label: str = ''
+    text_x: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,7 +166,8 @@ class PlacedItem:
     ``shortcut`` / ``shortcut_x``: right-aligned hint origin (left of the arrow column);
     ``line_rect``: the separator line of a DD_SEPARATOR row (``round(border)`` px high,
     inset by ``border`` + one line height on each side: nearly the panel width); ``heading``: a DD_LABEL section title. ``enabled`` / ``active``
-    / ``checked`` copied from the item.
+    / ``checked`` copied from the item. ``cells``: the :class:`PlacedCell` of a
+    DD_TOGGLE_ROW / DD_COLUMN_HEADER line (module doc "Toggle tables"), () otherwise.
     """
 
     path: Path
@@ -150,6 +187,14 @@ class PlacedItem:
     shortcut_x: int = 0
     line_rect: Rect | None = None
     heading: bool = False
+    cells: tuple[PlacedCell, ...] = ()
+
+    def cell_at(self, x: float, y: float) -> int | None:
+        """The index of the cell whose rect contains ``(x, y)`` (half-open), or None."""
+        for cell in self.cells:
+            if cell.rect.contains(x, y):
+                return cell.index
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,12 +249,15 @@ EMPTY_CHAIN = ChainLayout()
 class Hit:
     """Result of :func:`resolve_hit`: ``zone`` (``core.dropdown_model.ZONE_*``), ``label_id``
     (ZONE_LABEL), ``path`` (ZONE_ITEM; passive items included, separators excluded ->
-    ZONE_PANEL), ``depth`` (panel depth for ZONE_ITEM / ZONE_PANEL)."""
+    ZONE_PANEL), ``depth`` (panel depth for ZONE_ITEM / ZONE_PANEL), ``cell`` (ZONE_ITEM on
+    a DD_TOGGLE_ROW: the index of the cell under the point; None on its label and for any
+    other item)."""
 
     zone: str = ZONE_NONE
     label_id: str | None = None
     path: Path | None = None
     depth: int | None = None
+    cell: int | None = None
 
 
 NO_HIT = Hit()
@@ -232,16 +280,64 @@ def measure_items(model: DropdownModel, text_width_fn: TextWidthFn) -> tuple[tup
                  else (width(item.label), width(item.shortcut)) for item in model.items)
 
 
+# One table line's columns (:func:`table_columns`): ``(column width, title width)`` each.
+Columns = tuple[tuple[int, float], ...]
+
+
+def table_columns(model: DropdownModel, dm: DropdownMetrics,
+                  text_width_fn: TextWidthFn | None = None) -> tuple[Columns, ...]:
+    """Per item of ``model``: the columns of its toggle-table line (module doc "Toggle
+    tables"), () for items that are not DD_TOGGLE_ROW / DD_COLUMN_HEADER. A header and the
+    rows right after it with as many cells as it has titles are one table; rows without such
+    a header form one with the rows next to them of the same cell count. Column ``j`` is
+    ``ceil(max(title_w + 2 * cell_pad, check_size + 2 * cell_pad, item_h))`` wide; the title
+    widths come from ``text_width_fn`` (None: 0, the check box decides)."""
+    items = model.items
+    out: list[Columns] = [()] * len(items)
+    pad = 2 * dm.cell_pad
+    floor = max(dm.check_size + pad, dm.item_h)
+    index = 0
+    while index < len(items):
+        item = items[index]
+        if item.kind not in TABLE_KINDS:
+            index += 1
+            continue
+        if item.kind == DD_COLUMN_HEADER:
+            count, titles = len(item.columns), item.columns
+            end = index + 1
+        else:
+            count, titles = len(item.cells), ()
+            end = index
+        while end < len(items) and items[end].kind == DD_TOGGLE_ROW \
+                and len(items[end].cells) == count:
+            end += 1
+        tw = tuple(max(0.0, _finite_or(text_width_fn(t), 0.0))
+                   if (t and text_width_fn is not None) else 0.0 for t in titles)
+        tw += (0.0,) * (count - len(tw))
+        cols = tuple((math.ceil(max(floor, w + pad)), w) for w in tw)
+        for k in range(index, max(end, index + 1)):
+            out[k] = cols
+        index = max(end, index + 1)
+    return tuple(out)
+
+
 def panel_width(model: DropdownModel, widths: Sequence[tuple[float, float]],
-                dm: DropdownMetrics) -> int:
-    """Panel width (module doc; int, >= ``dm.min_w``)."""
+                dm: DropdownMetrics, columns: Sequence[Columns] | None = None) -> int:
+    """Panel width (module doc; int, >= ``dm.min_w``). ``columns``: :func:`table_columns`
+    (None: computed without title widths)."""
+    if columns is None:
+        columns = table_columns(model, dm)
     best = float(dm.min_w)
-    for item, (label_w, shortcut_w) in zip(model.items, widths):
+    for index, (item, (label_w, shortcut_w)) in enumerate(zip(model.items, widths)):
         if item.kind == DD_SEPARATOR:
             continue
-        w = dm.check_col + label_w + dm.arrow_col + dm.pad_x
-        if item.shortcut:
-            w += dm.shortcut_gap + shortcut_w
+        cols = columns[index] if index < len(columns) else ()
+        if item.kind in TABLE_KINDS:
+            w = dm.check_col + label_w + dm.shortcut_gap + sum(c[0] for c in cols) + dm.pad_x
+        else:
+            w = dm.check_col + label_w + dm.arrow_col + dm.pad_x
+            if item.shortcut:
+                w += dm.shortcut_gap + shortcut_w
         best = max(best, w)
     return math.ceil(best)
 
@@ -254,13 +350,17 @@ def panel_height(model: DropdownModel, dm: DropdownMetrics) -> int:
 def place_items(model: DropdownModel, rect: Rect, dm: DropdownMetrics,
                 opener: Path | None,
                 widths: Sequence[tuple[float, float]] | None = None,
+                columns: Sequence[Columns] | None = None,
                 ) -> tuple[tuple[PlacedItem, ...], bool]:
     """Lay the items of ``model`` top -> bottom inside the panel ``rect``; paths are
     ``(opener or ()) + (index,)``. Returns ``(items, clipped)`` (items that do not fit in
     ``rect`` above its bottom ``pad_y`` are dropped and ``clipped`` is True; a clipped panel
     never ends on a separator). ``widths`` (:func:`measure_items`) right-aligns the shortcut
     hints: ``shortcut_x = arrow column left - shortcut_w``; without ``widths`` the hint
-    origin is the arrow column's left edge."""
+    origin is the arrow column's left edge. ``columns`` (:func:`table_columns`; None:
+    without title widths) places the cells of toggle-table lines."""
+    if columns is None:
+        columns = table_columns(model, dm)
     prefix = tuple(opener) if opener else ()
     bi = round_px(dm.border)
     line_h = max(1, bi)
@@ -288,6 +388,13 @@ def place_items(model: DropdownModel, rect: Rect, dm: DropdownMetrics,
                                      y, item.enabled, item.active, None, line_rect=line))
             continue
         text_y = round_px(y + (h - dm.cap_h) / 2)
+        if item.kind in TABLE_KINDS:
+            cols = columns[index] if index < len(columns) else ()
+            placed.append(PlacedItem(
+                path, item.kind, row, highlight, item.label, x + dm.check_col, text_y,
+                item.enabled, item.active, None,
+                cells=_place_cells(item, cols, x1 - dm.pad_x, y, h, bi, dm)))
+            continue
         check_rect, style = None, ''
         if item.kind in CHECK_KINDS:
             cs = dm.check_size
@@ -316,6 +423,30 @@ def place_items(model: DropdownModel, rect: Rect, dm: DropdownMetrics,
     return tuple(placed), clipped
 
 
+def _place_cells(item: DropdownItem, cols: Columns, right: int, y: int, h: int, bi: int,
+                 dm: DropdownMetrics) -> tuple[PlacedCell, ...]:
+    """The cells of a toggle-table line: ``cols`` right-aligned at ``right`` (module doc)."""
+    out: list[PlacedCell] = []
+    x = right - sum(c[0] for c in cols)
+    cs = dm.check_size
+    for j, (col_w, title_w) in enumerate(cols):
+        rect = Rect(x, y, col_w, h)
+        highlight = Rect(x + bi, y + bi, max(0, col_w - 2 * bi), max(0, h - 2 * bi))
+        if item.kind == DD_COLUMN_HEADER:
+            title = item.columns[j] if j < len(item.columns) else ''
+            out.append(PlacedCell(j, rect, highlight, label=title,
+                                  text_x=round_px(x + (col_w - title_w) / 2)))
+        else:
+            cell = item.cells[j] if j < len(item.cells) else None
+            check = Rect(x + (col_w - cs) // 2, y + (h - cs) // 2, cs, cs)
+            out.append(PlacedCell(j, rect, highlight, check,
+                                  bool(cell.checked) if cell is not None else False,
+                                  cell.active if cell is not None else True,
+                                  cell.enabled if cell is not None else False))
+        x += col_w
+    return tuple(out)
+
+
 def place_dropdown(model: DropdownModel, label_rect: Rect, bounds: Rect | None,
                    dm: DropdownMetrics, text_width_fn: TextWidthFn,
                    seams: Sequence[Seam] = ()) -> Panel:
@@ -323,7 +454,8 @@ def place_dropdown(model: DropdownModel, label_rect: Rect, bounds: Rect | None,
     shifted / clamped into ``bounds`` inset by ``dm.margin`` (module doc); then nudged off
     the area ``seams`` (:func:`avoid_seams`)."""
     widths = measure_items(model, text_width_fn)
-    w = panel_width(model, widths, dm)
+    columns = table_columns(model, dm, text_width_fn)
+    w = panel_width(model, widths, dm, columns)
     full_h = panel_height(model, dm)
     inner = _inner(bounds, dm.margin)
     flipped = False
@@ -355,7 +487,7 @@ def place_dropdown(model: DropdownModel, label_rect: Rect, bounds: Rect | None,
             top = max(top, inner.y + h)
     x = _shift_into(x, w, inner.x if inner else None, inner.x1 if inner else None)
     rect = avoid_seams(Rect(round_px(x), round_px(top - h), w, h), model, seams, inner, dm)
-    items, clipped = place_items(model, rect, dm, None, widths)
+    items, clipped = place_items(model, rect, dm, None, widths, columns)
     return Panel(0, model.key, rect, items, None, flipped, clipped)
 
 
@@ -366,7 +498,8 @@ def place_submenu(model: DropdownModel, parent: Panel, opener: PlacedItem,
     parent, flipped left when off-window, shifted vertically into bounds (module doc).
     ``depth = parent.depth + 1``; ``opener = opener.path``."""
     widths = measure_items(model, text_width_fn)
-    w = panel_width(model, widths, dm)
+    columns = table_columns(model, dm, text_width_fn)
+    w = panel_width(model, widths, dm, columns)
     full_h = panel_height(model, dm)
     inner = _inner(bounds, dm.margin)
     ov = dm.submenu_overlap
@@ -400,7 +533,7 @@ def place_submenu(model: DropdownModel, parent: Panel, opener: PlacedItem,
         if y < inner.y:
             y = inner.y
     rect = avoid_seams(Rect(round_px(x), round_px(y), w, h), model, seams, inner, dm)
-    items, clipped = place_items(model, rect, dm, opener.path, widths)
+    items, clipped = place_items(model, rect, dm, opener.path, widths, columns)
     return Panel(parent.depth + 1, model.key, rect, items, opener.path, flipped, clipped)
 
 
@@ -433,7 +566,8 @@ def relayout_panel(model: DropdownModel, old: Panel, bounds: Rect | None,
     ``margin``): up when the bottom would leave them, sideways when the right edge would.
     ``depth`` / ``opener`` / ``flipped`` are kept from ``old``."""
     widths = measure_items(model, text_width_fn)
-    w = max(panel_width(model, widths, dm), old.rect.w)
+    columns = table_columns(model, dm, text_width_fn)
+    w = max(panel_width(model, widths, dm, columns), old.rect.w)
     full_h = panel_height(model, dm)
     inner = _inner(bounds, dm.margin)
     h = full_h if inner is None else _fit_height(model, min(full_h, inner.h), dm)
@@ -444,7 +578,7 @@ def relayout_panel(model: DropdownModel, old: Panel, bounds: Rect | None,
             top = inner.y + h
         x = _shift_into(x, w, inner.x, inner.x1)
     rect = Rect(round_px(x), round_px(top - h), w, h)
-    items, clipped = place_items(model, rect, dm, old.opener, widths)
+    items, clipped = place_items(model, rect, dm, old.opener, widths, columns)
     return Panel(old.depth, model.key, rect, items, old.opener, old.flipped, clipped)
 
 
@@ -619,8 +753,8 @@ def truncate_chain(chain: ChainLayout, depth: int) -> ChainLayout:
 
 def hit_test_chain(chain: ChainLayout | None, x: float, y: float) -> Hit:
     """Deepest panel first: an item row containing ``(x, y)`` (half-open) -> ZONE_ITEM (a
-    separator row -> ZONE_PANEL); inside a panel rect otherwise -> ZONE_PANEL; outside every
-    panel -> :data:`NO_HIT`."""
+    separator row -> ZONE_PANEL; on a DD_TOGGLE_ROW ``cell`` = :meth:`PlacedItem.cell_at`);
+    inside a panel rect otherwise -> ZONE_PANEL; outside every panel -> :data:`NO_HIT`."""
     if chain is None:
         return NO_HIT
     for panel in reversed(chain.panels):
@@ -630,7 +764,8 @@ def hit_test_chain(chain: ChainLayout | None, x: float, y: float) -> Hit:
             if item.rect.contains(x, y):
                 if item.kind == DD_SEPARATOR:
                     break
-                return Hit(ZONE_ITEM, path=item.path, depth=panel.depth)
+                cell = item.cell_at(x, y) if item.kind == DD_TOGGLE_ROW else None
+                return Hit(ZONE_ITEM, path=item.path, depth=panel.depth, cell=cell)
         return Hit(ZONE_PANEL, depth=panel.depth)
     return NO_HIT
 

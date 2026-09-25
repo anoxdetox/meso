@@ -20,6 +20,11 @@ Phase 4 dropdowns (:func:`draw_dropdowns`, docs/phase4-interfaces.md "Look"): dr
 strips in the same callback pass (``view.draw_manager.draw_region`` calls ``draw_plaza`` then
 ``draw_dropdowns`` per visible piece); colours come from :func:`dropdown_colors`, derived from
 the session :class:`view.theme.Palette` only (the palette itself is frozen: user-approved).
+Toggle tables (docs/phase4-interfaces.md "Toggle tables"): a DD_TOGGLE_ROW draws its label
+left and one GLYPH_BOX check box per cell (the DD_TOGGLE primitive; inactive / disabled
+cells dimmed); a hovered row gets the normal hover bar and its focused cell a lighter box
+(``cell_hover``) under the check box; a DD_COLUMN_HEADER draws its titles dimmed, centred
+over the columns.
 
 Headless: needs ``gpu.init()`` + a bound ``GPUOffScreen`` with a pixel-ortho projection
 (tests/blender/test_render_offscreen.py, docs/spikes/draw.md). Never call from ``register()``.
@@ -38,8 +43,10 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 
 from ..core import geometry
-from ..core.dropdown_geometry import GLYPH_RADIO, ChainLayout, DropdownMetrics, Panel, PlacedItem
-from ..core.dropdown_model import DD_SEPARATOR, PASSIVE_DD_KINDS
+from ..core.dropdown_geometry import (
+    GLYPH_RADIO, ChainLayout, DropdownMetrics, Panel, PlacedCell, PlacedItem,
+)
+from ..core.dropdown_model import DD_COLUMN_HEADER, DD_SEPARATOR, DD_TOGGLE_ROW, PASSIVE_DD_KINDS
 from ..core.dropdown_model import Path as ItemPath
 from ..core.geometry import ROLE_CENTER, ItemBox, Layout, Metrics, TextWidthFn
 from ..core.model import KIND_SEPARATOR, KIND_TOGGLE
@@ -545,6 +552,7 @@ def _draw_labels(layout: Layout, palette: Palette, hover_id: str | None, ox: int
 DD_BORDER_FACTOR = 0.3          # border RGB = strip RGB x this (a darker strip grey)
 DD_SEPARATOR_MIX = 0.2          # separator RGB = strip RGB mixed this far toward palette.text
 DOT_SEGMENTS = 16               # polygon segments of the radio dot
+DD_CELL_HOVER_MIX = 0.3         # focused table cell box = item_hover mixed this far toward text
 DD_STATIC_KEYS = ('panels', 'borders', 'separators', 'glyphs', 'glyphs_disabled')
 
 
@@ -561,7 +569,9 @@ class DropdownColors:
     panel). ``item_hover``: the hover bar across the panel width (``palette.item_hover``).
     ``text`` / ``text_hover`` / ``text_disabled`` (disabled and inactive items, section
     headers) / ``shortcut`` (dimmed hint, ``text_disabled``) / ``glyph`` (check, radio, arrow;
-    ``palette.text``) / ``glyph_disabled`` (``text_disabled``).
+    ``palette.text``) / ``glyph_disabled`` (``text_disabled``). ``cell_hover``: the box behind
+    the focused cell of a toggle-table row, drawn over the row's hover bar (``item_hover``
+    mixed DD_CELL_HOVER_MIX toward ``palette.text``: lighter than the bar).
     """
 
     panel: RGBA
@@ -574,6 +584,7 @@ class DropdownColors:
     shortcut: RGBA
     glyph: RGBA
     glyph_disabled: RGBA
+    cell_hover: RGBA = (1.0, 1.0, 1.0, 1.0)
 
 
 def _rgb_mix(a: RGBA, b: RGBA, t: float) -> tuple[float, float, float]:
@@ -598,6 +609,8 @@ def dropdown_colors(palette: Palette) -> DropdownColors:
         shortcut=tuple(palette.text_disabled),
         glyph=tuple(palette.text),
         glyph_disabled=tuple(palette.text_disabled),
+        cell_hover=(*_rgb_mix(palette.item_hover, palette.text, DD_CELL_HOVER_MIX),
+                    float(palette.item_hover[3])),
     )
 
 
@@ -659,15 +672,28 @@ def radio_dot_diameter(cr: Rect, dm: DropdownMetrics) -> float:
     return float(max(1, min(dm.radio_size, min(cr.w, cr.h) - 2 * (t + 1))))
 
 
-def _dd_glyph_mesh(items: Iterable[PlacedItem],
-                   dm: DropdownMetrics) -> tuple[list[Point], list[tuple[int, int, int]]]:
+def _cell_lit(it: PlacedItem, cell: PlacedCell) -> bool:
+    """A table cell drawn in the full glyph colour (row and cell enabled, cell active)."""
+    return it.enabled and cell.enabled and cell.active
+
+
+def _dd_glyph_mesh(items: Iterable[PlacedItem], dm: DropdownMetrics,
+                   cells: Iterable[PlacedCell] = ()
+                   ) -> tuple[list[Point], list[tuple[int, int, int]]]:
     """TRIS mesh of the glyphs of ``items``: GLYPH_BOX = hollow square + filled inner square
     when checked; GLYPH_RADIO = round ring + filled dot when checked (exclusive picks read
     apart from multi-select boxes); '▸' arrows (:func:`arrow_points`, always pointing right,
-    as in the reference DCC)."""
+    as in the reference DCC); plus the GLYPH_BOX of every toggle-table cell in ``cells``."""
     verts: list[Point] = []
     tris: list[tuple[int, int, int]] = []
     t = dd_line_px(dm)
+    for cell in cells:
+        cr = cell.check_rect
+        if cr is not None and not cr.is_empty():
+            _add_outline(verts, tris, cr, t)
+            if cell.checked:
+                f = check_fill_rect(cr, dm)
+                _add_rect(verts, tris, f.x, f.y, f.x1, f.y1)
     for it in items:
         cr = it.check_rect
         if cr is not None and not cr.is_empty():
@@ -719,7 +745,8 @@ class DropdownBatchCache:
     separator lines, glyphs (enabled / disabled). Hover batches keyed by
     ``(chain.signature, path)`` (per panel: the highlight bars of :func:`highlight_paths`,
     i.e. the hovered item plus the openers of open submenus, and their glyphs), up to
-    HOVER_CACHE_SIZE. A new signature (a level opened / closed / re-recorded) drops
+    HOVER_CACHE_SIZE; the focused table cell box by ``(chain.signature, path, cell)``
+    (:meth:`cell_box`). A new signature (a level opened / closed / re-recorded) drops
     everything; moving the hover rebuilds only the hover batch. Counters for tests:
     ``static_builds``, ``hover_builds``. ``clear()`` on HandlerSet.stop (no batch outlives
     the session).
@@ -732,6 +759,7 @@ class DropdownBatchCache:
         self._static_key: tuple | None = None
         self._static: dict[str, tuple[Any, ...]] = {}
         self._hover: dict[tuple, tuple[Any, Any]] = {}
+        self._cells: dict[tuple, tuple[int, Any] | None] = {}
 
     def static(self, chain: ChainLayout, colors: DropdownColors) -> dict[str, tuple[Any, ...]]:
         """``{'panels', 'borders', 'separators', 'glyphs', 'glyphs_disabled'}``, each a tuple
@@ -750,10 +778,14 @@ class DropdownBatchCache:
                 per['panels'].append(_fill_batch((panel.rect,), 0.0))
                 per['borders'].append(_mesh_batch(border))
                 per['separators'].append(_fill_batch(seps, 0.0))
+                cells = [(it, c) for it in panel.items for c in it.cells
+                         if c.check_rect is not None]
                 per['glyphs'].append(_mesh_batch(_dd_glyph_mesh(
-                    (it for it in panel.items if it.enabled and it.active), dm)))
+                    (it for it in panel.items if it.enabled and it.active), dm,
+                    (c for it, c in cells if _cell_lit(it, c)))))
                 per['glyphs_disabled'].append(_mesh_batch(_dd_glyph_mesh(
-                    (it for it in panel.items if not (it.enabled and it.active)), dm)))
+                    (it for it in panel.items if not (it.enabled and it.active)), dm,
+                    (c for it, c in cells if not _cell_lit(it, c)))))
             self._static = {k: tuple(v) for k, v in per.items()}
             self._static_key = key
             self.static_builds += 1
@@ -781,11 +813,36 @@ class DropdownBatchCache:
             items = [chain.item(p) for p in paths if len(p) - 1 == depth]
             if items:
                 bars[depth] = _fill_batch([it.highlight for it in items], 0.0)
-                glyphs[depth] = _mesh_batch(_dd_glyph_mesh(items, chain.metrics))
+                # Inactive / disabled cells of a lit table row stay dimmed.
+                glyphs[depth] = _mesh_batch(_dd_glyph_mesh(
+                    items, chain.metrics, (c for it in items for c in it.cells
+                                           if c.check_rect is not None and _cell_lit(it, c))))
         entry = self._hover[key] = (tuple(bars), tuple(glyphs))
         self.hover_builds += 1
         while len(self._hover) > HOVER_CACHE_SIZE:
             del self._hover[next(iter(self._hover))]
+        return entry
+
+    def cell_box(self, chain: ChainLayout, path: ItemPath | None,
+                 cell: int | None) -> tuple[int, Any] | None:
+        """``(panel depth, batch)`` of the box behind the focused cell ``cell`` of the
+        hovered DD_TOGGLE_ROW ``path`` (its ``highlight`` rect), or None (no cell, not a
+        hoverable table row, a disabled row)."""
+        sig = self._sync(chain)
+        if cell is None or path is None:
+            return None
+        key = (sig, path, cell)
+        if key in self._cells:
+            return self._cells[key]
+        it = chain.item(path)
+        entry = None
+        if it is not None and it.kind == DD_TOGGLE_ROW and _hoverable(it):
+            c = next((c for c in it.cells if c.index == cell), None)
+            if c is not None and not c.highlight.is_empty():
+                entry = (len(path) - 1, _fill_batch((c.highlight,), 0.0))
+        self._cells[key] = entry
+        while len(self._cells) > HOVER_CACHE_SIZE:
+            del self._cells[next(iter(self._cells))]
         return entry
 
     def _sync(self, chain: ChainLayout) -> int:
@@ -802,6 +859,7 @@ class DropdownBatchCache:
         self._static_key = None
         self._static = {}
         self._hover = {}
+        self._cells = {}
 
 
 def chain_extent(chain: ChainLayout | None) -> Rect | None:
@@ -815,14 +873,16 @@ def chain_extent(chain: ChainLayout | None) -> Rect | None:
 
 def draw_dropdowns(chain: ChainLayout | None, palette: Palette, hover_path: ItemPath | None,
                    region_offset: tuple[int, int], linear_blend: bool,
-                   cache: DropdownBatchCache | None = None, clip: Rect | None = None) -> bool:
+                   cache: DropdownBatchCache | None = None, clip: Rect | None = None,
+                   hover_cell: int | None = None) -> bool:
     """Draw the open chain above the plaza (same framebuffer, scissor set by the caller).
 
     Returns False without GPU work when ``chain`` is None / empty or ``clip`` misses
     ``chain.extent``. Order per panel, root first (deeper panels on top): panel fill
     (``corrected`` with ``linear_blend``; opaque, so unaffected), border, separators, hover
     bars (``item_hover``, full panel width: the hovered item unless passive / disabled, plus
-    the opener of every open submenu), glyphs (hollow square / filled inner square when
+    the opener of every open submenu), the focused cell box of a hovered table row
+    (``hover_cell``; ``cell_hover``), glyphs (hollow square / filled inner square when
     checked for GLYPH_BOX; round ring + filled dot when checked for GLYPH_RADIO; '▸'
     arrow; disabled / inactive in ``glyph_disabled``, highlighted ones again in
     ``text_hover``), then that panel's labels with blf (size ``font_px``; disabled /
@@ -842,10 +902,12 @@ def draw_dropdowns(chain: ChainLayout | None, palette: Palette, hover_path: Item
     colors = dropdown_colors(palette)
     static = cache.static(chain, colors)
     hover_bars, hover_glyphs = cache.hover(chain, hover_path)
+    cell_box = cache.cell_box(chain, hover_path, hover_cell)
     lit = frozenset(highlight_paths(chain, hover_path))
     ox, oy = region_offset
     panel_fill = corrected(colors.panel, linear_blend)
     hover_fill = corrected(colors.item_hover, linear_blend)
+    cell_fill = corrected(colors.cell_hover, linear_blend)
     pushed = False
     try:
         gpu.state.blend_set('ALPHA')
@@ -862,6 +924,8 @@ def draw_dropdowns(chain: ChainLayout | None, palette: Palette, hover_path: Item
                     _draw_fill(batch, color)
             if hover_bars is not None and hover_bars[depth] is not None:
                 _draw_fill(hover_bars[depth], hover_fill)
+            if cell_box is not None and cell_box[0] == depth:
+                _draw_fill(cell_box[1], cell_fill)
             for key, color in (('glyphs_disabled', colors.glyph_disabled),
                                ('glyphs', colors.glyph)):
                 batch = static[key][depth]
@@ -896,7 +960,9 @@ def _draw_dd_labels(panel: Panel, font_px: int, colors: DropdownColors,
                     lit: frozenset[ItemPath], ox: int, oy: int, clip: Rect | None) -> None:
     """Labels then shortcut hints of ``panel`` (culled by ``clip``) in region-local blf
     coords; size set once and the colour only when it changes. A highlighted row's shortcut
-    is drawn in ``text`` (``shortcut`` is too close to the hover bar grey to read)."""
+    is drawn in ``text`` (``shortcut`` is too close to the hover bar grey to read). The
+    column titles of a DD_COLUMN_HEADER are drawn in ``text_disabled`` at their cells'
+    ``text_x``."""
     blf.size(FONT_ID, font_px)
     current = None
     for it in panel.items:
@@ -909,6 +975,15 @@ def _draw_dd_labels(panel: Panel, font_px: int, colors: DropdownColors,
                 current = color
             blf.position(FONT_ID, it.text_x - ox, it.text_y - oy, 0)
             blf.draw(FONT_ID, it.label)
+        if it.kind == DD_COLUMN_HEADER:
+            for cell in it.cells:
+                if not cell.label:
+                    continue
+                if colors.text_disabled != current:
+                    blf.color(FONT_ID, *colors.text_disabled)
+                    current = colors.text_disabled
+                blf.position(FONT_ID, cell.text_x - ox, it.text_y - oy, 0)
+                blf.draw(FONT_ID, cell.label)
         if it.shortcut:
             color = colors.text if it.path in lit else colors.shortcut
             if color != current:
