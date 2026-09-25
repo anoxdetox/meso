@@ -347,8 +347,18 @@ def scenarios(drv):
                       selected_names())
             yield from key(v3d, 'I', **IC_INVERT)
             drv.check(rec, "obj_ctrl_i_alias", selected_names() == ["Cube"], selected_names())
+            # Ctrl A is the Properties cycle in the 3D View (step 2); switched off, it is
+            # Industry Compatible's select all again.
             yield from key(v3d, 'A', ctrl=True)
-            drv.check(rec, "obj_ctrl_a_native", selected_names() == everything, selected_names())
+            drv.check(rec, "obj_ctrl_a_is_properties_cycle", selected_names() == ["Cube"],
+                      selected_names())
+            drv.addon_prefs().bind_properties_cycle = False
+            yield 0.2
+            yield from key(v3d, 'A', ctrl=True)
+            drv.check(rec, "obj_ctrl_a_native_when_off", selected_names() == everything,
+                      selected_names())
+            drv.addon_prefs().bind_properties_cycle = True
+            yield 0.2
             # Switched off: Ctrl Shift A is Industry Compatible's deselect again.
             drv.addon_prefs().bind_select_all = False
             yield 0.2
