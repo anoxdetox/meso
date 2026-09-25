@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; next: Meso Keymap — implementation contract in `docs/meso-keymap-interfaces.md` (3 steps), built on `docs/spikes/meso-keymap-api.md` and `docs/spikes/meso-keymap-conflicts.md`.
+Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; Meso Keymap step 1 ✅ (delivery, select keys, Apply on Ctrl+Alt+A, per-binding toggles; open decision C13 on Alt+D); next: Meso Keymap steps 2–3 — implementation contract in `docs/meso-keymap-interfaces.md`, built on `docs/spikes/meso-keymap-api.md` and `docs/spikes/meso-keymap-conflicts.md`.
 
 ## Guiding principle — Plaza menus mirror native behaviour (user rule 2026-09-25)
 Wherever the Plaza redraws a native control, it behaves like the native one: the same click conventions (a plain click on a multi-value button is exclusive, Shift extends), the same grouping and labels. See `docs/phase4-interfaces.md` "Native click conventions".
@@ -75,7 +75,7 @@ Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table 
 
 ## Queued after the rename (user decisions 2026-09-25)
 **Contract:** items 2–4 and parity backlog items 1, 2 and 9 are specified in `docs/meso-keymap-interfaces.md` (binding table, prefs, lifecycle, tests, steps 1–3, open decisions with safe defaults). Where this list and the contract differ, the contract wins. The "inject a preset" wording of item 2 is superseded by the delivery model under "Meso Keymap and feature parity": select the built-in Industry Compatible preset on explicit consent, Meso bindings as add-on items only.
-2. **Meso Keymap** (replaces "personal keymap export"; deferred analysis).
+2. **Meso Keymap** (replaces "personal keymap export"; deferred analysis). **Step 1 ✅** (2026-09-25): the first-enable choice selects Industry Compatible and records/restores the previous keyconfig; the bindings are add-on items with one switch each in the preferences. Open: decision C13 in the contract (Alt+D cannot reach the Outliner, Node, Clip, File Browser, Info and channel lists).
    - Analyse Blender's **Industry Compatible** keymap against the target DCC's conventions. Keep this analysis internal and never name the other DCC in shipped text.
    - Build a **Meso Keymap** keyconfig preset that closes the gaps: Ctrl+1 isolate, Ctrl+A properties cycle, and so on.
    - The add-on **injects the preset and selects it when enabled**, but only after a **first-enable choice** asking the user to use the Meso Keymap or keep their current keymap.
@@ -87,7 +87,7 @@ Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table 
    - The same for curves, armatures and other edit modes where possible.
 4. **Ctrl+A cycles the Properties editor tabs.** Default cycle: Object (transforms) → Object Data → Modifiers → Material, configurable.
    - If no Properties editor is visible, fall back to the N-sidebar Item tab.
-   - Blender's Apply menu (normally Ctrl+A) moves to the Plaza or another key in the Meso Keymap.
+   - Blender's Apply menu (normally Ctrl+A) moves to the Plaza or another key in the Meso Keymap. ✅ Step 1: Ctrl+Alt+A in Object and Pose Mode, plus the Plaza Object ▸ Apply / Pose ▸ Apply submenus.
 
 ## Queued last before Phase 5 — generalize and rewrite history (user decisions 2026-09-25)
 Goal: nothing personal and no legacy-branding references (beyond the allowed referential README/docs uses) in **any** commit before the first GitHub push. The repo has never been pushed.
@@ -173,7 +173,7 @@ The full research lives locally in `local/research/keymap_gap_analysis.md`. That
    - B+drag soft-select radius.
    - MMB virtual slider scrubbing the selected channel.
    - [ / ] view undo/redo, which needs our own view-history stack.
-9. **Selection keys follow the reference DCC (user decision 2026-09-25):**
+9. **Selection keys follow the reference DCC (user decision 2026-09-25):** ✅ Step 1 of the Meso Keymap, with decision C13 open (the default keeps IC's Ctrl+Shift+A deselect in the editors Alt+D cannot reach).
    - **Select All = Ctrl+Shift+A**
    - **Deselect All = Alt+D**
    - **Invert Selection = Ctrl+Shift+I**

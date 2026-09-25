@@ -173,6 +173,31 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
 - Use `poll()` / `{'PASS_THROUGH'}` to decline in places such as the Timeline, so play still fires. That fall-through has to be tested (UH).
 - The order of Frames relative to '3D View' inside one region, and which regions have Frames, are UH.
 
+**Meso Keymap, step 1 (GUI suite `scenarios_meso_keymap.py`, `run_persist_check.sh`, 5.2.2):**
+- A keymap switch in the Preferences (`preferences.keyconfig_activate` -> `bpy.utils.keyconfig_set` ->
+  `keyconfigs.active = kc`) publishes **no** msgbus notification for `(KeyConfigurations, 'active')` or
+  `(PreferencesKeymap, 'active_keyconfig')` (`mk_keyconfig_switch` probes both). `meso_keymap` therefore compares
+  `wm.keyconfigs.active.name` from a read-only persistent timer (0.5 s) and re-syncs on a change.
+- **Alt D never reaches an editor keymap whose region runs the 'User Interface' handler first.** Its Alt D item
+  (`anim.driver_button_remove`, meant for a hovered property) takes the key even over empty space and nothing
+  below it fires (`mk_alt_d_reach`, a probe item on Alt D in each keymap). Blocked: Outliner, Node Editor,
+  Clip Editor (clip view, graph view in the PREVIEW region, and Mask mode), File Browser, Info, and the channel
+  lists ('Animation Channels'). Reached: the 3D View main region (every mode map), Image/UV Editor (also 'Mask
+  Editing' in the Image Editor), Graph Editor, Dope Sheet and Timeline, NLA and Sequencer main regions. IC's own
+  Clip Editor Alt D (`space_data.show_disabled` toggle) is dead for the same reason. Ctrl Shift A, Ctrl Shift I and
+  Ctrl Alt D do reach all of these editors. Over a driven property Alt D still removes the driver, also with the
+  Meso bindings on.
+- The Sequencer in 5.x shows the workspace's `sequencer_scene` (None in the factory file): strips added to
+  `context.scene` are not reachable by the Sequencer operators until `workspace.sequencer_scene = scene`.
+- `outliner.select_all`, `file.select_all` and `info.select_all` have no REGISTER flag and `sequencer.select_all`
+  only UNDO, so they never show in `wm.operators`; the GUI checks read the selection state instead.
+- A non-factory launch needs its `BLENDER_USER_CONFIG` directory to exist: otherwise `wm.save_userpref()` returns
+  FINISHED and writes nothing.
+- User disable in the Preferences (`preferences.addon_disable`, then quit): the keyconfig restored by
+  `unregister()` is saved by the preferences auto-save and is active at the next start. A plain quit with the Meso
+  Keymap in use keeps Industry Compatible and the choice (the exit-time restore is not saved), and the next start
+  has the bindings live without asking again (`run_persist_check.sh`, 17 checks).
+
 ---
 
 ## 4. Recorder

@@ -201,8 +201,8 @@ Mode, Mesh, Curve, Armature, Pose, Particle, UV and Graph. Meso adds the exact-r
 |---|---|---|---|---|
 | 3D View mode maps (Object, Mesh, Curve(s), Armature, Pose, Metaball, Lattice, Particle, Point Cloud, Sculpt Curves, Paint masks) | **none** | Object: **linked duplicate**; Mesh: **rip edge move** | **yes**; displaces nothing in IC | under BL, choice C1 |
 | 'UV Editor', 'Mask Editing', 'Markers', 'Graph Editor', 'Dopesheet', 'NLA Editor', 'Animation Channels', 'Node Editor', 'Sequencer', 'Outliner', 'Info' | none | Graph: key blending menu; Node / NLA / Sequencer: linked duplicate | **yes**; free in IC | under BL, choice C1 |
-| **'Clip Editor'** | **toggle `space_data.show_disabled`** (IC:2172-2173; BL has the same item) | same | **conflict, needs a decision (C7)** | see "Clip Editor Alt+D" |
-| 'User Interface' (hovered property) | `anim.driver_button_remove` (IC:431) | Ctrl+Alt+D | none. It is a default handler that runs before the editor maps, so over a driven button (sidebar, Properties, node socket values) driver removal wins, and elsewhere its poll fails and passes. **UH**: Node Editor socket buttons | native |
+| **'Clip Editor'** | **toggle `space_data.show_disabled`** (IC:2172-2173; BL has the same item) | same | **conflict, needs a decision (C7)**; step 1 found the native item dead (the 'User Interface' Alt+D takes the key first), so Meso binds only Ctrl+Alt+D there | see "Clip Editor Alt+D" |
+| 'User Interface' (hovered property) | `anim.driver_button_remove` (IC:431) | Ctrl+Alt+D | none. It is a default handler that runs before the editor maps, so over a driven button (sidebar, Properties, node socket values) driver removal wins. **Correction (GUI, Meso Keymap step 1):** it does *not* pass elsewhere: in regions with the UI handler (Outliner, Node Editor, Clip Editor, File Browser, Info, channel lists) it takes Alt D even over empty space, so no editor Alt D item fires there (`docs/verified-facts-5.2.md` §3, decision C13 in `docs/meso-keymap-interfaces.md`) | native |
 | 'Preview' (Sequencer) | none | linked duplicate | none (C10) | native |
 | 'Text' / 'Console' / 'Font' | none | none | **never** | — |
 

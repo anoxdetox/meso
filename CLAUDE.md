@@ -27,7 +27,8 @@ click/modifier conventions.
 $PY -m unittest discover -s tests/unit -t .                          # pure tests (no bpy)
 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 $B --command extension validate src/meso                          # positional path
-timeout 700 tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl] [--out F]  # GUI suite (nested kwin_wayland; ~5-8 min)
+timeout 700 tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland; ~4-8 min)
+timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Keymap restart check (real start-ups, temp config)
 $PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate docs/inventory_5_2.json (subprocesses)
 $B --command extension build --source-dir src/meso --output-dir dist
 tools/dev_link.sh                                                     # symlink into user_default for GUI testing
@@ -46,6 +47,18 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - Keymaps: only `wm.keyconfigs.addon`. Never modify `default`/`user`. Remove every item in `unregister()`.
   Add-on items merge ahead of built-ins in REVERSE registration order; never use `head=True`.
   Never bind bare Space in 'Text'/'Console'.
+  Exception, explicit consent only: `meso.keymap_choose` may call `bpy.utils.keyconfig_set` on Blender's installed
+  `Industry_Compatible` preset after the user picks "Use Meso Keymap", and the add-on restores the recorded previous
+  keyconfig by assigning `wm.keyconfigs.active` (or `keyconfig_set` on its preset). Never select a keyconfig without
+  that choice, never export a preset, never write items into `default`/`user`.
+- Never call `keymaps.new('Transform Modal Map')` (or any modal map) on `wm.keyconfigs.addon`; it raises, and the
+  non-modal form leaves a stray keymap.
+- Meso Keymap items never go into 'Text', 'Text Generic', 'Console', 'Font', 'User Interface', 'Window', 'Screen' or
+  the Sequencer 'Preview' keymap; a Meso item that shadows a native one must list it in `core/meso_bindings.py`
+  `displaces` (the shadow test enforces it). Alt D never reaches an editor keymap whose region runs the 'User
+  Interface' handler first (`ALT_D_BLOCKED_KEYMAPS`); never move a native action onto Alt D there.
+- Never write `tool_settings` while `Window.modal_operators` holds a foreign modal; hold restores wait for it.
+- Snap state is written as the `snap_elements` union, never base then individual (they clear each other).
 - Never keep `Area`/`Region`/`Screen`/RNA pointers after the modal ends or after undo/workspace changes; store
   data_path strings instead.
 - Never `temp_override(screen=<screen of another workspace>)` in live code — it switches workspace/mode and can segfault.
@@ -54,12 +67,16 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   `gpu.state.blend_set('ALPHA')` then reset; `blf.size(font, px)` (2 args); scale = `preferences.system.ui_scale or 1.0`.
 - Headless caveats: `ui_scale` is 0.0; the keyconfig preset is not loaded (call `bpy.utils.keyconfig_set`);
   timers don't fire; NEVER call `popup_menu`/popover/`call_panel` in `-b` (segfaults), nor
-  `_bpy._wm_capabilities()` (segfaults; `rna_keymap_ui.draw_kmi` calls it for an expanded item).
+  `_bpy._wm_capabilities()` (segfaults; `rna_keymap_ui.draw_kmi` calls it for an expanded item). Never open the
+  keymap-choice dialog under `-b`.
 - Never write under `~/.config/blender` except the dev symlink. EVERY Blender launch (headless or GUI) sets
   `BLENDER_USER_CONFIG=$(mktemp -d)` and `BLENDER_USER_EXTENSIONS=$(mktemp -d)` — a GUI quit rewrites
   `config/recent-searches.txt` even with `--factory-startup`.
 - GUI spikes: drive with `--enable-event-simulate` + a timer state machine that quits itself, wrapped in `timeout`;
   if the desktop session is locked, run inside `kwin_wayland --virtual` (see `tools/spikes/*/run.sh`); `vblank_mode=0` for OpenGL.
+  Scenarios that start a transform run Blender on Xwayland (`--xwayland`, no `WAYLAND_DISPLAY`); on the nested
+  Wayland backend a cursor grab segfaults. A fresh enable in a GUI scenario opens the first-enable keymap question
+  after 0.5 s: `gui_driver.enable_addon()` marks it asked unless `prompt=True`.
 - Phase 0 decisions in `docs/spikes.md` (D1–D5) supersede the plan where they differ.
 - IP hygiene: never commit third-party screenshots, icons, docs text or sampled colours; never implement
   multi-touch finger-chord gesture recognition (live third-party patent until 2031). See `docs/roadmap.md`.

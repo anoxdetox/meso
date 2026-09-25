@@ -42,6 +42,53 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
 6. `addon_utils.disable()` calls `unregister()` **outside** `RestrictBlend` (addon_utils.py:595); `enable()` wraps
    `register()` in it (:452). `unregister()` code must still be defensive (a failed-enable rollback runs inside it).
 
+## Status
+- **Step 1 implemented** (delivery, select keys, Apply relocation, per-binding toggles): `core/meso_bindings.py`,
+  `core/keyconfig_choice.py`, `meso_keymap.py`, `ops/keymap_choice.py`, the new preferences, the Meso Keymap box and
+  the section tree in `keymap_prefs.py`, CLAUDE.md rules 1–6 below. Live bindings: `select_all`, `deselect_all`,
+  `select_invert`, `reloc_clip_show_disabled`, `select_keys_extra`, `apply_menu`. Tests: `tests/unit/test_meso_bindings.py`,
+  `tests/unit/test_keyconfig_choice.py`, `tests/blender/test_meso_keymap.py` (incl. the shadow test),
+  `tests/blender/test_keyconfig_choice_blender.py`, `tests/blender/test_keymap_prefs.py` (Meso part),
+  `tests/gui/scenarios_meso_keymap.py` (G1, G3, G4, `mk_alt_d_reach`, G7) and `tests/gui/run_persist_check.sh` (G2).
+- **Deviations from this contract in step 1** (the sections below are updated where marked):
+  1. **No msgbus subscription.** Verified in the GUI (G3): a keymap switch publishes no msgbus notification for
+     `(KeyConfigurations, 'active')` or `(PreferencesKeymap, 'active_keyconfig')`. `meso_keymap` instead runs a
+     read-only persistent timer (0.5 s) that compares `wm.keyconfigs.active.name` and calls `sync()` on a change;
+     `load_post` still re-syncs too.
+  2. **Alt D cannot reach every editor** (verified in the GUI, `mk_alt_d_reach`; `docs/verified-facts-5.2.md` §3):
+     in regions that run the 'User Interface' handler first (Outliner, Node Editor, Clip Editor in every view and
+     mode, File Browser, Info, channel lists) its Alt D item `anim.driver_button_remove` takes the key, also over
+     empty space. The conflict audit's assumption ("elsewhere its poll fails and passes") was wrong. Under the
+     never-erase rule, Ctrl Shift A may only take IC's deselect where Alt D works, so (new constants
+     `ALT_D_BLOCKED_KEYMAPS`, `ALT_D_PARTLY_BLOCKED_KEYMAPS`):
+     - `select_all` covers 18 keymaps: not 'Outliner', 'Node Editor', 'Clip Editor', 'Info', 'Animation Channels',
+       and not 'Mask Editing' (Alt D works for masks in the Image Editor but not in the Clip Editor). There,
+       Ctrl Shift A stays IC's Deselect All;
+     - `deselect_all` covers 19 keymaps (the 18 plus 'Mask Editing');
+     - `select_invert` keeps all 24;
+     - `deselect_all_clip` is **removed** (its Alt D would never fire). `reloc_clip_show_disabled` stays as a
+       standalone binding without `follows`: Ctrl Alt D gives Show Disabled a key that works, because IC's own
+       Alt D toggle is dead there for the same reason;
+     - `select_keys_extra` has 10 items: Ctrl Shift A and Ctrl Shift I in 'File Browser Main' and 'Clip Graph
+       Editor', all three in 'Paint Vertex Selection' and 'Grease Pencil Selection'.
+     This is decision **C13** (below); nothing is lost natively in the meantime.
+  3. `warnings(active)` and `plaza_key_conflicts(key, active)` take the result of `active_bindings(...)` (so a binding
+     whose operator is not registered yet never warns). `active_bindings` has an `available=` filter; the bpy side
+     passes the bindings whose operators exist, and a relocation whose target is unavailable is unavailable too. The
+     preferences show only the groups with available bindings (Selection and Apply in step 1).
+  4. `choose_plan(...)` takes `loaded_names=` and `preset_exists=` keyword arguments, so the KEEP restore is fully
+     planned in pure code.
+  5. `Displaced.native` is `native_call(idname, props)` text (e.g. `object.select_all(action='DESELECT')`). The shadow
+     test formats IC's items the same way and matches, besides PRESS, IC items with value ANY/CLICK/CLICK_DRAG/
+     DOUBLE_CLICK and `any` items (stricter than the contract). `FORBIDDEN_KEYMAPS` also lists 'Frames' (a Plaza map),
+     and `is_forbidden_keymap()` refuses every modal map name.
+  6. GUI: G2 is a separate script, `tests/gui/run_persist_check.sh` (real start-ups with throw-away config dirs).
+     G1 selects "Use" by invoking the dialog with `choice='MESO'` (the radio-button click is not simulated). G4
+     reads the real selection state, since several select operators never show in `wm.operators`; the Info editor
+     keeps no readable selection and is covered headless. The Clip Editor Mask mode (UH4) and the node-socket
+     driver (UH3) are answered by `mk_alt_d_reach`: Alt D never reaches either editor keymap. `run_gui_tests.sh
+     --only a,b` runs a subset.
+
 ## Delivery model (user decision 1)
 - **On the first enable** the user chooses: **Use the Meso Keymap** (select IC + register Meso's bindings) or **Keep my
   current keymap** (nothing changes).
@@ -51,8 +98,9 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
 - **Keep, or disabling the add-on**, restores the previous keyconfig (rules in "Keyconfig choice").
 - The choice can be revisited any time in the preferences.
 - **DEFAULT: Meso bindings register only while the choice is MESO and IC is the active keyconfig** (C1). On BL they
-  would shadow Alt+D linked duplicate / rip, Ctrl+A Apply / skin resize and Ctrl+1 subdivision level, and hold-X would
-  never fire where X is delete. An advanced pref `bindings_on_other_keymaps` (default False) registers them on any
+  would shadow Alt+D linked duplicate / rip / NLA duplicate / key blending, Ctrl+A Apply / skin resize, Ctrl+1
+  subdivision level and C circle select (printed by the headless BL shadow report), and hold-X would never fire where
+  X is delete. An advanced pref `bindings_on_other_keymaps` (default False) registers them on any
   keyconfig anyway; its description lists those collisions. With it off, C6 (BL Object Mode Ctrl+1) never arises.
 
 ## Modules and files
@@ -161,12 +209,12 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 
 | id | Group | Keymap(s) | Key | Operator (props) | Default | Displaces (IC) → now at |
 |---|---|---|---|---|---|---|
-| `select_all` | Selection | the 24 trio keymaps | Ctrl+Shift+A | `<op>.select_all(action='SELECT')` | **on** | IC Ctrl+Shift+A DESELECT → `deselect_all` (Alt+D); Ctrl+A (IC select all) stays a native alias wherever Meso leaves Ctrl+A alone |
-| `deselect_all` | Selection | the trio keymaps **except 'Clip Editor'** | Alt+D | `<op>.select_all(action='DESELECT')` | **on** | nothing in IC (BL: linked duplicate / rip / key blending, only with `bindings_on_other_keymaps`) |
+| `select_all` | Selection | the 18 trio keymaps Alt D reaches (step 1: not 'Outliner', 'Node Editor', 'Clip Editor', 'Info', 'Animation Channels', 'Mask Editing') | Ctrl+Shift+A | `<op>.select_all(action='SELECT')` | **on** | IC Ctrl+Shift+A DESELECT → `deselect_all` (Alt+D); Ctrl+A (IC select all) stays a native alias wherever Meso leaves Ctrl+A alone |
+| `deselect_all` | Selection | the 19 trio keymaps Alt D reaches (the 18 plus 'Mask Editing') | Alt+D | `<op>.select_all(action='DESELECT')` | **on** | nothing in IC (BL: linked duplicate / rip / key blending, only with `bindings_on_other_keymaps`) |
 | `select_invert` | Selection | the 24 trio keymaps | Ctrl+Shift+I | `<op>.select_all(action='INVERT')` | **on** | nothing (unbound in both presets); IC Ctrl+I invert stays as the alias (no Meso item) |
-| `deselect_all_clip` | Selection | 'Clip Editor' | Alt+D | `clip.select_all(action='DESELECT')` | **on** (C7 option a) | IC Alt+D `wm.context_toggle(space_data.show_disabled)` → `reloc_clip_show_disabled` (Ctrl+Alt+D) + header Overlay ▸ Show Disabled |
-| `reloc_clip_show_disabled` | Selection | 'Clip Editor' | Ctrl+Alt+D | `wm.context_toggle(data_path='space_data.show_disabled')` | on, `follows='deselect_all_clip'` | nothing (free in both presets) |
-| `select_keys_extra` | Selection | 'File Browser Main' (`file.select_all`), 'Paint Vertex Selection (Weight, Vertex)' (`paint.vert_select_all`), 'Clip Graph Editor' (`clip.graph_select_all_markers`), 'Grease Pencil Selection' (`grease_pencil.select_all`) | Ctrl+Shift+A / Alt+D / Ctrl+Shift+I | `action` SELECT / DESELECT / INVERT | **on** (C10) | nothing (verify per keymap in the shadow test); gives the Clip Graph Editor a working select-all key (IC's Ctrl+A there calls a missing operator) |
+| ~~`deselect_all_clip`~~ | — | removed in step 1: Alt D never reaches the Clip Editor keymap (Status, deviation 2) | | | | IC's Alt+D Show Disabled is dead there natively too |
+| `reloc_clip_show_disabled` | Selection | 'Clip Editor' | Ctrl+Alt+D | `wm.context_toggle(data_path='space_data.show_disabled')` | on (standalone, no `follows`) | nothing (free in both presets); the header Overlay ▸ Show Disabled checkbox stays |
+| `select_keys_extra` | Selection | 'File Browser Main' (`file.select_all`), 'Clip Graph Editor' (`clip.graph_select_all_markers`): Ctrl+Shift+A / Ctrl+Shift+I; 'Paint Vertex Selection (Weight, Vertex)' (`paint.vert_select_all`), 'Grease Pencil Selection' (`grease_pencil.select_all`): all three | Ctrl+Shift+A / Alt+D / Ctrl+Shift+I | `action` SELECT / DESELECT / INVERT | **on** (C10) | nothing (verified by the shadow test); gives the Clip Graph Editor a working select-all key (IC's Ctrl+A there calls a missing operator) |
 | `isolate` | Isolate | 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Pose', 'Metaball', 'Lattice', 'Curves', 'Point Cloud', 'Grease Pencil Edit Mode' | Ctrl+1 | `meso.isolate_toggle` | **on** | 'Mesh': IC `mesh.select_mode(type='VERT', use_expand=True)` → `reloc_mesh_vert_expand` (Ctrl+Alt+1) + Ctrl+click on the header/Plaza vertex-mode button; elsewhere nothing (Sculpt and UV keep their Ctrl+1) |
 | `reloc_mesh_vert_expand` | Isolate | 'Mesh' | Ctrl+Alt+1 | `mesh.select_mode(type='VERT', use_expand=True)` | on, `follows='isolate'` | nothing (free in both presets). Ctrl+2/3 and Ctrl+Shift+1/2/3 stay native (C5) |
 | `properties_cycle` | Properties | 'Object Mode', 'Mesh', 'Curve', 'Curves', 'Armature', 'Pose', 'Metaball', 'Lattice', 'Particle', 'Point Cloud', 'Sculpt Curves', 'Paint Face Mask (Weight, Vertex, Texture)', 'Paint Vertex Selection (Weight, Vertex)', and '3D View' (catch-all) | Ctrl+A | `meso.properties_cycle` | **on** | each mode map's IC Ctrl+A select all → `select_all` (Ctrl+Shift+A) / `select_keys_extra` for Paint Vertex Selection. Not in 'Sculpt' (mask pie stays), 'Font', the Properties editor or other editors (C8) |
@@ -258,9 +306,9 @@ first).
      and it checks anyway);
    - otherwise nothing. IC is never selected at a plain start-up: the saved preference already persists (spike d).
 3. `sync()`.
-4. Subscribe to `(bpy.types.PreferencesKeymap, 'active_keyconfig')` with `bpy.msgbus.subscribe_rna` (owner = a module
-   object, `options={'PERSISTENT'}`) → `sync()` on a keyconfig switch. **To verify in step 1** (GUI: switch the keymap
-   dropdown); if it does not fire, the prefs mismatch warning plus the `sync()` in `load_post` are the fallback.
+4. ~~Subscribe to `(bpy.types.PreferencesKeymap, 'active_keyconfig')` with `bpy.msgbus.subscribe_rna`.~~ Verified in
+   step 1: no notification is sent on a keymap switch. Instead a persistent read-only timer (0.5 s) compares
+   `wm.keyconfigs.active.name` and calls `sync()` on a change (Status, deviation 1).
 
 **`sync(context=None)`**: computes `active_bindings(...)` → `items_to_register(...)`; removes every item it created
 before (reverse order, `try/except (ReferenceError, RuntimeError)`), then creates the new set with
@@ -268,7 +316,7 @@ before (reverse order, `try/except (ReferenceError, RuntimeError)`), then create
 the props. Idempotent. Never touches the Plaza items (`keymaps.py`).
 
 **`meso_keymap.unregister()`** (never raises):
-1. Remove every Meso item; `bpy.msgbus.clear_by_owner`; remove the prompt timer if pending.
+1. Remove every Meso item; stop the keyconfig watcher; remove the prompt timer if pending.
 2. If `keymap_choice == 'MESO'`: `restore_plan(active_name, previous, loaded_names, preset_exists)` and apply it; set
    `keyconfig_restored = True` when something was restored.
 
@@ -613,3 +661,15 @@ anything in Phase 5+.
 20. **C12** Warn in "Set all Space items" when the Plaza key collides with a Meso binding.
 21. Alt+D over a hovered property keeps Blender's remove-driver (no Meso item in 'User Interface').
 22. Approve the CLAUDE.md rule updates listed above (they are applied in step 1, not in this commit).
+23. **C13 (new in step 1; DEFAULT in force: option b).** Alt D never reaches the Outliner, Node Editor, Clip Editor,
+    File Browser, Info and channel lists: Blender's 'User Interface' Alt D item (remove the driver of the hovered
+    property) takes it first, even over empty space. Options:
+    - (a) Meso adds one Alt D item to 'User Interface' that removes the driver when the hovered property is driven
+      (exactly the native action) and otherwise passes the key on, so Alt D deselects in every editor. This reverses
+      decision 21's "Meso adds nothing to the User Interface keymap".
+    - (b) **In force now:** those editors keep IC's Ctrl Shift A deselect; Meso adds only Ctrl Shift I there (and
+      Ctrl Shift A select all in the File Browser and the Clip Graph Editor, where IC has no deselect key). Ctrl Shift A
+      therefore means select in the 3D View, UV, Graph, Dope Sheet, Timeline, NLA and Sequencer, and deselect in
+      those six editors.
+    - (c) Take Ctrl Shift A for select all there too and give deselect another key in those editors (a new
+      inconsistency; no free candidate was audited).

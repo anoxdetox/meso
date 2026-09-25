@@ -24,6 +24,26 @@ Familiar workflows for artists coming from Autodesk Maya software. See
 - **Nothing native is removed.** Every binding can be edited or switched off in the add-on
   preferences, which group them like Blender's keymap editor.
 
+## The Meso Keymap (optional)
+On its first enable, Meso Mode asks whether to use the **Meso Keymap**. "Use" switches Blender to its
+built-in **Industry Compatible** keymap and adds Meso's own bindings on top. "Keep" (the default
+button) changes nothing. You can change your mind at any time in the add-on preferences; "Keep", or
+disabling Meso Mode, gives you back the keymap you had before. Meso never edits Blender's keymaps:
+its bindings are add-on items, each with its own switch in the preferences.
+
+| Key | Action | Where |
+|---|---|---|
+| Ctrl Shift A | Select All | 3D View modes, UV, Graph, Dope Sheet, Timeline, NLA, Sequencer, File Browser, Clip Graph |
+| Alt D | Deselect All | 3D View modes, UV, Image masks, Graph, Dope Sheet, Timeline, NLA, Sequencer |
+| Ctrl Shift I | Invert Selection (Ctrl I stays too) | every editor with select keys |
+| Ctrl Alt A | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) | Object Mode, Pose Mode |
+| Ctrl Alt D | Show Disabled tracks | Clip Editor |
+
+Ctrl A still selects all. In the Outliner, Node Editor, Clip Editor, Info and the channel lists,
+Ctrl Shift A stays Industry Compatible's Deselect All: Alt D cannot reach those editors, because
+Blender uses it there to remove the driver of the property under the mouse. Alt D over a driven
+property still removes its driver everywhere.
+
 Target: Blender 5.2 LTS / Python 3.13 only. Extension id `meso`, operators `meso.*`.
 
 ## Getting it
@@ -46,6 +66,7 @@ $PY -m unittest discover -s tests/unit -t .                            # pure te
 bl -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 bl --command extension validate src/meso
 BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 700 tests/gui/run_gui_tests.sh
+BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 400 tests/gui/run_persist_check.sh
 bl --command extension build --source-dir src/meso --output-dir dist
 tools/dev_link.sh                                                       # symlink into user_default for GUI testing
 ```
