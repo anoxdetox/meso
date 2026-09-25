@@ -662,6 +662,38 @@ class TestAimOrigin(unittest.TestCase):
         self.assertIn(False, exact, "the per-step exact triangle misses steps")
 
 
+class TestAlongRow(unittest.TestCase):
+    """along_row: a sideways slide to a label of the open label's line (File -> Edit)."""
+
+    FILE, EDIT = Rect(943, 556, 39, 26), Rect(982, 556, 37, 26)
+    PANEL = Rect(943, 330, 200, 226)            # below File, wider than it: Edit is above it
+
+    def test_the_slack_triangle_takes_in_a_slide_along_the_bar(self):
+        """Why along_row exists: small sideways steps above a wide panel 'approach' it."""
+        self.assertTrue(dg.is_approaching((990, 569), (998, 569), self.PANEL, dg.AIM_SLACK_PX))
+        self.assertTrue(dg.along_row(self.FILE, self.EDIT, (990, 569), (998, 569)))
+
+    def test_sideways_with_drift(self):
+        self.assertTrue(dg.along_row(self.FILE, self.EDIT, (990, 569), (998, 567)))
+        self.assertTrue(dg.along_row(self.FILE, self.EDIT, (998, 569), (990, 561)))  # 45 deg
+        self.assertTrue(dg.along_row(self.EDIT, self.FILE, (998, 569), (970, 569)))  # leftward
+
+    def test_steep_moves_are_not_a_slide(self):
+        self.assertFalse(dg.along_row(self.FILE, self.EDIT, (990, 569), (991, 561)))
+        self.assertFalse(dg.along_row(self.FILE, self.EDIT, (990, 569), (990, 569)))  # no move
+
+    def test_other_lines_are_not_a_slide(self):
+        """Help above the Object label (the reported crossing): another line, the guard stays."""
+        obj, help_ = Rect(1025, 525, 50, 26), Rect(1019, 556, 38, 26)
+        self.assertFalse(dg.along_row(obj, help_, (1050, 541), (1060, 557)))
+        self.assertFalse(dg.along_row(obj, help_, (1030, 553), (1050, 557)))
+
+    def test_missing_inputs(self):
+        for args in ((None, self.EDIT, (0, 0), (5, 0)), (self.FILE, None, (0, 0), (5, 0)),
+                     (self.FILE, self.EDIT, None, (5, 0)), (self.FILE, self.EDIT, (0, 0), None)):
+            self.assertFalse(dg.along_row(*args))
+
+
 def flags_model(n=20, extra=True, key='SNAP'):
     """A Snap-like cascade: ``n`` flags, a separator, optionally one extra row (the
     'Absolute Increment Snap' toggle only drawn with INCREMENT), a separator, 'Align'."""

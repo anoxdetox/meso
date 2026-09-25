@@ -870,6 +870,22 @@ def aim_origin(trail: Sequence[tuple[float, float]], cur: tuple[float, float] | 
     return trail[0]
 
 
+def along_row(open_rect: Rect | None, hover_rect: Rect | None,
+              origin: tuple[float, float] | None, cur: tuple[float, float] | None) -> bool:
+    """A slide along the bar: ``hover_rect`` (the hovered label) shares a line with
+    ``open_rect`` (the open label; their rects overlap vertically) and the heading ``origin``
+    -> ``cur`` is mostly sideways (``|dx| >= |dy|``, ``dx != 0``). The caller passes labels of
+    the same row. Such a move is never an aim at the open chain: a panel opened below (or
+    above) a bar is wider than its label, so the slack-widened triangle toward its facing edge
+    takes in the sideways steps along the bar (the aim guard must not delay File -> Edit)."""
+    if open_rect is None or hover_rect is None or origin is None or cur is None:
+        return False
+    if min(open_rect.y1, hover_rect.y1) <= max(open_rect.y, hover_rect.y):
+        return False                    # different lines of the row
+    dx, dy = abs(cur[0] - origin[0]), abs(cur[1] - origin[1])
+    return dx > 0 and dx >= dy
+
+
 def chain_rects(chain: ChainLayout | None) -> list[Rect]:
     """Every panel rect of ``chain`` (redraw targets); [] for None / empty."""
     if chain is None:

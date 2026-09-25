@@ -349,6 +349,24 @@ def _aiming_chain(session: MenuSession, xy: tuple[float, float]) -> bool:
                for panel in session.chain.panels)
 
 
+def _sliding_along_bar(session: MenuSession, state: Any, xy: tuple[float, float],
+                       hit: Hit) -> bool:
+    """The pointer over another label of the open label's row, reached by a sideways move
+    (``core.dropdown_geometry.along_row``, heading from the same ``aim_origin`` as
+    :func:`_aiming_chain`): a slide along the bar, never an aim at the open chain."""
+    if hit.zone != ZONE_LABEL or hit.label_id is None or hit.label_id == session.bar.open_label:
+        return False
+    layout = getattr(state, 'layout', None)
+    if layout is None:
+        return False
+    open_box, hover_box = layout.item(session.bar.open_label), layout.item(hit.label_id)
+    if open_box is None or hover_box is None or open_box.row_key != hover_box.row_key:
+        return False
+    scale = session.chain.metrics.scale if session.chain.metrics is not None else 1.0
+    origin = ddg.aim_origin(session.trail, xy, ddg.AIM_TRAIL_PX * scale) or session.prev_xy
+    return ddg.along_row(open_box.rect, hover_box.rect, origin, xy)
+
+
 def _aiming(session: MenuSession, xy: tuple[float, float], hit: Hit) -> bool:
     """Safe-triangle test toward the open submenu below the hovered level."""
     if hit.zone == ZONE_ITEM and hit.path:
@@ -400,7 +418,10 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
     target = target_for(session, state, hit)
     if etype in MOUSE_MOVES:
         inside = hit.zone in (ZONE_ITEM, ZONE_PANEL)
-        aiming = _aiming(session, xy, hit) if inside else _aiming_chain(session, xy)
+        if inside:
+            aiming = _aiming(session, xy, hit)
+        else:
+            aiming = _aiming_chain(session, xy) and not _sliding_along_bar(session, state, xy, hit)
         session.prev_xy = xy
         session.trail = (session.trail + [xy])[-ddg.AIM_TRAIL_LEN:]
         session.target = target

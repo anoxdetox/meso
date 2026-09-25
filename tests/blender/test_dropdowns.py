@@ -679,6 +679,48 @@ class TestAimGuard(_Case):
         self.move(self.label_xy('TOPBAR_MT_edit'))
         self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
 
+    def slide_to_edit(self, step=2, drift=0):
+        """File open (its panel below it and wider than it, so Edit is above the panel), then
+        a hand-like slide along the root row to Edit: ``step`` px every 8 ms, ``drift`` px
+        down (toward the panel) every 8 px. Returns the open label on the first point over
+        Edit, before any rest."""
+        ddg = _mod("core.dropdown_geometry")
+        self.click(self.label_xy('TOPBAR_MT_file'))
+        panel = self.state.menus.chain.panels[0].rect
+        edit = self.state.layout.item('TOPBAR_MT_edit').rect
+        self.assertLessEqual(panel.y1, edit.y, "the File panel is below the bar")
+        self.assertGreater(panel.x1, edit.x, "Edit is above the File panel")
+        (x0, y0), (x1, _y1) = self.label_xy('TOPBAR_MT_file'), self.label_xy('TOPBAR_MT_edit')
+        layout, chain = self.state.layout, self.state.menus.chain
+        for x in range(x0 + step, x1 + 1, step):
+            y = y0 - (drift * (x - x0)) // 8
+            self.clock[0] += 0.008
+            self.move((x, y))
+            if ddg.resolve_hit(layout, chain, x, y).label_id == 'TOPBAR_MT_edit':
+                return self.state.open_label
+        self.fail("the slide never reached Edit")
+
+    def test_sliding_along_the_bar_switches_at_once(self):
+        """A slide along the bar in small steps is not an aim at the File panel below it."""
+        for step in (1, 2, 3, 5):
+            with self.subTest(step=step):
+                self.stub, self.state = self._session()
+                self.install_aim_layout()
+                self.assertEqual(self.slide_to_edit(step), 'TOPBAR_MT_edit')
+                self.assertIsNone(self.bar().switch_wait)
+
+    def test_sliding_along_the_bar_with_drift_switches_at_once(self):
+        for drift in (1, 2):
+            with self.subTest(drift=drift):
+                self.stub, self.state = self._session()
+                self.install_aim_layout()
+                self.assertEqual(self.slide_to_edit(2, drift), 'TOPBAR_MT_edit')
+
+    def test_sliding_along_the_bar_with_a_long_hover_delay(self):
+        self.stub, self.state = self._session(hover_open_delay=1.0)
+        self.install_aim_layout()
+        self.assertEqual(self.slide_to_edit(2), 'TOPBAR_MT_edit')
+
     def test_hover_opened_chain_is_guarded_too(self):
         self.stub, self.state = self._session(hover_open=True)
         self.install_aim_layout()
