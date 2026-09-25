@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Run an item's :class:`core.model.Action` after the plaza is torn down (Phase 3,
-implementer C).
+implementer C), or in place inside the running modal (Phase 4 :func:`apply_in_place`).
 
 Timing (notes/spikes.md D3/D5): ``ops.plaza`` calls :func:`execute` inside ``modal()`` on the
 LMB RELEASE over the pressed item, AFTER ``_end()`` (handlers removed, areas tagged) and right
@@ -29,6 +29,7 @@ import bpy
 from bpy.types import Menu
 
 from ..core.actions import OpCall, describe, plan_call
+from ..core.dropdown_model import IN_PLACE_ACTIONS
 from ..core.model import (
     ACTION_MENU, ACTION_MENU_PIE, ACTION_NONE, ACTION_WORKSPACE, HANDOFF_ACTIONS, Action,
 )
@@ -64,8 +65,8 @@ class ExecResult:
     ``call``: ``core.actions.describe`` of the planned call (None for workspace / none).
     ``result``: the sorted operator result, or None (raised / not run). ``ok``: the call ran
     and returned FINISHED or INTERFACE (CANCELLED of a Space-owned toggle still changed the
-    value: ``ok`` False, ``changed`` unknown). ``ends_session``: always True in v0.3 (every
-    click closes the plaza; Phase 4 keeps toggles open).
+    value: ``ok`` False, ``changed`` unknown). ``ends_session``: True for :func:`execute`
+    (it only ever runs after teardown); False for Phase 4 :func:`apply_in_place`.
     """
 
     call: tuple[str, dict[str, Any]] | None
@@ -103,6 +104,40 @@ def run_call(call: OpCall, window: Any, area: Any, region: Any) -> set[str] | No
     except Exception as ex:
         _log_once(f"call:{call.op_idname}", f"{call.op_idname} failed: {ex!r}")
         return None
+
+
+def apply_in_place(action: Action | None, window: Any, area: Any, region: Any) -> ExecResult:
+    """Phase 4 (D): run an in-place action NOW, inside the running plaza modal (the plaza
+    stays open): a Tool Settings row toggle or a dropdown DD_TOGGLE / DD_RADIO / DD_FLAG item.
+
+    Only ``core.dropdown_model.IN_PLACE_ACTIONS`` kinds are accepted (others ->
+    ``ExecResult(None, None, False, ends_session=False)``, logged once). The call is
+    ``core.actions.plan_call(action)`` through :func:`run_call` (the single seam tests stub)
+    under ``temp_override(window, area, region)`` with ``region`` = the invoking area's
+    WINDOW region: setters ``('EXEC_DEFAULT', True, ...)`` (D5: one undo step each; Space-owned
+    paths return CANCELLED with the value changed), operator toggles with their recorded
+    context. Returns ``ExecResult(call, result, ok, ends_session=False)``. Never raises.
+    GUI check (D): the undo step is pushed while the modal (no UNDO flag) keeps running."""
+    if action is None or action.kind not in IN_PLACE_ACTIONS:
+        kind = getattr(action, 'kind', None)
+        _log_once(f"in_place:{kind}", f"action {kind!r} cannot run in place")
+        return ExecResult(None, None, False, ends_session=False)
+    try:
+        call = plan_call(action, addon_module())
+        if call is None:
+            _log_once(f"plan:{action.kind}:{action.target}:{action.data_path}",
+                      f"no call for action {action.kind!r} ({action.target or action.data_path!r})")
+            return ExecResult(None, None, False, ends_session=False)
+        described = describe(call)
+        result = run_call(call, window, area, region)
+        if result is None:
+            return ExecResult(described, None, False, ends_session=False)
+        result = set(result)
+        return ExecResult(described, sorted(result), bool(result & _OK_RESULTS),
+                          ends_session=False)
+    except Exception as ex:
+        _log_once(f"in_place:{action.kind}", f"applying {action.kind!r} in place failed: {ex!r}")
+        return ExecResult(None, None, False, ends_session=False)
 
 
 def execute(action: Action | None, window: Any, area: Any, region: Any,

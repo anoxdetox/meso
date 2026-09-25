@@ -288,3 +288,33 @@ def build_model(context: Any, info: InvokeInfo, prefs: Any = None) -> PlazaModel
     rows = (root_row(context), contextual, tools, workspace_row(context, info))
     return PlazaModel(rows, center_item(context, info), recent, controls)
 
+
+def refresh_tool_settings(context: Any, info: InvokeInfo, model: PlazaModel,
+                          prefs: Any = None) -> PlazaModel:
+    """Phase 4 (B): ``model`` with its Tool Settings row re-recorded after an in-place change
+    (``record.header.record_area`` + :func:`tool_settings_row`, same prefs rules as
+    :func:`build_model`); every other row, the centre and the side items are the same
+    objects. Called by ``ops.dropdowns`` (D) inside the running modal while
+    ``info.window`` / ``info.area`` are live. A row whose item ids and labels are unchanged
+    still yields a new Row (checked states may differ). Never raises: on failure the
+    original ``model`` is returned (logged once)."""
+    try:
+        recordings = _record_area(context, info)
+        try:
+            tools = tool_settings_row(context, info, recordings, prefs)
+        finally:
+            del recordings
+        rows = []
+        found = False
+        for row in model.rows:
+            if row.key == ROW_TOOL_SETTINGS:
+                rows.append(tools)
+                found = True
+            else:
+                rows.append(row)
+        if not found:
+            return model
+        return PlazaModel(tuple(rows), model.center, model.recent, model.controls)
+    except Exception as ex:
+        _log_once('refresh_tool_settings', f"re-recording the Tool Settings row failed: {ex!r}")
+        return model

@@ -492,24 +492,22 @@ def operator_exists(idname: str) -> bool:
         return False
 
 
-def _operator_rna(idname: str, op_dirs: dict[str, frozenset[str]] | None = None) -> Any:
+def _operator_rna(idname: str, op_dirs: dict[str, Any] | None = None) -> Any:
     """``bpy.ops.<mod>.<name>.get_rna_type()`` of an existing operator, else None.
-    ``op_dirs`` caches ``dir(bpy.ops.<mod>)`` per module for one recording."""
+    A missing operator raises KeyError (~2 us); ``dir(bpy.ops.<mod>)`` costs ~1 ms per module,
+    so it is not used. ``op_dirs`` caches the result per idname for one recording."""
+    if op_dirs is not None and idname in op_dirs:
+        return op_dirs[idname]
+    rna = None
     try:
         mod, name = _op_parts(idname)
-        if not mod or not name:
-            return None
-        if op_dirs is None:
-            names = frozenset(dir(getattr(bpy.ops, mod)))
-        else:
-            names = op_dirs.get(mod)
-            if names is None:
-                names = op_dirs[mod] = frozenset(dir(getattr(bpy.ops, mod)))
-        if name not in names:
-            return None
-        return getattr(getattr(bpy.ops, mod), name).get_rna_type()
+        if mod and name:
+            rna = getattr(getattr(bpy.ops, mod), name).get_rna_type()
     except Exception:
-        return None
+        rna = None
+    if op_dirs is not None:
+        op_dirs[idname] = rna
+    return rna
 
 
 def menu_class(idname: str) -> type | None:
@@ -671,7 +669,7 @@ class _Shared:
         self.section = 0
         self.pending: list[tuple[Record, FakeLayout, PropsProxy | None]] = []
         self.menu_stack: list[str] = []
-        self.op_dirs: dict[str, frozenset[str]] = {}
+        self.op_dirs: dict[str, Any] = {}
 
 
 def _kw(fname: str, values: dict[str, Any]) -> dict[str, Any]:

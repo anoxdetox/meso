@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-3).
+"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-4).
 
 Lifecycle (notes/spikes.md D1/D2/D3/D5):
 
@@ -18,11 +18,18 @@ Lifecycle (notes/spikes.md D1/D2/D3/D5):
    ``return {'FINISHED'}``, after teardown (D3/D5: in-modal, handlers already removed).
    Over the 3D View the ``tap_action_view3d`` pref applies (``core.tap.effective_tap_action``;
    default PANE_TOGGLE -> ``meso.pane_toggle``, Phase 3).
-5. An LMB PRESS + RELEASE over the same clickable item (``core.model.item_action`` not None:
-   menus, cascades, toggles, workspaces, the side boxes) runs its :class:`core.model.Action`
-   through ``ops.invoke.execute`` on the RELEASE, after teardown, right before FINISHED (D3).
-   A workspace action replaces the screen: nothing touches area / region / screen after it.
-   v0.3: every click ends the session (``ExecResult.ends_session``).
+5. Phase 4 (notes/phase4-interfaces.md): with a dropdown session (``state.menus``, set up
+   by ``ops.dropdowns.start_session`` in invoke) every pointer / LMB / ESC / timer / nav
+   event and the key release go through ``ops.dropdowns.handle_event`` (menu-bar
+   semantics, the pure reducer ``core.menubar``): menu labels open custom dropdowns and the
+   plaza stays open; Tool Settings toggles and dropdown toggles / radios / flags apply in
+   place (``ops.invoke.apply_in_place``); operator items and native hand-offs end the
+   session and run through ``ops.invoke.execute`` on the RELEASE, after teardown, right
+   before FINISHED (D3). A workspace action replaces the screen: nothing touches area /
+   region / screen after it.
+6. Fallback (``state.menus`` None: the dropdown session failed to start): the Phase 3
+   behaviour, an LMB PRESS + RELEASE over the same clickable item runs its
+   :class:`core.model.Action` through ``ops.invoke.execute`` after teardown.
 
 Only pointer ints and type strings outlive the modal. The live ``Window``/``Area``/``Region``
 objects sit in the state only while the modal runs and are dropped by ``_end()``.
@@ -41,6 +48,7 @@ from bpy.types import Operator
 
 from .. import prefs
 from ..core import actions as core_actions
+from ..core import dropdown_geometry as ddg
 from ..core import geometry
 from ..core.model import item_action
 from ..core.rects import Rect, bounding_box
@@ -50,7 +58,7 @@ from ..core.timing import TimingStats
 from ..record import rows
 from ..view import renderer, theme
 from ..view.draw_manager import HandlerSet
-from . import invoke
+from . import dropdowns, invoke
 
 if TYPE_CHECKING:
     from ..core.geometry import Layout
@@ -80,7 +88,8 @@ class PlazaState:
     Identity-compared (``eq=False``). Created in invoke, dropped by ``_end()``. Fields read by
     the draw callbacks: ``active``, ``failed``, ``window_ptr``, ``anchor``, ``bounds``,
     ``transparency``, ``draw_calls``, ``draw_filtered``, ``fail()``; from Phase 2 also
-    ``layout``, ``palette``, ``hover_id``, ``debug_timing`` and ``timing``.
+    ``layout``, ``palette``, ``hover_id``, ``debug_timing`` and ``timing``; from Phase 4
+    ``dropdowns``, ``dropdown_hover`` and ``open_label``.
     """
 
     # --- identity of the target (plain data; safe to keep) ---
@@ -89,6 +98,8 @@ class PlazaState:
     anchor: tuple[int, int]               # window coords of the invoking event
     t0: float                             # time.perf_counter() at invoke
     bounds: Rect | None = None            # bbox of window.screen.areas (excludes global bars)
+    area_bounds: Rect | None = None       # rect of the invoking area (None over the bars)
+    seams: tuple = ()                     # core.dropdown_geometry.area_seams(screen.areas)
     area_type: str | None = None          # None over no area; 'TOPBAR'/'STATUSBAR' over bars
     area_ui_type: str | None = None
     region_type: str | None = None        # region under the mouse (hit-tested)
@@ -124,6 +135,16 @@ class PlazaState:
     use_theme_colors: bool = False
     debug_timing: bool = False            # draw_manager times callbacks into ``timing``
     timing: TimingStats = field(default_factory=TimingStats)
+
+    # --- Phase 4 dropdowns (notes/phase4-interfaces.md; D fills and drives them) ---
+    submenu_delay: float = 0.12           # prefs.submenu_delay snapshot
+    execute_on_release: bool = False      # prefs.execute_on_release snapshot
+    show_shortcuts: bool = True           # prefs.show_shortcuts snapshot
+    menus: Any = None                     # ops.dropdowns.MenuSession (plain data + cache)
+    # Read by the draw callbacks (swapped, never mutated in place):
+    dropdowns: Any = None                 # core.dropdown_geometry.ChainLayout | None
+    dropdown_hover: tuple[int, ...] | None = None   # hovered dropdown item path
+    open_label: str | None = None         # row label whose dropdown is open
 
     # --- live objects: modal lifetime only, dropped by drop_live() ---
     window: Any = None                    # bpy.types.Window
@@ -181,6 +202,12 @@ def last_session() -> dict[str, Any] | None:
     Phase 3: ``handoff`` is ``core.actions.describe`` of any clicked item's planned call
     (None for a workspace switch), ``action`` = ``(kind, target, data_path)`` of the clicked
     item's Action (or None), ``tap_action`` = the effective tap action of the session.
+    Phase 4: ``end`` gains ``'run'`` (a dropdown operator item, or ``execute_on_release``);
+    ``handoff`` / ``action`` describe the terminal run / hand-off only (in-place calls never
+    set them); ``menus_opened`` (dropdown model keys in open order), ``in_place``
+    (``core.actions.describe`` of every in-place call), ``run_item`` (``(model key or label
+    id, path or None, label, (kind, target, data_path))`` of the terminal item, or None),
+    ``dropdown_builds`` / ``dropdown_hits`` (session cache counters).
     """
     return dict(_last) if _last else None
 
@@ -304,7 +331,8 @@ def run_tap(cmd: TapCommand, window, area, region) -> set[str] | None:
 
 
 def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
-    """Fill ``state.model``, ``layout``, ``palette`` and ``hover_id`` (invoke only).
+    """Fill ``state.model``, ``menus`` (Phase 4), ``layout``, ``palette`` and ``hover_id``
+    (invoke only).
 
     ``region`` is the live hit-tested region (None over the bars). Text is measured here with
     ``renderer.text_width_fn`` at the metrics font size and never again this session.
@@ -314,6 +342,8 @@ def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
     state.model = rows.build_model(
         context, rows.InvokeInfo(window, area, region, state.area_type, state.area_ui_type,
                                  state.context_mode), addon_prefs)
+    # Phase 4: pref snapshots + row-menu classification (native '…' labels are measured).
+    state.menus = dropdowns.start_session(state, context, addon_prefs)
     preferences = context.preferences
     metrics = geometry.metrics_for(preferences.system.ui_scale,
                                    preferences.ui_styles[0].widget.points,
@@ -324,6 +354,7 @@ def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
                                    renderer.text_width_fn(metrics.font_px))
     state.palette = theme.from_preferences(context, state.use_theme_colors, state.transparency)
     state.hover_id = geometry.hit_test(state.layout, *state.anchor)
+    dropdowns.after_layout(state)
 
 
 def _hover_rect(layout, item_id: str | None) -> Rect | None:
@@ -347,8 +378,9 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
     Removes the watchdog timer (``wm.event_timer_remove``, try/except), stops the draw
     handlers (``HandlerSet.stop()`` tags the final redraw), sets ``active = False``, clears
     ``_running`` if it is ``state``, and ``drop_live()``. Never raises. ``reason`` is only
-    recorded in :func:`last_session` (with ``hover_redraws``, ``handoff`` and ``timing``;
-    ``debug_timing`` also logs the timing summary). ``model``/``layout``/``palette`` are plain
+    recorded in :func:`last_session` (with ``hover_redraws``, ``handoff``, ``timing`` and the
+    Phase 4 dropdown summary; ``debug_timing`` also logs the timing summary). The dropdown
+    session is dropped (``state.menus = None``); ``model``/``layout``/``palette`` are plain
     data and stay on the state.
     """
     global _running
@@ -380,6 +412,7 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
             _last['hover_redraws'] = state.hover_redraws
             _last.setdefault('handoff', None)
             _last['timing'] = state.timing.summary()
+            _last.update(dropdowns.summary(getattr(state, 'menus', None)))
             if state.debug_timing:
                 t = _last['timing']
                 _log(f"draw timing ({reason}): {t['count']} callbacks, avg {t['avg_ms']:.3f} ms, "
@@ -392,6 +425,7 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
             _running = None
         try:
             state.drop_live()
+            state.menus = None
         except Exception:
             pass
 
@@ -438,7 +472,9 @@ class MESO_OT_plaza(Operator):
           ``event.mouse_x/y``; bars / no area -> ``area_type`` from ``context.area.type`` when it
           is TOPBAR/STATUSBAR else None, ``area``/``region``/``area_index`` None.
         - Fill a :class:`PlazaState` (prefs snapshots via ``prefs.get_prefs``, defaults when
-          None; ``bounds`` = ``core.rects.bounding_box`` of ``screen.areas``; ``mode_keymap`` from
+          None; ``bounds`` = ``core.rects.bounding_box`` of ``screen.areas`` (``area_bounds`` =
+          the hit area's rect, ``seams`` = ``core.dropdown_geometry.area_seams`` of the areas:
+          dropdown placement); ``mode_keymap`` from
           ``core.tap.paint_mode_keymap(context.mode, area_type, handler_region_type,
           image_ui_mode)`` where ``handler_region_type`` is ``context.region.type`` when
           ``context.area`` is the hit area (the region whose keymap handler fired: WINDOW over
@@ -494,6 +530,8 @@ class MESO_OT_plaza(Operator):
                 anchor=(x, y),
                 t0=t0,
                 bounds=bounding_box(_region_rect(a) for a in screen.areas),
+                area_bounds=_region_rect(area) if area is not None else None,
+                seams=ddg.area_seams(_region_rect(a) for a in screen.areas),
                 area_type=area_type,
                 area_ui_type=area_ui_type,
                 region_type=region_type,
@@ -526,6 +564,7 @@ class MESO_OT_plaza(Operator):
                          handler_region_type=handler_region_type,
                          mode_keymap=state.mode_keymap, release_key=state.release_key,
                          hover_redraws=0, handoff=None, handoff_result=None, action=None,
+                         **dropdowns.summary(None),
                          tap_action=effective_tap_action(state.tap_action,
                                                          state.tap_action_view3d, area_type))
 
@@ -553,16 +592,23 @@ class MESO_OT_plaza(Operator):
         - ``state.failed`` -> ``_end`` -> ``{'CANCELLED'}`` (checked on every event).
         - ``event.type == state.release_key`` (the invoking key): PRESS (repeat or not) ->
           ``{'RUNNING_MODAL'}``;
-          RELEASE -> finish: ``tapped = is_tap(time.perf_counter() - t0, tap_threshold,
-          interacted)``; if tapped, ``cmd = resolve_tap(...)`` and capture window/area/region;
-          ``_end(state)``; ``run_tap(cmd, ...)`` if cmd; return ``{'FINISHED'}``.
-        - ESC PRESS or WINDOW_DEACTIVATE -> ``_end`` -> ``{'CANCELLED'}``.
+          RELEASE -> ``ops.dropdowns.handle_event`` (SpaceRelease: ``execute_on_release`` may
+          run the hovered item) else finish: ``tapped = is_tap(time.perf_counter() - t0,
+          tap_threshold, interacted)``; if tapped, ``cmd = resolve_tap(...)`` and capture
+          window/area/region; ``_end(state)``; ``run_tap(cmd, ...)`` if cmd; return
+          ``{'FINISHED'}``.
         - ``event.type.startswith('TIMER')``: watchdog — window pointer no longer in
           ``wm.windows`` or ``window.screen.as_pointer() != screen_ptr`` -> ``_end`` ->
-          ``{'CANCELLED'}``; else ``{'PASS_THROUGH'}`` (timers are not ours to eat; Blender does
-          not tell us which timer fired).
-        - MOUSEMOVE / INBETWEEN_MOUSEMOVE -> :meth:`_hover` (redraw only on a hover change).
-        - LEFTMOUSE PRESS or DOUBLE_CLICK / RELEASE -> :meth:`_press` / :meth:`_release`
+          ``{'CANCELLED'}``; else the reducer's Timer step (submenu delay, aim timeout) and
+          ``{'PASS_THROUGH'}`` (timers are not ours to eat; Blender does not tell us which
+          timer fired).
+        - WINDOW_DEACTIVATE -> ``_end`` -> ``{'CANCELLED'}``.
+        - With a dropdown session: ``ops.dropdowns.handle_event`` takes MOUSEMOVE /
+          INBETWEEN_MOUSEMOVE, LEFTMOUSE, ESC and the nav keys (ESC closes an open chain, else
+          cancels).
+        - Without one (Phase 3 fallback): ESC PRESS -> ``_end`` -> ``{'CANCELLED'}``;
+          MOUSEMOVE / INBETWEEN_MOUSEMOVE -> :meth:`_hover` (redraw only on a hover change);
+          LEFTMOUSE PRESS or DOUBLE_CLICK / RELEASE -> :meth:`_press` / :meth:`_release`
           (the item's Action runs on the RELEASE over the pressed item, D3).
         - ``event.type in INTERACTION_BUTTONS`` and PRESS or DOUBLE_CLICK -> ``interacted = True``.
         - Everything else -> ``{'RUNNING_MODAL'}`` (swallowed).
@@ -581,6 +627,13 @@ class MESO_OT_plaza(Operator):
             if etype == state.release_key:
                 if value != 'RELEASE':
                     return {'RUNNING_MODAL'}
+                if state.menus is not None:
+                    result = dropdowns.handle_event(self, state, context, event)
+                    if result is not None and result != {'RUNNING_MODAL'}:
+                        return result
+                    if _running is not state:
+                        return {'FINISHED'}
+                # The key release always ends the session (also when the reducer failed).
                 return self._finish(context, state)
             if etype.startswith('TIMER'):
                 window = _find_window(context, state.window_ptr)
@@ -588,8 +641,21 @@ class MESO_OT_plaza(Operator):
                         or window.screen.as_pointer() != state.screen_ptr:
                     _end(state, 'watchdog')
                     return {'CANCELLED'}
+                if state.menus is not None:
+                    result = dropdowns.handle_event(self, state, context, event)
+                    if result is not None:
+                        return result
                 return {'PASS_THROUGH'}
-            if (etype == 'ESC' and value == 'PRESS') or etype == 'WINDOW_DEACTIVATE':
+            if etype == 'WINDOW_DEACTIVATE':
+                _end(state, 'cancel')
+                return {'CANCELLED'}
+            if state.menus is not None:
+                result = dropdowns.handle_event(self, state, context, event)
+                if result is not None:
+                    return result
+                if _running is not state:
+                    return {'CANCELLED'}
+            if etype == 'ESC' and value == 'PRESS':
                 _end(state, 'cancel')
                 return {'CANCELLED'}
             if etype in ('MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'):
@@ -610,7 +676,7 @@ class MESO_OT_plaza(Operator):
             return {'CANCELLED'}
 
     def _hover(self, state: PlazaState, event) -> set[str]:
-        """Mouse move: hit-test; on a hover change redraw the areas under the old and new
+        """Phase 3 fallback (no dropdown session). Mouse move: hit-test; on a hover change redraw the areas under the old and new
         highlight (exactly one ``redraw`` per change, none otherwise: performance rule)."""
         old = state.hover_id
         new = geometry.hit_test(state.layout, event.mouse_x, event.mouse_y)
@@ -623,7 +689,7 @@ class MESO_OT_plaza(Operator):
         return {'RUNNING_MODAL'}
 
     def _press(self, state: PlazaState, event) -> set[str]:
-        """LMB PRESS: the session is interacted (never a tap); remember the clickable item
+        """Phase 3 fallback (no dropdown session). LMB PRESS: the session is interacted (never a tap); remember the clickable item
         under the mouse (``core.model.item_action`` not None: enabled menus, cascades,
         toggles, workspaces, side boxes; never separators, labels, the centre box or disabled
         items). Nothing runs on a PRESS (D3)."""
@@ -634,7 +700,7 @@ class MESO_OT_plaza(Operator):
         return {'RUNNING_MODAL'}
 
     def _release(self, state: PlazaState, event) -> set[str]:
-        """LMB RELEASE over the pressed item: record the planned call, tear down, then run the
+        """Phase 3 fallback (no dropdown session). LMB RELEASE over the pressed item: record the planned call, tear down, then run the
         item's Action with ``ops.invoke.execute`` under the invoking window / area / WINDOW
         region right before FINISHED (D3). Elsewhere: forget the press and keep running.
 

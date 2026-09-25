@@ -9,3 +9,4 @@ dist/
 .venv/
 .vscode/
 .idea/
+/local/

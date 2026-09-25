@@ -49,3 +49,7 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - GUI spikes: drive with `--enable-event-simulate` + a timer state machine that quits itself, wrapped in `timeout`;
   if the desktop session is locked, run inside `kwin_wayland --virtual` (see `tools/spikes/*/run.sh`); `vblank_mode=0` for OpenGL.
 - Phase 0 decisions in `notes/spikes.md` (D1–D5) supersede the plan where they differ.
+- IP hygiene: never commit third-party screenshots, icons, docs text or sampled colours; never implement
+  multi-touch finger-chord gesture recognition (live third-party patent until 2031). See `notes/roadmap.md`.
+- Never erase native Blender features: Meso adds or relocates, and every displaced action (e.g. the 3D cursor,
+  selection tools, Apply menu) stays reachable and each Meso binding can be switched off. See `notes/roadmap.md`.

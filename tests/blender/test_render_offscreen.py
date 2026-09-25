@@ -1,4 +1,5 @@
-"""Theme + renderer tests (notes/phase2-interfaces.md; view/theme.py, view/renderer.py).
+"""Theme + renderer tests (notes/phase2-interfaces.md; view/theme.py, view/renderer.py; Phase 4
+dropdown chains, notes/phase4-interfaces.md "Look").
 
 Runs inside Blender via tests/run_tests.py (which enables the add-on first). The renderer
 draws a fixed plaza model into an 800x500 ``GPUOffScreen`` after ``gpu.init()`` with the
@@ -755,6 +756,569 @@ class TestOffscreenPlaza(unittest.TestCase):
         self.assertGreater(px.region_max(_Rect(0, 18, 20, 12)), 0.5, "text")
 
 
+# --------------------------------------------------------------------------- Phase 4 dropdowns
+# The chains are HAND-BUILT here from the core.dropdown_geometry dataclasses, following the
+# placement contract of that module (so the renderer tests never depend on implementer A's
+# functions; TestDropdownWithCoreGeometry uses A's placement once it is implemented).
+
+DW, DH = 1000, 1000            # the dropdown tests need room for a scale-2 panel
+
+
+def _dg():
+    return _mod("core.dropdown_geometry")
+
+
+def _dmod():
+    return _mod("core.dropdown_model")
+
+
+def dd_metrics(m):
+    """DropdownMetrics from the plaza Metrics ``m`` per the ``dropdown_metrics`` contract
+    (font_scale 1.0), computed here by hand."""
+    dg, r = _dg(), _geo().round_px
+    fs = m.scale
+    return dg.DropdownMetrics(
+        scale=m.scale, font_px=m.font_px, cap_h=m.cap_h,
+        item_h=max(r(m.row_h * dg.DD_ITEM_H_FACTOR), m.cap_h + 2 * m.pad_y),
+        separator_h=r(dg.BASE_DD_SEPARATOR_H * fs), pad_y=r(dg.BASE_DD_PAD_Y * fs),
+        pad_x=r(dg.BASE_DD_PAD_X * fs), check_col=r(dg.BASE_DD_CHECK_COL * fs),
+        check_size=m.check_size, radio_size=max(1, r(m.check_size * dg.BASE_DD_RADIO_FACTOR)),
+        arrow_col=r(dg.BASE_DD_ARROW_COL * fs), arrow_size=m.arrow_size,
+        shortcut_gap=r(dg.BASE_DD_SHORTCUT_GAP * fs), min_w=r(dg.BASE_DD_MIN_W * fs),
+        border=dg.BASE_DD_BORDER * m.scale, hover_inset=m.hover_inset, margin=m.margin,
+        submenu_overlap=r(dg.BASE_DD_SUBMENU_OVERLAP * fs))
+
+
+def hand_panel(items, x, top, dm, width_fn, depth=0, opener=None, key='TEST_MT_menu'):
+    """A placed ``core.dropdown_geometry.Panel`` of the DropdownItems ``items`` whose top-left
+    corner is ``(x, top)`` (ints), laid out per the module contract of dropdown_geometry."""
+    dg, d = _dg(), _dmod()
+    widths = [(width_fn(it.label) if it.label else 0.0,
+               width_fn(it.shortcut) if it.shortcut else 0.0) for it in items]
+    w = max([dm.check_col + lw + (dm.shortcut_gap + sw if sw else 0) + dm.arrow_col + dm.pad_x
+             for lw, sw in widths] + [dm.min_w])
+    w = math.ceil(w)
+    h = 2 * dm.pad_y + sum(dm.separator_h if it.kind == d.DD_SEPARATOR else dm.item_h
+                           for it in items)
+    b = max(1, round(dm.border))
+    placed, y, base = [], top - dm.pad_y, tuple(opener or ())
+    for i, (it, (_lw, sw)) in enumerate(zip(items, widths)):
+        ih = dm.separator_h if it.kind == d.DD_SEPARATOR else dm.item_h
+        y -= ih
+        kw = {}
+        if it.kind in d.CHECK_KINDS:
+            cs = dm.check_size
+            kw['check_rect'] = _Rect(x + (dm.check_col - cs) // 2, y + (ih - cs) // 2, cs, cs)
+            kw['check_style'] = dg.GLYPH_RADIO if it.kind == d.DD_RADIO else dg.GLYPH_BOX
+        if it.kind in d.CASCADE_KINDS:
+            a, ax = dm.arrow_size, x + w - dm.pad_x - dm.arrow_col
+            kw['arrow_rect'] = _Rect(ax + (dm.arrow_col - a) // 2, y + (ih - a) // 2, a, a)
+        if it.shortcut:
+            kw['shortcut'] = it.shortcut
+            kw['shortcut_x'] = int(x + w - dm.pad_x - dm.arrow_col - math.ceil(sw))
+        if it.kind == d.DD_SEPARATOR:
+            kw['line_rect'] = _Rect(x + 2 * b, y + ih // 2, w - 4 * b, b)
+        text_x = x + (dm.pad_x if it.kind == d.DD_LABEL else dm.check_col)
+        placed.append(dg.PlacedItem(
+            path=base + (i,), kind=it.kind, rect=_Rect(x, y, w, ih),
+            highlight=_Rect(x + b, y, w - 2 * b, ih), label=it.label, text_x=text_x,
+            text_y=y + (ih - dm.cap_h) // 2, enabled=it.enabled, active=it.active,
+            checked=it.checked, heading=it.heading, **kw))
+    return dg.Panel(depth=depth, key=key, rect=_Rect(x, top - h, w, h), items=tuple(placed),
+                    opener=opener)
+
+
+def hand_chain(panels, dm):
+    """A ChainLayout of placed ``panels`` (extent and a signature computed here)."""
+    rects = _mod("core.rects")
+    panels = tuple(panels)
+    return _dg().ChainLayout(panels=panels, extent=rects.bounding_box(p.rect for p in panels),
+                             metrics=dm, signature=hash(panels))
+
+
+def _dd_root_items():
+    d = _dmod()
+    I = d.DropdownItem                                                      # noqa: E741
+    return [I(d.DD_OP, 'New', shortcut='Ctrl N'),                           # 0
+            I(d.DD_OP, 'Open…'),                                            # 1
+            I(d.DD_SEPARATOR),                                              # 2
+            I(d.DD_SUBMENU, 'Apply', submenu='VIEW3D_MT_object_apply'),     # 3 (opener)
+            I(d.DD_TOGGLE, 'Show Grid', checked=True),                      # 4
+            I(d.DD_TOGGLE, 'Show Axes', checked=False),                     # 5
+            I(d.DD_OP, 'Join', enabled=False),                              # 6
+            I(d.DD_LABEL, 'Orientation', heading=True),                     # 7
+            I(d.DD_RADIO, 'Global', checked=True),                          # 8
+            I(d.DD_RADIO, 'Local', checked=False),                          # 9
+            I(d.DD_ENUM_CASCADE, 'Pivot'),                                  # 10
+            I(d.DD_OP, 'Inactive', active=False),                           # 11
+            I(d.DD_TOGGLE, 'Locked', checked=True, enabled=False)]          # 12
+
+
+def _dd_sub_items():
+    d = _dmod()
+    I = d.DropdownItem                                                      # noqa: E741
+    return [I(d.DD_OP, 'Location'), I(d.DD_OP, 'Rotation'), I(d.DD_SEPARATOR),
+            I(d.DD_OP, 'Scale', shortcut='Ctrl A'), I(d.DD_FLAG, 'Vertex', checked=True)]
+
+
+def _dd_layout(scale):
+    """The fixed plaza model laid out high in a DW x DH window (room for the dropdown)."""
+    g, rd = _geo(), _rd()
+    met = g.metrics_for(scale, 11.0, cap_height_fn=rd.cap_height)
+    return g.layout(_model(), (DW // 2, int(DH * 0.7)), _Rect(0, 0, DW, DH), met,
+                    rd.text_width_fn(met.font_px))
+
+
+def _dd_chain(layout, submenu=True):
+    """Root dropdown under the File label (+ the 'Apply' submenu right of it)."""
+    dm = dd_metrics(layout.metrics)
+    wf = _rd().text_width_fn(dm.font_px)
+    file_box = layout.item('TOPBAR_MT_file')
+    root = hand_panel(_dd_root_items(), int(file_box.rect.x), int(file_box.rect.y), dm, wf,
+                      key='TOPBAR_MT_file')
+    panels = [root]
+    if submenu:
+        opener = next(it for it in root.items if it.path == (3,))
+        panels.append(hand_panel(_dd_sub_items(), int(root.rect.x1),
+                                 int(opener.rect.y1 + dm.pad_y), dm, wf, depth=1,
+                                 opener=(3,), key='VIEW3D_MT_object_apply'))
+    return hand_chain(panels, dm)
+
+
+def _render_dd(layout, chain, hover_id=None, dd_hover=None, open_label=None, palette=None,
+               linear=False, cache=None, dd_cache=None, clip=None, region_offset=(0, 0),
+               w=DW, h=DH):
+    """draw_plaza (when ``layout``) then draw_dropdowns into a fresh offscreen;
+    returns (dropdowns_drawn, pixels, gpu_state_after)."""
+    rd = _rd()
+    palette = palette or _th().meso_palette(25)
+    off = gpu.types.GPUOffScreen(w, h)
+    try:
+        with off.bind():
+            gpu.state.active_framebuffer_get().clear(color=BACKGROUND)
+            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                gpu.matrix.load_identity()
+                gpu.matrix.load_projection_matrix(_ortho(w, h))
+                mv_before = gpu.matrix.get_model_view_matrix().copy()
+                if layout is not None:
+                    rd.draw_plaza(layout, palette, hover_id, region_offset, linear,
+                                   cache=cache, clip=clip, open_label=open_label)
+                drawn = rd.draw_dropdowns(chain, palette, dd_hover, region_offset, linear,
+                                          cache=dd_cache, clip=clip)
+                after = SimpleNamespace(
+                    blend=gpu.state.blend_get(),
+                    mv_restored=(gpu.matrix.get_model_view_matrix() == mv_before))
+            pixels = _Pixels(w, h)
+    finally:
+        off.free()
+    return drawn, pixels, after
+
+
+def _dd_cache(testcase):
+    cache = _rd().DropdownBatchCache()
+    testcase.addCleanup(cache.clear)
+    return cache
+
+
+def _text_box(it, width_fn, dm, s=None):
+    s = it.label if s is None else s
+    x = it.text_x if s == it.label else it.shortcut_x
+    return _Rect(x, it.text_y, math.ceil(width_fn(s)) + 1, dm.cap_h + 1)
+
+
+class TestDropdownColors(unittest.TestCase):
+
+    def test_derived_from_palette_only(self):
+        rd, th = _rd(), _th()
+        names = {f.name for f in dataclasses.fields(th.Palette)}
+        self.assertEqual(names, {'strip', 'item_hover', 'item_checked', 'text', 'text_hover',
+                                 'text_disabled', 'center_back', 'center_text', 'ticks', 'dim',
+                                 'roundness'}, "the Palette is frozen (no new field)")
+        for palette in (th.meso_palette(25), th.meso_palette(80), th.MESO_PALETTE,
+                        th.theme_palette(_fake_ui(), 40)):
+            c = rd.dropdown_colors(palette)
+            hash(c)
+            self.assertEqual(c.panel, (*palette.strip[:3], 1.0), "strip grey, opaque")
+            self.assertEqual(c.border[3], 1.0)
+            self.assertLess(rd.luminance(c.border), rd.luminance(c.panel) * 0.5, "darker")
+            lo, hi = sorted((rd.luminance(c.panel), rd.luminance(palette.text)))
+            self.assertTrue(lo < rd.luminance(c.separator) < hi, "separator between panel/text")
+            self.assertEqual(c.item_hover, palette.item_hover)
+            self.assertEqual((c.text, c.text_hover, c.text_disabled),
+                             (palette.text, palette.text_hover, palette.text_disabled))
+            self.assertEqual((c.shortcut, c.glyph, c.glyph_disabled),
+                             (palette.text_disabled, palette.text, palette.text_disabled))
+            self.assertEqual(rd.dropdown_colors(palette), c)
+        # The transparency pref never makes the panel translucent.
+        self.assertEqual(rd.dropdown_colors(th.meso_palette(80)).panel,
+                         rd.dropdown_colors(th.meso_palette(0)).panel)
+
+
+class TestOffscreenDropdowns(unittest.TestCase):
+    """Structural pixel checks of draw_dropdowns (dropdown + submenu) at scale 1.0 and 2.0."""
+
+    def setUp(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+        self.palette = _th().meso_palette(25)
+        self.colors = _rd().dropdown_colors(self.palette)
+
+    def _check_scale(self, scale):
+        rd = _rd()
+        layout = _dd_layout(scale)
+        chain = _dd_chain(layout)
+        dm = chain.metrics
+        wf = rd.text_width_fn(dm.font_px)
+        root, sub = chain.panels
+        hover = (3, 3)                                    # 'Scale' in the submenu
+        cache, dd_cache = _cache(self), _dd_cache(self)
+        drawn, px, after = _render_dd(layout, chain, None, hover, 'TOPBAR_MT_file',
+                                      cache=cache, dd_cache=dd_cache)
+        path = _save_png(px.data, DW, DH, f"dropdown_scale{scale:g}")
+        msg = f"(see {path})"
+        self.assertTrue(drawn, msg)
+        self.assertEqual(after.blend, 'NONE')
+        self.assertTrue(after.mv_restored, "model-view matrix restored")
+        for p in chain.panels:
+            self.assertTrue(p.rect.x >= 0 and p.rect.y >= 0 and p.rect.x1 <= DW
+                            and p.rect.y1 <= DH, f"{p.key} on screen")
+        panel_grey = sum(self.colors.panel[:3]) / 3
+
+        def item(path):
+            return chain.item(path)
+
+        # Opaque panel: over the plaza it is pixel-identical to the same chain drawn over
+        # the bare background (nothing of the strips / labels below shows through).
+        overlaps = [s for s in layout.strips for p in chain.panels if p.rect.intersects(s.rect)]
+        self.assertTrue(overlaps, "the dropdown covers part of the plaza (test premise)")
+        _, bare, _ = _render_dd(None, chain, None, hover, dd_cache=dd_cache)
+        worst = 0.0
+        for p in chain.panels:
+            r = p.rect
+            for y in range(int(r.y), int(r.y1)):
+                for x in range(int(r.x), int(r.x1)):
+                    a, b = px.px(x, y), bare.px(x, y)
+                    worst = max(worst, max(abs(ca - cb) for ca, cb in zip(a[:3], b[:3])))
+        self.assertLess(worst, 1.5 / 255, f"panel opaque over the strips {msg}")
+
+        # Border: a darker outline on the panel edge (never covered by the hover bar).
+        for p in chain.panels:
+            ym = int(p.rect.y + p.rect.h // 2)
+            for x in (int(p.rect.x), int(p.rect.x1) - 1):
+                self.assertLess(px.grey(x, ym), panel_grey - 0.15, f"border {p.key} {msg}")
+            self.assertAlmostEqual(px.grey(int(p.rect.x) + dm.pad_x // 2 + 2, int(p.rect.y) + 1 +
+                                           max(1, round(dm.border))), panel_grey, delta=0.02,
+                                   msg=f"panel fill {p.key} {msg}")
+
+        # Hover bar: lighter across the whole panel width (both ends), the next item not.
+        h, n = item(hover), item((3, 1))
+        for it, lit in ((h, True), (n, False)):
+            ym = int(it.highlight.y + it.highlight.h // 2)
+            for x in (int(it.highlight.x) + 1, int(it.highlight.x1) - 2):
+                g = px.grey(x, ym)
+                if lit:
+                    self.assertGreater(g, panel_grey + 0.1, f"hover bar at x {x} {msg}")
+                else:
+                    self.assertAlmostEqual(g, panel_grey, delta=0.02, msg=f"no bar {msg}")
+        # The opener of the open submenu stays lit; other root items do not.
+        op, other = item((3,)), item((1,))
+        ym, ym2 = (int(i.highlight.y + i.highlight.h // 2) for i in (op, other))
+        self.assertGreater(px.grey(int(op.highlight.x) + 1, ym), panel_grey + 0.1, msg)
+        self.assertAlmostEqual(px.grey(int(other.highlight.x) + 1, ym2), panel_grey, delta=0.02,
+                               msg=msg)
+
+        # Text inside every labelled row; disabled / inactive / heading / shortcut dimmer.
+        text_max = {}
+        for p in chain.panels:
+            for it in p.items:
+                if not it.label:
+                    continue
+                tb = _text_box(it, wf, dm)
+                self.assertTrue(it.rect.x <= tb.x and tb.x1 <= it.rect.x1 and it.rect.y <= tb.y
+                                and tb.y1 <= it.rect.y1 + 1, f"text box of {it.label} in row")
+                text_max[it.path] = px.region_max(tb)
+                self.assertGreater(text_max[it.path], panel_grey + 0.15, f"{it.label} {msg}")
+        for dim in ((6,), (7,), (11,), (12,)):
+            self.assertLess(text_max[dim], text_max[(0,)] - 0.1, f"dimmed {dim} {msg}")
+        self.assertGreater(text_max[hover], text_max[(3, 0)] + 0.03, f"hover text {msg}")
+        # Shortcut hints: dimmed, but readable (``text``) on a highlighted row.
+        it = item((0,))
+        s = px.region_max(_text_box(it, wf, dm, it.shortcut))
+        self.assertGreater(s, panel_grey + 0.1, f"shortcut {it.shortcut} {msg}")
+        self.assertLess(s, text_max[(0,)] - 0.1, f"shortcut dimmed {msg}")
+        hs = item(hover)
+        bar = px.grey(int(hs.highlight.x1) - 2, int(hs.rect.y + hs.rect.h // 2))
+        self.assertGreater(px.region_max(_text_box(hs, wf, dm, hs.shortcut)), bar + 0.2,
+                           f"hovered shortcut readable {msg}")
+
+        # Glyphs: box outline always, filled when checked; radio dot when checked.
+        t = rd.dd_line_px(dm)
+        for path, checked in (((4,), True), ((5,), False), ((8,), True), ((9,), False),
+                              ((3, 4), True)):
+            cr = item(path).check_rect
+            cx, cy = int(cr.x + cr.w // 2), int(cr.y + cr.h // 2)
+            base = px.grey(int(item(path).highlight.x1) - 2, cy)     # row background
+            self.assertGreater(px.grey(int(cr.x) + t // 2, cy), base + 0.3, f"outline {path} {msg}")
+            if checked:
+                self.assertGreater(px.grey(cx, cy), base + 0.3, f"filled {path} {msg}")
+            else:
+                self.assertAlmostEqual(px.grey(cx, cy), base, delta=0.03, msg=f"hollow {path} {msg}")
+        # Radio: a round dot (its bounding-square corner stays clear); a box fills its square.
+        cr = item((8,)).check_rect
+        dia = rd.radio_dot_diameter(cr, dm)
+        self.assertGreaterEqual(dia, 4)
+        corner = (int(cr.x + cr.w / 2 - dia / 2), int(cr.y + cr.h / 2 - dia / 2))
+        self.assertAlmostEqual(px.grey(*corner), panel_grey, delta=0.05, msg=f"radio round {msg}")
+        # Radios are round rings, boxes square outlines: the check_rect corner is clear for a
+        # radio (checked or not) and lit for a box.
+        for path in ((8,), (9,)):
+            rc = item(path).check_rect
+            self.assertEqual(item(path).check_style, _dg().GLYPH_RADIO)
+            self.assertAlmostEqual(px.grey(int(rc.x) + t // 2, int(rc.y) + t // 2), panel_grey,
+                                   delta=0.05, msg=f"radio ring corner {path} {msg}")
+        bc = item((4,)).check_rect
+        self.assertGreater(px.grey(int(bc.x) + t // 2, int(bc.y) + t // 2), panel_grey + 0.3,
+                           f"box corner {msg}")
+        f = rd.check_fill_rect(item((4,)).check_rect, dm)
+        self.assertGreater(px.grey(int(f.x), int(f.y)), panel_grey + 0.3, f"box fill {msg}")
+        # Disabled glyphs are dimmer than enabled ones.
+        dc, ec = item((12,)).check_rect, item((4,)).check_rect
+        self.assertLess(px.grey(int(dc.x) + t // 2, int(dc.y + dc.h // 2)),
+                        px.grey(int(ec.x) + t // 2, int(ec.y + ec.h // 2)) - 0.1,
+                        f"disabled glyph {msg}")
+        # Arrows: lit near the base (left) of the triangle, dark past its tip.
+        for path in ((3,), (10,)):
+            ar = item(path).arrow_rect
+            cy = int(ar.y + ar.h // 2)
+            base = px.region_max(_Rect(ar.x, cy - 1, 2, 3))
+            self.assertGreater(base, panel_grey + 0.3, f"arrow {path} {msg}")
+            self.assertLess(px.grey(int(ar.x1) + 1, cy), base - 0.2, f"arrow tip {path} {msg}")
+        self.assertIsNone(item((0,)).arrow_rect)
+        # Separators: a thin lighter line with the panel grey just above it.
+        for path in ((2,), (3, 2)):
+            line = item(path).line_rect
+            xm = int(line.x + line.w // 2)
+            self.assertGreater(px.grey(xm, int(line.y)), panel_grey + 0.05, f"separator {msg}")
+            self.assertAlmostEqual(px.grey(xm, int(line.y1) + 1), panel_grey, delta=0.02,
+                                   msg=f"separator is thin {msg}")
+            self.assertAlmostEqual(px.grey(int(line.x) - 1, int(line.y)), panel_grey, delta=0.02,
+                                   msg=f"separator inset {msg}")
+            self.assertLessEqual(line.x - item(path).rect.x, 4 * max(1, round(dm.border)),
+                                 f"separator spans the panel {msg}")
+
+        # The open row label is highlighted like a hover (File vs Edit).
+        fb, eb = layout.item('TOPBAR_MT_file'), layout.item('TOPBAR_MT_edit')
+        ym = int(fb.highlight.y + fb.highlight.h // 2)
+        self.assertGreater(px.grey(int(fb.rect.x) + 1, ym), px.grey(int(eb.rect.x) + 1, ym) + 0.05,
+                           f"open label {msg}")
+
+        # Nothing drawn outside the chain extent (chain alone over the background).
+        ext = chain.extent
+        bad = 0
+        for y in range(0, DH, 3):
+            for x in range(0, DW, 3):
+                if ext.contains(x, y):
+                    continue
+                if any(abs(c - b) > 1.5 / 255 for c, b in zip(bare.px(x, y), BACKGROUND)):
+                    bad += 1
+        self.assertEqual(bad, 0, f"pixels outside {ext} {msg}")
+        self.assertEqual((dd_cache.static_builds, dd_cache.hover_builds), (1, 1))
+        return chain
+
+    def test_scale_1(self):
+        self._check_scale(1.0)
+
+    def test_scale_2(self):
+        c1 = _dd_chain(_dd_layout(1.0))
+        c2 = self._check_scale(2.0)
+        self.assertEqual(c2.metrics.font_px, 2 * c1.metrics.font_px)
+        self.assertEqual(c2.metrics.item_h, 2 * c1.metrics.item_h)
+
+    def test_hover_passive_and_disabled(self):
+        layout = _dd_layout(1.0)
+        chain = _dd_chain(layout, submenu=False)
+        cache = _dd_cache(self)
+        panel_grey = sum(self.colors.panel[:3]) / 3
+        for path in ((2,), (6,), (7,), None, (99,), (3, 1)):
+            self.assertEqual(cache.hover(chain, path), (None, None), path)
+        self.assertEqual(cache.hover_builds, 0)
+        self.assertIsNotNone(cache.hover(chain, (11,))[0], "inactive items still hover")
+        _, px, _ = _render_dd(None, chain, dd_hover=(6,), dd_cache=cache)
+        it = chain.item((6,))
+        self.assertAlmostEqual(px.grey(int(it.highlight.x) + 1, int(it.rect.y + it.rect.h // 2)),
+                               panel_grey, delta=0.02, msg="disabled: no hover bar")
+
+    def test_deeper_panel_on_top(self):
+        """A submenu overlapping its parent covers the parent's glyphs and text."""
+        rd = _rd()
+        layout = _dd_layout(1.0)
+        root = _dd_chain(layout, submenu=False).panels[0]
+        dm = dd_metrics(layout.metrics)
+        ar = next(it for it in root.items if it.path == (10,)).arrow_rect
+        d = _dmod()
+        sub = hand_panel([d.DropdownItem(d.DD_OP, 'X'), d.DropdownItem(d.DD_OP, 'Y')],
+                         int(ar.x) - 4, int(ar.y1) + dm.item_h // 2, dm,
+                         rd.text_width_fn(dm.font_px), depth=1, opener=(10,))
+        chain = hand_chain([root, sub], dm)
+        _, px, _ = _render_dd(None, chain, dd_cache=_dd_cache(self))
+        cy = int(ar.y + ar.h // 2)
+        panel_grey = sum(self.colors.panel[:3]) / 3
+        self.assertTrue(sub.rect.contains(ar.x, cy))
+        self.assertLess(px.region_max(_Rect(ar.x, cy - 1, 2, 3)), panel_grey + 0.05,
+                        "root arrow hidden under the submenu")
+
+    def test_linear_blend_and_offset_and_clip(self):
+        layout = _dd_layout(1.0)
+        chain = _dd_chain(layout)
+        root = chain.panels[0]
+        it = chain.item((0,))
+        x, y = int(it.highlight.x1) - 2, int(it.rect.y + it.rect.h // 2)
+        _, plain, _ = _render_dd(None, chain, dd_cache=_dd_cache(self))
+        _, lin, _ = _render_dd(None, chain, linear=True, dd_cache=_dd_cache(self))
+        self.assertAlmostEqual(plain.grey(x, y), lin.grey(x, y), delta=1 / 255,
+                               msg="the opaque panel is unaffected by linear blending")
+        self.assertAlmostEqual(plain.grey(x, y), sum(self.colors.panel[:3]) / 3, delta=1.5 / 255)
+        # A 300x200 "region" at (ox, oy) holding the top-left of the root panel.
+        ox, oy = int(root.rect.x) - 20, int(root.rect.y1) - 150
+        drawn, px, after = _render_dd(None, chain, region_offset=(ox, oy), w=300, h=200,
+                                      clip=_Rect(ox, oy, 300, 200), dd_cache=_dd_cache(self))
+        self.assertTrue(drawn)
+        self.assertEqual(after.blend, 'NONE')
+        self.assertAlmostEqual(px.grey(x - ox, y - oy), plain.grey(x, y), delta=1.5 / 255)
+        tb = _text_box(it, _rd().text_width_fn(chain.metrics.font_px), chain.metrics)
+        self.assertGreater(px.region_max(tb.translated(-ox, -oy)), 0.6, "label at offset")
+        # Culled: None / empty chain, or a clip away from the extent (no GPU work).
+        rd, dg = _rd(), _dg()
+        far = _Rect(chain.extent.x1 + 10, 0, 20, 20)
+        for c, clip in ((None, None), (dg.EMPTY_CHAIN, None), (chain, far)):
+            drawn, px, _ = _render_dd(None, c, clip=clip, w=64, h=64)
+            self.assertFalse(drawn)
+            for c_px, c_bg in zip(px.px(10, 10), BACKGROUND):
+                self.assertAlmostEqual(c_px, c_bg, delta=1.5 / 255)
+        self.assertIsNone(rd.chain_extent(None))
+        self.assertIsNone(rd.chain_extent(dg.EMPTY_CHAIN))
+        no_ext = dataclasses.replace(chain, extent=None)
+        self.assertEqual(rd.chain_extent(no_ext), chain.extent)
+
+    def test_batch_cache(self):
+        rd = _rd()
+        layout = _dd_layout(1.0)
+        one = _dd_chain(layout, submenu=False)
+        cache = _dd_cache(self)
+        for hover in ((0,), (1,), (0,), None):
+            _render_dd(None, one, dd_hover=hover, dd_cache=cache)
+        self.assertEqual((cache.static_builds, cache.hover_builds), (1, 2),
+                         "a hover change rebuilds only the hover batch, once per item")
+        static = cache.static(one, rd.dropdown_colors(self.palette))
+        self.assertEqual(set(static), set(rd.DD_STATIC_KEYS))
+        self.assertTrue(all(len(v) == 1 for v in static.values()))
+        for key in rd.DD_STATIC_KEYS:
+            self.assertIsNotNone(static[key][0], key)
+        two = _dd_chain(layout)
+        _render_dd(None, two, dd_hover=None, dd_cache=cache)
+        self.assertEqual((cache.static_builds, cache.hover_builds), (2, 3),
+                         "a new level rebuilds; the open opener alone is a hover entry")
+        self.assertEqual(rd.highlight_paths(two, None), ((3,),))
+        self.assertEqual(rd.highlight_paths(two, (3, 3)), ((3,), (3, 3)))
+        self.assertEqual(rd.highlight_paths(two, (3,)), ((3,),))
+        self.assertEqual(rd.highlight_paths(two, (2,)), ((3,),), "separators never light")
+        bars, glyphs = cache.hover(two, (3, 3))
+        self.assertEqual(len(bars), 2)
+        self.assertIsNotNone(bars[0], "opener bar in the root panel")
+        self.assertIsNotNone(bars[1], "hover bar in the submenu")
+        self.assertIsNotNone(glyphs[0], "the opener's arrow is redrawn highlighted")
+        self.assertIsNone(glyphs[1], "an op item has no glyph")
+        # A new palette (colours) rebuilds the static set only.
+        _render_dd(None, two, dd_hover=(3, 3), palette=_th().theme_palette(_fake_ui(), 25),
+                   dd_cache=cache)
+        self.assertEqual(cache.static_builds, 3)
+        # A chain with a zero signature (hand-built by a stub) still keys by its content.
+        zero = dataclasses.replace(one, signature=0)
+        _render_dd(None, zero, dd_cache=cache)
+        self.assertEqual(cache.static_builds, 4)
+        for i in range(rd.HOVER_CACHE_SIZE + 5):
+            cache._hover[('x', i)] = (None, None)
+        cache.hover(zero, (1,))
+        self.assertLessEqual(len(cache._hover), rd.HOVER_CACHE_SIZE)
+        cache.clear()
+        self.assertEqual((cache._static, cache._hover, cache._static_key, cache._sig),
+                         ({}, {}, None, None))
+
+    def test_open_label_uses_hover_cache(self):
+        layout = _dd_layout(1.0)
+        cache = _cache(self)
+        _render_dd(layout, None, hover_id=None, open_label='TOPBAR_MT_file', cache=cache)
+        _render_dd(layout, None, hover_id='TOPBAR_MT_file', open_label='TOPBAR_MT_file',
+                   cache=cache)
+        _render_dd(layout, None, hover_id='TOPBAR_MT_edit', open_label='TOPBAR_MT_file',
+                   cache=cache)
+        self.assertEqual((cache.static_builds, cache.hover_builds), (1, 2))
+        _, px, _ = _render_dd(layout, None, hover_id='TOPBAR_MT_edit',
+                              open_label='TOPBAR_MT_file', cache=cache)
+        fb, eb, hb = (layout.item(i) for i in ('TOPBAR_MT_file', 'TOPBAR_MT_edit',
+                                                 'TOPBAR_MT_help'))
+        ym = int(fb.highlight.y + fb.highlight.h // 2)
+        both = [px.grey(int(b.rect.x) + 1, ym) for b in (fb, eb)]
+        self.assertGreater(min(both), px.grey(int(hb.rect.x) + 1, ym) + 0.05,
+                           "the open label and the hovered one are both lit")
+
+    def test_blend_restored_on_error(self):
+        self.addCleanup(gc.collect)
+        rd = _rd()
+        chain = _dd_chain(_dd_layout(1.0))
+        off = gpu.types.GPUOffScreen(64, 64)
+        self.addCleanup(off.free)
+        with off.bind():
+            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                gpu.matrix.load_identity()
+                gpu.matrix.load_projection_matrix(_ortho(64, 64))
+                mv = gpu.matrix.get_model_view_matrix().copy()
+                for name in ('_draw_dd_labels', '_draw_fill'):
+                    with mock.patch.object(rd, name, side_effect=RuntimeError("boom")):
+                        with self.assertRaises(RuntimeError):
+                            rd.draw_dropdowns(chain, self.palette, (1,), (0, 0), False,
+                                              cache=_dd_cache(self))
+                    self.assertEqual(gpu.state.blend_get(), 'NONE', name)
+                    self.assertEqual(gpu.matrix.get_model_view_matrix(), mv, name)
+
+
+class TestDropdownWithCoreGeometry(unittest.TestCase):
+    """The renderer on a chain placed by core.dropdown_geometry (skipped until A lands)."""
+
+    def setUp(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+
+    def test_layout_chain_renders(self):
+        dg, d, rd = _dg(), _dmod(), _rd()
+        layout = _dd_layout(1.0)
+        try:
+            dm = dg.dropdown_metrics(layout.metrics)
+        except NotImplementedError:
+            self.skipTest("core.dropdown_geometry not implemented yet")
+        self.assertEqual(dm, dd_metrics(layout.metrics), "hand metrics follow the contract")
+        root = d.DropdownModel('TOPBAR_MT_file', 'File', tuple(_dd_root_items()))
+        sub = d.DropdownModel('VIEW3D_MT_object_apply', 'Apply', tuple(_dd_sub_items()))
+        chain = dg.layout_chain((root, sub), layout.item('TOPBAR_MT_file').rect, ((3,),),
+                                _Rect(0, 0, DW, DH), dm, rd.text_width_fn(dm.font_px))
+        self.assertEqual(len(chain.panels), 2)
+        drawn, px, _ = _render_dd(layout, chain, dd_hover=(3, 3), open_label='TOPBAR_MT_file',
+                                  dd_cache=_dd_cache(self))
+        _save_png(px.data, DW, DH, "dropdown_core_geometry")
+        self.assertTrue(drawn)
+        panel_grey = sum(rd.dropdown_colors(_th().meso_palette(25)).panel[:3]) / 3
+        for p in chain.panels:
+            for it in p.items:
+                if it.label and it.enabled and it.active and it.kind != d.DD_LABEL:
+                    tb = _text_box(it, rd.text_width_fn(dm.font_px), dm)
+                    self.assertGreater(px.region_max(tb), panel_grey + 0.3, it.label)
+        h = chain.item((3, 3))
+        self.assertGreater(px.grey(int(h.highlight.x1) - 2, int(h.rect.y + h.rect.h // 2)),
+                           panel_grey + 0.1, "hover bar")
+
+
 class TestDrawTiming(unittest.TestCase):
 
     def setUp(self):
@@ -785,6 +1349,34 @@ class TestDrawTiming(unittest.TestCase):
             gpu.state.active_framebuffer_get().read_color(0, 0, 1, 1, 4, 0, 'FLOAT')
         median = statistics.median(times)
         print(f"test_render_offscreen: draw_plaza 30 items median {median * 1e3:.3f} ms, "
+              f"max {max(times) * 1e3:.3f} ms ({gpu.platform.backend_type_get()})", flush=True)
+        self.assertLess(median, 1e-3)
+        self.assertEqual(cache.static_builds, 1)
+
+    def test_draw_dropdowns_under_1ms(self):
+        """A dropdown + submenu chain (18 items, 3 of them hover targets) draws in < 1 ms."""
+        rd = _rd()
+        chain = _dd_chain(_dd_layout(1.0))
+        self.assertEqual(sum(len(p.items) for p in chain.panels), 18)
+        palette = _th().meso_palette(25)
+        cache = _dd_cache(self)
+        off = gpu.types.GPUOffScreen(DW, DH)
+        self.addCleanup(off.free)
+        times = []
+        hovers = [(0,), (3, 3), None]
+        with off.bind():
+            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                gpu.matrix.load_identity()
+                gpu.matrix.load_projection_matrix(_ortho(DW, DH))
+                for hp in hovers:
+                    rd.draw_dropdowns(chain, palette, hp, (0, 0), True, cache=cache)
+                for i in range(50):
+                    t0 = time.perf_counter()
+                    rd.draw_dropdowns(chain, palette, hovers[i % 3], (0, 0), True, cache=cache)
+                    times.append(time.perf_counter() - t0)
+            gpu.state.active_framebuffer_get().read_color(0, 0, 1, 1, 4, 0, 'FLOAT')
+        median = statistics.median(times)
+        print(f"test_render_offscreen: draw_dropdowns 18 items median {median * 1e3:.3f} ms, "
               f"max {max(times) * 1e3:.3f} ms ({gpu.platform.backend_type_get()})", flush=True)
         self.assertLess(median, 1e-3)
         self.assertEqual(cache.static_builds, 1)

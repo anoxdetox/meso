@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """GUI event-simulate suite for the plaza: Phase 1 (hold / release / tap / cancel),
-Phase 2 (screenshots at ui_scale 1.0 / 2.0, hover, click -> native File menu handoff) and
-Phase 3 (contextual row, Tool Settings row, native handoffs of every item / action kind and
-the mode switcher, workspace switch, per-editor screenshots; plus every
-``tests/gui/scenarios_*.py`` module, e.g. the pane toggle).
+Phase 2 (screenshots at ui_scale 1.0 / 2.0, hover, click on File), Phase 3 (contextual row,
+Tool Settings row, native handoffs of every item / action kind and the mode switcher,
+workspace switch, per-editor screenshots) and Phase 4 (custom dropdowns: a click on a menu
+label opens its dropdown and the plaza stays open; Tool Settings toggles / cascades apply in
+place); plus every ``tests/gui/scenarios_*.py`` module (the pane toggle, the Phase 4
+dropdown scenarios).
 
 Run through ``tests/gui/run_gui_tests.sh`` (nested ``kwin_wayland --virtual`` by default), or
 directly:
@@ -1027,8 +1029,16 @@ SHOT_MAX_W = 1200     # notes/screenshots copies are downscaled to at most this 
 MENU_PROBE = {"file": 0}
 
 
+def _native_draw(self):
+    """True when a menu draw is Blender's own (a real UILayout), not Meso Mode's recorder
+    (``record.recorder.FakeSelf``): Phase 4 records the menus it shows as custom dropdowns,
+    which also calls the appended probes."""
+    return isinstance(getattr(self, "layout", None), bpy.types.UILayout)
+
+
 def _file_probe(self, context):
-    MENU_PROBE["file"] += 1
+    if _native_draw(self):
+        MENU_PROBE["file"] += 1
 
 
 def add_menu_probe():
@@ -1254,14 +1264,16 @@ def sc_hover_file(rec):
 
 
 def sc_click_file(rec):
-    """(c) Click 'File' (press + release): the plaza ends, the native File menu opens (D3:
-    on the RELEASE), ESC closes it."""
+    """(c) Click 'File' (press + release): Phase 4 opens the custom File dropdown on the
+    PRESS, it stays open after the RELEASE and the plaza keeps running (no native menu, no
+    handoff); the Space release then finishes. Native call_menu: scenarios_phase4 (f)."""
     yield from _click_file(rec, center_of("VIEW_3D"))
 
 
 def sc_click_file_header(rec):
-    """(c) from the 3D View HEADER (empty header space): the handoff runs under the area's
-    WINDOW region chosen at invoke, and the File menu opens."""
+    """(c) from the 3D View HEADER (empty header space): the hit region is the HEADER, the
+    runs / hand-offs use the area's WINDOW region chosen at invoke; the custom File dropdown
+    opens."""
     r = region_of(area_by("VIEW_3D"), 'HEADER')
     if r is None or r.width <= 2 or r.height <= 2:
         rec["skipped"] = "no visible VIEW_3D/HEADER"
@@ -1291,34 +1303,36 @@ def _click_file(rec, xy, at_invoke=None):
     yield 0.2
     check(rec, "press_keeps_running", plaza().is_running())
     check(rec, "pressed_id", st.pressed_id == FILE_MENU, st.pressed_id)
-    check(rec, "nothing_on_press", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
+    check(rec, "opened_on_press", st.menus is not None and st.menus.bar.open_label == FILE_MENU,
+          st.menus and st.menus.bar.open_label)
+    check(rec, "nothing_native_on_press", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
     sim('LEFTMOUSE', 'RELEASE', fxy)
-    yield 0.5
-    check_ended(rec)
-    ls = last()
-    check(rec, "ended_by_handoff", ls.get("end") == "handoff", ls.get("end"))
-    check(rec, "handoff_cmd", ls.get("handoff") == ("wm.call_menu", {"name": FILE_MENU}),
-          ls.get("handoff"))
-    check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
-          ls.get("handoff_result"))
-    check(rec, "file_menu_drawn", MENU_PROBE["file"] > 0, MENU_PROBE["file"])
-    still_open = not (yield from canary_ok(fxy))     # an open menu swallows the canary key
-    check(rec, "menu_stays_open", still_open)
-    sim('ESC', 'PRESS', fxy)
-    yield 0.05
-    sim('ESC', 'RELEASE', fxy)
-    yield 0.3
-    check(rec, "esc_closed_menu", (yield from canary_ok(fxy)))
+    yield 0.4
+    check(rec, "release_keeps_running", plaza().is_running())
+    check(rec, "dropdown_open", st.open_label == FILE_MENU and st.dropdowns is not None
+          and len(st.dropdowns.panels) == 1, [st.open_label, st.dropdowns and
+                                              [p.key for p in st.dropdowns.panels]])
+    check(rec, "no_handoff", last().get("handoff") is None, last().get("handoff"))
+    check(rec, "no_native_menu", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
+    check(rec, "no_draw_error", st.error is None and not st.failed, st.error)
     sim('SPACE', 'RELEASE', xy)
     yield SETTLE
-    check(rec, "late_release_no_session", last().get("serial") == serial, last().get("serial"))
+    check_ended(rec)
+    ls = last()
+    check(rec, "same_session", ls.get("serial") == serial, [serial, ls.get("serial")])
+    check(rec, "ended_by_release", ls.get("end") == "finish", ls.get("end"))
+    check(rec, "not_tapped", ls.get("tapped") is False, ls.get("elapsed"))
+    check(rec, "menus_opened", ls.get("menus_opened") == [FILE_MENU], ls.get("menus_opened"))
+    check(rec, "still_no_native_menu", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
     check(rec, "no_play", not playing())
+    check(rec, "events_free", (yield from canary_ok(fxy)))
     check_ended(rec, "final")
 
 
 def sc_press_release_elsewhere(rec):
-    """(d) Press on 'File', release on empty space: nothing opens, the plaza stays open until
-    the Space release (not a tap)."""
+    """(d) Press on 'File' (the custom dropdown opens on the PRESS), release on empty space:
+    the dropdown stays open, nothing runs and nothing native opens; the plaza stays open
+    until the Space release (not a tap)."""
     xy = center_of("VIEW_3D")
     st = yield from open_plaza(xy)
     if st is None or st.layout is None or st.layout.item(FILE_MENU) is None:
@@ -1331,6 +1345,9 @@ def sc_press_release_elsewhere(rec):
     yield 0.1
     sim('LEFTMOUSE', 'PRESS', fxy)
     yield 0.1
+    if st.dropdowns is not None and st.dropdowns.extent is not None \
+            and st.dropdowns.extent.contains(*empty):
+        empty = empty_point_in(st.layout, st.bounds, st.dropdowns)
     sim('MOUSEMOVE', 'NOTHING', empty)
     yield 0.1
     sim('LEFTMOUSE', 'RELEASE', empty)
@@ -1338,6 +1355,7 @@ def sc_press_release_elsewhere(rec):
     check(rec, "still_running", plaza().is_running())
     check(rec, "one_modal", modal_ops().count(MODAL_IDNAME) == 1, modal_ops())
     check(rec, "pressed_cleared", st.pressed_id is None, st.pressed_id)
+    check(rec, "dropdown_still_open", st.open_label == FILE_MENU, st.open_label)
     check(rec, "no_menu", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
     check(rec, "no_handoff", last().get("handoff") is None, last().get("handoff"))
     yield from close_plaza(empty, rec)
@@ -1401,7 +1419,8 @@ MENU_PROBE.update(object=0)
 
 
 def _object_probe(self, context):
-    MENU_PROBE["object"] += 1
+    if _native_draw(self):
+        MENU_PROBE["object"] += 1
 
 
 def add_p3_probes():
@@ -1434,14 +1453,20 @@ def find_clickable(st, prefix, kinds=None):
     return None
 
 
-def empty_point_in(layout, bounds):
-    """A window point inside ``bounds`` that hits no plaza item (beside the plaza)."""
+def empty_point_in(layout, bounds, chain=None):
+    """A window point inside ``bounds`` that hits no plaza item (beside the plaza) and,
+    with ``chain`` (an open dropdown ChainLayout), no dropdown panel either."""
     hb_rect = layout.plaza_rect
     cx, cy = int(hb_rect.x + hb_rect.w // 2), int(hb_rect.y + hb_rect.h // 2)
+    panels = [p.rect for p in chain.panels] if chain is not None else []
     for xy in ((cx, int(hb_rect.y) - 40), (cx, int(hb_rect.y1) + 40),
                (int(hb_rect.x1) + 40, cy), (int(hb_rect.x) - 40, cy),
-               (int(hb_rect.x) + 4, int(hb_rect.y1) - 2), (int(bounds.x) + 4, int(bounds.y) + 4)):
-        if bounds.contains(*xy) and geometry().hit_test(layout, *xy) is None:
+               (int(hb_rect.x1) + 40, int(hb_rect.y1) - 2), (int(hb_rect.x) - 40, int(hb_rect.y) + 2),
+               (int(hb_rect.x) + 4, int(hb_rect.y1) - 2), (int(bounds.x) + 4, int(bounds.y) + 4),
+               (int(bounds.x1) - 4, int(bounds.y) + 4), (int(bounds.x) + 4, int(bounds.y1) - 4),
+               (int(bounds.x1) - 4, int(bounds.y1) - 4)):
+        if bounds.contains(*xy) and geometry().hit_test(layout, *xy) is None \
+                and not any(r.contains(*xy) for r in panels):
             return xy
     raise RuntimeError("no empty point next to the plaza")
 
@@ -1531,6 +1556,59 @@ def steps_since(marker):
     if marker not in steps:
         return None
     return steps[len(steps) - steps[::-1].index(marker):]
+
+# ----------------------------------------------------------------------------- Phase 4 helpers
+
+
+def dd_model_mod():
+    return importlib.import_module(ADDON_MODULE + ".core.dropdown_model")
+
+
+def dd_models(st):
+    """The open chain's DropdownModels (level order), [] when closed / no session."""
+    return list(st.menus.models) if st is not None and st.menus is not None else []
+
+
+def dd_find(st, level, pred):
+    """Index of the first item of open level ``level`` (0 = the dropdown) with ``pred(item)``,
+    or None."""
+    models = dd_models(st)
+    if level >= len(models):
+        return None
+    return next((i for i, it in enumerate(models[level].items) if pred(it)), None)
+
+
+def dd_xy(st, path):
+    """Window point in the middle of the placed dropdown item ``path`` (None if unplaced)."""
+    chain = st.menus.chain if st is not None and st.menus is not None else None
+    placed = chain.item(tuple(path)) if chain is not None else None
+    return rect_mid(placed.rect) if placed is not None else None
+
+
+def dd_keys(st):
+    chain = st.dropdowns if st is not None else None
+    return [p.key for p in chain.panels] if chain is not None else []
+
+
+def open_dropdown(rec, st, label_id, prefix="open"):
+    """Click the row label ``label_id`` of the running session ``st``: its custom dropdown
+    must open and the plaza keep running. Returns True when it did."""
+    box = st.layout.item(label_id)
+    check(rec, f"{prefix}_label_placed", box is not None, label_id)
+    if box is None:
+        return False
+    yield from press_click(rect_mid(box.rect))
+    ok = st.open_label == label_id and st.dropdowns is not None
+    check(rec, f"{prefix}_opened", ok, [st.open_label, dd_keys(st)])
+    check(rec, f"{prefix}_running", plaza().is_running())
+    check(rec, f"{prefix}_no_handoff", last().get("handoff") is None, last().get("handoff"))
+    return ok
+
+
+def hover_to(xy):
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    yield 0.05
+
 
 # ----------------------------------------------------------------------------- Phase 3 scenarios
 
@@ -1642,7 +1720,8 @@ def sc_p3_screens(rec):
 
 
 def sc_p3_click_object_menu(rec):
-    """Click 'Object' in the contextual row: the native VIEW3D_MT_object opens (probe)."""
+    """Click 'Object' in the contextual row: Phase 4 opens the custom VIEW3D_MT_object
+    dropdown (not the native menu: probe 0), the plaza stays open."""
     md = model_mod()
     xy = center_of("VIEW_3D")
     st = yield from open_plaza(xy)
@@ -1651,18 +1730,16 @@ def sc_p3_click_object_menu(rec):
         check(rec, "layout", False, row_ids(st, md.ROW_CONTEXTUAL))
         return
     MENU_PROBE["object"] = 0
-    fxy = rect_mid(st.layout.item(item_id).rect)
-    ls = yield from click_item(rec, st, item_id)
-    check(rec, "handoff_cmd", ls.get("handoff") == ("wm.call_menu", {"name": OBJECT_MENU}),
-          ls.get("handoff"))
-    check(rec, "action", ls.get("action") == ("menu", OBJECT_MENU, ""), ls.get("action"))
-    check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
-          ls.get("handoff_result"))
-    check(rec, "object_menu_drawn", MENU_PROBE["object"] > 0, MENU_PROBE["object"])
-    check(rec, "menu_stays_open", not (yield from canary_ok(fxy)))
-    check(rec, "closed", (yield from close_popups(fxy)))
+    opened = yield from open_dropdown(rec, st, item_id)
+    if opened:
+        check(rec, "dropdown_key", dd_keys(st) == [OBJECT_MENU], dd_keys(st))
+        labels = [it.label for it in dd_models(st)[0].items]
+        check(rec, "has_apply", any(dd_model_mod().strip_native_suffix(lab) == "Apply"
+                                    for lab in labels), labels)
+    check(rec, "object_menu_not_native", MENU_PROBE["object"] == 0, MENU_PROBE["object"])
     yield from release_space(xy)
     check_ended(rec, "final")
+    check(rec, "ended_by_release", last().get("end") == "finish", last().get("end"))
 
 
 def sc_p3_mode_switch(rec):
@@ -1699,8 +1776,10 @@ def sc_p3_mode_switch(rec):
 
 
 def sc_p3_apply_scale(rec):
-    """Object > Apply > Scale through the native menu the plaza opened (driven with the
-    menu's accelerator keys: 'A'pply, then 'S'cale)."""
+    """Object > Apply > Scale through the CUSTOM dropdown with clicks only (a click on a
+    submenu item opens it at once): the scale is applied after teardown (``end == 'run'``).
+    scenarios_phase4 (c) drives the same path with a hover-opened submenu and compares the
+    result with the native operator."""
     md = model_mod()
     cube = bpy.data.objects.get("Cube")
     if cube is None:
@@ -1718,21 +1797,37 @@ def sc_p3_apply_scale(rec):
         if st is None or st.layout is None or st.layout.item(item_id) is None:
             check(rec, "layout", False)
             return
-        fxy = rect_mid(st.layout.item(item_id).rect)
-        ls = yield from click_item(rec, st, item_id)
-        check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
+        if not (yield from open_dropdown(rec, st, item_id)):
+            return
+        D = dd_model_mod()
+        apply_i = dd_find(st, 0, lambda it: it.kind == D.DD_SUBMENU
+                          and it.submenu == "VIEW3D_MT_object_apply")
+        check(rec, "apply_found", apply_i is not None)
+        if apply_i is None:
+            return
+        yield from press_click(dd_xy(st, (apply_i,)))
+        check(rec, "apply_open", dd_keys(st) == [OBJECT_MENU, "VIEW3D_MT_object_apply"],
+              dd_keys(st))
+        scale_i = dd_find(st, 1, lambda it: it.kind == D.DD_OP and it.action is not None
+                          and it.action.target == "object.transform_apply"
+                          and dict(it.action.props).get("scale") is True
+                          and not dict(it.action.props).get("location"))
+        check(rec, "scale_found", scale_i is not None)
+        if scale_i is None:
+            return
+        yield from press_click(dd_xy(st, (apply_i, scale_i)))
+        yield 0.3
+        ls = last()
+        check(rec, "ended_by_run", ls.get("end") == "run", ls.get("end"))
+        check(rec, "run_item", (ls.get("run_item") or (None,))[0] == "VIEW3D_MT_object_apply",
+              ls.get("run_item"))
+        check(rec, "run_result", ls.get("handoff_result") == ["FINISHED"],
               ls.get("handoff_result"))
-        for key in ('A', 'S'):
-            sim(key, 'PRESS', fxy, unicode=key.lower())
-            yield 0.05
-            sim(key, 'RELEASE', fxy)
-            yield 0.35
         check(rec, "scale_applied", all(abs(c - 1.0) < 1e-5 for c in cube.scale),
               list(cube.scale))
         max_x1 = max(v.co.x for v in cube.data.vertices)
         check(rec, "mesh_scaled", abs(max_x1 - 2 * max_x0) < 1e-4, [max_x0, max_x1])
-        check(rec, "menu_closed", (yield from canary_ok(fxy)))
-        yield from close_popups(fxy)
+        check(rec, "events_free", (yield from canary_ok(xy)))
         yield from release_space(xy)
         check_ended(rec, "final")
     finally:
@@ -1746,78 +1841,111 @@ def sc_p3_apply_scale(rec):
         yield 0.1
 
 
-def _click_cascade(rec, prefix, expected, pick=None):
-    """Open the plaza, click the first clickable Tool Settings item with id ``prefix``*, and
-    check it hands off exactly ``expected`` (op, kwargs), that the native popup opens (canary
-    swallowed) and closes with ESC. ``pick``: a generator ``fn(rec, fxy)`` run while the popup
-    is open (it may pick an entry and close the popup itself)."""
-    xy = center_of("VIEW_3D")
-    st = yield from open_plaza(xy)
-    if st is None or st.model is None:
-        check(rec, "running", False)
-        return None
-    item = find_clickable(st, prefix)
-    check(rec, "item_found", item is not None, [i.id for i in st.model.items()
-                                                 if i.id.startswith("ts:")])
-    if item is None:
-        yield from close_plaza(xy, rec)
-        return None
-    box = st.layout.item(item.id)
-    fxy = rect_mid(box.rect)
-    ls = yield from click_item(rec, st, item.id)
-    handoff = ls.get("handoff")
-    check(rec, "handoff_cmd", handoff == expected, handoff)
-    check(rec, "handoff_ran", ls.get("handoff_result") is not None, ls.get("handoff_result"))
-    check(rec, "popup_open", not (yield from canary_ok(fxy)))
-    if pick is not None:
-        yield from pick(rec, fxy)
-    check(rec, "popup_closed", (yield from close_popups(fxy)))
-    yield from release_space(xy)
-    check_ended(rec, "final")
-    return ls
+def _tool_item(st, prefix, kinds=None):
+    return find_clickable(st, prefix, kinds) if st is not None and st.model is not None else None
 
 
 def sc_p3_pivot_cascade(rec):
-    """Click the Pivot cascade: the native enum popup (wm.context_menu_enum) opens; a keyboard
-    pick (Down, Down, Return) changes the pivot (at most one undo step; D5 native parity)."""
+    """Phase 4: the Pivot cascade is a custom radio list (current value checked); a click on
+    'Individual Origins' changes the pivot in place (``wm.context_set_enum``, at most one undo
+    step), closes the cascade and the plaza stays open. Screenshot phase4_pivot_cascade."""
+    md = model_mod()
+    D = dd_model_mod()
     ts = bpy.context.scene.tool_settings
     before = ts.transform_pivot_point
+    if before == 'INDIVIDUAL_ORIGINS':
+        ts.transform_pivot_point = before = 'MEDIAN_POINT'
     marker = undo_marker("Meso Mode GUI pivot base")
     yield 0.2
-
-    def pick(rec, fxy):
-        for key in ('DOWN_ARROW', 'DOWN_ARROW', 'RET'):
-            sim(key, 'PRESS', fxy)
-            yield 0.05
-            sim(key, 'RELEASE', fxy)
-            yield 0.2
-        yield 0.3
-        check(rec, "pivot_changed", ts.transform_pivot_point != before,
+    xy = center_of("VIEW_3D")
+    try:
+        st = yield from open_plaza(xy)
+        item = _tool_item(st, "ts:pivot:")
+        check(rec, "item_found", item is not None, row_ids(st, md.ROW_TOOL_SETTINGS))
+        if item is None:
+            return
+        if not (yield from open_dropdown(rec, st, item.id)):
+            return
+        items = dd_models(st)[0].items
+        check(rec, "radio_list", items and all(it.kind == D.DD_RADIO for it in items),
+              [(it.kind, it.label) for it in items])
+        checked = [it.action.value for it in items if it.checked]
+        check(rec, "current_checked", checked == [before], checked)
+        idx = dd_find(st, 0, lambda it: it.kind == D.DD_RADIO
+                      and it.action.value == 'INDIVIDUAL_ORIGINS')
+        check(rec, "individual_found", idx is not None)
+        if idx is None:
+            return
+        yield from hover_to(dd_xy(st, (idx,)))
+        yield 0.2
+        save_screenshot("phase4_pivot_cascade")
+        yield from press_click(dd_xy(st, (idx,)))
+        check(rec, "pivot_changed", ts.transform_pivot_point == 'INDIVIDUAL_ORIGINS',
               [before, ts.transform_pivot_point])
-        # Observed 5.2.2 (GUI): a pick in the native wm.context_menu_enum popup pushes NO undo
-        # step, and Ctrl+Z would not revert a ToolSettings value anyway (D5 native parity).
-        # Guard against spurious extra steps; record what happened.
+        check(rec, "plaza_open", plaza().is_running())
+        check(rec, "cascade_closed", st.dropdowns is None and st.open_label is None,
+              dd_keys(st))
+        in_place = st.menus.in_place if st.menus is not None else []
+        check(rec, "in_place_set_enum", bool(in_place) and in_place[-1] == (
+            "wm.context_set_enum", {"data_path": "tool_settings.transform_pivot_point",
+                                    "value": "INDIVIDUAL_ORIGINS"}), in_place)
+        new_item = st.model.find(item.id)
+        check(rec, "label_updated", new_item is not None and "Individual" in new_item.label,
+              new_item and new_item.label)
         steps = steps_since(marker)
         rec["pivot_undo_steps"] = steps
         check(rec, "undo_steps_at_most_one", steps is not None and len(steps) <= 1, steps)
-
-    try:
-        yield from _click_cascade(
-            rec, "ts:pivot:",
-            ("wm.context_menu_enum", {"data_path": "tool_settings.transform_pivot_point"}),
-            pick=pick)
+        yield from release_space(xy)
+        check_ended(rec, "final")
+        check(rec, "ended_by_release", last().get("end") == "finish", last().get("end"))
+        check(rec, "no_handoff", last().get("handoff") is None, last().get("handoff"))
     finally:
         ts.transform_pivot_point = before
 
 
 def sc_p3_orientation_cascade(rec):
-    """Click the orientation cascade: the native orientations popover opens."""
-    yield from _click_cascade(rec, "ts:orientation:", (
-        "wm.call_panel", {"name": "VIEW3D_PT_transform_orientations", "keep_open": True}))
+    """Phase 4: the orientation cascade is custom (the orientation radios, the recorded
+    VIEW3D_PT_transform_orientations content, More…); More… still reaches
+    ``call_panel(VIEW3D_PT_transform_orientations)``: the native popover opens and the
+    plaza ends."""
+    md = model_mod()
+    D = dd_model_mod()
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    item = _tool_item(st, "ts:orientation:")
+    check(rec, "item_found", item is not None, row_ids(st, md.ROW_TOOL_SETTINGS))
+    if item is None:
+        yield from close_plaza(xy, rec)
+        return
+    if not (yield from open_dropdown(rec, st, item.id)):
+        yield from close_plaza(xy, rec)
+        return
+    items = dd_models(st)[0].items
+    radios = [it.label for it in items if it.kind == D.DD_RADIO]
+    check(rec, "orientation_radios", "Global" in radios and "Local" in radios, radios)
+    more = dd_find(st, 0, lambda it: it.kind == D.DD_NATIVE_MORE)
+    check(rec, "more_last", more is not None and more == len(items) - 1,
+          [(it.kind, it.label) for it in items])
+    if more is None:
+        yield from close_plaza(xy, rec)
+        return
+    fxy = dd_xy(st, (more,))
+    yield from press_click(fxy)
+    ls = last()
+    check(rec, "ended_by_handoff", ls.get("end") == "handoff", ls.get("end"))
+    check(rec, "handoff_cmd", ls.get("handoff") == (
+        "wm.call_panel", {"name": "VIEW3D_PT_transform_orientations", "keep_open": True}),
+        ls.get("handoff"))
+    check(rec, "handoff_ran", ls.get("handoff_result") is not None, ls.get("handoff_result"))
+    check(rec, "popup_open", not (yield from canary_ok(fxy)))
+    check(rec, "popup_closed", (yield from close_popups(fxy)))
+    yield from release_space(xy)
+    check_ended(rec, "final")
 
 
 def sc_p3_snap_toggle(rec):
-    """Click the Snap toggle: tool_settings.use_snap flips, the plaza closes, one undo step."""
+    """Click the Snap toggle: tool_settings.use_snap flips in place, the plaza STAYS OPEN
+    (Phase 4), the toggle's checked state re-records, one undo step; Space release finishes."""
     md = model_mod()
     ts = bpy.context.scene.tool_settings
     before = bool(ts.use_snap)
@@ -1835,17 +1963,33 @@ def sc_p3_snap_toggle(rec):
             yield from close_plaza(xy, rec)
             return
         check(rec, "checked_matches", item.checked == before, [item.checked, before])
-        ls = yield from click_item(rec, st, item.id)
-        check(rec, "handoff_op", (ls.get("handoff") or ("",))[0] in (
-            "wm.context_toggle", "meso.toggle_flag"), ls.get("handoff"))
-        check(rec, "handoff_result", ls.get("handoff_result") == ["FINISHED"],
-              ls.get("handoff_result"))
+        box = st.layout.item(item.id)
+        sim('MOUSEMOVE', 'NOTHING', rect_mid(box.rect))
+        yield 0.1
+        sim('LEFTMOUSE', 'PRESS', rect_mid(box.rect))
+        yield 0.1
+        check(rec, "pressed", st.pressed_id == item.id, st.pressed_id)
+        check(rec, "nothing_on_press", bool(ts.use_snap) == before)
+        sim('LEFTMOUSE', 'RELEASE', rect_mid(box.rect))
+        yield 0.4
         check(rec, "use_snap_flipped", bool(ts.use_snap) == (not before), ts.use_snap)
+        check(rec, "plaza_open", plaza().is_running())
+        new_item = st.model.find(item.id)
+        check(rec, "checked_updated", new_item is not None and new_item.checked == (not before),
+              new_item and new_item.checked)
+        in_place = st.menus.in_place if st.menus is not None else []
+        check(rec, "in_place_toggle", bool(in_place) and in_place[-1][0] == "wm.context_toggle",
+              in_place)
+        check(rec, "no_handoff", last().get("handoff") is None, last().get("handoff"))
         steps = steps_since(marker)
+        rec["snap_undo_steps"] = steps
         check(rec, "one_undo_step", steps is not None and len(steps) == 1, steps)
-        check(rec, "plaza_closed", not plaza().is_running())
         yield from release_space(xy)
         check_ended(rec, "final")
+        ls = last()
+        check(rec, "ended_by_release", ls.get("end") == "finish", ls.get("end"))
+        check(rec, "last_in_place", (ls.get("in_place") or [("",)])[-1][0] == "wm.context_toggle",
+              ls.get("in_place"))
     finally:
         ts.use_snap = before
 

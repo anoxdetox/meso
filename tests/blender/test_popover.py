@@ -1,0 +1,374 @@
+"""record/popover.py: Tool Settings cascades -> dropdown models (Phase 4, implementer B), and
+``record.rows.refresh_tool_settings``.
+
+The factory 3D View cascades (orientation, pivot, snapping, proportional) built from the
+live Tool Settings row, the popover conversion rules on a hand-written test panel
+(``MESO_PT_poptest_*``), the re-record after a snap change, ``enum_items`` and the
+Tool Settings row refresh after an in-place change.
+
+Runs inside Blender via tests/run_tests.py (factory startup). Only the test window's own
+screen is used; no popover is ever opened.
+"""
+
+import contextlib
+import importlib
+import unittest
+
+import bpy
+
+from tests.blender.test_header import area_of, in_mode, region_of, window
+
+ADDON_MODULE = "bl_ext.meso_dev.meso"
+
+
+def _mod(name):
+    return importlib.import_module(f"{ADDON_MODULE}.{name}")
+
+
+def pop():
+    return _mod("record.popover")
+
+
+def dm():
+    return _mod("core.dropdown_model")
+
+
+def cm():
+    return _mod("core.model")
+
+
+def rows():
+    return _mod("record.rows")
+
+
+def view3d_info():
+    area = area_of('VIEW_3D')
+    return rows().InvokeInfo(window(), area, region_of(area), 'VIEW_3D', area.ui_type,
+                             bpy.context.mode)
+
+
+def tool_row(info=None):
+    model = rows().build_model(bpy.context, info or view3d_info())
+    return model, model.row(cm().ROW_TOOL_SETTINGS)
+
+
+def cascade(item_id, info=None):
+    info = info or view3d_info()
+    _model, row = tool_row(info)
+    item = next(i for i in row.items if i.id == item_id)
+    return pop().build_tool_cascade(bpy.context, info, item)
+
+
+def labels(model):
+    return [i.label for i in model.items]
+
+
+def by_label(model, label):
+    return next((i for i in model.items if i.label == label), None)
+
+
+def paths(model, kind=None):
+    return {i.action.data_path for i in model.items
+            if i.action is not None and (kind is None or i.kind == kind)}
+
+
+@contextlib.contextmanager
+def restored(owner, *names):
+    old = {}
+    for name in names:
+        value = getattr(owner, name)
+        old[name] = set(value) if isinstance(value, (set, frozenset)) else value
+    try:
+        yield owner
+    finally:
+        for name, value in old.items():
+            setattr(owner, name, value)
+
+
+# ----------------------------------------------------------------------------- test panel
+
+class MESO_PT_poptest(bpy.types.Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Pop Test"
+
+    def draw(self, context):
+        layout = self.layout
+        ts = context.tool_settings
+        layout.label(text="Header Label")
+        col = layout.column(heading="Heading")
+        col.prop(ts, "use_snap")
+        sub = layout.column()
+        sub.active = False
+        sub.prop(ts, "use_snap_align_rotation")
+        sub = layout.column()
+        sub.enabled = False
+        sub.prop(ts, "use_snap_backface_culling")
+        layout.prop(ts, "transform_pivot_point", expand=True)
+        layout.prop(ts, "proportional_edit_falloff")
+        layout.prop(ts, "snap_elements_base", expand=True)
+        layout.separator()
+        layout.separator()
+        layout.prop(ts, "proportional_distance")
+        layout.operator("object.select_all", text="Select Everything").action = 'SELECT'
+        layout.template_ID(context.view_layer.objects, "active")
+        layout.template_list("UI_UL_list", "", context.scene, "objects", context.scene,
+                             "frame_current")
+        layout.popover("VIEW3D_PT_snapping")
+
+
+class MESO_PT_poptest_child(bpy.types.Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Pop Child"
+    bl_parent_id = "MESO_PT_poptest"
+
+    def draw(self, context):
+        self.layout.prop(context.tool_settings, "use_snap_rotate")
+
+
+_CLASSES = (MESO_PT_poptest, MESO_PT_poptest_child)
+
+
+def setUpModule():
+    for cls in _CLASSES:
+        bpy.utils.register_class(cls)
+
+
+def tearDownModule():
+    for cls in reversed(_CLASSES):
+        bpy.utils.unregister_class(cls)
+
+
+class TestPanelItems(unittest.TestCase):
+    def setUp(self):
+        rec = _mod("record.recorder")
+        with _mod("record.dropdown").invoking_context(bpy.context, view3d_info()) as ctx:
+            recording = rec.record_panel("MESO_PT_poptest", ctx)
+            self.items = pop().panel_items(recording, ctx)
+            self.skipped = pop().panel_items(
+                recording, ctx, skip_paths=frozenset({"tool_settings.transform_pivot_point"}))
+        self.m = dm()
+
+    def item(self, label):
+        return next((i for i in self.items if i.label == label), None)
+
+    def test_labels_and_headings(self):
+        m = self.m
+        self.assertEqual(self.item("Header Label").kind, m.DD_LABEL)
+        heading = self.item("Heading")
+        self.assertEqual((heading.kind, heading.heading), (m.DD_LABEL, False))
+        child = self.item("Pop Child")
+        self.assertEqual((child.kind, child.heading), (m.DD_LABEL, True))
+        index = self.items.index(child)
+        self.assertEqual(self.items[index + 1].action.data_path, "tool_settings.use_snap_rotate")
+
+    def test_toggles(self):
+        m = self.m
+        snap = next(i for i in self.items if i.kind == m.DD_TOGGLE
+                    and i.action.data_path == "tool_settings.use_snap")
+        self.assertEqual(snap.checked, bpy.context.scene.tool_settings.use_snap)
+        inactive = next(i for i in self.items if i.kind == m.DD_TOGGLE
+                        and i.action.data_path == "tool_settings.use_snap_align_rotation")
+        self.assertEqual((inactive.active, inactive.enabled), (False, True))
+        self.assertEqual(m.item_role(inactive), m.ROLE_APPLY)
+        disabled = next(i for i in self.items if i.kind == m.DD_TOGGLE
+                        and i.action.data_path == "tool_settings.use_snap_backface_culling")
+        self.assertFalse(disabled.enabled)
+        self.assertEqual(m.item_role(disabled), m.ROLE_PASSIVE)
+
+    def test_enums(self):
+        m = self.m
+        pivots = [i for i in self.items if i.kind == m.DD_RADIO
+                  and i.action.data_path == "tool_settings.transform_pivot_point"]
+        self.assertEqual(len(pivots), 5)
+        self.assertEqual([i.action.value for i in pivots if i.checked],
+                         [bpy.context.scene.tool_settings.transform_pivot_point])
+        falloff = next(i for i in self.items if i.kind == m.DD_ENUM_CASCADE)
+        self.assertTrue(falloff.label.startswith("Proportional Editing Falloff: "),
+                        falloff.label)
+        self.assertEqual({c.kind for c in falloff.children}, {m.DD_RADIO})
+        flags = [i for i in self.items if i.kind == m.DD_FLAG]
+        self.assertGreaterEqual(len(flags), 5)
+        self.assertNotIn("tool_settings.transform_pivot_point", paths_of(self.skipped))
+
+    def test_values_ops_opaque(self):
+        m = self.m
+        value = next(i for i in self.items if i.kind == m.DD_VALUE)
+        self.assertTrue(value.label.startswith("Proportional Size: "), value.label)
+        self.assertEqual(value.action, m.native_panel_action("MESO_PT_poptest"))
+        op = self.item("Select Everything")
+        self.assertEqual((op.kind, op.action.target), (m.DD_OP, "object.select_all"))
+        # template_ID -> a value of its pointer; template_list (frame_current) -> value
+        self.assertTrue(any(i.label.startswith("Active") for i in self.items
+                            if i.kind == m.DD_VALUE), labels_of(self.items))
+        native = self.item("Snapping…")
+        self.assertEqual(native.action, m.native_panel_action("VIEW3D_PT_snapping"))
+
+    def test_separators(self):
+        ks = [i.kind for i in self.items]
+        for a, b in zip(ks, ks[1:]):
+            self.assertFalse(a == b == self.m.DD_SEPARATOR)
+        self.assertNotEqual(ks[-1], self.m.DD_SEPARATOR)
+
+
+def paths_of(items):
+    return {i.action.data_path for i in items if i.action is not None}
+
+
+def labels_of(items):
+    return [i.label for i in items]
+
+
+class TestEnumItems(unittest.TestCase):
+    def test_pivot(self):
+        m = dm()
+        with _mod("record.dropdown").invoking_context(bpy.context, view3d_info()) as ctx:
+            items = pop().enum_items(ctx, "tool_settings.transform_pivot_point")
+            flags = pop().enum_items(ctx, "tool_settings.snap_elements_base")
+            orient = pop().enum_items(ctx, "scene.transform_orientation_slots[0].type")
+            self.assertEqual(pop().enum_items(ctx, "tool_settings.use_snap"), [])
+            self.assertEqual(pop().enum_items(ctx, "tool_settings.no_such_prop"), [])
+            self.assertEqual(pop().enum_items(ctx, "no_such.path"), [])
+        self.assertEqual(len(items), 5)
+        self.assertEqual({i.kind for i in items}, {m.DD_RADIO})
+        self.assertEqual(sum(bool(i.checked) for i in items), 1)
+        self.assertEqual({i.kind for i in flags}, {m.DD_FLAG})
+        self.assertEqual([i.action.value for i in orient][:7], list(
+            _mod("core.tables").ORIENTATION_BUILTINS))
+        self.assertEqual(orient[0].label, "Global")
+
+
+class TestToolCascades(unittest.TestCase):
+    def test_orientation(self):
+        m = dm()
+        model = cascade("ts:orientation:scene.transform_orientation_slots[0].type")
+        self.assertEqual(model.source, m.SOURCE_TOOL)
+        self.assertEqual(model.coverage, m.COVERAGE_CUSTOM)
+        self.assertEqual(model.native_action,
+                         m.native_panel_action("VIEW3D_PT_transform_orientations"))
+        radios = [i for i in model.items if i.kind == m.DD_RADIO]
+        self.assertEqual([i.label for i in radios][:7],
+                         ["Global", "Local", "Normal", "Gimbal", "View", "Cursor", "Parent"])
+        self.assertEqual([i.label for i in radios if i.checked], ["Global"])
+        # the panel's own expanded 'type' is not repeated
+        self.assertEqual(len(radios), len(set(i.action.value for i in radios)))
+        self.assertEqual(by_label(model, "Create Orientation").action.target,
+                         "transform.create_orientation")
+        self.assertEqual(model.items[-1].kind, m.DD_NATIVE_MORE)
+        self.assertEqual(model.items[-1].action, model.native_action)
+        self.assertEqual(m.item_role(model.items[-1]), m.ROLE_HANDOFF)
+
+    def test_pivot(self):
+        m = dm()
+        model = cascade("ts:pivot:tool_settings.transform_pivot_point")
+        self.assertEqual([i.kind for i in model.items], [m.DD_RADIO] * 5)
+        self.assertEqual(model.native_action,
+                         m.native_enum_action("tool_settings.transform_pivot_point"))
+        self.assertEqual(by_label(model, "Individual Origins").action,
+                         cm().Action(cm().ACTION_SET_ENUM,
+                                     data_path="tool_settings.transform_pivot_point",
+                                     value='INDIVIDUAL_ORIGINS'))
+
+    def test_proportional(self):
+        m = dm()
+        ts = bpy.context.scene.tool_settings
+        with restored(ts, "use_proportional_edit_objects") as ts:
+            ts.use_proportional_edit_objects = False
+            model = cascade("ts:proportional:tool_settings.proportional_edit_falloff")
+            radios = [i for i in model.items if i.kind == m.DD_RADIO]
+            self.assertEqual(len(radios), 8)
+            self.assertTrue(all(not i.active for i in radios))      # dimmed, clickable
+            self.assertEqual(m.item_role(radios[0]), m.ROLE_APPLY_CLOSE)
+            size = next(i for i in model.items if i.kind == m.DD_VALUE)
+            self.assertTrue(size.label.startswith("Proportional Size: "), size.label)
+            self.assertEqual(size.action,
+                             m.native_panel_action("VIEW3D_PT_proportional_edit"))
+            ts.use_proportional_edit_objects = True
+            model = cascade("ts:proportional:tool_settings.proportional_edit_falloff")
+            self.assertTrue(all(i.active for i in model.items if i.kind == m.DD_RADIO))
+
+    def test_snapping_and_rerecord(self):
+        m = dm()
+        ts = bpy.context.scene.tool_settings
+        with restored(ts, "snap_elements_base", "snap_elements_individual"):
+            ts.snap_elements_base = {'INCREMENT'}
+            model = cascade("ts:snap:VIEW3D_PT_snapping")
+            self.assertEqual(model.native_action, m.native_panel_action("VIEW3D_PT_snapping"))
+            flags = [i for i in model.items if i.kind == m.DD_FLAG]
+            self.assertEqual({i.action.value for i in flags if i.checked
+                              and i.action.data_path.endswith("_base")}, {'INCREMENT'})
+            self.assertIn("tool_settings.use_snap_grid_absolute", paths(model, m.DD_TOGGLE))
+            self.assertNotIn("tool_settings.use_snap_peel_object", paths(model))
+            self.assertIsNotNone(by_label(model, "Snap Base"))
+            self.assertEqual(model.items[-1].kind, m.DD_NATIVE_MORE)
+            # Snap Base radios come from the panel content: a pick keeps the panel open,
+            # like the Snap Target flags and the toggles next to them.
+            closest = next(i for i in model.items if i.kind == m.DD_RADIO
+                           and i.action.data_path == "tool_settings.snap_target")
+            self.assertEqual(closest.source, m.ITEM_SOURCE_PANEL)
+            self.assertEqual(m.item_role(closest), m.ROLE_APPLY)
+            ts.snap_elements_base = {'VOLUME'}
+            again = cascade("ts:snap:VIEW3D_PT_snapping")
+            self.assertIn("tool_settings.use_snap_peel_object", paths(again, m.DD_TOGGLE))
+            self.assertNotIn("tool_settings.use_snap_grid_absolute", paths(again))
+            self.assertEqual({i.action.value for i in again.items if i.kind == m.DD_FLAG
+                              and i.checked and i.action.data_path.endswith("_base")},
+                             {'VOLUME'})
+
+    def test_snapping_edit_mode_rows(self):
+        m = dm()
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):
+            model = cascade("ts:snap:VIEW3D_PT_snapping", view3d_info())
+            self.assertIn("tool_settings.use_snap_self", paths(model, m.DD_TOGGLE))
+            self.assertIsNotNone(by_label(model, "Include Active"))
+
+    def test_not_a_cascade(self):
+        m = dm()
+        item = cm().Item("ts:snap:tool_settings.use_snap", "Snap", cm().KIND_TOGGLE,
+                         {'data_path': "tool_settings.use_snap"})
+        model = pop().build_tool_cascade(bpy.context, view3d_info(), item)
+        self.assertEqual(model.coverage, m.COVERAGE_NATIVE)
+        broken = cm().Item("ts:x", "X", cm().KIND_CASCADE,
+                           {'data_path': "tool_settings.no_such_enum"})
+        self.assertEqual(pop().build_tool_cascade(bpy.context, view3d_info(), broken).coverage,
+                         m.COVERAGE_NATIVE)
+        self.assertEqual(pop().build_tool_cascade(None, None, broken).coverage,
+                         m.COVERAGE_NATIVE)
+
+
+class TestRefreshToolSettings(unittest.TestCase):
+    def test_snap_toggle_refresh(self):
+        m = cm()
+        ts = bpy.context.scene.tool_settings
+        with restored(ts, "use_snap"):
+            ts.use_snap = False
+            info = view3d_info()
+            model = rows().build_model(bpy.context, info)
+            snap_id = "ts:snap:tool_settings.use_snap"
+            self.assertIs(model.find(snap_id).checked, False)
+            ts.use_snap = True
+            out = rows().refresh_tool_settings(bpy.context, info, model)
+            self.assertIs(out.find(snap_id).checked, True)
+            for key in (m.ROW_ROOT, m.ROW_CONTEXTUAL, m.ROW_WORKSPACE):
+                self.assertIs(out.row(key), model.row(key), key)
+            self.assertIs(out.center, model.center)
+            self.assertIs(out.recent, model.recent)
+            self.assertIsNot(out.row(m.ROW_TOOL_SETTINGS), model.row(m.ROW_TOOL_SETTINGS))
+
+    def test_prefs_and_failure(self):
+        m = cm()
+        info = view3d_info()
+        model = rows().build_model(bpy.context, info)
+
+        class Prefs:
+            show_tool_settings_row = False
+            show_display_controls = True
+        out = rows().refresh_tool_settings(bpy.context, info, model, Prefs())
+        self.assertEqual(out.row(m.ROW_TOOL_SETTINGS).items, ())
+        no_tools = m.PlazaModel((model.row(m.ROW_ROOT),), model.center)
+        self.assertIs(rows().refresh_tool_settings(bpy.context, info, no_tools), no_tools)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -100,6 +100,27 @@ class MesoAddonPreferences(AddonPreferences):
                     "the Tool Settings row",
         default=True,
     )
+    submenu_delay: FloatProperty(
+        name="Submenu Delay",
+        description="Seconds the pointer rests on a dropdown item before its submenu opens "
+                    "(0 opens at once, like the reference DCC)",
+        default=0.12,
+        min=0.0,
+        max=1.0,
+        step=1,
+        precision=2,
+        subtype='TIME_ABSOLUTE',
+    )
+    execute_on_release: BoolProperty(
+        name="Run on Key Release",
+        description="Releasing the plaza key over a dropdown item runs that item",
+        default=False,
+    )
+    show_shortcuts: BoolProperty(
+        name="Show Shortcuts",
+        description="Show keyboard shortcuts next to the dropdown items",
+        default=True,
+    )
     use_theme_colors: BoolProperty(
         name="Use Theme Colors",
         description="Colour the plaza from the Blender theme instead of Plaza grey",
@@ -127,6 +148,9 @@ class MesoAddonPreferences(AddonPreferences):
         sub = col.column()
         sub.active = self.show_tool_settings_row
         sub.prop(self, "show_display_controls")
+        col.prop(self, "submenu_delay")
+        col.prop(self, "execute_on_release")
+        col.prop(self, "show_shortcuts")
         col.prop(self, "use_theme_colors")
         col.prop(self, "debug_timing")
         _draw_keymap_items(context, layout)

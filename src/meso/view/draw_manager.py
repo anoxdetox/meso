@@ -13,6 +13,12 @@ Content (Phase 2): the session's ``core.geometry.Layout`` drawn by
 batches of this HandlerSet's ``renderer.BatchCache``. The layout, palette and hover id are
 plain data built once in invoke: callbacks never measure text or build layouts.
 
+Phase 4 (implementer C): the open dropdown chain (``state.dropdowns``, a
+``core.dropdown_geometry.ChainLayout`` placed by the modal) is drawn by
+``view.renderer.draw_dropdowns`` right after ``draw_plaza`` in every visible piece, with
+this HandlerSet's ``renderer.DropdownBatchCache``; ``state.open_label`` keeps the open
+label highlighted. The modal swaps these fields (never mutates them) and tags a redraw.
+
 Failure policy (CLAUDE.md): every callback body is wrapped in try/except; the first
 exception of a session prints its traceback and calls ``state.fail(reason)``. Handlers are
 never removed from inside a draw callback; the plaza modal notices ``state.failed`` on its
@@ -123,6 +129,12 @@ class DrawState(Protocol):
     hover_id: str | None            # hovered item id (renderer highlight)
     debug_timing: bool              # time each drawing callback into ``timing``
     timing: Any                     # core.timing.TimingStats
+    # Phase 4 (notes/phase4-interfaces.md); read with getattr(state, name, None). C draws
+    # them after the plaza in the same pass (panels above strips); culling uses the union
+    # of ``layout.extent`` and ``dropdowns.extent``.
+    dropdowns: Any                  # core.dropdown_geometry.ChainLayout | None (open chain)
+    dropdown_hover: Any             # tuple[int, ...] | None: hovered dropdown item path
+    open_label: str | None          # row label whose dropdown is open (drawn highlighted)
 
     def fail(self, reason: str) -> None:
         """Deactivate (``active = False``, ``failed = True``); idempotent, never raises."""
@@ -141,6 +153,8 @@ class HandlerSet:
         # (Space subclass, handle, region type) for every successful draw_handler_add.
         self._handles: list[tuple[type, Any, str]] = []
         self._cache: renderer.BatchCache | None = None    # created by start()
+        # Phase 4: the open dropdown chain's batches (created by start(), cleared by stop()).
+        self._dd_cache: renderer.DropdownBatchCache | None = None
 
     @property
     def installed(self) -> int:
@@ -152,6 +166,11 @@ class HandlerSet:
         """This session's batch cache (None when not started)."""
         return self._cache
 
+    @property
+    def dropdown_cache(self) -> renderer.DropdownBatchCache | None:
+        """This session's dropdown-chain batch cache (None when not started)."""
+        return self._dd_cache
+
     def start(self, state: DrawState) -> int:
         """Install one POST_PIXEL handler per HANDLER_PAIRS entry and tag a redraw.
 
@@ -160,8 +179,9 @@ class HandlerSet:
           ``cls.draw_handler_add(draw_callback, (state, space_name, region_type),
           region_type, 'POST_PIXEL')`` is wrapped in ``try/except (ValueError, TypeError)``.
         - Resets the once-per-session error log flag, registers ``self`` in the module
-          registry and creates the session's ``renderer.BatchCache`` (batches are built
-          lazily by the first draw; nothing GPU happens here).
+          registry and creates the session's ``renderer.BatchCache`` and (Phase 4)
+          ``renderer.DropdownBatchCache`` (batches are built lazily by the first draw;
+          nothing GPU happens here).
         - Calls :meth:`redraw` (areas keep stale buffers otherwise). Works headless (handlers
           install; they simply never fire).
         Returns the number installed (86 on 5.2.2).
@@ -172,6 +192,7 @@ class HandlerSet:
         _error_logged = False
         self.state = state
         self._cache = renderer.BatchCache()
+        self._dd_cache = renderer.DropdownBatchCache()
         # Registered before installing, so a failure mid-loop is still cleaned up by stop_all().
         _live.append(self)
         for space_name, region_type in HANDLER_PAIRS:
@@ -189,8 +210,8 @@ class HandlerSet:
 
     def stop(self) -> None:
         """Remove every handler (each ``draw_handler_remove`` in try/except), tag a final redraw
-        of the invoking window while ``state`` is still known, clear and drop the batch cache
-        (invariant 4: no GPU batch outlives the session), then drop ``state`` and unregister
+        of the invoking window while ``state`` is still known, clear and drop both batch
+        caches (invariant 4: no GPU batch outlives the session), then drop ``state`` and unregister
         from the module registry. Idempotent; never raises.
         """
         try:
@@ -204,12 +225,14 @@ class HandlerSet:
         except Exception:
             traceback.print_exc()
         finally:
-            cache, self._cache = self._cache, None
-            if cache is not None:
-                try:
-                    cache.clear()
-                except Exception:
-                    pass
+            caches = (self._cache, self._dd_cache)
+            self._cache = self._dd_cache = None
+            for cache in caches:
+                if cache is not None:
+                    try:
+                        cache.clear()
+                    except Exception:
+                        pass
             self.state = None
             # Identity removal (HandlerSet has default eq); never raises.
             _live[:] = [hs for hs in _live if hs is not self]
@@ -285,19 +308,28 @@ def region_pieces(area: Any, region: Any, region_type: str) -> list[Rect]:
 
 def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any,
                 hover_id: str | None, linear_blend: bool,
-                cache: renderer.BatchCache | None) -> int:
-    """Draw ``layout`` into the bound region framebuffer, once per visible piece.
+                cache: renderer.BatchCache | None, chain: Any = None,
+                dropdown_hover: Any = None, open_label: str | None = None,
+                dropdown_cache: renderer.DropdownBatchCache | None = None) -> int:
+    """Draw ``layout`` (and, Phase 4, the open dropdown ``chain`` above it) into the bound
+    region framebuffer, once per visible piece.
 
     ``region_rect`` and ``pieces`` are window coords; the framebuffer is region-local with a
-    pixel projection (as in a POST_PIXEL callback). For each non-empty piece: scissor to the
-    piece translated by ``(-region_rect.x, -region_rect.y)`` (ints), then
+    pixel projection (as in a POST_PIXEL callback). A piece that misses every rect of
+    :func:`draw_targets` (the union of the plaza extent, the chain extent and a visible
+    dim) is skipped without GPU work. For each other non-empty piece: scissor to the piece
+    translated by ``(-region_rect.x, -region_rect.y)`` (ints), then
     ``renderer.draw_plaza(layout, palette, hover_id, (region_rect.x, region_rect.y),
-    linear_blend, cache=cache, clip=piece)`` (which culls pieces away from the plaza).
+    linear_blend, cache=cache, clip=piece, open_label=open_label)`` followed by
+    ``renderer.draw_dropdowns(chain, palette, dropdown_hover, ..., cache=dropdown_cache,
+    clip=piece)`` (each culls against its own extent; panels land above the strips).
     Restores the scissor box, disables the scissor test when the previous box was the full
     viewport (gpu.state has no getter for the test; with a full box both states clip
-    identically) and resets the blend mode. Returns the number of pieces actually drawn.
+    identically) and resets the blend mode. Returns the number of pieces where anything was
+    drawn.
     """
     ox, oy = int(region_rect.x), int(region_rect.y)
+    targets = draw_targets(layout, palette, chain)
     prev_box = tuple(gpu.state.scissor_get())
     prev_viewport = tuple(gpu.state.viewport_get())
     drawn = 0
@@ -306,11 +338,15 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
         for piece in pieces:
             x0, y0 = int(piece.x) - ox, int(piece.y) - oy
             w, h = int(piece.x1) - ox - x0, int(piece.y1) - oy - y0
-            if w <= 0 or h <= 0:
+            if w <= 0 or h <= 0 or not any(piece.intersects(t) for t in targets):
                 continue
             gpu.state.scissor_set(x0, y0, w, h)
-            if renderer.draw_plaza(layout, palette, hover_id, (ox, oy), linear_blend,
-                                    cache=cache, clip=piece):
+            hot = renderer.draw_plaza(layout, palette, hover_id, (ox, oy), linear_blend,
+                                       cache=cache, clip=piece, open_label=open_label)
+            dd = chain is not None and renderer.draw_dropdowns(
+                chain, palette, dropdown_hover, (ox, oy), linear_blend, cache=dropdown_cache,
+                clip=piece)
+            if hot or dd:
                 drawn += 1
     finally:
         gpu.state.scissor_set(*prev_box)
@@ -320,11 +356,31 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
     return drawn
 
 
+def draw_targets(layout: Any, palette: Any, chain: Any = None) -> list[Rect]:
+    """The window rects a piece must intersect to be drawn: ``layout.extent``, the chain
+    extent (``renderer.chain_extent``) and, when ``palette.dim`` is visible,
+    ``layout.window_bounds`` (None / empty ones left out)."""
+    rects = [layout.extent, renderer.chain_extent(chain)]
+    dim = getattr(palette, 'dim', None)
+    if dim is not None and dim[3] > 0:
+        rects.append(layout.window_bounds)
+    return [r for r in rects if r is not None and not r.is_empty()]
+
+
 def _cache_for(state: DrawState) -> renderer.BatchCache | None:
     """The BatchCache of the live HandlerSet drawing ``state`` (None -> renderer's own)."""
     for handler_set in _live:
         if handler_set.state is state:
             return handler_set._cache
+    return None
+
+
+def _dropdown_cache_for(state: DrawState) -> renderer.DropdownBatchCache | None:
+    """The DropdownBatchCache of the live HandlerSet drawing ``state`` (None -> a
+    throw-away one per draw)."""
+    for handler_set in _live:
+        if handler_set.state is state:
+            return handler_set._dd_cache
     return None
 
 
@@ -357,7 +413,10 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
        ``linear = (area type, region_type) in LINEAR_BLEND_REGIONS``, and
        :func:`draw_region` with ``state.palette or theme.MESO_PALETTE``, ``state.hover_id``
        and this HandlerSet's BatchCache (scissor per piece; ``draw_plaza`` culls pieces
-       away from the plaza). With ``state.debug_timing`` the step is timed with
+       away from the plaza); Phase 4: also ``state.dropdowns`` / ``dropdown_hover`` /
+       ``open_label`` (getattr, default None) with this HandlerSet's DropdownBatchCache, so
+       the open chain is drawn above the plaza in the same pass. With
+       ``state.debug_timing`` the step is timed with
        ``time.perf_counter`` into ``state.timing``.
     5. (in draw_region) restore the previous scissor box / test state, ``blend_set('NONE')``.
     6. ``state.draw_calls += 1`` — also when everything was culled (every region that passed
@@ -387,7 +446,11 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
             draw_region(Rect(region.x, region.y, region.width, region.height), pieces, layout,
                         getattr(state, 'palette', None) or theme.MESO_PALETTE,
                         getattr(state, 'hover_id', None),
-                        (area_type, region_type) in LINEAR_BLEND_REGIONS, _cache_for(state))
+                        (area_type, region_type) in LINEAR_BLEND_REGIONS, _cache_for(state),
+                        chain=getattr(state, 'dropdowns', None),
+                        dropdown_hover=getattr(state, 'dropdown_hover', None),
+                        open_label=getattr(state, 'open_label', None),
+                        dropdown_cache=_dropdown_cache_for(state))
             if timing:
                 state.timing.add(time.perf_counter() - t0)
         state.draw_calls += 1

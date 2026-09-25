@@ -3,7 +3,9 @@
 Runs inside Blender via tests/run_tests.py (which enables the add-on first). Headless:
 handlers install but never fire, so the callback is also called directly, and the drawing
 Phase 2 content (``renderer.draw_plaza`` per visible piece) runs into a GPUOffScreen after
-``gpu.init()`` (skipped when no GPU is available).
+``gpu.init()`` (skipped when no GPU is available). Phase 4: the open dropdown chain drawn after
+the plaza (hand-built chains from test_render_offscreen), union-extent culling and the
+HandlerSet's DropdownBatchCache.
 """
 
 import io
@@ -14,6 +16,8 @@ from contextlib import redirect_stderr
 import bpy
 import gpu
 from mathutils import Matrix
+
+from tests.blender.test_render_offscreen import dd_metrics, hand_chain, hand_panel
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 DRAW_MODULE = ADDON_MODULE + ".view.draw_manager"
@@ -629,6 +633,172 @@ class TestOffscreenDraw(unittest.TestCase):
                              "counted even when nothing is drawn")
             self.assertEqual(state.timing.count, 0, "no timing without debug_timing")
             self.assertEqual(pixel(region.width // 2, region.height // 2), (0.0, 0.0, 0.0, 0.0))
+
+def _dd_chain(layout, x, top, hover_items=3):
+    """A one-panel hand-built chain of ``hover_items`` op items at ``(x, top)``."""
+    dmod = sys.modules[ADDON_MODULE + ".core.dropdown_model"]
+    items = [dmod.DropdownItem(dmod.DD_OP, f"Item {i}") for i in range(hover_items)]
+    dm = dd_metrics(layout.metrics)
+    return hand_chain([hand_panel(items, x, top, dm, _fake_width)], dm)
+
+
+class TestDropdownDraw(unittest.TestCase):
+    """Phase 4: the chain is drawn after the plaza in every visible piece."""
+
+    W, H = 400, 200
+
+    def setUp(self):
+        _dm().stop_all()
+        self.addCleanup(_dm().stop_all)
+
+    def test_handler_set_owns_dropdown_cache(self):
+        dm, renderer = _dm(), sys.modules[RENDERER_MODULE]
+        hs = dm.HandlerSet()
+        self.assertIsNone(hs.dropdown_cache)
+        state = FakeState()
+        hs.start(state)
+        cache = hs.dropdown_cache
+        self.assertIsInstance(cache, renderer.DropdownBatchCache)
+        self.assertIs(dm._dropdown_cache_for(state), cache)
+        self.assertIsNone(dm._dropdown_cache_for(FakeState()))
+        cleared = []
+        original = cache.clear
+        cache.clear = lambda: (cleared.append(1), original())
+        hs.stop()
+        self.assertEqual(cleared, [1], "stop() clears the dropdown batches (invariant 4)")
+        self.assertIsNone(hs.dropdown_cache)
+        hs.start(state)
+        self.assertIsNot(hs.dropdown_cache, cache)
+        hs.stop()
+
+    def test_draw_targets(self):
+        dm = _dm()
+        layout = _layout((100, 100))
+        pal = _palette()
+        self.assertEqual(dm.draw_targets(layout, pal), [layout.extent])
+        chain = _dd_chain(layout, 300, 180)
+        self.assertEqual(dm.draw_targets(layout, pal, chain), [layout.extent, chain.extent])
+        bounds = _rect(0, 0, 500, 500)
+        dimmed = sys.modules[THEME_MODULE].Palette(**{
+            **{f: getattr(pal, f) for f in pal.__slots__}, 'dim': (0.0, 0.0, 0.0, 0.5)})
+        layout_b = _layout((100, 100), bounds=bounds)
+        self.assertIn(bounds, dm.draw_targets(layout_b, dimmed))
+        self.assertNotIn(bounds, dm.draw_targets(layout_b, pal))
+
+    def _draw(self, region, pieces, layout, chain, dd_hover=None, open_label=None,
+              dd_cache=None):
+        dm, renderer = _dm(), sys.modules[RENDERER_MODULE]
+        cache = renderer.BatchCache()
+        self.addCleanup(cache.clear)
+        if dd_cache is None:
+            dd_cache = renderer.DropdownBatchCache()
+            self.addCleanup(dd_cache.clear)
+        w, h = int(region.w), int(region.h)
+        off = gpu.types.GPUOffScreen(w, h)
+        self.addCleanup(off.free)
+        with off.bind():
+            gpu.state.active_framebuffer_get().clear(color=(0.0, 0.0, 0.0, 0.0))
+            before = tuple(gpu.state.scissor_get())
+            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                gpu.matrix.load_identity()
+                gpu.matrix.load_projection_matrix(_ortho(w, h))
+                drawn = dm.draw_region(region, pieces, layout, _palette(), None, False, cache,
+                                       chain=chain, dropdown_hover=dd_hover,
+                                       open_label=open_label, dropdown_cache=dd_cache)
+            self.assertEqual(tuple(gpu.state.scissor_get()), before, "scissor box restored")
+            self.assertEqual(gpu.state.blend_get(), 'NONE')
+            pixel, _ = _read_rgba(off, w, h)
+        return drawn, pixel
+
+    def test_union_extent_culling(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+        region = _rect(0, 0, self.W, self.H)
+        layout = _layout((70, 100))
+        chain = _dd_chain(layout, 280, 180)
+        piece = _rect(260, 0, 140, self.H)
+        self.assertFalse(piece.intersects(layout.extent), "premise: piece misses the plaza")
+        panel = chain.panels[0]
+        self.assertTrue(piece.intersects(panel.rect))
+        drawn, pixel = self._draw(region, [piece], layout, chain, dd_hover=(1,))
+        self.assertEqual(drawn, 1, "a piece touching only the chain is drawn")
+        # Panel fill = the strip colour (red), opaque; the hovered item's bar is green.
+        self.assertEqual(pixel(int(panel.rect.x) + 4, int(panel.rect.y) + 2), (1.0, 0.0, 0.0, 1.0))
+        hi = chain.item((1,)).highlight
+        self.assertGreater(pixel(int(hi.x1) - 3, int(hi.y + hi.h // 2))[1], 0.9)
+        # The plaza itself was culled in that piece (scissored anyway).
+        root = layout.strip('root').rect
+        self.assertEqual(pixel(int(root.x) + 2, int(root.y + root.h // 2)), (0.0, 0.0, 0.0, 0.0))
+        # A piece away from both extents draws nothing.
+        drawn, pixel = self._draw(region, [_rect(200, 0, 20, 20)], layout, chain)
+        self.assertEqual(drawn, 0)
+        # Both pieces, the plaza one and the chain one: 2 drawn; the open label is lit.
+        left = _rect(0, 0, 260, self.H)
+        drawn, pixel = self._draw(region, [left, piece], layout, chain,
+                                  open_label='TOPBAR_MT_edit')
+        self.assertEqual(drawn, 2)
+        eb = layout.item('TOPBAR_MT_edit')
+        self.assertGreater(pixel(int(eb.highlight.x) + 1, int(eb.highlight.y + eb.highlight.h // 2))[1],
+                           0.9, "open label drawn with the hover highlight")
+
+    def test_hover_change_rebuilds_only_hover_batch(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+        renderer = sys.modules[RENDERER_MODULE]
+        region = _rect(0, 0, self.W, self.H)
+        layout = _layout((70, 100))
+        chain = _dd_chain(layout, 280, 180)
+        dd_cache = renderer.DropdownBatchCache()
+        self.addCleanup(dd_cache.clear)
+        for hover in ((0,), (1,), (0,), None, (2,)):
+            self._draw(region, [region], layout, chain, dd_hover=hover, dd_cache=dd_cache)
+        self.assertEqual((dd_cache.static_builds, dd_cache.hover_builds), (1, 3))
+        moved = _dd_chain(layout, 270, 180)
+        self._draw(region, [region], layout, moved, dd_hover=(2,), dd_cache=dd_cache)
+        self.assertEqual((dd_cache.static_builds, dd_cache.hover_builds), (2, 4),
+                         "a new chain signature rebuilds everything")
+
+    def test_callback_draws_state_dropdowns(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+        dm = _dm()
+        window = _window()
+        area = _area(window, 'VIEW_3D')
+        region = _region(area, 'WINDOW')
+        w, h = region.width, region.height
+        rrect = _rect(region.x, region.y, w, h)
+        layout = _layout((region.x + w // 2, region.y + h // 2), bounds=rrect)
+        cx, cy = region.x + w // 2 + 60, region.y + h // 2 - 40
+        chain = _dd_chain(layout, cx, cy)
+        state = FakeState(window_ptr=window.as_pointer(), layout=layout, palette=_palette())
+        state.dropdowns, state.dropdown_hover, state.open_label = chain, (0,), 'TOPBAR_MT_file'
+        hs = dm.HandlerSet()
+        hs.start(state)
+        off = gpu.types.GPUOffScreen(w, h)
+        self.addCleanup(off.free)
+        with off.bind():
+            gpu.state.active_framebuffer_get().clear(color=(0.0, 0.0, 0.0, 0.0))
+            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                gpu.matrix.load_identity()
+                gpu.matrix.load_projection_matrix(_ortho(w, h))
+                with bpy.context.temp_override(window=window, area=area, region=region):
+                    dm.draw_callback(state, 'SpaceView3D', 'WINDOW')
+            pixel, _ = _read_rgba(off, w, h)
+        dd_cache = hs.dropdown_cache
+        hs.stop()
+        self.assertEqual(state.fail_calls, [])
+        self.assertEqual((dd_cache.static_builds, dd_cache.hover_builds), (1, 1),
+                         "the session's dropdown cache was used")
+        panel = chain.panels[0]
+        px = pixel(int(panel.rect.x - region.x) + 4, int(panel.rect.y - region.y) + 2)
+        self.assertEqual(px, (1.0, 0.0, 0.0, 1.0), "panel drawn by the callback")
+        hi = chain.item((0,)).highlight
+        self.assertGreater(pixel(int(hi.x1 - region.x) - 3,
+                                 int(hi.y - region.y + hi.h // 2))[1], 0.9, "hover bar")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,300 @@
+# Phase 4 interfaces: reference-style custom dropdowns, menu-bar semantics
+
+The skeleton code is the source of truth: each docstring is its contract, and this page summarises them. If this page and a docstring disagree, fix both in the same change.
+Precedence: `notes/spikes.md` D1–D5 overrides the plan; `notes/phase1-interfaces.md`, `phase2-interfaces.md` and `phase3-interfaces.md` still hold for anything Phase 4 leaves alone.
+
+## What the user asked for
+1. **Menu-bar semantics (the reference DCC).** While Space is held the Plaza stays open when menus are used:
+   - a click on a row menu label opens its dropdown directly under the label;
+   - while a dropdown is open, hovering another label with a dropdown switches to it (no click);
+   - a click on empty Plaza space or outside every panel closes only the dropdown chain;
+   - Space release closes everything; ESC closes the chain, a second ESC cancels the Plaza;
+   - press on a label, drag into its dropdown, release over an item runs that item;
+   - pref `execute_on_release` (default False): Space release over an enabled item runs it.
+2. **Fixed by the user, do not change:** the palette and the transparency default (`view/theme.py` stays frozen; dropdowns use the strip grey family through derived tones only) and the row order (root, contextual | centre line | Tool Settings, workspace at the very bottom).
+3. Phase 3's "every click closes the Plaza" is replaced by the semantics above.
+
+## Status of the skeleton
+
+**Filled in** (implementers must not change these without updating this page):
+- `core/dropdown_model.py` (new, pure, no owner): `DD_*` kinds (the spec's 10 plus `DD_NATIVE` for a native submenu / popover row), `CASCADE_KINDS`, `CHECK_KINDS`, `PASSIVE_DD_KINDS`, `COVERAGE_*`, `NATIVE_SUFFIX` ('…'), `MORE_LABEL`, `NATIVE_ONLY_MENUS` (the mode switcher), `SOURCE_*`, `DROPDOWN_OPERATOR_CONTEXT`, `ROLE_*`, `IN_PLACE_ACTIONS`, `ZONE_*`, the dataclasses `DropdownItem`, `DropdownModel`, `DropdownSource`, and the helpers `native_label`, `strip_native_suffix`, `label_source`, `label_role`, `item_role`, `model_roles`, `item_at`, `child_key`, `enum_child_model`, `same_opener`, `valid_depth`, `native_menu_action` / `native_panel_action` / `native_enum_action`.
+- `core/menubar.py` (A): every constant, `Target`, the 10 event and 8 effect dataclasses, the `Event` / `Effect` unions, `is_terminal`, `MenuBarState` (with `depth` / `is_open`) and `initial_state`. The transition table is the module docstring.
+- `core/dropdown_geometry.py` (A): the constants, `DropdownMetrics`, `PlacedItem`, `Panel`, `ChainLayout` (with `panel()` / `item()`), `EMPTY_CHAIN`, `Hit`, `NO_HIT`.
+- `record/dropdown.py` (B): `DropdownCache` (get / put / invalidate), `CacheKey`, `SHORTCUT_BUDGET`.
+- `view/renderer.py` (C): `DropdownColors`.
+- `ops/dropdowns.py` (new, D): `MenuSession`.
+- `ops/plaza.py`: new `PlazaState` fields `submenu_delay`, `execute_on_release`, `show_shortcuts`, `menus`, `dropdowns`, `dropdown_hover`, `open_label` (no behaviour yet).
+- `view/draw_manager.py`: the `DrawState` protocol documents `dropdowns`, `dropdown_hover`, `open_label`.
+- `prefs.py`: `submenu_delay` (0.0–1.0, default 0.12, TIME_ABSOLUTE), `execute_on_release` (False), `show_shortcuts` (True), drawn in `draw()`.
+- New skeleton tests: `tests/unit/test_phase4_skeleton.py` (roles, sources, paths, `valid_depth`, the menubar values) and `tests/blender/test_phase4_skeleton.py` (pref defaults and ranges, module imports, PlazaState fields, DropdownCache).
+
+**Stubs** (raise `NotImplementedError`; nothing calls them yet): `menubar.step`, `child_opener`, `is_open_path`; every `dropdown_geometry` function; `record.dropdown.build_dropdown`, `menu_coverage`, `dropdown_items`, `classify_rows`, `shortcut_hint`; `record.popover.*`; `record.rows.refresh_tool_settings`; `renderer.dropdown_colors`, `DropdownBatchCache` methods, `draw_dropdowns`; `ops.invoke.apply_in_place`; every `ops.dropdowns` function; `tools/coverage_dropdowns.py`. Behaviour is still exactly Phase 3.
+
+Unit (242), Blender (370) and validate all pass on the skeleton.
+`notes/roadmap.md` had uncommitted edits from someone else when the skeleton was written; they were left untouched.
+
+## Ownership (disjoint files)
+
+| Implementer | Files | Depends on |
+|---|---|---|
+| **A: core** | `core/menubar.py`, `core/dropdown_geometry.py`, `tests/unit/test_menubar.py`, `tests/unit/test_dropdown_geometry.py` (both new) | `core/dropdown_model.py`, `core/geometry.py` (read-only) |
+| **B: record** | `record/dropdown.py`, `record/popover.py`, `record/rows.py` (`refresh_tool_settings` only), `record/topbar.py` (only if the root row needs it), `tools/coverage_dropdowns.py`, `tests/blender/test_dropdown.py`, `tests/blender/test_popover.py` (both new) | the recorder, `header_controls`, `datapath` (read-only; a needed recorder fix is a note here first) |
+| **C: view** | `view/renderer.py` (dropdown primitives, `DropdownBatchCache`, `draw_dropdowns`, the `open_label` highlight in `draw_plaza`), `view/draw_manager.py` (draw the chain after the Plaza, culling by the union extent, the second cache on `HandlerSet`), `tests/blender/test_render_offscreen.py` (dropdown + submenu structural render on both backends), `tests/blender/test_draw_manager.py` | A's `ChainLayout` (hand-build chains in tests until A lands) |
+| **D: integration** | `ops/dropdowns.py`, `ops/plaza.py`, `ops/invoke.py` (`apply_in_place`), `ops/actions.py` (only if a setter needs it), `tests/blender/test_plaza.py` (update the Phase 2–3 click expectations), `tests/blender/test_dropdowns.py` (new: the modal against hand-built models with `run_call` / builders stubbed), `tests/gui/gui_driver.py` (update changed scenarios), `tests/gui/scenarios_phase4.py` (new), `notes/screenshots/phase4_*.png`, CLAUDE.md (if commands change) | everything; stub A/B/C with hand-built data until they land |
+
+- **No owner: filled, change only with a note here:** `core/dropdown_model.py`, `core/model.py`, `core/tables.py`, `prefs.py`, `__init__.py`, `record/__init__.py`, `view/theme.py` (**frozen**), the two `*_phase4_skeleton.py` tests.
+- **Shared harness:** `tests/run_tests.py` is unchanged. Anyone may add new `tests/blender/test_*.py` files; never edit another implementer's files.
+
+## Import graph (no cycles; `record` never imports `ops`; `core` stays pure)
+
+```
+core.dropdown_model   -> core.model, core.tables
+core.menubar          -> core.dropdown_model, core.model
+core.dropdown_geometry -> core.dropdown_model, core.geometry, core.rects
+record.dropdown       -> core.{dropdown_model, model, tables}, record.{recorder, datapath}
+record.popover        -> core.{dropdown_model, model}, record.{recorder, datapath, header_controls}
+record.rows           -> (Phase 3 imports)            (refresh_tool_settings reuses them)
+view.renderer         -> core.{geometry, dropdown_geometry, dropdown_model, model, rects}, view.theme
+view.draw_manager     -> view.renderer, view.theme, core.rects        (unchanged)
+ops.dropdowns         -> core.{menubar, dropdown_model, dropdown_geometry, geometry, actions},
+                         record.{dropdown, popover, rows}, view.renderer (text_width_fn), ops.invoke
+ops.plaza            -> (Phase 3 imports) + ops.dropdowns
+```
+`ops.dropdowns` never imports `ops.plaza` at module level: its terminal effects call `ops.plaza._end` through a function-level import (as `ops.invoke.addon_module` does for `prefs`), and `op` (the running `MESO_OT_plaza`) is passed in for `_finish`.
+
+## Paths, roles and targets
+- **Path:** `tuple[int, ...]` of item indices from the root dropdown. `(3,)` is item 3 of the root dropdown; `(3, 1)` is item 1 of the submenu opened from item 3. `len(path)` = the 1-based depth of the panel holding the item. `MenuBarState.submenus[i]` is the opener path of level `i + 1`.
+- **Model keys:** the Menu idname (SOURCE_MENU), the Tool Settings Item id (SOURCE_TOOL), `child_key(parent, index, item)` = `'<parent key>/<index>'` for an enum cascade (SOURCE_ENUM).
+- **Roles** (`dropdown_model.label_role` / `item_role`):
+
+  | Role | Row labels | Dropdown items | Reducer on release |
+  |---|---|---|---|
+  | ROLE_DROPDOWN | menus with a custom dropdown, Tool Settings cascades | – | opens on PRESS; hover switches while open |
+  | ROLE_HANDOFF | '…' native menus, mode switcher, workspaces, Recent Commands, Plaza Controls | DD_VALUE, DD_NATIVE, DD_NATIVE_MORE | `Handoff(action)` (terminal) |
+  | ROLE_APPLY | Tool Settings toggles (KIND_TOGGLE) | DD_TOGGLE, DD_FLAG | `RunItem(path or None, keep_open=True)` |
+  | ROLE_APPLY_CLOSE | – | DD_RADIO | `RunItem(path, True)` + `CloseChain(len(path) - 1)` |
+  | ROLE_RUN | – | DD_OP | `RunItem(path, keep_open=False)` (terminal) |
+  | ROLE_SUBMENU | – | DD_SUBMENU, DD_ENUM_CASCADE | opens (hover after `submenu_delay`, click at once) |
+  | ROLE_PASSIVE | disabled, separators, labels, centre box | disabled, DD_LABEL, DD_SEPARATOR, items with no action | nothing |
+
+- **Target:** `core.menubar.Target(zone, label_id, path, role, action)`, built by D from `dropdown_geometry.resolve_hit` + the models. The reducer never sees models or RNA.
+
+## Event flow (one modal event)
+
+```
+modal(event)                                     ops.plaza (failure / watchdog / DEACTIVATE stay here)
+  └─ ops.dropdowns.handle_event(op, state, context, event)
+       1. hit    = dropdown_geometry.resolve_hit(state.layout, session.chain, x, y)
+                   (deepest panel → … → root dropdown → strip labels → empty strip → none)
+       2. target = target_for(session, state, hit)          (label_role / item_role + Action)
+       3. ev     = reducer_event(...)   MOUSEMOVE → HoverItem(path, role, now, aiming) inside a panel
+                                                    else HoverLabel(label_id, role, now)
+                                        LMB PRESS/DOUBLE_CLICK/RELEASE → Press/Release(button, target, now)
+                                        release key RELEASE → SpaceRelease · ESC PRESS → Esc
+                                        TIMER → Timer(now) · arrows/Return → Nav(key)
+       4. session.bar, effects = core.menubar.step(session.bar, ev)
+       5. execute_effects(...)  in order:
+            OpenDropdown  → build_dropdown / build_tool_cascade → place_dropdown → step(Opened(0, roles))
+            OpenSubmenu   → build_dropdown(submenu) / enum_child_model → place_submenu → step(Opened(d, roles))
+            CloseChain(d) → models[:d], truncate_chain
+            RunItem(True) → invoke.apply_in_place → cache.invalidate → rows.refresh_tool_settings
+                            → geometry.layout → rebuild + layout_chain → step(Changed(key, valid_depth))
+            RunItem(False)/Handoff → _end(state, 'run'|'handoff') → invoke.execute(action, window, area,
+                            region=WINDOW region of the invoking area) → return {'FINISHED'}   (D3)
+            Redraw        → handlers.redraw(rects=[old/new Plaza extent, old/new chain extent])
+            Finish/Cancel → op._finish(context, state) (tap logic) / _end(state, 'cancel')
+       6. sync_draw_state(state): hover_id = bar.hover_label, open_label, dropdown_hover, dropdowns
+```
+- Follow-up events (Opened, Changed) are fed back into `step` inside `execute_effects` (at most 4 rounds).
+- The reducer guarantees at most one terminal effect per step, last in the tuple, and never a Redraw with it. D stops processing at a terminal effect.
+- Timers: `Timer` comes from the 0.05 s watchdog, which still returns PASS_THROUGH. The effective submenu delay rounds up to the next tick. D may add a short extra event timer while `bar.pending` is set (removed in `_end`). Timers never fire headless: the modal tests feed `Timer(now)` directly.
+- The DOUBLE_CLICK rule of Phase 2 stays: a fast second press arrives as DOUBLE_CLICK and is a Press.
+- Any exception inside `handle_event` is logged, the chain closes (`CloseChain(0)` equivalent), and the Plaza keeps running (a draw failure still fails the session as before).
+
+## Menu-bar semantics (the reducer; full table in `core/menubar.py`)
+- **Closed.** A press on a ROLE_DROPDOWN label opens it at once (`OpenDropdown`; `press_opened=True`), so press-drag-release works; its release on the same label leaves it open. HANDOFF / APPLY labels act on the release over the pressed label. Space release → Finish; ESC → Cancel.
+- **Open:**
+  - **Hover switching:** HoverLabel over another ROLE_DROPDOWN label → `CloseChain(0)` + `OpenDropdown`. Hovering any other label changes nothing but the hover.
+  - **Submenus:** hovering a ROLE_SUBMENU item sets `pending`; after `submenu_delay` (0 = at once) `OpenSubmenu`. Hovering a sibling closes the stale cascade (`CloseChain(L)`), unless `aiming` (the pointer is inside the safe triangle toward the open submenu, `dropdown_geometry.is_aiming`) and less than `AIM_TIMEOUT` = 0.25 s has passed since the aim began. A Timer ends an expired aim.
+  - **Clicks:**
+    - A press on empty strip space, outside everything or on a passive label closes the chain only.
+    - A press inside a panel on no item does nothing.
+    - A press on a submenu item opens it at once.
+    - A press on the open label and its release closes the dropdown (a click on an open menu title).
+  - **Runs:** a release over an item runs it when any press started the gesture (on a label: drag-release; or on an item). RUN and HANDOFF are terminal; APPLY keeps everything open; APPLY_CLOSE closes only its own level (L == 1 closes the dropdown, the Plaza stays).
+  - **Space release:** with `execute_on_release` and a hovered RUN / APPLY / APPLY_CLOSE item → `RunItem(path, keep_open=False)` (after teardown, like Phase 3); HANDOFF → Handoff; else Finish.
+  - **ESC** → `CloseChain(0)`.
+  - **Changed(key, valid_depth)** → `CloseChain(valid_depth)` when shorter, then Redraw.
+- **Never on PRESS:** no effect ever runs or hands anything off on a PRESS (D3). Opening our own dropdown on PRESS is fine: no native popup can eat the release.
+- **Nav (nice-to-have):** UP/DOWN within the hovered level, RIGHT opens and enters, LEFT closes one level, RETURN clicks (its RELEASE after its PRESS, like a mouse click). `Opened.roles` feeds it. Until A implements it, Nav returns no effects.
+
+## Run semantics (D)
+- **(a) Operator items** (DD_OP, enum-cascade op children, `operator_enum` items) → `RunItem(keep_open=False)`: `_end(state, 'run')`, then `ops.invoke.execute(item.action, window, area, region, area_type)` inside `modal()` right before FINISHED. `region` is the invoking area's WINDOW region (`state.region`). The Action carries the recorded `operator_context` (D4: INVOKE_REGION_WIN roots and submenus; inline `menu_contents` keeps its context) and props, and `undo=True`. Modal / interactive operators (grab, loop cut, knife) start after our modal ended.
+- **(b) In-place items** (Tool Settings row toggles; DD_TOGGLE / DD_RADIO / DD_FLAG) → `ops.invoke.apply_in_place`: `plan_call` + `run_call` under the same override, inside the running modal.
+  - Setters are `wm.context_*('EXEC_DEFAULT', True, …)` and `meso.toggle_flag('EXEC_DEFAULT', True, …)`: D5, one undo step each; Space-owned paths return CANCELLED with the value changed.
+  - Then `refresh_after_change`: invalidate the cache, re-record the Tool Settings row and relayout the Plaza (text measured in the modal, never in a draw callback), rebuild the open levels (a Tool Settings cascade re-built from its refreshed row Item), `valid_depth`, and re-place the chain. Checked states and labels update live.
+- **(c) Submenus** open cascades (no execution).
+- **(d) Native fallbacks** ('…' labels, DD_NATIVE, DD_NATIVE_MORE, DD_VALUE) → Handoff: `_end(state, 'handoff')` + `invoke.execute` (`wm.call_menu` / `wm.call_panel(keep_open=True)` / `wm.context_menu_enum`), on the RELEASE (D3).
+- **`last_session()` additions (D, plain data):**
+  - `end` gains `'run'`;
+  - `menus_opened` (model keys in open order);
+  - `in_place` (list of `core.actions.describe` tuples of in-place calls);
+  - `run_item` (`(model key, path, label, (kind, target, data_path))` of the terminal RunItem / Handoff item, or None);
+  - `dropdown_builds` / `dropdown_hits` (cache counters).
+  - `handoff` keeps its Phase 3 meaning for terminal calls (describe of the planned call); in-place calls never set it.
+  - `current_state().menus` (a `MenuSession`) is what the GUI tests read while the Plaza is open.
+
+## Lifecycle, caching, invalidation
+- **Invoke** (D, in `_build_content`):
+  1. Build the model with `rows.build_model` (Phase 3).
+  2. `ops.dropdowns.start_session` snapshots the three prefs and runs `record.dropdown.classify_rows`, which records every Root and Contextual row menu once and pre-fills the session `DropdownCache`. It marks COVERAGE_NATIVE (and C-only) row menus: label + '…' and `payload['coverage']` = native, so their action stays the Phase 3 `ACTION_MENU` hand-off. Budget: about 2 ms in factory Layout.
+  3. Then the layout, palette and hover, as before. The '…' is part of the measured label.
+- **Recording context:** every dropdown / cascade is recorded under `temp_override(window, area, region=<WINDOW region of the invoking area>)` of the current screen (window only over the bars), never `screen=`. Recordings (live RNA) never leave `record/`; only `DropdownModel`s do.
+- **Operator context:** menus record at INVOKE_REGION_WIN (roots and every submenu, D4). The cache key is `(menu_id, operator_context)`.
+- **Enabled state:** `bpy.ops.<id>.poll(record.operator_context)` under the override (~5 µs), combined with `layout.enabled`. `layout.active = False` gives `active=False` (dimmed, clickable). Submenus whose `Menu.poll` fails are already dropped by the recorder.
+- **Laziness:**
+  - Row menus are recorded at invoke (classification).
+  - A submenu is recorded when it opens.
+  - A parent classifies its DD_SUBMENU children with `menu_coverage` (top-level records only, cached in `cache.coverage`), so native children show as DD_NATIVE rows (drawn with '▸', no '…': `has_arrow`) before they are opened. Popover content (`popover.panel_items`) classifies its `layout.menu()` children the same way.
+  - A child whose lazy build still comes back native / empty / failed (poll, exception, context changed) turns its opener into a DD_NATIVE hand-off of that menu (`ops.dropdowns._native_submenu`; `Changed` + `Opened` with the new roles), so hovering it never re-opens / redraws in a loop and a click hands it off.
+  - Tool Settings cascades and enum children are built on open and never cached across a change.
+- **Invalidation:** after every in-place apply `cache.invalidate()` drops all models and coverage (checked states and polls may change anywhere); the open chain is rebuilt at once. Nothing else invalidates within a session. Operator runs and hand-offs end the session.
+- **Session end:** `_end()` drops `state.menus` together with the state. The GPU batches of the chain are cleared by `HandlerSet.stop()` (C). No model, cache or batch outlives the modal.
+- **Draw state:** the draw callbacks read `state.dropdowns` (ChainLayout), `state.dropdown_hover` and `state.open_label`. D swaps whole values after each event; C never measures text or places panels in a callback.
+
+## Native fallback policy (B)
+- **Whole menu native:** a recording with an opaque template, an 'error' record or `partial`, a C-only root menu, or a failed build → COVERAGE_NATIVE. The row label shows '…' and the click hands off through `wm.call_menu` (the Plaza ends). Inside a dropdown such a child is a DD_NATIVE row.
+- **DYNAMIC items** (asset templates, `template_recent_files`) in an otherwise static menu: the static part is drawn custom, plus ONE trailing DD_NATIVE_MORE 'More…' that hands off the whole menu (COVERAGE_MORE).
+- **C-only / native submenus** (`REC_NATIVE`, e.g. File ▸ Open Recent, or a COVERAGE_NATIVE child) become DD_NATIVE rows drawn as cascades: plain label + '▸', no '…' (`core.dropdown_model.has_arrow`, like the mode switcher); a click hands the child off (`wm.call_menu`). Popovers inside menus and unlistable operator_menu_enums stay DD_NATIVE 'Label…' (no arrow).
+- **operator_enum / operator_menu_enum** list only the ids the operator's C itemf accepts in the invoking context (the TypeError of a bogus assignment to `operator_properties_last(op)`, as `enum_choices` does for data enums), in the static RNA order: Select Similar in vertex / edge / face select mode lists only the VERT_* / EDGE_* / FACE_* types. An empty result keeps the native fallback.
+- **Read-only props:** a toggle / radio / flag whose property is read-only in the invoking context (`is_property_readonly`, e.g. `show_region_asset_shelf` without an asset shelf) is disabled, like the native button.
+- **Coverage report:** `tools/coverage_dropdowns.py` reports the % custom / more / native for menus reachable from the Root + Contextual rows (all 3D modes + main editors) and for all Menu classes. The acceptance target is **≥ ~63% fully custom** on the verified-facts §4 base (432/685 = 63.1% "fully static": the registered Python Menu classes incl. the 2 `SKIP_MENUS` as native, without the 9 C-only MenuTypes), checked unrounded against `ACCEPTANCE_CUSTOM_PCT = 62.5` (`--check` exits 1 below it; `tests/blender/test_dropdown.py` `test_all_classes_custom_share` asserts it and custom + More… ≥ 93% on every run).
+- **Measured (5.2.2, factory startup, poll on):**
+  - all classes: 430/685 = **62.8%** fully custom (430/683 = 63.0% of the swept Python classes), 215 More… (31.1% of 692), 47 native incl. the 9 C-only (causes: 28 draw errors in unmatched contexts, 9 C-only, 8 empty, 2 context pointers);
+  - reachable from the rows (what users open): 201/419 = **48.0%** fully custom, 209 = 49.9% custom + More… (174 of them `template_node_asset_menu_items`: Geometry / Shader / Compositor node Add menus; 30 `template_node_operator_asset_menu_items`: the Edit Mesh / Curves / Grease Pencil menus), 9 = 2.1% native (5 C-only, the mode switcher, TEXT_MT_templates_py, CONSOLE_MT_language, FILEBROWSER_MT_view);
+  - timing: all 692 menus 102 ms headless (max 0.8 ms), the reachable walk 324 ms for 1185 builds (max 3.6 ms, NODE_MT_add).
+
+## Tool Settings cascades (B content, D wiring)
+- **Enum cascades:**
+  - enum → DD_RADIO list, text only, current value checked;
+  - flag enum → DD_FLAG multi-check list;
+  - orientation → `header_controls.orientation_items`.
+- **`prop_with_popover` / popover:** the enum list, a separator, the recorded panel content (`popover.panel_items`), a separator, 'More…' → `wm.call_panel(name=<panel>, keep_open=True)`.
+  - subpanels → titled DD_LABEL (`heading=True`);
+  - `heading=` / `label` → DD_LABEL;
+  - `.active=False` → dimmed but clickable;
+  - numerics → read-only DD_VALUE 'Name: value' whose click hands off the panel.
+- **Re-recording:** the cascade is re-built after every change (snapping rows depend on the snap target and the mode).
+- **Picks:** a toggle / flag keeps the cascade open; a radio pick of the cascade's own enum (Pivot, Orientation, falloff: `source='enum'`) closes only that cascade and the Plaza stays open; an inline radio of the recorded panel content (Snapping ▸ Snap Base: `source=ITEM_SOURCE_PANEL`) behaves like the toggles next to it and keeps the panel open (ROLE_APPLY). Tool Settings row toggles are in place too (ROLE_APPLY), and the row re-records and redraws.
+- **Re-placing after a change:** the re-recorded chain stays where it was (`dropdown_geometry.relayout_chain` / `relayout_panel`: same left and top edge, at least the old width; it only moves when it would leave the bounds), so rows above an added / removed row never move under a still pointer; the hover is re-resolved at the last pointer position. An in-place `space_data.show_region_*` toggle (the region animates; its value lands later) is re-recorded again on the watchdog TIMERs 0.15 / 0.4 / 0.8 s later.
+- **Snap and proportional** stay two row items each (toggle + cascade, Phase 3 deviation 2). The cascade now shows the flag list plus the panel.
+- **The mode switcher** (`MESO_MT_mode_switch`, `operator_enum('object.mode_set','mode')`) stays a native hand-off (`NATIVE_ONLY_MENUS`): its enum items come from a C itemf that Python cannot list. Its label keeps the '▸' and gets no '…'.
+
+## Look (A geometry, C renderer)
+- **Panel:** single column, `item_h = round(row_h × 0.85)` (22 px at 1x).
+  - Left `check_col` (24) holds a hollow square, or a filled inner square when checked (toggles, flags); a radio is a round ring with a filled dot when checked, so exclusive and multi-select groups read apart.
+  - Right `arrow_col` (16) holds '▸'. An optional dimmed shortcut is right-aligned before the arrow column.
+  - Separator rows are 7 px with a 1-scale-px line spanning the panel inside the border (inset by border + 1 line, like the reference DCC). Headers / labels are dimmed text outdented to `pad_x` (the check column), so they never read as disabled items.
+  - `width = max(check_col + label + [gap + shortcut] + arrow_col + pad_x, min_w 120)`.
+  - Scale 2.0 doubles every size (`dropdown_metrics(m, font_scale)`).
+- **Placement:**
+  - The root dropdown goes under the label (top = label rect bottom, left = label left). It flips above if it fits there, and shifts sideways into `state.bounds` inset by `margin` (the D2 screen-area bounds). A panel that fits on neither side opens beside the label (right, else left; top level with the label top, shifted vertically into bounds), so it can use the whole bounds height without covering the label. A panel taller than the bounds (no scrolling) is fitted by `fit_panel` / `clip_to_more`: the rows that fit, a separator and a trailing 'More…' that hands the whole container off natively (without a `native_action`: just the placed rows), so nothing is unreachable and keyboard navigation never reaches an unplaced row.
+  - Bounds: the invoking area (`state.area_bounds`) when the label / parent lies in it and the panel fits there, else `state.bounds`; nothing can draw in the gaps between areas, so a panel that still crosses one (`state.seams`, `area_seams`) is nudged by at most half a row so a row boundary sits in the gap (`avoid_seams`: only row padding is lost, never text).
+  - Submenus open right of the parent, first item level with the opener. They flip left when off-window and shift vertically into bounds.
+- **Hit priority:** deepest submenu → … → dropdown → strip labels → empty strip → none.
+- **Colours** (`renderer.dropdown_colors`, derived from the Palette only):
+  - The panel is the strip grey, **opaque**, so strip labels never show through; the border is a darker derived tone.
+  - Hover = `palette.item_hover` bar across the panel width. Disabled / inactive / headers / shortcuts use `text_disabled`; glyphs use `text`.
+  - The open row label stays highlighted (`state.open_label`).
+- **Drawing:** in the existing per-region visible pieces, after `draw_plaza`, so panels are above the strips. The batches are cached per `(chain.signature, colors)`; a hover change rebuilds only the hover batch, and opening / closing a level rebuilds the static ones.
+
+## Tests (who writes what)
+- **A:**
+  - `test_menubar.py` covers every table row: open on press; click completes; switch on hover; non-dropdown label hover keeps the chain; empty-space click closes the chain only; a panel-padding click does nothing; a click on the open title closes it; ESC closes the chain, then cancels; Space release finishes; drag-release from the label runs; `execute_on_release` True and False for RUN / APPLY / HANDOFF / SUBMENU / none; submenu delay through Timer (0 opens at once); sibling close; aim tolerance (kept < 0.25 s, closed by Timer after); in-place `Changed` keeps the chain or cuts it to `valid_depth`; a radio closes its own level only; an operator item gives `RunItem(keep_open=False)` terminal; native gives Handoff terminal; done state; the effect-order invariants (property-style over random event sequences: at most one terminal, always last, never with Redraw, nothing on Press runs); Nav if implemented.
+  - `test_dropdown_geometry.py`: placement under the label, flip above / left, sideways and vertical clamp, clipped panels, submenu placement, hit-test priority (deepest first, separators → ZONE_PANEL, strips → ZONE_LABEL / ZONE_STRIP), widths with and without the glyph columns and shortcuts, `is_aiming`, `extend_chain` / `truncate_chain`, scale 1.0 and 2.0.
+- **B:** `test_dropdown.py` / `test_popover.py`:
+  - **Item kinds and labels:** `build_dropdown` for VIEW3D_MT_object, `_add`, `_view`, TOPBAR_MT_file and `_edit`, and the Edit Mesh menus.
+  - **Enabled states:** poll-greying (`object.join` disabled with one object).
+  - **Submenus and expansions:** submenus present / filtered; the enum expansions.
+  - **Native classification:** '…' for opaque and C-only; DD_NATIVE for Open Recent; More… for DYNAMIC (VIEW3D_MT_add in Object mode if it has asset items — record the actual result).
+  - **Cache:** hits, and `invalidate` → rebuild.
+  - **Tool Settings cascades:** VIEW3D_PT_snapping, proportional and transform_orientations (enum list, panel content, More…, and a re-record after a snap change adds rows).
+  - **Headless execution:** recorded ops under override with EXEC_* where safe: Object ▸ Apply ▸ Scale on a scaled cube (compare with `bpy.ops.object.transform_apply` on a copy), Add ▸ Mesh ▸ Cube adds one mesh, Select ▸ All selects all. Never a popup in `-b`.
+  - **Coverage:** `tools/coverage_dropdowns.py` numbers are in "Native fallback policy" above; `test_all_classes_custom_share` asserts the acceptance share on every run.
+- **C:** `test_render_offscreen.py`: a hand-built chain (dropdown + submenu with a separator, a checked and an unchecked box, a radio, an arrow, a disabled item, a shortcut, a hover bar) renders structurally on both backends. Checks: the panel is opaque over a strip label, the hover bar is lighter across the panel width, text is inside the rows, glyph pixels are present, nothing is drawn outside the extent, and the open label is highlighted. `test_draw_manager.py`: culling with the union extent and `DropdownBatchCache` build counters (a hover change rebuilds only the hover batch).
+- **D:** `test_dropdowns.py`: the modal against hand-built models with the builders, `apply_in_place` / `run_call` and `execute` stubbed:
+  - effects execution, the terminal paths, `last_session` keys and the draw-state sync;
+  - an in-place change re-records and keeps the Plaza running;
+  - the RUN path tears down before `execute`;
+  - Handoff happens only on a release.
+
+  Update `test_plaza.py` as listed below. GUI: `tests/gui/scenarios_phase4.py` (module contract as `scenarios_panes.py`):
+  - **(a)** click File → custom dropdown open (`menus.bar.open_label == 'TOPBAR_MT_file'`, no handoff); hover Edit → it switches without a click.
+  - **(b)** a click on empty space closes the dropdown and the Plaza stays open; Space release → finish.
+  - **(c)** Object ▸ Apply ▸ Scale through the custom dropdown with a hover-opened submenu → cube scale applied (compare with native), Plaza ended (`end == 'run'`).
+  - **(d)** Add ▸ Mesh ▸ Cube by drag-release from the label.
+  - **(e) Tool Settings:**
+    - the Snap toggle keeps the Plaza open, `use_snap` flips and the label updates, one undo step;
+    - a Pivot radio pick changes the pivot, the Plaza stays open and the cascade closes;
+    - a Snap cascade flag toggle keeps the cascade open and updates the checks;
+    - popover 'More…' opens the native panel and the Plaza ends.
+  - **(f)** a '…' / DD_NATIVE item (File ▸ Open Recent is C-only) hands off natively.
+  - **(g)** `execute_on_release` True runs the hovered item on Space release; False runs nothing.
+  - **(h)** ESC with the chain open closes the chain only; a second ESC cancels.
+  - **(i)** screenshots `notes/screenshots/phase4_{file_dropdown,object_apply_submenu,snap_cascade,pivot_cascade}.png`.
+  - Every Phase 1–3 scenario stays green.
+
+## Phase 1–3 expectations that change (update, never delete coverage)
+
+| Test | Phase 3 expectation | Phase 4 expectation |
+|---|---|---|
+| gui `p2_click_file`, `p2_click_file_header` | the native File menu opens (`handoff == call_menu`), the Plaza ends | the custom File dropdown opens on the press and stays open after the release; the Plaza is still running; no handoff and no native menu (`MENU_PROBE` 0). Space release → `end == 'finish'`. The header variant still checks `region_type` HEADER and the WINDOW handoff region (used for runs). Native `call_menu` coverage moves to scenario (f) |
+| gui `p2_press_release_elsewhere` | press File, release on empty → nothing opens | press File opens the custom dropdown; a release on empty space leaves it open; no native menu, no handoff; Space release → finish, not tapped |
+| gui `p2_click_space_not_tap` | Space released while LMB is down on File just closes | unchanged (Finish; the dropdown opened on the press closes with the Plaza) |
+| gui `p3_click_object_menu` | the native VIEW3D_MT_object opens | the custom dropdown opens (`open_label == 'ctx:VIEW3D_MT_object'`), no handoff; the probe menu is not drawn natively |
+| gui `p3_apply_scale` | driven through the native menu with the 'A', 'S' accelerators | replaced by the custom path of scenario (c); keep the scale / mesh checks |
+| gui `p3_pivot_cascade` | native `wm.context_menu_enum` popup + keyboard pick | custom radio cascade; a click on 'Individual Origins' changes the pivot, the cascade closes, the Plaza stays; `in_place[-1] == ('wm.context_set_enum', …)`, at most one undo step |
+| gui `p3_orientation_cascade` | native `call_panel(VIEW3D_PT_transform_orientations)` | custom cascade (orientation radios + panel content + More…); More… still reaches that `call_panel` |
+| gui `p3_snap_toggle` | `use_snap` flips, the Plaza closes | `use_snap` flips, **the Plaza stays open**, the toggle's `checked` updates in `state.model`; `in_place[-1][0] == 'wm.context_toggle'`; one undo step; Space release → finish |
+| gui `p3_mode_switch`, `p3_recent_commands`, `p3_plaza_controls`, `p3_workspace_click` | hand-offs / workspace switch end the Plaza | unchanged (ROLE_HANDOFF) |
+| gui `p3_contextual_rows`, `p3_screens`, inventory comparisons | labels equal the header's | compare `strip_native_suffix(label)`: native menus now end with '…' |
+| blender `test_plaza.py` `TestModalPhase2.test_click_menu_hands_off_on_release`, `test_double_click_press_hands_off` | a menu click hands off `call_menu` | a menu click opens the dropdown (builders stubbed); the hand-off assertion moves to a '…' native label (`payload['coverage']` native) |
+| blender `TestModalPhase3.test_every_clickable_item_runs_its_action_on_release`, `TestModalPhase3RunCall.test_menu_panel_toggle_reach_run_call_after_teardown` | every clickable item ends the session | per role: DROPDOWN opens (no run_call), APPLY runs `run_call` while the modal keeps running (`ends_session` False), HANDOFF runs after teardown as before |
+| blender `test_release_elsewhere_does_nothing`, `test_passive_and_disabled_items_never_run`, `test_workspace_click_returns_at_once`, `test_execute_raising_still_finishes` | – | unchanged semantics; update the fixtures only if they build menu items that now open dropdowns |
+| blender `test_actions.py` `ends_session` asserts | True | unchanged (`execute` still always ends the session) |
+| screenshots `phase3_*` | – | not regenerated; new `phase4_*` shots |
+
+## Invariants (in addition to Phases 1–3)
+1. **Terminal effects:** at most one per reducer step, always last. Operator runs and native hand-offs happen after `_end()`, on a RELEASE (or the key release), right before FINISHED (D3). Nothing runs on a PRESS: RETURN / NUMPAD_ENTER arm on their PRESS and activate on the RELEASE of the armed key (`MenuSession.enter_armed`), so a modal operator that confirms on RET RELEASE (eyedropper, mesh filter, slip) is not confirmed by our own key.
+2. **In-place changes** run inside the modal with the setters' positional undo flag (D5). The Plaza operator still never has UNDO.
+3. **Plain data only** outlives a call into `record/`: `DropdownModel`, `Item`, `Action`, strings. Recordings are never cached or stored on the state. The session cache holds only models and coverage strings, and dies with the session.
+4. **No screen overrides.** Dropdowns record and execute under `temp_override(window, area, region)` of the current screen only (the guard test covers the new files).
+5. **Draw callbacks** never measure text, place panels or build models; they read swapped plain values.
+6. **The palette** and the transparency default are unchanged (the dropdown tones are derived in the renderer).
+7. **Headless:** no popup, popover, `call_menu`, `call_panel` or `context_menu_enum` in `-b` tests. Recorded operators are executed headless only with EXEC_* under override.
+
+## Open questions for the implementers (verify, then record the answer here)
+1. **In-place undo (D, GUI):** an in-place setter called while our modal (no UNDO flag) keeps running pushes exactly one step. spikes.md C1 covered only the call right before FINISHED.
+   - **Answer (D, GUI 5.2.2):** yes, exactly one step per in-place call while the modal keeps running: 'Context Toggle' for the Snap row toggle, 'Context Set Enum' for a Pivot radio pick (`p3_snap_toggle` / `p3_pivot_cascade` record `snap_undo_steps` / `pivot_undo_steps`).
+2. **Poll cost (B):** re-verify `bpy.ops.X.poll('INVOKE_REGION_WIN')` under the WINDOW-region override (~5 µs) inside the live GUI modal, and the cost of `classify_rows` at invoke (target ≤ 2 ms Layout, ≤ 5 ms Edit Mesh).
+   - **Answer (integration):** poll ~2.3 µs headless. `classify_rows` was 9–14 ms because `recorder._operator_rna` listed `dir(bpy.ops.<mod>)` (~1 ms per module per recording); it now calls `get_rna_type()` directly (a missing operator raises KeyError, ~3 µs) and caches per idname per recording. Measured: ~2–3 ms factory Layout headless and GUI (`p4_file_dropdown` records `classify_ms`: 2.8 ms Vulkan, 3.0 ms OpenGL). The last cost is in `record.dropdown.LAST_TIMING['classify_rows_ms']` and in `last_session()['classify_ms']`; the >5 ms log only fires with `debug_timing`.
+3. **Shortcut lookup (B):** the cost of `wm.keyconfigs.find_item_from_operator`. Drop `show_shortcuts` for the session when it exceeds `SHORTCUT_BUDGET` (1 ms).
+4. **VIEW3D_MT_add in Object mode (B):** does it record DYNAMIC items (asset catalogs) → COVERAGE_MORE? Record the actual kind.
+5. **Tall menus (A/C):** a panel taller than the window is clipped (no scrolling in Phase 4). List any factory menu that clips at 1080p / ui_scale 2.
+   - **Observed (D, GUI 1920x1080, ui_scale 1):** the Snap cascade (flag list + VIEW3D_PT_snapping content, 35 items) is clipped to 22 placed items, so its trailing More… is unreachable there (`p4_snap_cascade` records `snap_cascade_clipped` / `snap_cascade_items`). The proportional, orientation and pivot cascades and every root / contextual Object-mode dropdown driven by the suite fit.
+   - **Fixed (integration):** a panel that fits on neither side of its label now opens beside the label and uses the whole bounds height: the Snap cascade places all 35 items (More… reachable) at 1080p ui_scale 1; `p4_snap_cascade` checks `snap_cascade_unclipped` and `label_uncovered`. Only menus taller than the window (~48 rows at ui_scale 1, ~23 at ui_scale 2, e.g. `VIEW3D_MT_edit_mesh_faces` at ui_scale 2) still clip.
+   - **Fixed (review):** a clipped panel now ends in 'More…' (the whole menu natively; `fit_panel`), and the model holds only the placed rows (roles, keyboard navigation).
+6. **Operator context of root-row menus (D, GUI):** TOPBAR menus recorded and run under the invoking area's WINDOW override (as the Phase 3 hand-off does), not under the TOPBAR area. Confirm File ▸ Save / Edit ▸ Undo behave natively.
+   - **Answer (D, GUI):** Edit ▸ Undo run through the custom dropdown under the invoking 3D View's WINDOW override reverts the last step natively (`p4_edit_undo`). File ▸ Save is not driven by the suite (it writes a file or opens the file browser).
+
+## Integration notes (D)
+- `ops.dropdowns.start_session` returns None on failure: `state.menus` stays None and the modal keeps the Phase 3 click path (`MESO_OT_plaza._press` / `_release` stay as that fallback).
+- `ops.dropdowns.after_layout(state)` (invoke, after the initial `hover_id`) seeds the reducer's `hover_label`, so the first sync keeps the initial hover.
+- `ops.dropdowns.summary(session)` gives the `last_session()` additions; `_end()` copies them, then sets `state.menus = None`.
+- `MenuSession` gains `target` (the Target of the last pointer event: the item or label a terminal Handoff came from) and `show_shortcuts` (the pref snapshot).
+- A row label whose dropdown cannot open custom at OpenDropdown time (native, empty or failed model) becomes a native '…' label (`payload['coverage']` native; the Plaza is re-laid out). The RELEASE of that same click then hands it off (D3).
+- DD_VALUE / DD_NATIVE_MORE items built without their own action get the container's `native_action` (targets and `Opened` roles, so keyboard navigation reaches them too).
+- The Plaza key release always ends the session, also when the reducer path raised.
+- The level-0 chain starts as `ChainLayout(metrics=dm)`: `extend_chain` keeps the chain's metrics and the renderer needs them.
+- GUI: the menu probes count only native draws (`isinstance(self.layout, bpy.types.UILayout)`), because the recorder calls appended draw functions too. The suite still rewrites the `phase3_*` screenshots on every run; they were reverted to the committed ones.
+- (Resolved at integration) `classify_rows` used to log "took 10-11 ms" once per session, which the GUI runner counts as a stray error: the recorder lookup is fixed (~2–3 ms) and the log is gated behind `debug_timing` (`classify_rows(..., debug_timing=)`, passed by `start_session`).

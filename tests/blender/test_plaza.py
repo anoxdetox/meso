@@ -27,6 +27,10 @@ RECTS_MODULE = ADDON_MODULE + ".core.rects"
 PREFS_MODULE = ADDON_MODULE + ".prefs"
 INVOKE_MODULE = ADDON_MODULE + ".ops.invoke"
 ACTIONS_MODULE = ADDON_MODULE + ".core.actions"
+DROPDOWNS_MODULE = ADDON_MODULE + ".ops.dropdowns"
+DD_MODEL_MODULE = ADDON_MODULE + ".core.dropdown_model"
+REC_DROPDOWN_MODULE = ADDON_MODULE + ".record.dropdown"
+ROWS_MODULE = ADDON_MODULE + ".record.rows"
 
 
 def _hb():
@@ -471,6 +475,36 @@ def _mid(rect):
     return int(rect.x + rect.w // 2), int(rect.y + rect.h // 2)
 
 
+def _install_menus(test, state):
+    """Phase 4: give ``state`` a dropdown session whose builders are fakes (every menu is a
+    one-item custom dropdown; the Tool Settings row re-records unchanged). Returns the list
+    of built menu ids."""
+    dd = sys.modules[DROPDOWNS_MODULE]
+    D = sys.modules[DD_MODEL_MODULE]
+    md = sys.modules[MODEL_MODULE]
+    rec_dd, rows = sys.modules[REC_DROPDOWN_MODULE], sys.modules[ROWS_MODULE]
+    built = []
+
+    def fake_build(context, info, menu_id, operator_context='INVOKE_REGION_WIN', *,
+                   cache=None, show_shortcuts=False):
+        built.append(menu_id)
+        return D.DropdownModel(menu_id, menu_id, (
+            D.DropdownItem(D.DD_OP, 'Select All', action=md.Action(
+                md.ACTION_OPERATOR, target='object.select_all', props={'action': 'SELECT'},
+                operator_context='INVOKE_REGION_WIN')),))
+
+    def fake_refresh(context, info, model, prefs=None):
+        return model
+
+    for mod, name, fake in ((rec_dd, 'build_dropdown', fake_build),
+                            (rows, 'refresh_tool_settings', fake_refresh)):
+        test.addCleanup(setattr, mod, name, getattr(mod, name))
+        setattr(mod, name, fake)
+    state.menus = dd.MenuSession()
+    state.bounds = sys.modules[RECTS_MODULE].Rect(0, 0, 2000, 1000)
+    return built
+
+
 class FakeHandlers:
     """Stands in for HandlerSet on the state: records redraw(rects) and stop()."""
 
@@ -607,6 +641,7 @@ class TestModalPhase2(_PlazaCase):
         self.area = _area(self.window, 'VIEW_3D')
         self.region = _visible(self.area, 'WINDOW')
         self.state.area, self.state.region = self.area, self.region
+        self.built = _install_menus(self, self.state)
 
     def _ev(self, etype, value, xy):
         with bpy.context.temp_override(window=self.window):
@@ -656,18 +691,50 @@ class TestModalPhase2(_PlazaCase):
         hb._end(state, 'test')
         self.assertEqual(hb.last_session()['hover_redraws'], state.hover_redraws)
 
-    def test_click_menu_hands_off_on_release(self):
+    def test_click_menu_opens_dropdown(self):
+        # Phase 4: a click on a menu label opens its custom dropdown (on the PRESS) and the
+        # plaza stays open; no native hand-off.
         hb = _hb()
         xy = self._at('TOPBAR_MT_file')
         self.assertEqual(self._ev('LEFTMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
         self.assertTrue(self.state.interacted)
         self.assertEqual(self.state.pressed_id, 'TOPBAR_MT_file')
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual(self.built, ['TOPBAR_MT_file'])
         self.assertEqual(self.calls, [], "never on PRESS (D3)")
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', (xy[0] + 2, xy[1])),
+                         {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
         self.assertTrue(hb.is_running())
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual(self._ev('SPACE', 'RELEASE', xy), {'FINISHED'})
+        last = hb.last_session()
+        self.assertEqual((last['end'], last['handoff'], last['tapped']), ('finish', None, False))
+        self.assertEqual(last['menus_opened'], ['TOPBAR_MT_file'])
+
+    def test_click_native_menu_hands_off_on_release(self):
+        # The Phase 2 hand-off moved to '…' native labels (payload['coverage'] native).
+        hb = _hb()
+        md, D = _mods()[1], sys.modules[DD_MODEL_MODULE]
+        model = self.state.model
+        file_item = model.find('TOPBAR_MT_file')
+        native = md.Item(file_item.id, 'File…', md.KIND_MENU,
+                         {'menu': 'TOPBAR_MT_file', 'coverage': D.COVERAGE_NATIVE})
+        root = md.Row(md.ROW_ROOT, tuple(native if i.id == file_item.id else i
+                                         for i in model.row(md.ROW_ROOT).items))
+        self.state.model = md.make_model([root] + [r for r in model.rows
+                                                   if r.key != md.ROW_ROOT],
+                                         model.center, model.recent, model.controls)
+        self.state.layout = _layout(self.state.model)
+        xy = self._at('TOPBAR_MT_file')
+        self.assertEqual(self._ev('LEFTMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
+        self.assertEqual(self.state.pressed_id, 'TOPBAR_MT_file')
+        self.assertIsNone(self.state.dropdowns)
+        self.assertEqual(self.calls, [], "never on PRESS (D3)")
         self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', (xy[0] + 2, xy[1])), {'FINISHED'})
+        self.assertEqual(self.built, [], "native labels are never recorded")
         self.assertEqual(len(self.calls), 1)
         call = self.calls[0]
-        md = _mods()[1]
         self.assertEqual(call['action'], md.Action(md.ACTION_MENU, target='TOPBAR_MT_file'))
         self.assertEqual((call['window'], call['area'], call['region']),
                          (self.window, self.area, self.region))
@@ -684,9 +751,9 @@ class TestModalPhase2(_PlazaCase):
         self.assertIsNone(self.state.window, "live refs dropped")
         self.assertIsNotNone(self.state.layout, "plain data stays")
 
-    def test_double_click_press_hands_off(self):
+    def test_double_click_press_opens_dropdown(self):
         # A missed click (press+release in a gap) then a fast click on File: Blender delivers
-        # the second press as DOUBLE_CLICK; it must still arm the handoff.
+        # the second press as DOUBLE_CLICK; it must still count as a press.
         hb = _hb()
         gap, xy = self._gap(), self._at('TOPBAR_MT_file')
         self._ev('LEFTMOUSE', 'PRESS', gap)
@@ -694,9 +761,21 @@ class TestModalPhase2(_PlazaCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(self._ev('LEFTMOUSE', 'DOUBLE_CLICK', xy), {'RUNNING_MODAL'})
         self.assertEqual(self.state.pressed_id, 'TOPBAR_MT_file')
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', xy), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
+        self.assertTrue(hb.is_running())
+
+    def test_phase3_fallback_without_session(self):
+        # start_session failed (state.menus None): a menu click hands off natively (Phase 3).
+        hb = _hb()
+        self.state.menus = None
+        xy = self._at('TOPBAR_MT_file')
+        self._ev('LEFTMOUSE', 'PRESS', xy)
         self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
         self.assertEqual([c['action'].target for c in self.calls], ['TOPBAR_MT_file'])
-        self.assertEqual(hb.last_session()['end'], 'handoff')
+        self.assertFalse(self.calls[0]['running'])
+        self.assertEqual(hb.last_session()['handoff'], ('wm.call_menu', {'name': 'TOPBAR_MT_file'}))
 
     def test_other_button_double_click_interacts(self):
         self.assertFalse(self.state.interacted)
@@ -859,6 +938,7 @@ class _Phase3Case(_PlazaCase):
         state.layout = _layout(state.model)
         state.handlers = FakeHandlers()
         state.area, state.region = self.area, self.region
+        self.built = _install_menus(self, state)
         return stub, state
 
     def _ev(self, stub, etype, value, xy):
@@ -877,23 +957,61 @@ class _Phase3Case(_PlazaCase):
 
 class TestModalPhase3(_Phase3Case):
 
-    def test_every_clickable_item_runs_its_action_on_release(self):
+    def test_every_clickable_item_acts_by_role_on_release(self):
+        # Phase 4: DROPDOWN labels open their custom dropdown (nothing runs), APPLY labels
+        # (Tool Settings toggles) run in place while the modal keeps running, HANDOFF labels
+        # run after teardown as in Phase 3.
         hb = _hb()
         md = _mods()[1]
+        D = sys.modules[DD_MODEL_MODULE]
         acts = sys.modules[ACTIONS_MODULE]
+        inv = self.inv
         model = _model3()
         clickable = [item for item in model.items() if md.item_action(item) is not None]
         kinds = {md.item_action(item).kind for item in clickable}
         self.assertEqual(kinds, set(md.ACTION_KINDS) - {md.ACTION_NONE},
                          "the model covers every action kind")
+        roles = {D.label_role(item) for item in clickable}
+        self.assertEqual(roles, {D.ROLE_DROPDOWN, D.ROLE_APPLY, D.ROLE_HANDOFF})
+        in_place = []
+        original = inv.run_call
+
+        def fake_run_call(call, window, area, region):
+            in_place.append({'call': call, 'running': hb.is_running(), 'region': region})
+            return {'FINISHED'}
+
+        inv.run_call = fake_run_call
+        self.addCleanup(setattr, inv, 'run_call', original)
         for item in clickable:
             with self.subTest(item=item.id):
                 self.calls.clear()
+                in_place.clear()
                 stub, state = self._session()
                 press, pressed, release = self._click(stub, state, item.id)
                 action = md.item_action(item)
+                role = D.label_role(item)
                 self.assertEqual(press, {'RUNNING_MODAL'})
                 self.assertEqual(pressed, item.id)
+                if role == D.ROLE_DROPDOWN:
+                    self.assertEqual(release, {'RUNNING_MODAL'})
+                    self.assertEqual((self.calls, in_place), ([], []))
+                    self.assertEqual(state.open_label, item.id)
+                    self.assertTrue(hb.is_running())
+                    hb._end(state, 'test')
+                    continue
+                if role == D.ROLE_APPLY:
+                    self.assertEqual(release, {'RUNNING_MODAL'})
+                    self.assertEqual(self.calls, [], "in place, not through execute")
+                    self.assertEqual(len(in_place), 1)
+                    self.assertEqual(in_place[0]['call'], acts.plan_call(action,
+                                                                        inv.addon_module()))
+                    self.assertTrue(in_place[0]['running'], "inside the running modal")
+                    self.assertIs(in_place[0]['region'], self.region)
+                    self.assertTrue(hb.is_running())
+                    self.assertEqual(state.menus.in_place, [acts.describe(in_place[0]['call'])])
+                    hb._end(state, 'test')
+                    self.assertIsNone(hb.last_session()['handoff'])
+                    continue
                 self.assertEqual(release, {'FINISHED'})
                 self.assertEqual(len(self.calls), 1)
                 call = self.calls[0]
@@ -970,7 +1088,8 @@ class TestModalPhase3(_Phase3Case):
         self.inv.execute = boom
         stub, state = self._session()
         with _quiet() as (out, _err):
-            _p, _pr, release = self._click(stub, state, md.tool_item_id('snap', 'use_snap'))
+            _p, _pr, release = self._click(stub, state,
+                                           md.tool_item_id('pivot', 'VIEW3D_PT_pivot_point'))
         self.assertEqual(release, {'FINISHED'})
         self.assertFalse(hb.is_running())
         self.assertIsNone(hb.last_session()['handoff_result'])
@@ -998,28 +1117,43 @@ class TestModalPhase3RunCall(_Phase3Case):
         inv.run_call = fake_run_call
         self.addCleanup(setattr, inv, 'run_call', original)
 
-    def test_menu_panel_toggle_reach_run_call_after_teardown(self):
+    def test_menu_panel_toggle_reach_run_call(self):
+        # Phase 4: the menu opens its dropdown (no run_call); the panel cascade (no custom
+        # source in this fixture) hands off after teardown; the toggle runs in place.
         hb = _hb()
         md = _mods()[1]
         acts = sys.modules[ACTIONS_MODULE]
-        for item_id, op in ((md.contextual_item_id('VIEW3D_MT_object'), 'wm.call_menu'),
-                            (md.tool_item_id('pivot', 'VIEW3D_PT_pivot_point'), 'wm.call_panel'),
-                            (md.tool_item_id('snap', 'use_snap'), 'wm.context_toggle')):
+        for item_id, op, ends in ((md.contextual_item_id('VIEW3D_MT_object'), None, False),
+                                  (md.tool_item_id('pivot', 'VIEW3D_PT_pivot_point'),
+                                   'wm.call_panel', True),
+                                  (md.tool_item_id('snap', 'use_snap'), 'wm.context_toggle',
+                                   False)):
             with self.subTest(item=item_id):
                 self.seen.clear()
                 stub, state = self._session()
                 action = md.item_action(state.model.find(item_id))
                 _p, _pr, release = self._click(stub, state, item_id)
-                self.assertEqual(release, {'FINISHED'})
+                self.assertEqual(release, {'FINISHED'} if ends else {'RUNNING_MODAL'})
+                self.assertEqual(hb.is_running(), not ends)
+                if op is None:
+                    self.assertEqual(self.seen, [])
+                    self.assertEqual(state.open_label, item_id)
+                    hb._end(state, 'test')
+                    continue
                 self.assertEqual(len(self.seen), 1)
                 seen = self.seen[0]
                 self.assertEqual(seen['call'].op_idname, op)
                 self.assertEqual(seen['call'], acts.plan_call(action, self.inv.addon_module()))
                 self.assertEqual((seen['window'], seen['area']), (self.window, self.area))
                 self.assertEqual(seen['region'].as_pointer(), self.region.as_pointer())
-                self.assertFalse(seen['running'])
-                self.assertEqual(hb.last_session()['handoff'][0], op)
-                self.assertEqual(hb.last_session()['handoff_result'], ['FINISHED'])
+                self.assertEqual(seen['running'], not ends)
+                if ends:
+                    self.assertEqual(hb.last_session()['handoff'][0], op)
+                    self.assertEqual(hb.last_session()['handoff_result'], ['FINISHED'])
+                else:
+                    hb._end(state, 'test')
+                    self.assertIsNone(hb.last_session()['handoff'])
+                    self.assertEqual(hb.last_session()['in_place'][0][0], op)
 
 
 class TestTapView3d(_PlazaCase):
