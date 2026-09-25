@@ -140,6 +140,9 @@ class PlazaState:
     submenu_delay: float = 0.12           # prefs.submenu_delay snapshot
     execute_on_release: bool = False      # prefs.execute_on_release snapshot
     show_shortcuts: bool = True           # prefs.show_shortcuts snapshot
+    hover_open: bool = True               # prefs.hover_open snapshot (Hover-open)
+    hover_open_delay: float = 0.05        # prefs.hover_open_delay snapshot
+    hover_close_delay: float = 0.3        # prefs.hover_close_delay snapshot
     menus: Any = None                     # ops.dropdowns.MenuSession (plain data + cache)
     # Read by the draw callbacks (swapped, never mutated in place):
     dropdowns: Any = None                 # core.dropdown_geometry.ChainLayout | None
@@ -599,7 +602,8 @@ class MESO_OT_plaza(Operator):
           ``{'FINISHED'}``.
         - ``event.type.startswith('TIMER')``: watchdog — window pointer no longer in
           ``wm.windows`` or ``window.screen.as_pointer() != screen_ptr`` -> ``_end`` ->
-          ``{'CANCELLED'}``; else the reducer's Timer step (submenu delay, aim timeout) and
+          ``{'CANCELLED'}``; else the reducer's Timer step (submenu delay, aim timeout,
+          hover-open delay, hover-close grace) and
           ``{'PASS_THROUGH'}`` (timers are not ours to eat; Blender does not tell us which
           timer fired).
         - WINDOW_DEACTIVATE -> ``_end`` -> ``{'CANCELLED'}``.

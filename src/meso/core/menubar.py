@@ -14,20 +14,31 @@ tests/unit/test_menubar.py). "Chain" = the open root dropdown plus its open subm
 holding an item. LMB = ``'LEFTMOUSE'``; other buttons never produce effects.
 
 Closed (depth 0):
-- HoverLabel(x): hover := x; Redraw when it changed.
+- HoverLabel(x): hover := x; Redraw when it changed. With ``hover_open`` and x a ROLE_DROPDOWN
+  label the pointer just ENTERED (x != the previous hover): ``hover_open_delay <= 0`` ->
+  OpenDropdown(x) now (opened_by 'hover'); else hover_wait := x, hover_wait_since := now.
+  Any other label / None, or any label while a press is held (``pressed`` set: a toggle /
+  hand-off label pressed and dragged off): hover_wait := None (no hover-open until the
+  pointer re-enters a label with the button up).
+- Timer(now), closed: no press held, hover_wait == hover_label and ``now - hover_wait_since
+  >= hover_open_delay`` -> OpenDropdown(hover_wait), Redraw (opened_by 'hover').
 - Press(LMB, label ROLE_DROPDOWN): OpenDropdown(x), Redraw; pressed := target,
-  press_opened := True (the dropdown opens on PRESS so press-drag-release works).
+  press_opened := True (the dropdown opens on PRESS so press-drag-release works); opened_by
+  'click'.
 - Press(LMB, label ROLE_HANDOFF / ROLE_APPLY): pressed := target. Anything else: pressed := None.
 - Release(LMB, label t) with pressed.label_id == t.label_id: ROLE_HANDOFF -> Handoff(t.action)
   (terminal; D3: hand-offs only ever happen on a RELEASE); ROLE_APPLY -> RunItem(None, True,
   label_id=t.label_id), Redraw; ROLE_DROPDOWN -> nothing (the click completed; stays open).
   Any other release: pressed := None.
-- SpaceRelease -> Finish. Esc -> Cancel. Timer / Changed / Opened / Nav -> nothing.
+- SpaceRelease -> Finish. Esc -> Cancel. Changed / Opened / Nav -> nothing.
 
 Open (depth >= 1):
 - HoverLabel(x, ROLE_DROPDOWN), x != open_label: CloseChain(0), OpenDropdown(x), Redraw
-  (menu-bar switch, no click needed). Other labels / None: hover := x, chain unchanged,
-  pending submenu cancelled; Redraw when the hover changed.
+  (menu-bar switch, no click needed; the new chain keeps ``opened_by``). Other labels /
+  None: hover := x, chain unchanged, pending submenu cancelled; Redraw when the hover
+  changed. A transient chain (opened_by 'hover'): x == open_label clears the leave timer;
+  anything else starts it (leave_since := now unless set) and ``aiming`` (the pointer moves
+  toward a panel of the chain) marks leave_aim := now.
 - HoverItem(path, role, aiming): hover := path. With ``child`` = the open submenu opener at
   level L (``submenus[L - 1]`` when ``len(submenus) >= L``):
   - child == path: nothing to close; pending and aim cleared.
@@ -39,15 +50,20 @@ Open (depth >= 1):
     pending_since := now.
   - Redraw when the hover or the chain changed.
 - HoverItem(None): inside a panel on no item; hover cleared, pending cleared.
-- Timer(now): an expired aim (``now - aim_since >= AIM_TIMEOUT``) closes the stale child of
+- HoverItem (any, also None): the pointer is inside the chain: leave timer cleared.
+- Timer(now): a transient chain whose ``now - leave_since > hover_close_delay`` and whose
+  last aim is ``>= aim_timeout`` old -> CloseChain(0), Redraw (nothing else this step).
+  Then an expired aim (``now - aim_since >= AIM_TIMEOUT``) closes the stale child of
   the hovered level (CloseChain(L)); then a pending submenu whose delay has passed opens
   (CloseChain(L) if another child is open, OpenSubmenu(pending)). Redraw when anything opened
   or closed.
 - Press(LMB, t):
-  - label ROLE_DROPDOWN == open_label: pressed := t, press_opened := False.
+  - label ROLE_DROPDOWN == open_label: pressed := t, press_opened := False; a transient
+    chain is pinned instead (opened_by 'click', press_opened := True: its release keeps it).
   - label ROLE_DROPDOWN != open_label: CloseChain(0), OpenDropdown(x), Redraw;
     press_opened := True.
   - label ROLE_HANDOFF / ROLE_APPLY: CloseChain(0), Redraw; pressed := t.
+  - ZONE_ITEM / ZONE_PANEL (any role): pins a transient chain (opened_by 'click'), then:
   - ZONE_ITEM ROLE_SUBMENU: opens it now if not open (CloseChain(L) + OpenSubmenu(path),
     Redraw); pressed := t.
   - ZONE_ITEM other non-passive roles: pressed := t.
@@ -75,7 +91,8 @@ Open (depth >= 1):
   dropdown); roles beyond the new depth are dropped; hover beyond it cleared. Always Redraw.
 - Opened(depth, roles): stores the roles of level ``depth``; no effect (with a pending
   keyboard entry the hover moves to the first non-passive item of that level + Redraw).
-- Nav(key) (open only; closed -> nothing): UP / DOWN move the hover over the non-passive
+- Nav(key) (open only; closed -> nothing): a Nav key pins a transient chain (opened_by
+  'key'). UP / DOWN move the hover over the non-passive
   items (from the stored Opened roles; none known -> nothing) of the hovered (else deepest)
   level, wrapping (no hover yet: DOWN -> first, UP -> last), closing a sibling's open
   cascade; RIGHT on a ROLE_SUBMENU item opens it (nav_enter) and the hover enters it on its
@@ -85,6 +102,15 @@ Open (depth >= 1):
   (``hover_action`` None), so a HANDOFF item reached by keyboard (RETURN, or SpaceRelease
   with ``execute_on_release``) gives ``RunItem(path, keep_open=False)`` instead of
   ``Handoff(None)``: D runs that item's own (native) action after teardown.
+
+Hover-open (``hover_open``; spec: docs/phase4-interfaces.md "Hover-open"): ``opened_by`` is
+None when closed, else how the chain was opened: 'hover' (transient: closes on its own once
+the pointer has been outside the open label and every panel for ``hover_close_delay``), or
+'click' / 'key' (sticky: closes only on an empty click, Esc, the open-title click or the
+key release). Only ROLE_DROPDOWN labels (a custom dropdown / Tool Settings cascade) ever
+open on hover (:func:`hover_opens`); hand-off, apply and passive labels never do, so no
+native menu opens on a mere hover. ``hover_open`` False: ``opened_by`` is never 'hover' and
+every row above is exactly the Phase 4 behaviour.
 
 Effect invariants (tested): effects run in tuple order; a CloseChain precedes the
 OpenDropdown / OpenSubmenu it makes room for; a radio's RunItem precedes its CloseChain (D
@@ -110,6 +136,16 @@ from .model import Action
 DEFAULT_SUBMENU_DELAY = 0.12
 SUBMENU_DELAY_RANGE = (0.0, 1.0)
 AIM_TIMEOUT = 0.25          # max time a diagonal move toward an open submenu keeps it open
+# Hover-open (prefs hover_open_delay / hover_close_delay).
+DEFAULT_HOVER_OPEN_DELAY = 0.05
+HOVER_OPEN_DELAY_RANGE = (0.0, 1.0)
+DEFAULT_HOVER_CLOSE_DELAY = 0.3
+HOVER_CLOSE_DELAY_RANGE = (0.0, 2.0)
+
+# MenuBarState.opened_by
+OPENED_HOVER = 'hover'      # transient: closes when the pointer leaves the chain
+OPENED_CLICK = 'click'      # sticky (a click on the label / inside a panel)
+OPENED_KEY = 'key'          # sticky (keyboard navigation)
 
 LMB = 'LEFTMOUSE'
 
@@ -149,12 +185,15 @@ NO_TARGET = Target()
 class HoverLabel:
     """The cursor moved and is NOT inside an open panel: over the row item ``label_id``
     (ZONE_LABEL) or over nothing (None: empty strip space or outside). ``role`` / ``action``
-    describe that label."""
+    describe that label (ROLE_DROPDOWN = eligible for hover-open, :func:`hover_opens`).
+    ``aiming``: the move heads toward a panel of the open chain
+    (``core.dropdown_geometry.is_approaching``; False when closed)."""
 
     label_id: str | None
     role: str = ROLE_PASSIVE
     now: float = 0.0
     action: Action | None = None
+    aiming: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,11 +367,20 @@ class MenuBarState:
     submenu). Gesture: ``pressed`` (Target of the last LMB press, None after its release),
     ``press_opened`` (that press opened the dropdown), ``nav_enter`` (enter the next Opened
     level). ``done``: a terminal effect was emitted.
+    Hover-open (config ``hover_open``, ``hover_open_delay``, ``hover_close_delay``):
+    ``opened_by`` (None when closed; :data:`OPENED_HOVER` / :data:`OPENED_CLICK` /
+    :data:`OPENED_KEY`), ``hover_wait`` / ``hover_wait_since`` (closed: the ROLE_DROPDOWN
+    label waiting for ``hover_open_delay``), ``leave_since`` (a transient chain: when the
+    pointer left the open label and every panel; None while inside) and ``leave_aim`` (the
+    last move outside that aimed at a panel of the chain).
     """
 
     submenu_delay: float = DEFAULT_SUBMENU_DELAY
     execute_on_release: bool = False
     aim_timeout: float = AIM_TIMEOUT
+    hover_open: bool = False
+    hover_open_delay: float = DEFAULT_HOVER_OPEN_DELAY
+    hover_close_delay: float = DEFAULT_HOVER_CLOSE_DELAY
     open_label: str | None = None
     submenus: tuple[Path, ...] = ()
     roles: tuple[tuple[str, ...], ...] = ()
@@ -346,6 +394,11 @@ class MenuBarState:
     pressed: Target | None = None
     press_opened: bool = False
     nav_enter: bool = False
+    opened_by: str | None = None
+    hover_wait: str | None = None
+    hover_wait_since: float = 0.0
+    leave_since: float | None = None
+    leave_aim: float | None = None
     done: bool = False
 
     @property
@@ -358,19 +411,53 @@ class MenuBarState:
         """True while a dropdown is open."""
         return self.open_label is not None
 
+    @property
+    def transient(self) -> bool:
+        """True while the open chain was opened by hover (closes when the pointer leaves)."""
+        return self.open_label is not None and self.opened_by == OPENED_HOVER
+
+
+def _clamped(value, default: float, lo_hi: tuple[float, float]) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = default
+    if v != v or v in (float('inf'), float('-inf')):
+        v = default
+    return min(max(v, lo_hi[0]), lo_hi[1])
+
 
 def initial_state(submenu_delay: float = DEFAULT_SUBMENU_DELAY,
-                  execute_on_release: bool = False) -> MenuBarState:
+                  execute_on_release: bool = False, hover_open: bool = False,
+                  hover_open_delay: float = DEFAULT_HOVER_OPEN_DELAY,
+                  hover_close_delay: float = DEFAULT_HOVER_CLOSE_DELAY) -> MenuBarState:
     """A closed state with the pref snapshots; ``submenu_delay`` clamped to
-    :data:`SUBMENU_DELAY_RANGE` (non-finite / invalid -> the default)."""
-    try:
-        delay = float(submenu_delay)
-    except (TypeError, ValueError):
-        delay = DEFAULT_SUBMENU_DELAY
-    if delay != delay or delay in (float('inf'), float('-inf')):
-        delay = DEFAULT_SUBMENU_DELAY
-    delay = min(max(delay, SUBMENU_DELAY_RANGE[0]), SUBMENU_DELAY_RANGE[1])
-    return MenuBarState(submenu_delay=delay, execute_on_release=bool(execute_on_release))
+    :data:`SUBMENU_DELAY_RANGE`, ``hover_open_delay`` to :data:`HOVER_OPEN_DELAY_RANGE`,
+    ``hover_close_delay`` to :data:`HOVER_CLOSE_DELAY_RANGE` (non-finite / invalid -> the
+    default). ``hover_open`` defaults to False here (the Phase 4 click-only bar); the pref
+    default is True and ``ops.dropdowns.start_session`` passes it."""
+    return MenuBarState(
+        submenu_delay=_clamped(submenu_delay, DEFAULT_SUBMENU_DELAY, SUBMENU_DELAY_RANGE),
+        execute_on_release=bool(execute_on_release), hover_open=bool(hover_open),
+        hover_open_delay=_clamped(hover_open_delay, DEFAULT_HOVER_OPEN_DELAY,
+                                  HOVER_OPEN_DELAY_RANGE),
+        hover_close_delay=_clamped(hover_close_delay, DEFAULT_HOVER_CLOSE_DELAY,
+                                   HOVER_CLOSE_DELAY_RANGE))
+
+
+def hover_opens(target: Target | None) -> bool:
+    """True when resting the pointer on ``target`` opens something on its own (no click):
+    a ROLE_DROPDOWN row label (custom dropdown / Tool Settings cascade; needs
+    ``hover_open``) or a ROLE_SUBMENU dropdown item (after ``submenu_delay``). Hand-off
+    ('…' native menus, the mode switcher, workspaces, Recent Commands, Plaza Controls,
+    DD_NATIVE items), apply (toggles), run (operators) and passive targets never do."""
+    if target is None:
+        return False
+    if target.zone == ZONE_LABEL:
+        return target.label_id is not None and target.role == ROLE_DROPDOWN
+    if target.zone == ZONE_ITEM:
+        return target.path is not None and target.role == ROLE_SUBMENU
+    return False
 
 
 def step(state: MenuBarState, event: Event) -> tuple[MenuBarState, tuple[Effect, ...]]:
@@ -434,7 +521,8 @@ def _closed_to(s: MenuBarState, depth: int) -> MenuBarState:
     if depth <= 0:
         return replace(s, open_label=None, submenus=(), roles=(), hover_path=None,
                        hover_role=ROLE_PASSIVE, hover_action=None, pending=None,
-                       aim_since=None, nav_enter=False)
+                       aim_since=None, nav_enter=False, opened_by=None, hover_wait=None,
+                       leave_since=None, leave_aim=None)
     kw = {'submenus': s.submenus[:depth - 1], 'roles': s.roles[:depth], 'aim_since': None}
     if s.hover_path is not None and len(s.hover_path) > depth:
         kw.update(hover_path=None, hover_role=ROLE_PASSIVE, hover_action=None)
@@ -466,13 +554,19 @@ class _Step:
         self.s = _closed_to(self.s, depth)
         self.redraw = True
 
-    def open_dropdown(self, label_id: str) -> None:
+    def open_dropdown(self, label_id: str, by: str = OPENED_CLICK) -> None:
         self.close(0)
         self.effects.append(OpenDropdown(label_id))
         self.set(open_label=label_id, submenus=(), roles=(), hover_label=label_id,
                  hover_path=None, hover_role=ROLE_PASSIVE, hover_action=None, pending=None,
-                 aim_since=None, nav_enter=False)
+                 aim_since=None, nav_enter=False, opened_by=by, hover_wait=None,
+                 leave_since=None, leave_aim=None)
         self.redraw = True
+
+    def pin(self, by: str = OPENED_CLICK) -> None:
+        """A transient (hover-opened) chain becomes sticky."""
+        if self.s.transient:
+            self.set(opened_by=by, leave_since=None, leave_aim=None)
 
     def open_submenu(self, path: Path) -> None:
         """Open the cascade of ``path`` (a valid path of an open level) unless it is open."""
@@ -526,16 +620,39 @@ def _activate_item(o: _Step, path: Path, role: str, action: Action | None) -> No
 def _on_hover_label(s: MenuBarState, e: HoverLabel):
     o = _Step(s)
     x = e.label_id
-    if s.is_open and x is not None and e.role == ROLE_DROPDOWN and x != s.open_label:
-        o.open_dropdown(x)
+    eligible = x is not None and e.role == ROLE_DROPDOWN
+    if s.is_open and eligible and x != s.open_label:
+        # The switched chain keeps how the bar was opened (a pinned bar stays pinned).
+        o.open_dropdown(x, s.opened_by or OPENED_CLICK)
         # Opened by a gesture that is still going on (press-drag across the bar): its
         # release on this label must not close it.
         o.set(press_opened=s.pressed is not None)
         return o.result()
-    if s.hover_label != x or s.hover_path is not None:
+    entered = s.hover_label != x
+    if entered or s.hover_path is not None:
         o.redraw = True
     o.set(hover_label=x, hover_path=None, hover_role=ROLE_PASSIVE, hover_action=None,
           pending=None, aim_since=None)
+    if not s.is_open:
+        if not (s.hover_open and eligible) or s.pressed is not None:
+            # A held press (a toggle / hand-off label pressed, then slid off to cancel) never
+            # hover-opens: its release over a dropdown item would run a pick never pressed.
+            o.set(hover_wait=None)
+        elif entered:
+            # Only entering a label arms it: moves inside a label that was just closed
+            # (Esc, a title click, a native model) never reopen it.
+            if s.hover_open_delay <= 0:
+                o.open_dropdown(x, OPENED_HOVER)
+            else:
+                o.set(hover_wait=x, hover_wait_since=e.now)
+    elif s.transient:
+        if x == s.open_label:
+            o.set(leave_since=None, leave_aim=None)
+        else:
+            if s.leave_since is None:
+                o.set(leave_since=e.now)
+            if e.aiming:
+                o.set(leave_aim=e.now)
     return o.result()
 
 
@@ -543,6 +660,7 @@ def _on_hover_item(s: MenuBarState, e: HoverItem):
     if not s.is_open:
         return s, ()
     o = _Step(s)
+    o.set(leave_since=None, leave_aim=None)     # inside the chain
     path = e.path
     if path is None:
         if s.hover_path is not None or s.hover_label is not None:
@@ -576,9 +694,18 @@ def _on_hover_item(s: MenuBarState, e: HoverItem):
 
 
 def _on_timer(s: MenuBarState, e: Timer):
-    if not s.is_open:
-        return s, ()
     o = _Step(s)
+    if not s.is_open:
+        w = s.hover_wait
+        if (s.hover_open and w is not None and w == s.hover_label and s.pressed is None
+                and e.now - s.hover_wait_since >= s.hover_open_delay):
+            o.open_dropdown(w, OPENED_HOVER)
+        return o.result()
+    if s.transient and s.leave_since is not None:
+        aimed = s.leave_aim is not None and e.now - s.leave_aim < s.aim_timeout
+        if e.now - s.leave_since > s.hover_close_delay and not aimed:
+            o.close(0)
+            return o.result()
     if s.aim_since is not None and e.now - s.aim_since >= s.aim_timeout:
         o.set(aim_since=None)
         hp = s.hover_path
@@ -603,9 +730,13 @@ def _on_press(s: MenuBarState, e: Press):
     is_label = t.zone == ZONE_LABEL and t.label_id is not None
     if is_label and t.role == ROLE_DROPDOWN:
         if s.is_open and t.label_id == s.open_label:
-            o.set(pressed=t, press_opened=False)
+            if s.transient:
+                o.pin()     # a click on a hover-opened title pins it; its release keeps it
+                o.set(pressed=t, press_opened=True)
+            else:
+                o.set(pressed=t, press_opened=False)
         else:
-            o.open_dropdown(t.label_id)
+            o.open_dropdown(t.label_id, OPENED_CLICK)
             o.set(pressed=t, press_opened=True)
     elif is_label and t.role in _LABEL_ACTING:
         o.close(0)
@@ -613,6 +744,7 @@ def _on_press(s: MenuBarState, e: Press):
     elif not s.is_open:
         o.set(pressed=None, press_opened=False)
     elif t.zone == ZONE_ITEM:
+        o.pin()
         if t.role == ROLE_PASSIVE or not _valid_path(s, t.path):
             o.set(pressed=None, press_opened=False)
         else:
@@ -620,6 +752,7 @@ def _on_press(s: MenuBarState, e: Press):
                 o.open_submenu(t.path)
             o.set(pressed=t, press_opened=False)
     elif t.zone == ZONE_PANEL:
+        o.pin()
         o.set(pressed=None, press_opened=False)
     else:   # empty strip space, outside everything, a passive label
         o.close(0)
@@ -721,9 +854,11 @@ def _enter(o: _Step, opener: Path) -> None:
 
 
 def _on_nav(s: MenuBarState, e: Nav):
-    if not s.is_open:
+    if not s.is_open or e.key not in NAV_KEYS:
         return s, ()
     o = _Step(s)
+    o.pin(OPENED_KEY)       # keyboard navigation makes a hover-opened chain sticky
+    s = o.s
     hp = s.hover_path if _valid_path(s, s.hover_path) else None
     level = len(hp) if hp is not None else s.depth
     roles = _level_roles(s, level)

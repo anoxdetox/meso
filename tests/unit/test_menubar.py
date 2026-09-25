@@ -697,6 +697,416 @@ class TestNav(unittest.TestCase):
         self.assertEqual(mb.step(s, mb.Nav('F1')), (s, ()))
 
 
+# --------------------------------------------------------------------------- hover-open
+
+WS, SNAP, NATIVE, RECENT = 'ws:Layout', 'ts:snap:use_snap', 'TEST_MT_native…', 'recent'
+PIVOT = 'ts:pivot:transform_pivot_point'
+
+
+def hl(label_id, now=0.0, role=dm.ROLE_DROPDOWN, aiming=False):
+    """HoverLabel; ``role`` ROLE_DROPDOWN = eligible (custom dropdown / cascade)."""
+    action = None if role in (dm.ROLE_DROPDOWN, P) else NATIVE_ACT
+    return mb.HoverLabel(label_id, role, now, action, aiming)
+
+
+def hover_state(delay=0.05, close=0.3, submenu_delay=0.12, eor=False):
+    return mb.initial_state(submenu_delay, eor, True, delay, close)
+
+
+def hover_opened(label=FILE, now=0.0, **kw):
+    """A state whose ``label`` dropdown was opened by resting on it (transient)."""
+    s = hover_state(**kw)
+    s, _ = run(s, hl(label, now), mb.Timer(now + s.hover_open_delay), mb.Opened(0, FILE_ROLES))
+    assert s.open_label == label and s.opened_by == mb.OPENED_HOVER, s
+    return s
+
+
+class TestHoverOpenConfig(unittest.TestCase):
+    def test_defaults_and_clamping(self):
+        s = mb.initial_state()
+        self.assertFalse(s.hover_open, "the reducer default is the Phase 4 click-only bar")
+        self.assertEqual((s.hover_open_delay, s.hover_close_delay),
+                         (mb.DEFAULT_HOVER_OPEN_DELAY, mb.DEFAULT_HOVER_CLOSE_DELAY))
+        self.assertEqual((mb.DEFAULT_HOVER_OPEN_DELAY, mb.DEFAULT_HOVER_CLOSE_DELAY), (0.05, 0.3))
+        s = mb.initial_state(0.1, False, 1, -3, 99)
+        self.assertEqual((s.hover_open, s.hover_open_delay, s.hover_close_delay),
+                         (True, 0.0, mb.HOVER_CLOSE_DELAY_RANGE[1]))
+        s = mb.initial_state(0.1, False, True, float('nan'), 'x')
+        self.assertEqual((s.hover_open_delay, s.hover_close_delay),
+                         (mb.DEFAULT_HOVER_OPEN_DELAY, mb.DEFAULT_HOVER_CLOSE_DELAY))
+        self.assertIsNone(s.opened_by)
+        self.assertFalse(s.transient)
+
+    def test_hover_opens_eligibility(self):
+        self.assertTrue(mb.hover_opens(lbl(FILE)))
+        self.assertTrue(mb.hover_opens(lbl(PIVOT)))
+        self.assertTrue(mb.hover_opens(itm((1,), S)))
+        for t in (lbl(NATIVE, H, NATIVE_ACT), lbl(WS, H, WS_ACT), lbl(SNAP, AP, SNAP_ACT),
+                  lbl(RECENT, H, NATIVE_ACT), lbl('sep', P), lbl(None), itm((0,), R_),
+                  itm((6,), H), itm((4,), AP), itm((5,), AC), itm((7,), P), STRIP, OUTSIDE,
+                  PANEL, None, mb.Target(dm.ZONE_ITEM, role=S)):
+            self.assertFalse(mb.hover_opens(t), t)
+
+
+class TestHoverOpen(unittest.TestCase):
+    def test_rest_opens_after_delay(self):
+        s = hover_state(delay=0.1)
+        s, (e1, e2, e3) = run(s, hl(FILE, 1.0), mb.Timer(1.05), mb.Timer(1.1))
+        self.assertEqual(e1, (mb.Redraw(),), "entering only hovers")
+        self.assertEqual(s.hover_wait, None)
+        self.assertEqual(e2, ())
+        self.assertEqual(e3, (mb.OpenDropdown(FILE), mb.Redraw()))
+        self.assertEqual((s.open_label, s.opened_by), (FILE, mb.OPENED_HOVER))
+        self.assertTrue(s.transient)
+        self.assertIsNone(s.pressed)
+
+    def test_wait_is_armed_and_kept_by_moves_inside(self):
+        s = hover_state(delay=0.1)
+        s, _ = run(s, hl(FILE, 1.0))
+        self.assertEqual((s.hover_wait, s.hover_wait_since), (FILE, 1.0))
+        s, (e,) = run(s, hl(FILE, 1.08))       # a move inside the same label
+        self.assertEqual(e, ())
+        self.assertEqual(s.hover_wait_since, 1.0, "the rest started on entry")
+        s, (e,) = run(s, mb.Timer(1.1))
+        self.assertEqual(e, (mb.OpenDropdown(FILE), mb.Redraw()))
+
+    def test_zero_delay_opens_on_entry(self):
+        s = hover_state(delay=0.0)
+        s, (e,) = run(s, hl(FILE, 1.0))
+        self.assertEqual(e, (mb.OpenDropdown(FILE), mb.Redraw()))
+        self.assertEqual(s.opened_by, mb.OPENED_HOVER)
+
+    def test_fast_sweep_opens_nothing(self):
+        s = hover_state(delay=0.05)
+        t = 1.0
+        for label, role in ((FILE, dm.ROLE_DROPDOWN), (EDIT, dm.ROLE_DROPDOWN), (NATIVE, H),
+                            (RENDER, dm.ROLE_DROPDOWN), (None, P)):
+            s, (e,) = run(s, hl(label, t, role))
+            self.assertNotIn(mb.OpenDropdown(label), e)
+            t += 0.02
+            s, (e,) = run(s, mb.Timer(t))
+            self.assertEqual(e, ())
+            t += 0.02
+        s, outs = run(s, mb.Timer(t + 1), mb.Timer(t + 5))
+        self.assertEqual(outs, [(), ()])
+        self.assertFalse(s.is_open)
+        self.assertIsNone(s.hover_wait)
+
+    def test_leaving_before_delay_cancels(self):
+        s = hover_state(delay=0.1)
+        s, outs = run(s, hl(FILE, 1.0), hl(None, 1.05), mb.Timer(1.2))
+        self.assertEqual(outs[-1], ())
+        # moving to a different eligible label restarts the wait there
+        s, outs = run(s, hl(FILE, 2.0), hl(EDIT, 2.08), mb.Timer(2.12), mb.Timer(2.18))
+        self.assertEqual(outs[2], ())
+        self.assertEqual(outs[3], (mb.OpenDropdown(EDIT), mb.Redraw()))
+
+    def test_ineligible_labels_never_open(self):
+        for label, role in ((NATIVE, H), (WS, H), (SNAP, AP), (RECENT, H), ('controls', H),
+                            ('center', P), ('sep', P)):
+            with self.subTest(label=label):
+                s = hover_state(delay=0.0)
+                s, outs = run(s, hl(label, 1.0, role), hl(label, 1.1, role), mb.Timer(2.0),
+                              mb.Timer(9.0))
+                for e in outs:
+                    self.assertFalse([x for x in e if not isinstance(x, mb.Redraw)], e)
+                self.assertFalse(s.is_open)
+                self.assertIsNone(s.hover_wait)
+
+    def test_no_reopen_without_leaving_the_label(self):
+        # Esc, then moves inside the label: stays closed until the pointer re-enters.
+        s = hover_opened(FILE, 1.0)
+        s, outs = run(s, mb.Esc(), hl(FILE, 1.2), mb.Timer(2.0))
+        self.assertEqual(outs[0], (mb.CloseChain(0), mb.Redraw()))
+        self.assertEqual(outs[1:], [(), ()])
+        self.assertFalse(s.is_open)
+        s, outs = run(s, hl(None, 2.1), hl(FILE, 2.2), mb.Timer(2.3))
+        self.assertEqual(outs[2], (mb.OpenDropdown(FILE), mb.Redraw()))
+        # A native model (Changed(key, 0) after OpenDropdown) never loops either.
+        s = hover_state(delay=0.0)
+        s, outs = run(s, hl(FILE, 1.0), mb.Changed(FILE, 0), hl(FILE, 1.1), mb.Timer(3.0))
+        self.assertEqual(outs[0][0], mb.OpenDropdown(FILE))
+        self.assertEqual(outs[2:], [(), ()])
+        self.assertFalse(s.is_open)
+        self.assertIsNone(s.opened_by)
+
+    def test_switch_to_another_label_at_once(self):
+        s = hover_opened(FILE, 1.0)
+        s, (e,) = run(s, hl(EDIT, 1.3))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
+        self.assertEqual((s.open_label, s.opened_by), (EDIT, mb.OPENED_HOVER))
+        # to a Tool Settings cascade too
+        s, (e,) = run(s, hl(PIVOT, 1.4))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(PIVOT), mb.Redraw()))
+        # a non-eligible label keeps the chain (and starts the leave timer)
+        s, (e,) = run(s, hl(SNAP, 1.5, AP))
+        self.assertEqual(s.open_label, PIVOT)
+        self.assertEqual(s.leave_since, 1.5)
+
+    def test_switch_from_pinned_stays_pinned(self):
+        s = opened_file()
+        s = dataclasses.replace(s, hover_open=True)
+        self.assertEqual(s.opened_by, mb.OPENED_CLICK)
+        s, _ = run(s, hl(EDIT, 1.0))
+        self.assertEqual((s.open_label, s.opened_by), (EDIT, mb.OPENED_CLICK))
+        s, outs = run(s, hl(None, 1.1), mb.Timer(5.0))
+        self.assertEqual(outs, [(mb.Redraw(),), ()])
+        self.assertEqual(s.open_label, EDIT)
+
+    def test_transient_closes_after_grace(self):
+        s = hover_opened(FILE, 1.0, close=0.3)
+        s, outs = run(s, hl(None, 2.0), mb.Timer(2.2), mb.Timer(2.3), mb.Timer(2.35))
+        self.assertEqual(s.leave_since, None)
+        self.assertEqual(outs[1:3], [(), ()], "not before > hover_close_delay")
+        self.assertEqual(outs[3], (mb.CloseChain(0), mb.Redraw()))
+        self.assertFalse(s.is_open)
+        self.assertIsNone(s.opened_by)
+        self.assertFalse(s.done, "only the chain closes")
+
+    def test_leave_timer_starts_once_and_resets_inside(self):
+        s = hover_opened(FILE, 1.0, close=0.3)
+        s, _ = run(s, hl(None, 2.0), hl('sep', 2.1, P), hl(SNAP, 2.2, AP))
+        self.assertEqual(s.leave_since, 2.0, "moves outside keep the first leave time")
+        s, (e,) = run(s, mb.Timer(2.31))
+        self.assertEqual(e, (mb.CloseChain(0), mb.Redraw()))
+        # back on the label within the grace
+        s = hover_opened(FILE, 1.0, close=0.3)
+        s, outs = run(s, hl(None, 2.0), hl(FILE, 2.2), mb.Timer(3.0))
+        self.assertIsNone(s.leave_since)
+        self.assertEqual(outs[-1], ())
+        self.assertTrue(s.is_open)
+        # into a panel (item or padding) within the grace
+        for ev in (hover_item((0,), R_, 2.2), mb.HoverItem(None, P, 2.2)):
+            s = hover_opened(FILE, 1.0, close=0.3)
+            s, outs = run(s, hl(None, 2.0), ev, mb.Timer(3.0))
+            self.assertEqual(outs[-1], (), ev)
+            self.assertTrue(s.is_open)
+            # and leaving the panel again restarts the grace
+            s, outs = run(s, hl(None, 4.0), mb.Timer(4.2), mb.Timer(4.31))
+            self.assertEqual(outs[1:], [(), (mb.CloseChain(0), mb.Redraw())])
+
+    def test_leaving_a_hover_opened_submenu_closes_everything(self):
+        s = hover_opened(FILE, 1.0, submenu_delay=0.0)
+        s, outs = run(s, hover_item((1,), S, 1.1), mb.Opened(1, SUB_ROLES),
+                      hover_item((1, 0), R_, 1.2))
+        self.assertEqual(s.submenus, ((1,),))
+        s, outs = run(s, hl(None, 2.0), mb.Timer(2.4))
+        self.assertEqual(outs[-1], (mb.CloseChain(0), mb.Redraw()))
+        self.assertEqual(s.depth, 0)
+
+    def test_aim_toward_panel_extends_grace(self):
+        s = hover_opened(FILE, 1.0, close=0.3)
+        s, _ = run(s, hl(None, 2.0), hl(None, 2.25, P, aiming=True))
+        self.assertEqual((s.leave_since, s.leave_aim), (2.0, 2.25))
+        s, (e,) = run(s, mb.Timer(2.35))
+        self.assertEqual(e, (), "the aim is younger than aim_timeout")
+        s, (e,) = run(s, mb.Timer(2.5))
+        self.assertEqual(e, (mb.CloseChain(0), mb.Redraw()), "aim expired")
+        # an aim that reaches the panel keeps the chain
+        s = hover_opened(FILE, 1.0, close=0.3)
+        s, outs = run(s, hl(None, 2.0), hl(None, 2.25, P, aiming=True),
+                      hover_item((0,), R_, 2.4), mb.Timer(3.0))
+        self.assertEqual(outs[-1], ())
+        self.assertTrue(s.is_open)
+        self.assertIsNone(s.leave_aim)
+
+    def test_aiming_ignored_for_pinned_chain(self):
+        s = opened_file()
+        s, _ = run(s, hl(None, 1.0, P, aiming=True))
+        self.assertEqual((s.leave_since, s.leave_aim), (None, None))
+
+    def test_click_pins_hover_opened_title(self):
+        s = hover_opened(FILE, 1.0)
+        s, (e1, e2) = run(s, press(lbl(FILE), 1.1), release(lbl(FILE), 1.15))
+        self.assertEqual((e1, e2), ((), ()), "pinned, not closed")
+        self.assertEqual((s.open_label, s.opened_by), (FILE, mb.OPENED_CLICK))
+        s, outs = run(s, hl(None, 2.0), mb.Timer(5.0))
+        self.assertTrue(s.is_open, "a pinned chain is sticky")
+        # and a click on the pinned open title closes it (Phase 4 toggle)
+        s, (e1, e2) = run(s, press(lbl(FILE), 6.0), release(lbl(FILE), 6.1))
+        self.assertEqual(e1, ())
+        self.assertEqual(e2, (mb.CloseChain(0), mb.Redraw()))
+
+    def test_press_before_the_delay_opens_by_click(self):
+        s = hover_state(delay=0.1)
+        s, (e0, e1, e2) = run(s, hl(FILE, 1.0), press(lbl(FILE), 1.02), release(lbl(FILE), 1.05))
+        self.assertEqual(e1, (mb.OpenDropdown(FILE), mb.Redraw()))
+        self.assertEqual(s.opened_by, mb.OPENED_CLICK)
+        self.assertIsNone(s.hover_wait)
+        s, outs = run(s, mb.Opened(0, FILE_ROLES), mb.Timer(1.2), hl(None, 1.3), mb.Timer(9.0))
+        self.assertEqual(outs[1], (), "no second open from the stale wait")
+        self.assertTrue(s.is_open)
+
+    def test_press_inside_panel_pins(self):
+        for t in (itm((0,), R_), itm((1,), S), itm((7,), P), PANEL):
+            with self.subTest(t=t):
+                s = hover_opened(FILE, 1.0)
+                s, _ = run(s, hl(None, 1.1))          # leaving started
+                s, _ = run(s, press(t, 1.2))
+                self.assertEqual(s.opened_by, mb.OPENED_CLICK)
+                self.assertIsNone(s.leave_since)
+                s, outs = run(s, hl(None, 1.3), mb.Timer(9.0))
+                self.assertTrue(s.is_open)
+
+    def test_press_on_empty_still_closes(self):
+        for t in (STRIP, OUTSIDE, lbl('sep', P)):
+            s = hover_opened(FILE, 1.0)
+            s, (e,) = run(s, press(t, 1.1))
+            self.assertEqual(e, (mb.CloseChain(0), mb.Redraw()))
+            self.assertIsNone(s.opened_by)
+
+    def test_keyboard_pins(self):
+        for key in sorted(mb.NAV_KEYS):
+            with self.subTest(key=key):
+                s = hover_opened(FILE, 1.0)
+                s, _ = run(s, mb.Nav(key))
+                if s.done:
+                    continue
+                if s.is_open:
+                    self.assertEqual(s.opened_by, mb.OPENED_KEY)
+                    s, outs = run(s, hl(None, 2.0), mb.Timer(9.0))
+                    self.assertTrue(s.is_open)
+        s = hover_opened(FILE, 1.0)
+        self.assertEqual(mb.step(s, mb.Nav('F1')), (s, ()), "not a nav key: nothing")
+
+    def test_drag_release_from_hover_opened_label_runs(self):
+        s = hover_opened(FILE, 1.0)
+        s, (e1, e2, e3) = run(s, press(lbl(FILE), 1.1), hover_item((0,), R_, 1.2),
+                              release(itm((0,), R_), 1.3))
+        self.assertEqual(e3, (mb.RunItem((0,), False),))
+        self.assertTrue(s.done)
+
+    def test_esc_and_space_release(self):
+        s = hover_opened(FILE, 1.0)
+        s, (e1, e2) = run(s, mb.Esc(), mb.Esc())
+        self.assertEqual(e1, (mb.CloseChain(0), mb.Redraw()))
+        self.assertEqual(e2, (mb.Cancel(),))
+        s = hover_opened(FILE, 1.0)
+        s, (e,) = run(s, mb.SpaceRelease(1.2))
+        self.assertEqual(e, (mb.Finish(),))
+        # execute_on_release over a hover-opened item
+        s = hover_opened(FILE, 1.0, eor=True)
+        s, (_, e) = run(s, hover_item((0,), R_, 1.1), mb.SpaceRelease(1.2))
+        self.assertEqual(e, (mb.RunItem((0,), False),))
+        # Space released while waiting: finish, nothing opens
+        s = hover_state()
+        s, (_, e) = run(s, hl(FILE, 1.0), mb.SpaceRelease(1.01))
+        self.assertEqual(e, (mb.Finish(),))
+
+    def test_in_place_apply_keeps_pinned_chain(self):
+        s = hover_opened(FILE, 1.0)
+        s, (e1, e2) = run(s, press(itm((4,), AP), 1.1), release(itm((4,), AP), 1.2))
+        self.assertEqual(e2, (mb.RunItem((4,), True), mb.Redraw()))
+        s, outs = run(s, mb.Changed(FILE, None), hl(None, 2.0), mb.Timer(9.0))
+        self.assertTrue(s.is_open)
+        self.assertEqual(s.opened_by, mb.OPENED_CLICK)
+
+    def test_radio_closing_its_dropdown_clears_opened_by(self):
+        s = hover_opened(FILE, 1.0)
+        s, (_, e) = run(s, press(itm((5,), AC), 1.1), release(itm((5,), AC), 1.2))
+        self.assertEqual(e, (mb.RunItem((5,), True), mb.CloseChain(0), mb.Redraw()))
+        self.assertIsNone(s.opened_by)
+
+    def test_held_press_on_acting_label_never_hover_opens(self):
+        """A press on a toggle / hand-off label dragged onto a dropdown label: nothing opens,
+        and the release over where an item would be runs nothing and hands off nothing."""
+        for pressed_label, role, act in ((SNAP, AP, SNAP_ACT), (NATIVE, H, NATIVE_ACT),
+                                         (WS, H, WS_ACT)):
+            for delay in (0.05, 0.0):
+                for open_first in (False, True):
+                    with self.subTest(label=pressed_label, delay=delay, open_first=open_first):
+                        if open_first:      # open-state press: close(0), pressed kept
+                            s = hover_opened(PIVOT, 0.0, delay=delay or 0.05)
+                            s = dataclasses.replace(s, hover_open_delay=delay)
+                        else:
+                            s = hover_state(delay=delay)
+                        s, _ = run(s, hl(pressed_label, 1.0, role),
+                                   press(lbl(pressed_label, role, act), 1.01))
+                        self.assertFalse(s.is_open)
+                        self.assertIsNotNone(s.pressed)
+                        s, outs = run(s, hl(PIVOT, 1.1), mb.Timer(1.2), hl(PIVOT, 1.25),
+                                      mb.Timer(1.5), mb.Opened(0, FILE_ROLES),
+                                      hover_item((5,), AC, 1.6),
+                                      release(itm((5,), AC), 1.7))
+                        flat = [x for e in outs for x in e]
+                        self.assertFalse([x for x in flat if not isinstance(x, mb.Redraw)],
+                                         flat)
+                        self.assertFalse(s.is_open)
+                        self.assertIsNone(s.hover_wait)
+                        self.assertFalse(s.done)
+                        # the button is up: the next rest on a dropdown label hover-opens again
+                        s, outs = run(s, hl(None, 2.0, P), hl(PIVOT, 2.1), mb.Timer(2.2))
+                        self.assertIn(mb.OpenDropdown(PIVOT), outs[1] + outs[2])
+                        self.assertEqual(s.opened_by, mb.OPENED_HOVER)
+                        self.assertIsNone(s.pressed)
+
+    def test_press_on_strip_then_drag_hover_opens_but_release_runs_nothing(self):
+        # A press on empty strip space holds no target (pressed None): hover-open still
+        # works during the drag, and the release over an item runs nothing (Phase 4 rule).
+        s = hover_state(delay=0.05)
+        s, _ = run(s, press(STRIP, 1.0))
+        self.assertIsNone(s.pressed)
+        s, outs = run(s, hl(FILE, 1.1), mb.Timer(1.2), mb.Opened(0, FILE_ROLES),
+                      hover_item((0,), R_, 1.3), release(itm((0,), R_), 1.4))
+        self.assertEqual(outs[1], (mb.OpenDropdown(FILE), mb.Redraw()))
+        self.assertFalse([x for x in outs[-1] if isinstance(x, (mb.RunItem, mb.Handoff))])
+        self.assertTrue(s.is_open)
+        self.assertFalse(s.done)
+
+    def test_hover_open_false_is_phase4(self):
+        """The hover-open sequences (rest, sweep, switch, leave + Timer, title press/release,
+        panel press, Nav) replayed with hover_open False (and zero delays, so any leak would
+        open at once): the exact Phase 4 effects and state."""
+        s = mb.initial_state(0.12, False, False, 0.0, 0.0)
+        s, outs = run(s, hl(FILE, 1.0), mb.Timer(2.0), hl(EDIT, 2.1), mb.Timer(9.0))
+        self.assertEqual(outs, [(mb.Redraw(),), (), (mb.Redraw(),), ()])
+        self.assertFalse(s.is_open)
+        self.assertIsNone(s.hover_wait)
+        s, outs = run(s, press(lbl(FILE), 3.0), release(lbl(FILE), 3.1), hl(None, 3.2),
+                      mb.Timer(9.0))
+        self.assertEqual(outs[-1], ())
+        self.assertEqual((s.open_label, s.opened_by), (FILE, mb.OPENED_CLICK))
+        self.assertIsNone(s.leave_since)
+        # One event from a click-opened File dropdown: the Phase 4 table row, exactly.
+        # (effects, open_label, opened_by, depth, pressed set, press_opened, leave_since)
+        base = dataclasses.replace(opened_file(), hover_open_delay=0.0, hover_close_delay=0.0)
+        self.assertFalse(base.hover_open)
+        cd, rd = mb.CloseChain(0), mb.Redraw()
+        rows = (
+            (hl(EDIT, 1.0), (cd, mb.OpenDropdown(EDIT), rd), EDIT, mb.OPENED_CLICK, 1,
+             False, False),
+            (hl(None, 1.0), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
+            (hl(SNAP, 1.0, AP), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
+            (hl(None, 1.0, P, aiming=True), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
+            (press(STRIP), (cd, rd), None, None, 0, False, False),
+            (mb.Esc(), (cd, rd), None, None, 0, False, False),
+            (mb.Timer(5.0), (), FILE, mb.OPENED_CLICK, 1, False, False),
+            (press(lbl(FILE)), (), FILE, mb.OPENED_CLICK, 1, True, False),
+            (press(PANEL), (), FILE, mb.OPENED_CLICK, 1, False, False),
+            (press(itm((0,), R_)), (), FILE, mb.OPENED_CLICK, 1, True, False),
+            (mb.Nav(mb.NAV_DOWN), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
+            (hover_item((0,), R_, 1.0), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
+            (mb.HoverItem(None, P, 1.0), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
+        )
+        for ev, effects, label, by, depth, pressed, press_opened in rows:
+            with self.subTest(ev=ev):
+                s1, e1 = mb.step(base, ev)
+                self.assertEqual(e1, effects)
+                self.assertEqual((s1.open_label, s1.opened_by, s1.depth, s1.pressed is not None,
+                                  s1.press_opened, s1.leave_since, s1.leave_aim, s1.hover_wait),
+                                 (label, by, depth, pressed, press_opened, None, None, None))
+        # Sequences: leaving + Timer never closes; a click on the open title closes it; a
+        # rest / sweep on a closed bar opens nothing.
+        s, outs = run(base, hl(None, 1.0), mb.Timer(1.5), mb.Timer(9.0),
+                      press(lbl(FILE), 9.1), release(lbl(FILE), 9.2))
+        self.assertEqual(outs, [(rd,), (), (), (), (cd, rd)])
+        s, outs = run(s, hl(FILE, 10.0), mb.Timer(10.1), hl(EDIT, 10.2), hl(PIVOT, 10.3),
+                      mb.Timer(11.0))
+        self.assertEqual(outs, [(rd,), (), (rd,), (rd,), ()])
+        self.assertFalse(s.is_open)
+        self.assertEqual((s.opened_by, s.hover_wait), (None, None))
+
+
 class TestInvariants(unittest.TestCase):
     """Property-style: random plausible event sequences (with D's Opened follow-ups)."""
 
@@ -726,7 +1136,7 @@ class TestInvariants(unittest.TestCase):
             t = rand_target()
             if t.zone == dm.ZONE_ITEM:
                 return mb.HoverItem(t.path, t.role, now, rng.random() < 0.3, t.action)
-            return mb.HoverLabel(t.label_id, t.role, now, t.action)
+            return mb.HoverLabel(t.label_id, t.role, now, t.action, rng.random() < 0.2)
         if k < 0.5:
             return mb.Press(rng.choice((LMB, LMB, 'RIGHTMOUSE')), rand_target(), now)
         if k < 0.7:
@@ -771,17 +1181,44 @@ class TestInvariants(unittest.TestCase):
         if structural and not terminals:
             self.assertIn(mb.Redraw(), effects)
 
+    def _check_hover_open(self, ev, effects, before, s, label_roles):
+        """Hover-open invariants: opened_by is None exactly when closed; 'hover' only with
+        hover_open; hover_wait only while closed; only ROLE_DROPDOWN labels ever open
+        without a press; a hover / timer never runs or hands off anything."""
+        if s.done:
+            return
+        self.assertEqual(s.opened_by is None, not s.is_open, s)
+        if not s.hover_open:
+            self.assertNotEqual(s.opened_by, mb.OPENED_HOVER)
+            self.assertIsNone(s.hover_wait)
+            self.assertIsNone(s.leave_since)
+        if s.is_open:
+            self.assertIsNone(s.hover_wait)
+        if not s.transient:
+            self.assertIsNone(s.leave_since)
+        if isinstance(ev, (mb.HoverLabel, mb.Timer, mb.HoverItem)):
+            self.assertFalse([e for e in effects if isinstance(e, (mb.RunItem, mb.Handoff))])
+            for e in effects:
+                if isinstance(e, mb.OpenDropdown):
+                    self.assertEqual(label_roles.get(e.label_id), dm.ROLE_DROPDOWN, e)
+
     def test_random_sequences(self):
         rng = random.Random(1234)
-        for seq in range(400):
-            s = mb.initial_state(rng.choice((0.0, 0.12, 0.5)), rng.random() < 0.5)
+        for seq in range(600):
+            hover_open = seq % 3 != 0
+            s = mb.initial_state(rng.choice((0.0, 0.12, 0.5)), rng.random() < 0.5, hover_open,
+                                 rng.choice((0.0, 0.05, 0.3)), rng.choice((0.0, 0.3, 1.0)))
             chain = []
+            label_roles = {}        # last role each label was hovered with
             for _ in range(60):
                 ev = self._random_event(rng, s)
                 before = s
                 s, effects = mb.step(s, ev)
                 self.assertIsInstance(effects, tuple)
                 self._check_effects(ev, effects, chain, before, s)
+                if isinstance(ev, mb.HoverLabel) and ev.label_id is not None:
+                    label_roles[ev.label_id] = ev.role
+                self._check_hover_open(ev, effects, before, s, label_roles)
                 # D's follow-up: roles of every opened level
                 for e in effects:
                     if isinstance(e, mb.OpenDropdown):

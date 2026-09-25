@@ -111,6 +111,36 @@ class MesoAddonPreferences(AddonPreferences):
         precision=2,
         subtype='TIME_ABSOLUTE',
     )
+    hover_open: BoolProperty(
+        name="Open Menus on Hover",
+        description="Resting the pointer on a Plaza menu or Tool Settings cascade opens its "
+                    "dropdown without a click; it closes again when the pointer leaves it "
+                    "(a click pins it open). Toggles, workspaces and native menus never open "
+                    "on hover",
+        default=True,
+    )
+    hover_open_delay: FloatProperty(
+        name="Hover Open Delay",
+        description="Seconds the pointer rests on a menu label before its dropdown opens "
+                    "(a faster sweep across the labels opens nothing)",
+        default=0.05,
+        min=0.0,
+        max=1.0,
+        step=1,
+        precision=2,
+        subtype='TIME_ABSOLUTE',
+    )
+    hover_close_delay: FloatProperty(
+        name="Hover Close Delay",
+        description="Seconds the pointer may be outside a hover-opened dropdown and its label "
+                    "before the dropdown closes",
+        default=0.3,
+        min=0.0,
+        max=2.0,
+        step=1,
+        precision=2,
+        subtype='TIME_ABSOLUTE',
+    )
     execute_on_release: BoolProperty(
         name="Run on Key Release",
         description="Releasing the plaza key over a dropdown item runs that item",
@@ -149,6 +179,11 @@ class MesoAddonPreferences(AddonPreferences):
         sub.active = self.show_tool_settings_row
         sub.prop(self, "show_display_controls")
         col.prop(self, "submenu_delay")
+        col.prop(self, "hover_open")
+        sub = col.column()
+        sub.active = self.hover_open
+        sub.prop(self, "hover_open_delay")
+        sub.prop(self, "hover_close_delay")
         col.prop(self, "execute_on_release")
         col.prop(self, "show_shortcuts")
         col.prop(self, "use_theme_colors")

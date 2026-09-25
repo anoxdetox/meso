@@ -3,7 +3,8 @@
 
 Loaded by ``tests/gui/gui_driver.py``, which calls :func:`scenarios` with its own module and
 appends the result before ``disable_addon``. Every scenario restores what it changes (scene
-data, selection, preferences) in ``finally``, so the order does not matter.
+data, selection, preferences) in ``finally``, so the order does not matter. They all run with
+``hover_open`` False (``click_only``): Hover-open has its own scenarios (scenarios_hover.py).
 
 (a) click File -> custom dropdown, hover Edit -> switches without a click; (b) a click on
 empty space closes the dropdown only; (c) Object > Apply > Scale through a hover-opened
@@ -250,6 +251,10 @@ def scenarios(drv):
             drv.sim('LEFTMOUSE', 'PRESS', lxy)
             yield 0.15
             drv.check(rec, "opened_on_press", st.open_label == add_id, st.open_label)
+            bar = st.menus.bar
+            drv.check(rec, "press_path", bar.press_opened is True and bar.opened_by == "click"
+                      and bar.hover_open is False,
+                      [bar.press_opened, bar.opened_by, bar.hover_open])
             mesh_i = drv.dd_find(st, 0, submenu("VIEW3D_MT_mesh_add"))
             drv.check(rec, "mesh_found", mesh_i is not None)
             if mesh_i is None:
@@ -273,6 +278,8 @@ def scenarios(drv):
             drv.check(rec, "ended_by_run", ls.get("end") == "run", ls.get("end"))
             drv.check(rec, "run_action", (ls.get("action") or ("",) * 2)[1]
                       == "mesh.primitive_cube_add", ls.get("action"))
+            drv.check(rec, "menus_opened_by_click", ls.get("menus_opened_by") == ["click"],
+                      ls.get("menus_opened_by"))
             new = set(bpy.data.objects.keys()) - objects0
             drv.check(rec, "one_object_added", len(new) == 1, sorted(new))
             drv.check(rec, "one_mesh_added", len(bpy.data.meshes) == meshes0 + 1,
@@ -615,7 +622,22 @@ def scenarios(drv):
             restore_selection(sel0)
             yield 0.2
 
-    return [
+    def click_only(fn):
+        """Run ``fn`` with ``hover_open`` False: the Phase 4 click / press-drag paths are then
+        the only way a dropdown opens (a hover-open would race them and pass their checks)."""
+        def run(rec):
+            prefs = drv.addon_prefs()
+            old = prefs.hover_open
+            prefs.hover_open = False
+            try:
+                yield from fn(rec)
+            finally:
+                prefs = drv.addon_prefs()
+                if prefs is not None:
+                    prefs.hover_open = old
+        return run
+
+    return [(name, click_only(fn)) for name, fn in (
         ("p4_file_dropdown", sc_file_dropdown),
         ("p4_empty_click", sc_empty_click),
         ("p4_object_apply", sc_object_apply),
@@ -627,4 +649,4 @@ def scenarios(drv):
         ("p4_execute_on_release", sc_execute_on_release),
         ("p4_esc_chain", sc_esc_chain),
         ("p4_edit_undo", sc_edit_undo),
-    ]
+    )]

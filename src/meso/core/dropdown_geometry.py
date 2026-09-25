@@ -676,6 +676,35 @@ def is_aiming(prev: tuple[float, float] | None, cur: tuple[float, float],
     return not (has_neg and has_pos)
 
 
+def is_approaching(prev: tuple[float, float] | None, cur: tuple[float, float] | None,
+                   target: Rect | None) -> bool:
+    """Hover-open aim test from OUTSIDE a panel: True when ``cur`` lies inside the
+    triangle ``prev`` -> the two corners of the edge of ``target`` that faces ``prev`` (the
+    side ``prev`` is farthest outside of: left / right / bottom / top), i.e. the pointer
+    heads toward that panel. False for None inputs, a zero move, ``prev`` inside
+    ``target`` or ``cur`` inside it (the caller then sees the panel hit)."""
+    if prev is None or cur is None or target is None or target.is_empty():
+        return False
+    px, py = prev
+    cx, cy = cur
+    if (px, py) == (cx, cy) or target.contains(cx, cy):
+        return False
+    x0, y0, x1, y1 = target.x, target.y, target.x + target.w, target.y + target.h
+    out = ((x0 - px, (x0, y0, x0, y1)), (px - x1, (x1, y0, x1, y1)),
+           (y0 - py, (x0, y0, x1, y0)), (py - y1, (x0, y1, x1, y1)))
+    dist, (ax, ay, bx, by) = max(out, key=lambda o: o[0])
+    if dist <= 0:
+        return False                    # prev inside the target
+    if _cross(px, py, ax, ay, bx, by) == 0:
+        return False
+    d1 = _cross(px, py, ax, ay, cx, cy)
+    d2 = _cross(ax, ay, bx, by, cx, cy)
+    d3 = _cross(bx, by, px, py, cx, cy)
+    has_neg = d1 < 0 or d2 < 0 or d3 < 0
+    has_pos = d1 > 0 or d2 > 0 or d3 > 0
+    return not (has_neg and has_pos)
+
+
 def chain_rects(chain: ChainLayout | None) -> list[Rect]:
     """Every panel rect of ``chain`` (redraw targets); [] for None / empty."""
     if chain is None:

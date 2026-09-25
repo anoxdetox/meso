@@ -25,7 +25,7 @@ Precedence: `docs/spikes.md` D1–D5 overrides the plan; `docs/phase1-interfaces
 - `ops/dropdowns.py` (new, D): `MenuSession`.
 - `ops/plaza.py`: new `PlazaState` fields `submenu_delay`, `execute_on_release`, `show_shortcuts`, `menus`, `dropdowns`, `dropdown_hover`, `open_label` (no behaviour yet).
 - `view/draw_manager.py`: the `DrawState` protocol documents `dropdowns`, `dropdown_hover`, `open_label`.
-- `prefs.py`: `submenu_delay` (0.0–1.0, default 0.12, TIME_ABSOLUTE), `execute_on_release` (False), `show_shortcuts` (True), drawn in `draw()`.
+- `prefs.py`: `submenu_delay` (0.0–1.0, default 0.12, TIME_ABSOLUTE), `execute_on_release` (False), `show_shortcuts` (True), drawn in `draw()`. Hover-open added `hover_open` (True), `hover_open_delay` (0.05) and `hover_close_delay` (0.3); see "Hover-open".
 - New skeleton tests: `tests/unit/test_phase4_skeleton.py` (roles, sources, paths, `valid_depth`, the menubar values) and `tests/blender/test_phase4_skeleton.py` (pref defaults and ranges, module imports, PlazaState fields, DropdownCache).
 
 **Stubs** (raise `NotImplementedError`; nothing calls them yet): `menubar.step`, `child_opener`, `is_open_path`; every `dropdown_geometry` function; `record.dropdown.build_dropdown`, `menu_coverage`, `dropdown_items`, `classify_rows`, `shortcut_hint`; `record.popover.*`; `record.rows.refresh_tool_settings`; `renderer.dropdown_colors`, `DropdownBatchCache` methods, `draw_dropdowns`; `ops.invoke.apply_in_place`; every `ops.dropdowns` function; `tools/coverage_dropdowns.py`. Behaviour is still exactly Phase 3.
@@ -88,7 +88,7 @@ modal(event)                                     ops.plaza (failure / watchdog /
                    (deepest panel → … → root dropdown → strip labels → empty strip → none)
        2. target = target_for(session, state, hit)          (label_role / item_role + Action)
        3. ev     = reducer_event(...)   MOUSEMOVE → HoverItem(path, role, now, aiming) inside a panel
-                                                    else HoverLabel(label_id, role, now)
+                                                    else HoverLabel(label_id, role, now, action, aiming)
                                         LMB PRESS/DOUBLE_CLICK/RELEASE → Press/Release(button, target, now)
                                         release key RELEASE → SpaceRelease · ESC PRESS → Esc
                                         TIMER → Timer(now) · arrows/Return → Nav(key)
@@ -127,6 +127,38 @@ modal(event)                                     ops.plaza (failure / watchdog /
   - **Changed(key, valid_depth)** → `CloseChain(valid_depth)` when shorter, then Redraw.
 - **Never on PRESS:** no effect ever runs or hands anything off on a PRESS (D3). Opening our own dropdown on PRESS is fine: no native popup can eat the release.
 - **Nav (nice-to-have):** UP/DOWN within the hovered level, RIGHT opens and enters, LEFT closes one level, RETURN clicks (its RELEASE after its PRESS, like a mouse click). `Opened.roles` feeds it. Until A implements it, Nav returns no effects.
+
+## Hover-open
+User request (after Phase 4): a Plaza menu opens on its own when the pointer rests on it, unless the label is a stub item or a command. Contract: the `core/menubar.py` docstring ("Hover-open" and the rows marked hover); tests: `tests/unit/test_menubar.py` (`TestHoverOpen*`, the random-sequence invariants), `tests/unit/test_dropdown_geometry.py` (`TestApproaching`), `tests/blender/test_dropdowns.py` (`TestHoverOpen`, `TestRealBuilders.test_hover_eligibility_of_real_rows`), `tests/gui/scenarios_hover.py`.
+- **Prefs** (`prefs.py`, drawn under Submenu Delay; snapshots on `PlazaState` and in the reducer through `initial_state(submenu_delay, execute_on_release, hover_open, hover_open_delay, hover_close_delay)`):
+  - `hover_open` (Bool, default True);
+  - `hover_open_delay` (0.0–1.0 s, default 0.05, `HOVER_OPEN_DELAY_RANGE`);
+  - `hover_close_delay` (0.0–2.0 s, default 0.3, `HOVER_CLOSE_DELAY_RANGE`).
+  - `initial_state()` defaults `hover_open` to False, so a reducer built without the prefs is exactly the Phase 4 bar. `PlazaState` defaults to the pref values (True / 0.05 / 0.3) for a session started without prefs.
+- **Eligibility:** only ROLE_DROPDOWN labels open on hover: menus with a custom dropdown and the Tool Settings cascades (Pivot, Snap and Proportional cascades, orientation). `core.menubar.hover_opens(target)` also answers True for ROLE_SUBMENU items, which already opened after `submenu_delay`. `ops.dropdowns.hover_eligible(session, state, hit)` wraps it for a hit. Never eligible: toggles (ROLE_APPLY), '…' native menus, the mode switcher, workspaces, Recent Commands, Plaza Controls (all ROLE_HANDOFF), operator / DD_NATIVE items and passive labels. A native menu never opens on a mere hover.
+- **State** (`MenuBarState`):
+  - `opened_by`: None when closed, else `'hover'` (transient), `'click'` or `'key'` (sticky). The `transient` property is True for `'hover'`.
+  - `hover_wait` / `hover_wait_since`: a closed bar waiting for the delay.
+  - `leave_since` / `leave_aim`: when a transient chain was left, and its last aim.
+- **Opening:**
+  - Closed: *entering* a ROLE_DROPDOWN label arms `hover_wait` (a delay of 0 opens at once). The watchdog `Timer` opens it once `hover_open_delay` has passed and the label is still hovered (the delay rounds up to the next 0.05 s tick). A sweep across the labels faster than the delay opens nothing.
+  - Moves inside the label that was just closed (Esc, a title click, a native model's `Changed(key, 0)`) never re-arm it: only re-entering does, so a native label cannot loop.
+  - A press before the delay opens by click as before.
+  - Never while a press is held: an LMB pressed on a toggle or hand-off label and dragged onto a dropdown label clears `hover_wait` and opens nothing, so its release can never run an item or hand off from a dropdown that was never pressed. The label re-arms when the pointer enters one with the button up.
+- **Closing a transient chain:**
+  - Any HoverLabel off the open label (empty space, a non-eligible label) starts `leave_since`. The open label or any HoverItem, panel padding included, clears it.
+  - `Timer` closes the whole chain (`CloseChain(0)`; the Plaza stays open) once `now - leave_since > hover_close_delay` and no aim is younger than `aim_timeout` (0.25 s).
+  - Aim: D sets `HoverLabel.aiming` with `core.dropdown_geometry.is_approaching(prev, cur, panel)`, a safe triangle toward the edge of any chain panel that faces the previous pointer.
+- **Switching:** hovering another ROLE_DROPDOWN label while any chain is open switches at once (unchanged). The new chain keeps `opened_by`: a pinned bar stays pinned, a transient one stays transient.
+- **Pinning (transient → sticky):**
+  - A press on the hover-opened title pins it (`'click'`, `press_opened=True`: its release keeps it open).
+  - A press inside any panel (an item or padding) pins it.
+  - Any Nav key pins it (`'key'`).
+  - A click on a pinned open title closes it (the Phase 4 toggle).
+  - An empty click, Esc and the Space release behave as before in both modes.
+- **Unchanged:** `execute_on_release`, drag-release from a label, in-place applies and re-records, operator runs after teardown, Esc layering. A hover-open is not an interaction (`interacted` stays False: tap logic unchanged).
+- **`last_session()`:** `menus_opened_by` lists `bar.opened_by` of each opened root dropdown, parallel to its entries in `menus_opened`. Submenus are left out.
+- **GUI:** `p2_hover_file` (Phase 2 hover redraw counts) and every `scenarios_phase4.py` scenario (`click_only`) run with `hover_open` False, so their click and press-drag-release checks can only pass through the click path (`p4_add_cube_drag` asserts `press_opened`, `opened_by == 'click'` and `menus_opened_by == ['click']`). `gui_driver.open_dropdown` sends the PRESS in the same batch as the move (no watchdog tick between them) and checks `opened_on_press` (`press_opened`, `'click'`), so the Phase 3 scenarios that run with the default True also exercise Press → OpenDropdown, never a hover-open the press merely pins. `hover_fast_sweep` raises `hover_open_delay` to 0.6 s and rests 0.1 s on each root label (checking each is hovered) before leaving.
 
 ## Run semantics (D)
 - **(a) Operator items** (DD_OP, enum-cascade op children, `operator_enum` items) → `RunItem(keep_open=False)`: `_end(state, 'run')`, then `ops.invoke.execute(item.action, window, area, region, area_type)` inside `modal()` right before FINISHED. `region` is the invoking area's WINDOW region (`state.region`). The Action carries the recorded `operator_context` (D4: INVOKE_REGION_WIN roots and submenus; inline `menu_contents` keeps its context) and props, and `undo=True`. Modal / interactive operators (grab, loop cut, knife) start after our modal ended.

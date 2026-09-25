@@ -53,6 +53,13 @@ which stay in ``ops.plaza``) to :func:`handle_event`, which
    ``pressed_id``) by swapping whole values (the draw callbacks read them; they never see a
    half-built chain).
 
+Hover-open (docs/phase4-interfaces.md "Hover-open"): the pref snapshots ``hover_open`` /
+``hover_open_delay`` / ``hover_close_delay`` go into the reducer; the reducer opens a
+ROLE_DROPDOWN label after the delay (on the watchdog Timer) and closes a hover-opened chain
+once the pointer has left it, so D only adds the ``aiming`` of HoverLabel. Eligibility is
+the label role (:func:`hover_eligible`): no hand-off, apply or native label ever opens on a
+mere hover.
+
 Only plain data lives in :class:`MenuSession` (models, chain layout, cache, reducer state);
 live window / area / region come from ``PlazaState`` during the modal only. ``_end()`` drops
 the session (``state.menus = None``) after copying its summary into ``last_session()``;
@@ -142,7 +149,8 @@ class MenuSession:
     records (plain): ``opened`` (model keys in open
     order), ``in_place`` (``core.actions.describe`` of each in-place call), ``run``
     (``(model key, path, label, (kind, target, data_path))`` of the terminal RunItem /
-    Handoff, or None).
+    Handoff, or None); ``opened_by`` (``bar.opened_by`` of each ``opened`` root dropdown:
+    'hover' / 'click' / 'key'; None for submenus).
     """
 
     bar: MenuBarState = field(default_factory=initial_state)
@@ -152,6 +160,7 @@ class MenuSession:
     metrics: DropdownMetrics | None = None
     prev_xy: tuple[float, float] | None = None
     opened: list[str] = field(default_factory=list)
+    opened_by: list[str | None] = field(default_factory=list)
     in_place: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     run: tuple | None = None
     target: Target | None = None
@@ -173,8 +182,8 @@ def _info(state: Any) -> rows.InvokeInfo:
 
 def start_session(state: Any, context: Any, addon_prefs: Any) -> MenuSession | None:
     """Invoke-time setup (after ``record.rows.build_model``, before the layout): pref
-    snapshots (``submenu_delay``, ``execute_on_release``, ``show_shortcuts``) into ``state``
-    and the reducer, ``state.model = record.dropdown.classify_rows(...)`` (native '…'
+    snapshots (``submenu_delay``, ``execute_on_release``, ``show_shortcuts``, ``hover_open``,
+    ``hover_open_delay``, ``hover_close_delay``) into ``state`` and the reducer, ``state.model = record.dropdown.classify_rows(...)`` (native '…'
     labels; pre-fills the cache). The session metrics are computed on first use, once the
     layout exists. Never raises: a failure returns None (``state.menus`` stays None and the
     modal keeps the Phase 3 behaviour: every menu label hands off natively)."""
@@ -186,7 +195,12 @@ def start_session(state: Any, context: Any, addon_prefs: Any) -> MenuSession | N
                                                     state.execute_on_release))
             state.show_shortcuts = bool(getattr(addon_prefs, 'show_shortcuts',
                                                 state.show_shortcuts))
-        session = MenuSession(bar=initial_state(state.submenu_delay, state.execute_on_release),
+            state.hover_open = bool(getattr(addon_prefs, 'hover_open', state.hover_open))
+            state.hover_open_delay = float(getattr(addon_prefs, 'hover_open_delay',
+                                                   state.hover_open_delay))
+            state.hover_close_delay = float(getattr(addon_prefs, 'hover_close_delay',
+                                                    state.hover_close_delay))
+        session = MenuSession(bar=_initial_bar(state),
                               show_shortcuts=bool(state.show_shortcuts))
         if state.model is not None:
             state.model = rec_dropdown.classify_rows(context, _info(state), state.model,
@@ -199,6 +213,15 @@ def start_session(state: Any, context: Any, addon_prefs: Any) -> MenuSession | N
         _log_once('start_session', "starting the dropdown session failed; menus hand off "
                   "natively", exc=True)
         return None
+
+
+def _initial_bar(state: Any) -> MenuBarState:
+    """A closed reducer state from the ``PlazaState`` pref snapshots."""
+    return initial_state(state.submenu_delay, state.execute_on_release,
+                         bool(getattr(state, 'hover_open', False)),
+                         getattr(state, 'hover_open_delay', menubar.DEFAULT_HOVER_OPEN_DELAY),
+                         getattr(state, 'hover_close_delay',
+                                 menubar.DEFAULT_HOVER_CLOSE_DELAY))
 
 
 def after_layout(state: Any) -> None:
@@ -224,9 +247,11 @@ def _text_width(session: MenuSession, state: Any):
 def summary(session: MenuSession | None) -> dict[str, Any]:
     """The ``last_session()`` additions of ``session`` (plain data; defaults for None)."""
     if session is None:
-        return {'menus_opened': [], 'in_place': [], 'run_item': None,
+        return {'menus_opened': [], 'menus_opened_by': [], 'in_place': [], 'run_item': None,
                 'dropdown_builds': 0, 'dropdown_hits': 0}
-    return {'menus_opened': list(session.opened), 'in_place': list(session.in_place),
+    return {'menus_opened': list(session.opened),
+            'menus_opened_by': [by for by in session.opened_by if by is not None],
+            'in_place': list(session.in_place),
             'run_item': session.run, 'dropdown_builds': session.cache.builds,
             'dropdown_hits': session.cache.hits,
             'classify_ms': rec_dropdown.LAST_TIMING.get('classify_rows_ms')}
@@ -265,6 +290,24 @@ def target_for(session: MenuSession, state: Any, hit: Hit) -> Target:
     return Target(hit.zone or ZONE_NONE)
 
 
+def hover_eligible(session: MenuSession, state: Any, hit: Hit) -> bool:
+    """True when resting the pointer on ``hit`` opens something without a click
+    (``core.menubar.hover_opens`` of :func:`target_for`): a row label with a custom dropdown
+    or Tool Settings cascade (ROLE_DROPDOWN), or a submenu item. Toggles, workspaces,
+    Recent Commands, Plaza Controls, operator items, '…' native menus and DD_NATIVE items
+    (anything whose click would hand off or end the Plaza) are not."""
+    return menubar.hover_opens(target_for(session, state, hit))
+
+
+def _aiming_chain(session: MenuSession, xy: tuple[float, float]) -> bool:
+    """Hover-open: the move from ``prev_xy`` to ``xy`` (outside every panel) heads toward a
+    panel of the open chain (``core.dropdown_geometry.is_approaching``)."""
+    if not session.bar.transient:
+        return False
+    return any(ddg.is_approaching(session.prev_xy, xy, panel.rect)
+               for panel in session.chain.panels)
+
+
 def _aiming(session: MenuSession, xy: tuple[float, float], hit: Hit) -> bool:
     """Safe-triangle test toward the open submenu below the hovered level."""
     if hit.zone == ZONE_ITEM and hit.path:
@@ -282,7 +325,8 @@ def _aiming(session: MenuSession, xy: tuple[float, float], hit: Hit) -> bool:
 def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> Event | None:
     """The one reducer event of a modal event (None = not ours: the modal keeps its Phase 1
     handling): MOUSEMOVE / INBETWEEN_MOUSEMOVE -> HoverItem (inside a panel; ``aiming`` from
-    ``is_aiming(prev_xy, xy, <rect of the submenu below the hovered level>)``) or HoverLabel;
+    ``is_aiming(prev_xy, xy, <rect of the submenu below the hovered level>)``) or HoverLabel
+    (``aiming``: toward a panel of a hover-opened chain, ``is_approaching``);
     LMB PRESS / DOUBLE_CLICK / RELEASE -> Press / Release; the release key's RELEASE ->
     SpaceRelease; ESC PRESS -> Esc; TIMER -> Timer; ``core.menubar.NAV_KEYS`` PRESS -> Nav,
     except the enter keys: their PRESS only arms (``session.enter_armed``; None = swallowed
@@ -314,14 +358,15 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
     hit = ddg.resolve_hit(state.layout, session.chain, *xy)
     target = target_for(session, state, hit)
     if etype in MOUSE_MOVES:
-        aiming = _aiming(session, xy, hit) if hit.zone in (ZONE_ITEM, ZONE_PANEL) else False
+        inside = hit.zone in (ZONE_ITEM, ZONE_PANEL)
+        aiming = _aiming(session, xy, hit) if inside else _aiming_chain(session, xy)
         session.prev_xy = xy
         session.target = target
-        if hit.zone in (ZONE_ITEM, ZONE_PANEL):
+        if inside:
             return HoverItem(hit.path if hit.zone == ZONE_ITEM else None, target.role, now,
                              aiming, target.action)
         return HoverLabel(hit.label_id if hit.zone == ZONE_LABEL else None, target.role, now,
-                          target.action)
+                          target.action, aiming)
     session.target = target
     if value in PRESS_VALUES:
         return Press(menubar.LMB, target, now)
@@ -481,6 +526,7 @@ def _open_dropdown(state: Any, context: Any, label_id: str) -> list[Event]:
     # The chain carries its metrics (the renderer reads font / glyph sizes from them).
     session.chain = ddg.extend_chain(ChainLayout(metrics=dm), panel)
     session.opened.append(model.key)
+    session.opened_by.append(session.bar.opened_by)
     return [Opened(0, _roles(model))]
 
 
@@ -522,6 +568,7 @@ def _open_submenu(state: Any, context: Any, path: tuple[int, ...]) -> list[Event
     session.models = session.models + (child,)
     session.chain = ddg.extend_chain(session.chain, panel)
     session.opened.append(child.key)
+    session.opened_by.append(None)
     return [Opened(level, _roles(child))]
 
 
@@ -836,9 +883,12 @@ def _reset_chain(session: MenuSession) -> None:
     try:
         session.bar = dataclasses.replace(
             session.bar, open_label=None, submenus=(), roles=(), hover_path=None,
-            pending=None, aim_since=None, pressed=None, press_opened=False, nav_enter=False)
+            pending=None, aim_since=None, pressed=None, press_opened=False, nav_enter=False,
+            opened_by=None, hover_wait=None, leave_since=None, leave_aim=None)
     except Exception:
-        session.bar = initial_state(session.bar.submenu_delay, session.bar.execute_on_release)
+        bar = session.bar
+        session.bar = initial_state(bar.submenu_delay, bar.execute_on_release, bar.hover_open,
+                                    bar.hover_open_delay, bar.hover_close_delay)
 
 
 def handle_event(op: Any, state: Any, context: Any, event: Any) -> set[str] | None:

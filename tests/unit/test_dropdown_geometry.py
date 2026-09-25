@@ -573,6 +573,36 @@ class TestAim(unittest.TestCase):
         self.assertFalse(dg.is_aiming((350, 150), (340, 150), self.T))
 
 
+class TestApproaching(unittest.TestCase):
+    """is_approaching: hover-open aim toward a panel from outside (any side)."""
+    T = Rect(200, 100, 150, 200)            # x 200..350, y 100..300
+
+    def test_each_side(self):
+        # from the left, the right, below (y smaller) and above (y larger)
+        self.assertTrue(dg.is_approaching((150, 200), (160, 205), self.T))
+        self.assertFalse(dg.is_approaching((150, 200), (140, 205), self.T))
+        self.assertTrue(dg.is_approaching((400, 200), (390, 190), self.T))
+        self.assertFalse(dg.is_approaching((400, 200), (410, 190), self.T))
+        self.assertTrue(dg.is_approaching((275, 50), (280, 60), self.T))
+        self.assertFalse(dg.is_approaching((275, 50), (280, 40), self.T))
+        self.assertTrue(dg.is_approaching((275, 350), (270, 340), self.T))
+        self.assertFalse(dg.is_approaching((275, 350), (380, 350), self.T))   # sideways
+
+    def test_farthest_side_wins(self):
+        # far below and a little left: the bottom edge faces prev
+        self.assertTrue(dg.is_approaching((190, 0), (200, 20), self.T))
+        self.assertFalse(dg.is_approaching((190, 0), (170, 5), self.T))
+
+    def test_rejects(self):
+        prev = (150, 200)
+        self.assertFalse(dg.is_approaching(prev, prev, self.T))            # no move
+        self.assertFalse(dg.is_approaching(prev, (210, 200), self.T))      # inside
+        self.assertFalse(dg.is_approaching((210, 200), (150, 200), self.T))  # prev inside
+        for bad in ((None, (1, 1), self.T), (prev, None, self.T), (prev, (160, 200), None),
+                    (prev, (160, 200), Rect(0, 0, 0, 0))):
+            self.assertFalse(dg.is_approaching(*bad))
+
+
 def flags_model(n=20, extra=True, key='SNAP'):
     """A Snap-like cascade: ``n`` flags, a separator, optionally one extra row (the
     'Absolute Increment Snap' toggle only drawn with INCREMENT), a separator, 'Align'."""

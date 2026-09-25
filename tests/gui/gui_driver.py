@@ -1197,7 +1197,21 @@ def sc_screenshot(rec):
 
 
 def sc_hover_file(rec):
-    """(b) Hover 'File': hover_id follows the mouse; one redraw per hover change, none else."""
+    """(b) Hover 'File': hover_id follows the mouse; one redraw per hover change, none else.
+    Runs with ``hover_open`` False (resting on File would open its dropdown: Hover-open has
+    its own scenarios in scenarios_hover.py)."""
+    prefs = addon_prefs()
+    old = prefs.hover_open
+    prefs.hover_open = False
+    try:
+        yield from _sc_hover_file(rec)
+    finally:
+        prefs = addon_prefs()
+        if prefs is not None:
+            prefs.hover_open = old
+
+
+def _sc_hover_file(rec):
     xy = center_of("VIEW_3D")
     st = yield from open_plaza(xy)
     if st is None or st.layout is None:
@@ -1597,7 +1611,19 @@ def open_dropdown(rec, st, label_id, prefix="open"):
     check(rec, f"{prefix}_label_placed", box is not None, label_id)
     if box is None:
         return False
-    yield from press_click(rect_mid(box.rect))
+    # The PRESS goes out in the same batch as the move (no watchdog tick in between), so with
+    # hover-open on the dropdown still opens by the click path (Press -> OpenDropdown with
+    # press_opened), never by a hover-open the press merely pins.
+    xy = rect_mid(box.rect)
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    sim('LEFTMOUSE', 'PRESS', xy)
+    yield 0.1
+    bar = st.menus.bar if st.menus is not None else None
+    check(rec, f"{prefix}_opened_on_press", bar is not None and bar.open_label == label_id
+          and bar.press_opened is True and bar.opened_by == "click",
+          bar and [bar.open_label, bar.press_opened, bar.opened_by])
+    sim('LEFTMOUSE', 'RELEASE', xy)
+    yield 0.4
     ok = st.open_label == label_id and st.dropdowns is not None
     check(rec, f"{prefix}_opened", ok, [st.open_label, dd_keys(st)])
     check(rec, f"{prefix}_running", plaza().is_running())

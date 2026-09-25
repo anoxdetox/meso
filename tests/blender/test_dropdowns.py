@@ -264,7 +264,8 @@ class _Case(unittest.TestCase):
         _mod("view.draw_manager").stop_all()
 
     def _session(self, execute_on_release=False, submenu_delay=0.0, bounds=None, scale=1.0,
-                 anchor=(1000, 500)):
+                 anchor=(1000, 500), hover_open=False, hover_open_delay=0.05,
+                 hover_close_delay=0.3):
         hb, dd = _hb(), _dd()
         geo, rects = _mod("core.geometry"), _mod("core.rects")
         if hb.current_state() is not None:
@@ -288,7 +289,8 @@ class _Case(unittest.TestCase):
                                   geo.metrics_for(scale, 11), _fake_width)
         state.handlers = self.handlers = FakeHandlers()
         state.menus = dd.MenuSession(bar=_mod("core.menubar").initial_state(
-            submenu_delay, execute_on_release))
+            submenu_delay, execute_on_release, hover_open, hover_open_delay,
+            hover_close_delay))
         return stub, state
 
     # --- event helpers
@@ -507,6 +509,229 @@ class TestOpenAndSwitch(_Case):
         self.ev('TIMER', 'NOTHING')
         self.assertEqual(self.bar().submenus, (), "an expired aim closes the stale child")
         self.assertEqual(len(self.state.dropdowns.panels), 1)
+
+
+class TestHoverOpen(_Case):
+    """Hover-open (docs/phase4-interfaces.md "Hover-open") through the real modal: labels
+    with a custom dropdown open after hover_open_delay on the watchdog TIMER, a hover-opened
+    chain closes hover_close_delay after the pointer left it, clicks pin."""
+
+    def setUp(self):
+        super().setUp()
+        self.stub, self.state = self._session(hover_open=True)
+
+    def tick(self, dt):
+        self.clock[0] += dt
+        return self.ev('TIMER', 'NOTHING')
+
+    def hover_open(self, item_id):
+        self.move(self.label_xy(item_id))
+        self.tick(0.06)
+        self.assertEqual(self.state.open_label, item_id)
+        self.assertEqual(self.bar().opened_by, 'hover')
+
+    def test_rest_opens_after_the_delay(self):
+        self.move(self.label_xy('TOPBAR_MT_file'))
+        self.assertIsNone(self.state.dropdowns, "nothing opens on the move itself")
+        self.assertEqual(self.tick(0.03), {'PASS_THROUGH'})
+        self.assertIsNone(self.state.dropdowns, "before the delay")
+        self.assertEqual(self.builds, [])
+        self.assertEqual(self.tick(0.03), {'PASS_THROUGH'})
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual([p.key for p in self.state.dropdowns.panels], ['TOPBAR_MT_file'])
+        self.assertEqual(self.bar().opened_by, 'hover')
+        self.assertFalse(self.state.interacted, "a hover is not an interaction")
+        self.assertEqual((self.executed, self.run_calls), ([], []))
+        self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
+        last = _hb().last_session()
+        self.assertEqual((last['end'], last['handoff']), ('finish', None))
+        self.assertEqual((last['menus_opened'], last['menus_opened_by']),
+                         (['TOPBAR_MT_file'], ['hover']))
+
+    def test_fast_sweep_opens_nothing(self):
+        for item_id in ('TOPBAR_MT_file', 'TOPBAR_MT_edit', 'TEST_MT_native', 'TOPBAR_MT_file',
+                        md().contextual_item_id('VIEW3D_MT_object')):
+            self.move(self.label_xy(item_id))
+            self.tick(0.02)
+        self.move(self.gap())
+        self.tick(0.5)
+        self.assertIsNone(self.state.dropdowns)
+        self.assertEqual(self.builds, [])
+
+    def test_ineligible_labels_never_open(self):
+        M = md()
+        for item_id in ('TEST_MT_native', SNAP_ID, M.workspace_item_id('Modeling'),
+                        M.RECENT_ID, M.CONTROLS_ID, M.CENTER_ID):
+            with self.subTest(item_id=item_id):
+                self.assertIsNotNone(self.state.layout.item(item_id), f"{item_id} is placed")
+                self.move(self.gap())
+                self.move(self.label_xy(item_id))
+                self.tick(0.5)
+                self.assertIsNone(self.state.dropdowns, item_id)
+                self.assertTrue(_hb().is_running())
+        self.assertEqual((self.builds, self.executed, self.run_calls), ([], [], []))
+
+    def test_label_turning_native_on_hover_open_stays_closed(self):
+        """Resting on a label classified custom whose build turns native (TEST_MT_broken):
+        built once, re-laid out ('Broken…'), no hand-off / native menu on a mere hover, no
+        rebuild loop and no neighbour opened by the relayout."""
+        self.move(self.label_xy('TEST_MT_broken'))
+        for i in range(6):
+            self.tick(0.06)
+            x, y = self.label_xy('TEST_MT_broken')        # re-laid out ('Broken…')
+            self.move((x + (i % 3) - 1, y))
+        self.assertEqual(self.state.model.find('TEST_MT_broken').label, 'Broken…')
+        box = self.state.layout.item('TEST_MT_broken').rect
+        for x in (int(box.x) + 1, int(box.x1) - 1):      # the widened label's edges
+            self.move((x, int(box.y + box.h // 2)))
+            self.tick(0.5)
+            self.assertIsNone(self.state.dropdowns, "no neighbour opens after the relayout")
+        self.move(self.gap())
+        self.move(self.label_xy('TEST_MT_broken'))
+        self.tick(0.5)
+        self.assertEqual([b[0] for b in self.builds], ['TEST_MT_broken'], "built once")
+        self.assertEqual((self.executed, self.run_calls), ([], []), "no hand-off on hover")
+        self.assertTrue(_hb().is_running())
+        self.assertIsNone(self.state.dropdowns)
+        self.assertIsNone(self.state.open_label)
+
+    def test_press_held_off_an_acting_label_never_hover_opens(self):
+        """LMB pressed on the Snap toggle (or a native '…' label), slid off onto a cascade /
+        dropdown label and rested there: nothing opens, the release there runs nothing."""
+        for pressed_id, onto in ((SNAP_ID, PIVOT_ID), ('TEST_MT_native', 'TOPBAR_MT_edit')):
+            with self.subTest(pressed=pressed_id):
+                self.move(self.gap())
+                xy = self.label_xy(pressed_id)
+                self.move(xy)
+                self.assertEqual(self.ev('LEFTMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
+                to = self.label_xy(onto)
+                self.move(to)
+                self.tick(0.3)
+                self.move((to[0] + 1, to[1]))
+                self.tick(0.3)
+                self.assertIsNone(self.state.dropdowns, "no hover-open while pressed")
+                self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', to), {'RUNNING_MODAL'})
+                self.tick(0.3)
+                self.assertIsNone(self.state.dropdowns, "and none right after the release")
+                self.assertTrue(_hb().is_running())
+        self.assertEqual((self.builds, self.executed, self.run_calls), ([], [], []))
+        self.hover_open(PIVOT_ID)       # button up, re-entered: hover-open works again
+
+    def test_tool_cascade_opens_on_hover(self):
+        self.hover_open(PIVOT_ID)
+        self.assertEqual(self.builds[-1][:2], (PIVOT_ID, 'tool'))
+
+    def test_moving_to_another_label_switches_at_once(self):
+        self.hover_open('TOPBAR_MT_file')
+        self.move(self.label_xy('TOPBAR_MT_edit'))
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
+        self.assertEqual(self.bar().opened_by, 'hover', "still transient")
+        self.move(self.label_xy('TEST_MT_native'))      # a native label only hovers
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
+
+    def test_leaving_closes_after_the_grace(self):
+        self.hover_open('TOPBAR_MT_file')
+        self.move(self.gap())
+        self.tick(0.2)
+        self.assertIsNotNone(self.state.dropdowns, "inside the grace")
+        self.tick(0.15)
+        self.assertIsNone(self.state.dropdowns, "closed after hover_close_delay")
+        self.assertIsNone(self.state.open_label)
+        self.assertTrue(_hb().is_running(), "only the chain closes")
+        # Coming back within the grace keeps it; so does the panel.
+        self.hover_open('TOPBAR_MT_edit')
+        self.move(self.gap())
+        self.tick(0.2)
+        self.move(self.item_xy((0,)))
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit', "the panel is inside")
+
+    def test_leave_toward_the_panel_is_aim(self):
+        self.hover_open('TOPBAR_MT_file')
+        panel = self.state.dropdowns.panels[0].rect
+        far = (int(panel.x1) + 60, int(panel.y + panel.h // 2))
+        near = (int(panel.x1) + 30, int(panel.y + panel.h // 2))
+        self.move(far)
+        self.assertIsNone(self.bar().leave_aim)
+        self.move(near)
+        self.assertIsNotNone(self.bar().leave_aim, "moving toward the panel aims")
+
+    def test_click_pins_hover_opened_title(self):
+        xy = self.label_xy('TOPBAR_MT_file')
+        self.hover_open('TOPBAR_MT_file')
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        self.ev('LEFTMOUSE', 'RELEASE', xy)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file', "pinned, not closed")
+        self.assertEqual(self.bar().opened_by, 'click')
+        self.move(self.gap())
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file', "a pinned chain is sticky")
+        self.click(xy)
+        self.assertIsNone(self.state.dropdowns, "a click on the pinned title closes it")
+        self.move((xy[0] + 1, xy[1]))
+        self.tick(0.5)
+        self.assertIsNone(self.state.dropdowns, "no reopen without leaving the label")
+
+    def test_clicked_chain_is_sticky(self):
+        self.click(self.label_xy('TOPBAR_MT_file'))
+        self.assertEqual(self.bar().opened_by, 'click')
+        self.move(self.gap())
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+
+    def test_press_inside_the_panel_pins(self):
+        self.hover_open('TOPBAR_MT_file')
+        self.click(self.item_xy((1,)))       # the separator: ZONE_PANEL
+        self.assertEqual(self.bar().opened_by, 'click')
+        self.move(self.outside())
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+
+    def test_keyboard_pins(self):
+        self.hover_open('TOPBAR_MT_file')
+        self.ev('DOWN_ARROW', 'PRESS')
+        self.assertEqual(self.bar().opened_by, 'key')
+        self.move(self.outside())
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+
+    def test_hover_opened_submenu_item_runs(self):
+        self.hover_open('TOPBAR_MT_file')
+        self.move(self.item_xy((2,)))                      # submenu_delay 0: opens
+        self.assertEqual(len(self.state.dropdowns.panels), 2)
+        self.move(self.item_xy((2, 0)))
+        self.tick(1.0)
+        self.assertEqual(len(self.state.dropdowns.panels), 2, "inside the chain")
+        xy = self.item_xy((2, 0))
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        self.assertEqual(self.executed, [])
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual(len(self.executed), 1)
+
+    def test_esc_and_space_release(self):
+        hb = _hb()
+        self.hover_open('TOPBAR_MT_file')
+        self.assertEqual(self.ev('ESC', 'PRESS'), {'RUNNING_MODAL'})
+        self.assertIsNone(self.state.dropdowns)
+        self.tick(0.5)
+        self.assertIsNone(self.state.dropdowns, "Esc'd label does not reopen in place")
+        self.assertTrue(hb.is_running())
+        self.move(self.gap())
+        self.hover_open('TOPBAR_MT_edit')
+        self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
+        self.assertEqual(hb.last_session()['end'], 'finish')
+        self.assertEqual(self.executed, [])
+
+    def test_hover_open_false_is_click_only(self):
+        self.stub, self.state = self._session(hover_open=False)
+        self.move(self.label_xy('TOPBAR_MT_file'))
+        self.tick(1.0)
+        self.assertIsNone(self.state.dropdowns)
+        self.click(self.label_xy('TOPBAR_MT_file'))
+        self.move(self.gap())
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual(self.builds, [('TOPBAR_MT_file', 'INVOKE_REGION_WIN', self.region)])
 
 
 class TestRuns(_Case):
@@ -953,15 +1178,41 @@ class TestStartSession(unittest.TestCase):
         state = hb.PlazaState(window_ptr=1, screen_ptr=2, anchor=(0, 0), t0=0.0)
         state.model = 'model'
         state.region = 'REGION'
-        prefs = SimpleNamespace(submenu_delay=0.3, execute_on_release=True, show_shortcuts=False)
+        prefs = SimpleNamespace(submenu_delay=0.3, execute_on_release=True, show_shortcuts=False,
+                                hover_open=False, hover_open_delay=0.2, hover_close_delay=0.7)
         session = dd.start_session(state, bpy.context, prefs)
         self.assertIsInstance(session, dd.MenuSession)
         self.assertEqual((state.submenu_delay, state.execute_on_release, state.show_shortcuts),
                          (0.3, True, False))
         self.assertEqual((session.bar.submenu_delay, session.bar.execute_on_release),
                          (0.3, True))
+        self.assertEqual((state.hover_open, state.hover_open_delay, state.hover_close_delay),
+                         (False, 0.2, 0.7))
+        bar = session.bar
+        self.assertEqual((bar.hover_open, bar.hover_open_delay, bar.hover_close_delay),
+                         (False, 0.2, 0.7))
         self.assertEqual(state.model, 'classified')
         self.assertEqual(seen, [('REGION', session.cache, False)])
+        # Without prefs: the PlazaState defaults (the pref defaults: hover-open on).
+        state2 = hb.PlazaState(window_ptr=1, screen_ptr=2, anchor=(0, 0), t0=0.0)
+        state2.model = 'model'
+        bar = dd.start_session(state2, bpy.context, None).bar
+        self.assertEqual((bar.hover_open, bar.hover_open_delay, bar.hover_close_delay),
+                         (True, 0.05, 0.3))
+
+    def test_hover_prefs_defaults_and_ranges(self):
+        prefs = bpy.context.preferences.addons[ADDON_MODULE].preferences
+        mb = _mod("core.menubar")
+        self.assertTrue(prefs.hover_open)
+        self.assertAlmostEqual(prefs.hover_open_delay, mb.DEFAULT_HOVER_OPEN_DELAY, places=5)
+        self.assertAlmostEqual(prefs.hover_close_delay, mb.DEFAULT_HOVER_CLOSE_DELAY, places=5)
+        for name, lo_hi in (('hover_open_delay', mb.HOVER_OPEN_DELAY_RANGE),
+                            ('hover_close_delay', mb.HOVER_CLOSE_DELAY_RANGE)):
+            rna = prefs.bl_rna.properties[name]
+            self.assertEqual((rna.hard_min, rna.hard_max), lo_hi, name)
+        st = _hb().PlazaState(window_ptr=1, screen_ptr=2, anchor=(0, 0), t0=0.0)
+        self.assertEqual((st.hover_open, st.hover_open_delay, st.hover_close_delay),
+                         (True, 0.05, 0.3))
 
     def test_failure_returns_none(self):
         hb, dd = _hb(), _dd()
@@ -979,9 +1230,9 @@ class TestStartSession(unittest.TestCase):
         self.assertEqual(state.model, 'model')
 
     def test_summary_defaults(self):
-        self.assertEqual(_dd().summary(None), {'menus_opened': [], 'in_place': [],
-                                               'run_item': None, 'dropdown_builds': 0,
-                                               'dropdown_hits': 0})
+        self.assertEqual(_dd().summary(None), {'menus_opened': [], 'menus_opened_by': [],
+                                               'in_place': [], 'run_item': None,
+                                               'dropdown_builds': 0, 'dropdown_hits': 0})
 
 
 class TestApplyInPlace(unittest.TestCase):
@@ -1075,6 +1326,87 @@ class TestRealBuilders(unittest.TestCase):
 
     def mid(self, rect):
         return int(rect.x + rect.w // 2), int(rect.y + rect.h // 2)
+
+    def _eligible_label(self, item_id):
+        ddg = _mod("core.dropdown_geometry")
+        return _dd().hover_eligible(self.state.menus, self.state,
+                                    ddg.Hit(dm().ZONE_LABEL, label_id=item_id))
+
+    def test_hover_eligibility_of_real_rows(self):
+        """Hover-open eligibility (ROLE_DROPDOWN labels, submenu items) on the real rows."""
+        M, D = md(), dm()
+        model = self.state.model
+        for item_id in ('TOPBAR_MT_file', 'TOPBAR_MT_edit',
+                        M.contextual_item_id('VIEW3D_MT_object')):
+            self.assertIsNotNone(model.find(item_id), item_id)
+            self.assertTrue(self._eligible_label(item_id), item_id)
+        ts = model.row(M.ROW_TOOL_SETTINGS).items
+        pivot = next(i for i in ts if i.id.startswith('ts:pivot:'))
+        self.assertTrue(self._eligible_label(pivot.id), "the Pivot cascade")
+        snap = next(i for i in ts if i.kind == M.KIND_TOGGLE and i.action is not None
+                    and i.action.data_path == 'tool_settings.use_snap')
+        self.assertFalse(self._eligible_label(snap.id), "the Snap toggle")
+        for item in ts:
+            if item.kind == M.KIND_TOGGLE:
+                self.assertFalse(self._eligible_label(item.id), item.id)
+        ws = model.row(M.ROW_WORKSPACE).items
+        self.assertTrue(ws)
+        for item in ws:
+            self.assertFalse(self._eligible_label(item.id), item.id)
+        for item_id in (M.RECENT_ID, M.CONTROLS_ID, M.CENTER_ID, M.MODE_SWITCH_ID):
+            # present and placed: a missing id would resolve to ROLE_PASSIVE (False) anyway
+            self.assertIsNotNone(model.find(item_id), item_id)
+            self.assertIsNotNone(self.state.layout.item(item_id), f"{item_id} is placed")
+            self.assertFalse(self._eligible_label(item_id), item_id)
+        self.assertIsNotNone(model.find(snap.id))
+        self.assertIsNotNone(self.state.layout.item(snap.id), "the Snap toggle is placed")
+        # Real rows are recorded custom (a label turns native lazily, when its build fails
+        # at open): make one native the way the modal does, so the native branch is checked
+        # on a real row rather than looping over nothing.
+        natives = [item for row in model.rows for item in row.items
+                   if (item.payload or {}).get('coverage') == D.COVERAGE_NATIVE]
+        if not natives:
+            _dd()._make_native(self.state, self.state.menus, 'TOPBAR_MT_edit')
+            model = self.state.model
+            natives = [model.find('TOPBAR_MT_edit')]
+            self.assertEqual(natives[0].payload.get('coverage'), D.COVERAGE_NATIVE)
+            self.assertIsNotNone(self.state.layout.item('TOPBAR_MT_edit'))
+        self.assertTrue(natives)
+        for item in natives:
+            self.assertFalse(self._eligible_label(item.id), f"native {item.id}")
+        # Inside File: Open Recent (C-only) is a DD_NATIVE hand-off, never hover-opened;
+        # a custom submenu (Import) is.
+        box = self.state.layout.item('TOPBAR_MT_file')
+        self.click(self.mid(box.rect))
+        ddg = _mod("core.dropdown_geometry")
+        fm = self.state.menus.models[0]
+        recent = next(i for i, it in enumerate(fm.items)
+                      if it.kind == D.DD_NATIVE and 'Recent' in it.label)
+        self.assertFalse(_dd().hover_eligible(self.state.menus, self.state,
+                                              ddg.Hit(D.ZONE_ITEM, path=(recent,), depth=0)))
+        sub = next(i for i, it in enumerate(fm.items) if it.kind == D.DD_SUBMENU)
+        self.assertTrue(_dd().hover_eligible(self.state.menus, self.state,
+                                             ddg.Hit(D.ZONE_ITEM, path=(sub,), depth=0)))
+        op = next(i for i, it in enumerate(fm.items) if it.kind == D.DD_OP and it.enabled)
+        self.assertFalse(_dd().hover_eligible(self.state.menus, self.state,
+                                              ddg.Hit(D.ZONE_ITEM, path=(op,), depth=0)))
+
+    def test_real_hover_opens_file_and_pivot(self):
+        """The real session (prefs None -> the PlazaState defaults: hover-open on)."""
+        self.assertTrue(self.state.menus.bar.hover_open)
+        ts = self.state.model.row(md().ROW_TOOL_SETTINGS).items
+        pivot = next(i for i in ts if i.id.startswith('ts:pivot:'))
+        for item_id in ('TOPBAR_MT_file', pivot.id):
+            with self.subTest(item_id=item_id):
+                self.ev('MOUSEMOVE', 'NOTHING', (5, 5))
+                self.ev('MOUSEMOVE', 'NOTHING', self.mid(self.state.layout.item(item_id).rect))
+                time.sleep(0.07)
+                self.ev('TIMER', 'NOTHING')
+                self.assertEqual(self.state.open_label, item_id)
+                self.assertEqual(self.state.menus.bar.opened_by, 'hover')
+                self.assertEqual(self.executed, [])
+                self.ev('ESC', 'PRESS')
+                self.assertIsNone(self.state.dropdowns)
 
     def test_session_started_at_invoke(self):
         self.assertIsNotNone(self.state.menus)
