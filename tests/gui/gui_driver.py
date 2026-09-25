@@ -2193,7 +2193,10 @@ def load_scenario_modules():
             spec = importlib.util.spec_from_file_location(f"meso_gui_{path.stem}", path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            out.extend(mod.scenarios(driver_module()))
+            grab = bool(getattr(mod, "NEEDS_GRAB", False))
+            for name, fn in mod.scenarios(driver_module()):
+                fn.needs_grab = grab
+                out.append((name, fn))
         except Exception:
             err = traceback.format_exc()
             traceback.print_exc()
@@ -2245,6 +2248,16 @@ SCENARIOS[_P3_AT:_P3_AT] = P3_SCENARIOS + load_scenario_modules()
 _ONLY = [p for p in os.environ.get("MESO_GUI_ONLY", "").split(",") if p]
 if _ONLY:
     SCENARIOS = [(n, f) for n, f in SCENARIOS if any(p in n for p in _ONLY)]
+# MESO_GUI_GRAB (run_gui_tests.sh): 'skip' drops the scenarios that start a transform (modules
+# with NEEDS_GRAB = True; they segfault on the nested Wayland backend, where there is no
+# pointer device), 'only' runs just those (the Xwayland session), unset runs everything.
+_GRAB = os.environ.get("MESO_GUI_GRAB", "")
+if _GRAB == "skip":
+    SCENARIOS = [(n, f) for n, f in SCENARIOS if not getattr(f, "needs_grab", False)]
+elif _GRAB == "only":
+    SCENARIOS = [(n, f) for n, f in SCENARIOS if getattr(f, "needs_grab", False)]
+META["grab"] = _GRAB
+META["display"] = "wayland" if os.environ.get("WAYLAND_DISPLAY") else "x11"
 
 # ----------------------------------------------------------------------------- driver
 
