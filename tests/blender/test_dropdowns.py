@@ -53,8 +53,9 @@ def _visible(area, region_type):
 
 
 class Ev:
-    def __init__(self, type, value='PRESS', mouse_x=0, mouse_y=0):
+    def __init__(self, type, value='PRESS', mouse_x=0, mouse_y=0, shift=False, ctrl=False):
         self.type, self.value, self.mouse_x, self.mouse_y = type, value, mouse_x, mouse_y
+        self.shift, self.ctrl = shift, ctrl
 
 
 def _stub():
@@ -1591,3 +1592,81 @@ class TestRealBuilders(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestNativeClickConventions(_Case):
+    """A click mirrors the native button: a flag-enum member is exclusive unless Shift is held
+    (Snap To ▸ Vertex); the mesh select-mode operator extends with Shift, expands with Ctrl."""
+
+    def setUp(self):
+        super().setUp()
+        M, D = md(), dm()
+        A, I = M.Action, D.DropdownItem
+        path = 'tool_settings.snap_elements_base'
+        flags = tuple(I(D.DD_FLAG, label, checked=(value == 'INCREMENT'),
+                        action=A(M.ACTION_TOGGLE_FLAG, data_path=path, value=value))
+                      for value, label in (('INCREMENT', 'Increment'), ('VERTEX', 'Vertex')))
+        select = I(D.DD_TOGGLE, 'Edge', checked=False,
+                   action=A(M.ACTION_OPERATOR, target='mesh.select_mode',
+                            props={'type': 'EDGE'}, operator_context='EXEC_DEFAULT'))
+        model = D.DropdownModel(PIVOT_ID, 'Pivot', flags + (select,), source=D.SOURCE_TOOL,
+                                native_action=D.native_panel_action('VIEW3D_PT_snapping'))
+        rec_pop = _mod("record.popover")
+        self.addCleanup(setattr, rec_pop, 'build_tool_cascade', rec_pop.build_tool_cascade)
+        rec_pop.build_tool_cascade = lambda context, info, item: model
+
+    def click_mod(self, xy, **mods):
+        self.move(xy)
+        with bpy.context.temp_override(window=self.window):
+            self.stub.modal(bpy.context, Ev('LEFTMOUSE', 'PRESS', *xy, **mods))
+            self.stub.modal(bpy.context, Ev('LEFTMOUSE', 'RELEASE', *xy, **mods))
+
+    def last_call(self):
+        self.assertTrue(self.run_calls, "nothing ran")
+        call = self.run_calls[-1]['call']
+        return call.op_idname, dict(call.kwargs)
+
+    def test_flag_plain_click_is_exclusive_shift_toggles(self):
+        self.click(self.label_xy(PIVOT_ID))
+        vertex = self.item_xy((1,))
+        self.click_mod(vertex)
+        self.assertEqual(self.last_call(), ('meso.toggle_flag', {
+            'data_path': 'tool_settings.snap_elements_base', 'flag': 'VERTEX',
+            'exclusive': True}))
+        self.click_mod(vertex, shift=True)
+        self.assertEqual(self.last_call(), ('meso.toggle_flag', {
+            'data_path': 'tool_settings.snap_elements_base', 'flag': 'VERTEX'}))
+        self.assertTrue(_hb().is_running(), "flag picks keep the Plaza open")
+
+    def test_select_mode_extend_and_expand(self):
+        self.click(self.label_xy(PIVOT_ID))
+        edge = self.item_xy((2,))
+        for mods, extra in (({}, {}), ({'shift': True}, {'use_extend': True}),
+                            ({'ctrl': True}, {'use_expand': True}),
+                            ({'shift': True, 'ctrl': True},
+                             {'use_extend': True, 'use_expand': True})):
+            with self.subTest(mods=mods):
+                self.click_mod(edge, **mods)
+                self.assertEqual(self.last_call(), ('mesh.select_mode', {'type': 'EDGE', **extra}))
+
+
+class TestToggleFlagOperator(unittest.TestCase):
+    """meso.toggle_flag: exclusive sets the property to the flag only; otherwise XOR."""
+
+    def test_exclusive_and_toggle(self):
+        ts = bpy.context.scene.tool_settings
+        old = set(ts.snap_elements)
+        self.addCleanup(setattr, ts, 'snap_elements', old)
+        path = 'tool_settings.snap_elements_base'
+        ts.snap_elements_base = {'INCREMENT', 'EDGE'}
+        self.assertEqual(bpy.ops.meso.toggle_flag(data_path=path, flag='VERTEX',
+                                                     exclusive=True), {'FINISHED'})
+        self.assertEqual(ts.snap_elements_base, {'VERTEX'})
+        # Clicking the only member again: unchanged, like the native button (no undo step).
+        self.assertEqual(bpy.ops.meso.toggle_flag(data_path=path, flag='VERTEX',
+                                                     exclusive=True), {'CANCELLED'})
+        self.assertEqual(ts.snap_elements_base, {'VERTEX'})
+        bpy.ops.meso.toggle_flag(data_path=path, flag='EDGE')
+        self.assertEqual(ts.snap_elements_base, {'VERTEX', 'EDGE'})
+        bpy.ops.meso.toggle_flag(data_path=path, flag='VERTEX')
+        self.assertEqual(ts.snap_elements_base, {'EDGE'})

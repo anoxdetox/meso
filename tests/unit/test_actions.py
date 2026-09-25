@@ -107,6 +107,26 @@ class TestPlanCallSetters(unittest.TestCase):
                           actions.TOGGLE_FLAG_OPERATOR, {'data_path': path, 'flag': 'VERTEX'})
         self.assertEqual(actions.TOGGLE_FLAG_OPERATOR, 'meso.toggle_flag')
 
+    def test_click_modifiers_mirror_native(self):
+        A, path = model.Action, 'tool_settings.snap_elements_base'
+        flag = A(model.ACTION_TOGGLE_FLAG, data_path=path, value='VERTEX')
+        plain = actions.with_click_modifiers(flag)
+        self.check_setter(actions.plan_call(plain), actions.TOGGLE_FLAG_OPERATOR,
+                          {'data_path': path, 'flag': 'VERTEX', 'exclusive': True})
+        shifted = actions.with_click_modifiers(plain, shift=True)   # idempotent on re-plan
+        self.check_setter(actions.plan_call(shifted), actions.TOGGLE_FLAG_OPERATOR,
+                          {'data_path': path, 'flag': 'VERTEX'})
+        sel = A(model.ACTION_OPERATOR, target='MESH_OT_select_mode', props={'type': 'FACE'},
+                operator_context='EXEC_DEFAULT')
+        self.assertIs(actions.with_click_modifiers(sel), sel)
+        self.assertEqual(dict(actions.with_click_modifiers(sel, shift=True, ctrl=True).props),
+                         {'type': 'FACE', 'use_extend': True, 'use_expand': True})
+        other = A(model.ACTION_OPERATOR, target='object.join')
+        self.assertIs(actions.with_click_modifiers(other, shift=True, ctrl=True), other)
+        toggle = A(model.ACTION_TOGGLE, data_path='tool_settings.use_snap')
+        self.assertIs(actions.with_click_modifiers(toggle, shift=True), toggle)
+        self.assertIsNone(actions.with_click_modifiers(None, shift=True))
+
     def test_setters_need_a_path(self):
         for kind in (model.ACTION_TOGGLE, model.ACTION_SET_ENUM, model.ACTION_SET_VALUE,
                      model.ACTION_TOGGLE_FLAG, model.ACTION_PROP_ENUM_MENU):

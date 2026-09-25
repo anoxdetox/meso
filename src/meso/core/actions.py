@@ -11,14 +11,17 @@ Rules (docs/spikes.md D3/D5, docs/header-controls-5.2.md §5):
   positional ``True`` pushes the undo step (D5);
 - hand-offs (menus, panels, the enum popup, repeat history) run ``'INVOKE_DEFAULT'`` with no
   undo flag (the popup's own items push steps);
-- 'operator' actions run with the recorded ``operator_context`` and ``undo``.
+- 'operator' actions run with the recorded ``operator_context`` and ``undo``;
+- a click mirrors Blender's own click conventions (:func:`with_click_modifiers`): a
+  flag-enum member is exclusive unless Shift is held, the mesh select-mode buttons extend
+  with Shift and expand with Ctrl.
 
 Pure Python (no bpy).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .model import (
@@ -71,6 +74,7 @@ def plan_call(action: Action | None, addon_module: str = '') -> OpCall | None:
     set_value      wm.context_set_int (int, not bool) / wm.context_set_float (float)
                    EXEC_DEFAULT undo=True data_path, value (bool / other types -> None)
     toggle_flag    meso.toggle_flag EXEC_DEFAULT undo=True data_path, flag=str(value)
+                   (+ exclusive=True when ``props['exclusive']``)
     operator       target (normalised 'mod.name'), operator_context, undo=action.undo,
                    kwargs=dict(props)
     repeat_history screen.repeat_history INVOKE_DEFAULT
@@ -119,8 +123,45 @@ def plan_call(action: Action | None, addon_module: str = '') -> OpCall | None:
     if kind == ACTION_TOGGLE_FLAG:
         if value is None or value == '':
             return None
-        return OpCall(TOGGLE_FLAG_OPERATOR, _EXEC, True, {'data_path': path, 'flag': str(value)})
+        kwargs = {'data_path': path, 'flag': str(value)}
+        if action.props.get('exclusive'):
+            kwargs['exclusive'] = True
+        return OpCall(TOGGLE_FLAG_OPERATOR, _EXEC, True, kwargs)
     return None     # ACTION_NONE, ACTION_WORKSPACE, unknown kinds
+
+
+# Operators whose native header buttons read the click modifiers (the C select-mode
+# template, ``uiTemplateEditModeSelection``): Shift -> use_extend, Ctrl -> use_expand.
+MODIFIER_OPERATORS = frozenset({'mesh.select_mode'})
+
+
+def with_click_modifiers(action: Action | None, *, shift: bool = False,
+                         ctrl: bool = False) -> Action | None:
+    """``action`` as a click with these modifiers runs it natively (Blender's convention:
+    a plain click on a multi-value button is exclusive; a modifier extends).
+
+    - ``toggle_flag`` (a flag-enum member, e.g. Snap To ▸ Vertex): no Shift -> exclusive
+      (the property becomes ``{value}``, like a plain click on the native button); Shift ->
+      toggle the member (Shift-click);
+    - ``operator`` in :data:`MODIFIER_OPERATORS` (``mesh.select_mode``): Shift ->
+      ``use_extend=True``, Ctrl -> ``use_expand=True`` (a plain click switches the mode);
+    - anything else, or None: unchanged.
+    """
+    if action is None:
+        return None
+    if action.kind == ACTION_TOGGLE_FLAG:
+        props = {k: v for k, v in action.props.items() if k != 'exclusive'}
+        if not shift:
+            props['exclusive'] = True
+        return replace(action, props=props)
+    if action.kind == ACTION_OPERATOR and normalize_op_idname(action.target) in MODIFIER_OPERATORS:
+        props = dict(action.props)
+        if shift:
+            props['use_extend'] = True
+        if ctrl:
+            props['use_expand'] = True
+        return replace(action, props=props) if props != dict(action.props) else action
+    return action
 
 
 def describe(call: OpCall | None) -> tuple[str, dict[str, Any]] | None:

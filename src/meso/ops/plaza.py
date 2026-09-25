@@ -716,6 +716,9 @@ class MESO_OT_plaza(Operator):
         action = item_action(item)
         if action is None or rid != pid:
             return {'RUNNING_MODAL'}
+        action = core_actions.with_click_modifiers(action,
+                                                   shift=bool(getattr(event, 'shift', False)),
+                                                   ctrl=bool(getattr(event, 'ctrl', False)))
         window, area, region = state.window, state.area, state.region
         area_type = state.area_type
         try:

@@ -1003,8 +1003,9 @@ class TestModalPhase3(_Phase3Case):
                     self.assertEqual(release, {'RUNNING_MODAL'})
                     self.assertEqual(self.calls, [], "in place, not through execute")
                     self.assertEqual(len(in_place), 1)
-                    self.assertEqual(in_place[0]['call'], acts.plan_call(action,
-                                                                        inv.addon_module()))
+                    # A plain click, as natively (a flag-enum member becomes exclusive).
+                    self.assertEqual(in_place[0]['call'], acts.plan_call(
+                        acts.with_click_modifiers(action), inv.addon_module()))
                     self.assertTrue(in_place[0]['running'], "inside the running modal")
                     self.assertIs(in_place[0]['region'], self.region)
                     self.assertTrue(hb.is_running())

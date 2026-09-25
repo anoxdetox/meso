@@ -145,7 +145,10 @@ class MenuSession:
     from). ``show_shortcuts``: the pref snapshot (switched off for the session when
     ``cache.shortcuts_off``). ``enter_armed``: the RETURN / NUMPAD_ENTER key whose PRESS
     was seen (its RELEASE activates the hovered item). ``rerecord_at``: pending re-record
-    times after an animated in-place change (:data:`ANIMATED_PATH_PREFIXES`). Debug / test
+    times after an animated in-place change (:data:`ANIMATED_PATH_PREFIXES`). ``shift`` /
+    ``ctrl``: the modifiers of the last non-TIMER event, so a click runs as it would natively
+    (``core.actions.with_click_modifiers``: flag-enum members are exclusive unless Shift is
+    held; the mesh select-mode buttons extend / expand). Debug / test
     records (plain): ``opened`` (model keys in open
     order), ``in_place`` (``core.actions.describe`` of each in-place call), ``run``
     (``(model key, path, label, (kind, target, data_path))`` of the terminal RunItem /
@@ -168,6 +171,8 @@ class MenuSession:
     enter_armed: str | None = None
     rerecord_at: list[float] = field(default_factory=list)
     last_xy: tuple[float, float] | None = None
+    shift: bool = False
+    ctrl: bool = False
 
 
 # --------------------------------------------------------------------------- setup
@@ -660,6 +665,7 @@ def _apply_in_place(state: Any, context: Any, effect: RunItem) -> list[Event]:
         key = session.models[level - 1].key if level <= len(session.models) else ''
     if action is None:
         return [Changed(key, None)]
+    action = core_actions.with_click_modifiers(action, shift=session.shift, ctrl=session.ctrl)
     res = invoke.apply_in_place(action, state.window, state.area, state.region)
     if res.call is not None:
         session.in_place.append(res.call)
@@ -743,6 +749,7 @@ def _run_terminal(op: Any, state: Any, effect: Effect) -> set[str]:
     hb = _plaza()
     session = state.menus
     action, where = _terminal_source(state, effect)
+    action = core_actions.with_click_modifiers(action, shift=session.shift, ctrl=session.ctrl)
     reason = 'run' if isinstance(effect, RunItem) else 'handoff'
     window, area, region, area_type = state.window, state.area, state.region, state.area_type
     try:
@@ -900,6 +907,9 @@ def handle_event(op: Any, state: Any, context: Any, event: Any) -> set[str] | No
     if session is None:
         return None
     try:
+        if not getattr(event, 'type', '').startswith('TIMER'):
+            session.shift = bool(getattr(event, 'shift', False))
+            session.ctrl = bool(getattr(event, 'ctrl', False))
         ev = reducer_event(session, state, event, time.perf_counter())
         if ev is None:
             return None

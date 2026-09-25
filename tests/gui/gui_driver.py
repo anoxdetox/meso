@@ -1494,13 +1494,14 @@ def shot_open(rec, name, st):
     save_screenshot(f"phase3_{name}")
 
 
-def press_click(xy):
-    """LMB press + release at ``xy`` (after a move); the plaza reacts on the release."""
-    sim('MOUSEMOVE', 'NOTHING', xy)
+def press_click(xy, **mods):
+    """LMB press + release at ``xy`` (after a move); the plaza reacts on the release.
+    ``mods``: shift / ctrl / alt held during the click."""
+    sim('MOUSEMOVE', 'NOTHING', xy, **mods)
     yield 0.1
-    sim('LEFTMOUSE', 'PRESS', xy)
+    sim('LEFTMOUSE', 'PRESS', xy, **mods)
     yield 0.1
-    sim('LEFTMOUSE', 'RELEASE', xy)
+    sim('LEFTMOUSE', 'RELEASE', xy, **mods)
     yield 0.4
 
 

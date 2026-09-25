@@ -11,3 +11,5 @@ dist/
 .vscode/
 .idea/
 /local/
+# Claude Code agent worktrees
+/.claude/worktrees/

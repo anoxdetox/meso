@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 import bpy
-from bpy.props import StringProperty
+from bpy.props import BoolProperty, StringProperty
 from bpy.types import Operator
 
 from ..core.actions import TOGGLE_FLAG_OPERATOR, normalize_op_idname
@@ -86,9 +86,17 @@ class MESO_OT_toggle_flag(Operator):
         default='',
         options={'SKIP_SAVE'},
     )
+    exclusive: BoolProperty(
+        name="Exclusive",
+        description="Set the property to this flag only (a plain click on the native "
+                    "button); off: add or remove it (a Shift-click)",
+        default=False,
+        options={'SKIP_SAVE'},
+    )
 
     def execute(self, context) -> set[str]:
-        """``value = set(<data_path>)``; ``new = value ^ {flag}``; assign; read back.
+        """``value = set(<data_path>)``; ``new = {flag}`` if ``exclusive`` else
+        ``value ^ {flag}``; assign; read back.
 
         - bad path / not an enum-flag set / unknown flag -> ``{'CANCELLED'}`` (reported,
           never raises);
@@ -113,7 +121,7 @@ class MESO_OT_toggle_flag(Operator):
             return {'CANCELLED'}
         try:
             old = set(getattr(owner, prop))
-            setattr(owner, prop, old ^ {flag})
+            setattr(owner, prop, {flag} if self.exclusive else old ^ {flag})
             new = set(getattr(owner, prop))
         except (AttributeError, TypeError, ValueError) as ex:
             self.report({'WARNING'}, f"Cannot toggle {flag!r} of {path!r}: {ex}")

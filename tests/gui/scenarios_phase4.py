@@ -302,10 +302,11 @@ def scenarios(drv):
         """The Snap elements cascade: a flag toggle applies in place (meso.toggle_flag),
         the cascade stays open and its checks update; screenshot phase4_snap_cascade."""
         ts = bpy.context.scene.tool_settings
-        before = set(ts.snap_elements_base)
+        before = set(ts.snap_elements)
         target_before = ts.snap_target
         xy = drv.center_of("VIEW_3D")
         try:
+            ts.snap_elements = {'INCREMENT'}
             st = yield from drv.open_plaza(xy)
             item = next((i for i in (st.model.row(md().ROW_TOOL_SETTINGS).items
                                      if st is not None and st.model is not None else ())
@@ -336,23 +337,36 @@ def scenarios(drv):
                 yield from drv.close_plaza(xy, rec)
                 return
             was = drv.dd_models(st)[0].items[vert].checked
-            drv.check(rec, "checked_matches", was == ('VERTEX' in before), [was, before])
+            drv.check(rec, "checked_matches", was is False, was)
             yield from drv.hover_to(drv.dd_xy(st, (vert,)))
             yield 0.2
             drv.save_screenshot("phase4_snap_cascade")
+            # Native convention: a plain click picks that element only; Shift+click adds or
+            # removes it (Blender's expanded flag-enum buttons).
             yield from drv.press_click(drv.dd_xy(st, (vert,)))
-            drv.check(rec, "flag_toggled", ('VERTEX' in ts.snap_elements_base) != was,
+            drv.check(rec, "plain_click_exclusive", ts.snap_elements_base == {'VERTEX'},
                       sorted(ts.snap_elements_base))
             drv.check(rec, "plaza_open", drv.plaza().is_running())
             drv.check(rec, "cascade_open", st.open_label == item.id, st.open_label)
             now = drv.dd_models(st)[0].items[vert].checked if drv.dd_models(st) else None
-            drv.check(rec, "check_updated", now == (not was), [was, now])
+            drv.check(rec, "check_updated", now is True, [was, now])
             in_place = st.menus.in_place if st.menus is not None else []
             drv.check(rec, "in_place_toggle_flag", bool(in_place)
-                      and in_place[-1][0] == "meso.toggle_flag", in_place)
-            # A second click toggles it back (still open).
-            yield from drv.press_click(drv.dd_xy(st, (vert,)))
-            drv.check(rec, "toggled_back", ('VERTEX' in ts.snap_elements_base) == was)
+                      and in_place[-1] == ("meso.toggle_flag", {
+                          'data_path': 'tool_settings.snap_elements_base', 'flag': 'VERTEX',
+                          'exclusive': True}), in_place)
+            edge = drv.dd_find(st, 0, lambda it: it.kind == D().DD_FLAG
+                               and it.action is not None and it.action.value == 'EDGE')
+            drv.check(rec, "edge_flag_found", edge is not None)
+            if edge is not None and drv.dd_xy(st, (edge,)) is not None:
+                yield from drv.press_click(drv.dd_xy(st, (edge,)), shift=True)
+                drv.check(rec, "shift_click_adds", ts.snap_elements_base == {'VERTEX', 'EDGE'},
+                          sorted(ts.snap_elements_base))
+                yield from drv.press_click(drv.dd_xy(st, (vert,)), shift=True)
+                drv.check(rec, "shift_click_removes", ts.snap_elements_base == {'EDGE'},
+                          sorted(ts.snap_elements_base))
+                now = drv.dd_models(st)[0].items[vert].checked if drv.dd_models(st) else None
+                drv.check(rec, "check_cleared", now is False, now)
             drv.check(rec, "still_open", st.open_label == item.id, st.open_label)
             # A Snap Base radio of the recorded panel content keeps the panel open too (the
             # rows around it are toggles; Blender's popover stays open).
@@ -375,7 +389,7 @@ def scenarios(drv):
             drv.check(rec, "ended_by_release", drv.last().get("end") == "finish",
                       drv.last().get("end"))
         finally:
-            ts.snap_elements_base = before
+            ts.snap_elements = before
             ts.snap_target = target_before
 
     def sc_view_sidebar_toggle(rec):

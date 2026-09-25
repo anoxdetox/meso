@@ -2,6 +2,9 @@
 
 Phases 0–7 are in the approved plan (Plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅; next: rename to Meso Mode.
 
+## Guiding principle — Plaza menus mirror native behaviour (user rule 2026-09-25)
+Wherever the Plaza redraws a native control, it behaves like the native one: the same click conventions (a plain click on a multi-value button is exclusive, Shift extends), the same grouping and labels. See `docs/phase4-interfaces.md` "Native click conventions".
+
 ## Guiding principle — never erase native Blender features (user rule 2026-09-25)
 Meso Mode **adds** and **relocates**. It never removes a Blender feature. Every native action we displace must stay reachable, and each binding must be individually switchable off.
 - **Tap-versus-hold coexistence first.** A quick tap or click keeps the native action. Only a hold or drag opens Meso UI; the Space tap/hold is the model.
