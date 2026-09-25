@@ -12,8 +12,8 @@ Precedence between keymaps is Blender's handler order (mode map > Frames > edito
 Window), not registration order. A ``spacebar_action`` change rebuilds only the preset
 keyconfig; add-on items are re-merged automatically, so no update hook is needed.
 
-This module must be LAST in ``__init__._modules`` (the operator class must exist first,
-and its items must be removed before the operator is unregistered).
+This module must be last before ``meso_keymap`` in ``__init__._modules`` (the operator class
+must exist first, and its items must be removed before the operator is unregistered).
 """
 
 from __future__ import annotations

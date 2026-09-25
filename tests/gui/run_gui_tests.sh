@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Run the GUI event-simulate suite (tests/gui/gui_driver.py) and check its JSON report.
 #
-#   tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl] [--out FILE]
+#   tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl] [--out FILE] [--only a,b]
 #
+# --only runs just the scenarios whose name contains one of the comma-separated parts (for
+# iterating; the full suite is the gate).
 # Default: Blender runs inside a nested, virtual-framebuffer KWin (kwin_wayland --virtual), so the
 # suite works while the desktop session is locked (a locked KWin never maps new windows and GUI
 # Blender then blocks forever). --host uses the current WAYLAND_DISPLAY/DISPLAY instead.
@@ -26,7 +28,8 @@ while [ $# -gt 0 ]; do
         --host) MODE=host ;;
         --backend) BACKEND="${2:?--backend needs vulkan|opengl}"; shift ;;
         --out) OUT="${2:?--out needs a path}"; shift ;;
-        -h|--help) sed -n '3,15p' "$0"; exit 0 ;;
+        --only) export MESO_GUI_ONLY="${2:?--only needs a,b}"; shift ;;
+        -h|--help) sed -n '3,18p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
     shift

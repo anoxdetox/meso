@@ -5,13 +5,14 @@ Extension entry point. No ``bl_info`` (extensions use ``blender_manifest.toml``)
 ``register()`` runs under RestrictBlend: no ``bpy.data`` / scene access here.
 """
 
-from . import keymap_prefs, keymaps, prefs
-from .ops import actions, plaza, invoke, panes
+from . import keymap_prefs, keymaps, meso_keymap, prefs
+from .ops import actions, keymap_choice, plaza, invoke, panes
 from .view import draw_manager
 
 # Ordered list of submodules exposing register()/unregister().
-# Registered in order, unregistered in reverse. keymaps must stay last: its items
-# need the operator class, and are removed first on unregister.
+# Registered in order, unregistered in reverse. keymaps and meso_keymap stay last: their
+# items need the operator classes, and are removed first on unregister (meso_keymap also
+# gives the previous keyconfig back first).
 _modules = (
     prefs,
     keymap_prefs,
@@ -20,7 +21,9 @@ _modules = (
     invoke,
     panes,
     draw_manager,
+    keymap_choice,
     keymaps,
+    meso_keymap,
 )
 
 

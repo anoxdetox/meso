@@ -79,7 +79,10 @@ def _raise(ex):
     raise ex
 
 
-def enable_addon():
+def enable_addon(prompt=False):
+    """Enable the add-on. The first-enable Meso Keymap question (a dialog opened by a 0.5 s
+    timer) would block every scenario's events, so it is marked as asked right away unless
+    ``prompt`` (scenarios_meso_keymap drives the dialog itself)."""
     # Reuse the repo on re-enable: removing it re-runs disable ("not enabled" noise).
     repos = bpy.context.preferences.extensions.repos
     repo = next((r for r in repos if r.module == REPO_MODULE), None)
@@ -91,6 +94,10 @@ def enable_addon():
     mod = addon_utils.enable(ADDON_MODULE, default_set=True, handle_error=_raise)
     if mod is None:
         raise RuntimeError(f"addon_utils.enable({ADDON_MODULE!r}) returned None")
+    if not prompt:
+        p = addon_prefs()
+        if p is not None:
+            p.keymap_prompted = True
     patch_draw_counter()   # the module may have been reloaded
 
 
@@ -2233,6 +2240,11 @@ SCENARIOS = [
 # Phase 3 and the scenarios_*.py modules run before the add-on disable/enable scenarios.
 _P3_AT = next(i for i, (n, _f) in enumerate(SCENARIOS) if n == "disabled_poll")
 SCENARIOS[_P3_AT:_P3_AT] = P3_SCENARIOS + load_scenario_modules()
+# MESO_GUI_ONLY=a,b (run_gui_tests.sh --only): just the scenarios whose name contains one of
+# the comma-separated parts (for iterating; the full suite is the gate).
+_ONLY = [p for p in os.environ.get("MESO_GUI_ONLY", "").split(",") if p]
+if _ONLY:
+    SCENARIOS = [(n, f) for n, f in SCENARIOS if any(p in n for p in _ONLY)]
 
 # ----------------------------------------------------------------------------- driver
 

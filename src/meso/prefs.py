@@ -10,11 +10,19 @@ from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorPro
                        IntProperty, StringProperty)
 from bpy.types import AddonPreferences
 
+from .core import meso_bindings
+
 
 def _update_text_chord(self, context):
     # Imported lazily: keymaps imports this module's get_prefs.
     from . import keymaps
     keymaps.reregister_text_chord(context)
+
+
+def _update_meso_bindings(self, context):
+    # Imported lazily: meso_keymap imports this module's get_prefs.
+    from . import meso_keymap
+    meso_keymap.safe_sync(context)
 
 
 # Keys offered by "Set all Space items" (keymap_prefs): the keyboard block of the event-type
@@ -264,6 +272,70 @@ class MesoAddonPreferences(AddonPreferences):
     space_items_alt: BoolProperty(name="Alt", default=False)
     space_items_oskey: BoolProperty(name="OS", default=False)
 
+    # -- Meso Keymap (docs/meso-keymap-interfaces.md "Preferences"); bind_<id> are added below.
+    keymap_choice: EnumProperty(
+        name="Meso Keymap Choice",
+        description="Whether Meso Mode uses the Meso Keymap (set by the choice buttons only)",
+        items=(
+            ('UNDECIDED', "Not Chosen", "No choice yet: behaves like Keep"),
+            ('MESO', "Meso Keymap", "Industry Compatible plus Meso's bindings"),
+            ('KEEP', "Keep", "Keep your keymap; no Meso bindings"),
+        ),
+        default='UNDECIDED',
+        options={'HIDDEN'},
+    )
+    keymap_prompted: BoolProperty(
+        name="Keymap Choice Asked",
+        description="The first-enable Meso Keymap question was shown",
+        default=False,
+        options={'HIDDEN'},
+    )
+    previous_keyconfig: StringProperty(
+        name="Previous Keymap",
+        description="The keymap that was active before the Meso Keymap; restored on Keep or "
+                    "when Meso Mode is disabled",
+        default="",
+        options={'HIDDEN'},
+    )
+    keyconfig_restored: BoolProperty(
+        name="Keymap Restored",
+        description="Meso Mode's unregister restored the previous keymap in this session "
+                    "(a reload selects Industry Compatible again)",
+        default=False,
+        options={'HIDDEN'},
+    )
+    bindings_on_other_keymaps: BoolProperty(
+        name="Meso Bindings on Any Keymap",
+        description="Also register the Meso bindings when the active keymap is not Industry "
+                    "Compatible. On Blender's own keymap they hide native keys: Alt D (linked "
+                    "duplicate, rip, NLA duplicate, key blending), and with the later bindings "
+                    "Ctrl A (Apply menu, skin resize), Ctrl 1 (subdivision level) and C "
+                    "(circle select)",
+        default=False,
+        update=_update_meso_bindings,
+    )
+    properties_cycle_order: StringProperty(
+        name="Properties Tab Cycle",
+        description="Comma-separated Properties tabs that Ctrl A cycles through",
+        default="OBJECT,DATA,MODIFIER,MATERIAL",
+    )
+    isolate_frame_selected: BoolProperty(
+        name="Frame Isolated Selection",
+        description="Ctrl 1 in Object Mode also frames the isolated objects",
+        default=False,
+    )
+    hold_tap_threshold: FloatProperty(
+        name="Hold Key Tap Threshold",
+        description="A snap or pivot hold key released faster than this (seconds), with no "
+                    "click or drag in between, runs the key's native action instead",
+        default=0.20,
+        min=0.0,
+        max=1.0,
+        step=1,
+        precision=2,
+        subtype='TIME_ABSOLUTE',
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -321,6 +393,18 @@ class MESO_OT_palette_to_custom(bpy.types.Operator):
         for role in _CUSTOM_ROLES:
             setattr(addon_prefs, f"color_{role}", tuple(getattr(palette, role)[:3]))
         return {'FINISHED'}
+
+
+def _add_binding_props():
+    """One ``bind_<id>`` BoolProperty per Meso Keymap binding (before register_class)."""
+    annotations = MesoAddonPreferences.__annotations__
+    for b in meso_bindings.BINDINGS:
+        annotations[meso_bindings.pref_name(b.id)] = BoolProperty(
+            name=b.label, description=b.description, default=b.default_on,
+            update=_update_meso_bindings)
+
+
+_add_binding_props()
 
 
 def custom_colors(addon_prefs):
