@@ -251,6 +251,22 @@ def _draw_cycle_hint(layout, text):
         _wrapped(col, line)
 
 
+# Greyed hints under a group's bindings (the hold-J blocker: docs/meso-keymap-interfaces.md).
+GROUP_HINTS = {
+    'SNAPPING': (
+        "A hold snaps the next drag; your snap settings come back when that drag ends.",
+        "During a drag, hold Ctrl to invert snapping (native).",
+        "Holding J during a drag cannot invert snapping: add-ons cannot add keys to the "
+        "Transform Modal Map. You can add J there yourself (Preferences > Keymap > Transform "
+        "Modal Map > Snap Invert).",
+        "Every snap option stays in the header and the Plaza Tool Settings row.",
+    ),
+    'PIVOT': (
+        "Object Mode only. Affect Only Origins is also in the Options menu of the header and "
+        "the Plaza Tool Settings row.",
+    ),
+}
+
 _GROUP_EXTRAS = {
     'PROPERTIES': ('properties_cycle_order',),
     'ISOLATE': ('isolate_frame_selected',),
@@ -314,10 +330,12 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
             body.prop(addon_prefs, prop)
         if group_id == 'PROPERTIES':
             _draw_cycle_hint(body, addon_prefs.properties_cycle_order)
-        if group_id == 'SNAPPING':
-            hint = body.row()
-            hint.active = False
-            hint.label(text="During a drag, hold Ctrl to invert snapping (native)")
+        hints = GROUP_HINTS.get(group_id, ())
+        if hints:
+            col_hint = body.column(align=True)
+            col_hint.active = False
+            for text in hints:
+                _wrapped(col_hint, text)
 
 
 def set_space_items(kc, key, shift=False, ctrl=False, alt=False, oskey=False):

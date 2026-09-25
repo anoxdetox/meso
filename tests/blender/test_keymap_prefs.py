@@ -295,7 +295,8 @@ class TestMesoKeymapPrefs(_PrefsCase):
         self.assertEqual(len({k.as_pointer() for k in active}), 13 + n_meso)
         # never IC's own items with the same operator (e.g. Ctrl A object.select_all)
         meso = [k for k in active if k.idname != OPERATOR_IDNAME]
-        self.assertTrue(all(k.type in ('A', 'D', 'I', 'ONE') for k in meso))
+        self.assertTrue(all(k.type in ('A', 'D', 'I', 'ONE', 'X', 'C', 'V', 'J', 'INSERT')
+                            for k in meso))
         ctrl_a = [k for k in meso if k.type == 'A' and k.ctrl and not k.shift and not k.alt]
         self.assertTrue(ctrl_a)
         self.assertEqual({k.idname for k in ctrl_a}, {'meso.properties_cycle'})
@@ -340,17 +341,19 @@ class TestMesoKeymapPrefs(_PrefsCase):
             [root] + [f"{root}/{label}" for _g, label in self.mb.GROUPS])
         log = self._draw()
         bind_props = [e[2] for e in log if e[0] == 'prop' and e[2].startswith('bind_')]
-        self.assertEqual(bind_props, [self.mb.pref_name(i) for i in self.tmk.LIVE_IDS])
+        self.assertEqual(bind_props, [self.mb.pref_name(i) for i in self.tmk.ALL_IDS])
         labels = self._labels(log)
-        for group in ("Selection", "Isolate", "Properties", "Apply"):
+        for group in ("Selection", "Isolate", "Properties", "Apply", "Snapping", "Pivot"):
             self.assertIn(group, labels)
-        for later in ("Snapping", "Pivot"):
-            self.assertNotIn(later, labels)
         extras = [e[2] for e in log if e[0] == 'prop' and not e[2].startswith('bind_')
                   and e[1] is self.prefs]
         self.assertIn('properties_cycle_order', extras)
         self.assertIn('isolate_frame_selected', extras)
-        self.assertNotIn('hold_tap_threshold', extras)
+        self.assertIn('hold_tap_threshold', extras)
+        hint = " ".join(labels)
+        self.assertIn("hold Ctrl to invert snapping (native)", hint)
+        self.assertIn("Transform Modal Map", hint)
+        self.assertIn("now: a quick tap of the key", hint)
         self.assertIn("Cycle: OBJECT > DATA > MODIFIER > MATERIAL", labels)
         joined = " ".join(labels)
         self.assertIn("Replaces Ctrl 1 mesh.select_mode(type='VERT', use_expand=True) in Mesh; "

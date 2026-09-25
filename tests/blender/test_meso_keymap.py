@@ -18,10 +18,13 @@ ADDON_MODULE = "bl_ext.meso_dev.meso"
 
 MODIFIERS = ('ctrl', 'shift', 'alt', 'oskey')
 
-# The bindings whose operators exist after implementation step 2 (table order).
-LIVE_IDS = ('select_all', 'deselect_all', 'select_invert', 'reloc_clip_show_disabled',
-            'select_keys_extra', 'isolate', 'reloc_mesh_vert_expand', 'properties_cycle',
-            'apply_menu')
+# Every binding of the table (all operators exist since implementation step 3), and the ones
+# registered with the default toggles (pivot_hold ships off, C3), in table order.
+ALL_IDS = ('select_all', 'deselect_all', 'select_invert', 'reloc_clip_show_disabled',
+           'select_keys_extra', 'isolate', 'reloc_mesh_vert_expand', 'properties_cycle',
+           'apply_menu', 'snap_hold_grid', 'snap_hold_edge', 'snap_hold_vertex',
+           'snap_hold_increment', 'pivot_hold', 'pivot_toggle')
+LIVE_IDS = tuple(i for i in ALL_IDS if i != 'pivot_hold')
 
 
 def _mod(name):
@@ -136,21 +139,19 @@ class TestTable(MesoKeymapCase):
                     self.assertEqual((km.space_type, km.region_type), (space, region))
                     self.assertFalse(km.is_modal)
 
-    def test_every_table_operator_exists_except_later_steps(self):
-        later = {'meso.snap_hold', 'meso.pivot_hold', 'meso.pivot_toggle'}
+    def test_every_table_operator_exists(self):
         for b in mb().BINDINGS:
             for idname in mb().operator_idnames(b):
                 with self.subTest(binding=b.id, op=idname):
-                    self.assertEqual(mk().operator_exists(idname), idname not in later)
-                    if idname in later:
-                        continue
+                    self.assertTrue(mk().operator_exists(idname))
                     # every table prop is a real property of the operator
                     module, _, name = idname.partition('.')
                     rna = getattr(getattr(bpy.ops, module), name).get_rna_type()
                     for item in b.items:
                         for prop, value in item.props:
                             self.assertIn(prop, rna.properties, f"{idname}.{prop}")
-        self.assertEqual(sorted(mk().available_ids()), sorted(LIVE_IDS))
+        self.assertEqual(sorted(mk().available_ids()), sorted(ALL_IDS))
+        self.assertEqual(tuple(b.id for b in mb().BINDINGS), ALL_IDS)
         self.assertFalse(mk().operator_exists('clip.graph_select_all'))  # IC's dead Ctrl+A
 
     def test_bind_prefs_generated(self):
@@ -248,7 +249,7 @@ class TestRegistration(MesoKeymapCase):
         live = mk().registered_items()
         expected = [item for b in mb().BINDINGS if b.id in LIVE_IDS for item in b.items]
         self.assertEqual([item for _km, _kmi, item in live], expected)
-        self.assertEqual(len(live), 18 + 19 + 24 + 1 + 10 + 10 + 1 + 14 + 2)
+        self.assertEqual(len(live), 18 + 19 + 24 + 1 + 10 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 1)
         addon = wm().keyconfigs.addon
         for km, kmi, item in live:
             with self.subTest(keymap=item.keymap, key=item.key.label()):

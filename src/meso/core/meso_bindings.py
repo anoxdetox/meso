@@ -215,6 +215,13 @@ def _select_items(keymaps, key, action):
     return tuple(Item(km, key, op, _action(action)) for km, op in keymaps)
 
 
+def _hold_item(keymap, key_type, idname, element=None):
+    """A hold item: its ``keymap`` property names the keymap it lives in, so a quick tap can
+    replay the native item of the same key from there (ops/snap_hold.py)."""
+    props = (('element', element),) if element else ()
+    return Item(keymap, Key(key_type), idname, props + (('keymap', keymap),))
+
+
 _CURSOR_CYCLE = native_call('wm.tool_set_by_id', (('name', 'builtin.cursor'), ('cycle', True)))
 _ANNOTATE_CYCLE = native_call('wm.tool_set_by_id', (('name', 'builtin.annotate'), ('cycle', True)))
 
@@ -343,7 +350,7 @@ BINDINGS: tuple[Binding, ...] = (
         "Hold X before a drag to snap to the grid; the snap settings come back on release. A "
         "quick tap still toggles snapping",
         True,
-        (Item('3D View', Key('X'), 'meso.snap_hold', (('element', 'GRID'),)),),
+        (_hold_item('3D View', 'X', 'meso.snap_hold', 'GRID'),),
         (Displaced('3D View', Key('X'),
                    native_call('wm.context_toggle', (('data_path', 'tool_settings.use_snap'),)),
                    NOW_TAP),),
@@ -353,8 +360,7 @@ BINDINGS: tuple[Binding, ...] = (
         "Hold C before a drag to snap to edges; the snap settings come back on release. A quick "
         "tap still switches to the Cursor tool",
         True,
-        tuple(Item(km, Key('C'), 'meso.snap_hold', (('element', 'EDGE'),))
-              for km in _EDGE_SNAP_KEYMAPS),
+        tuple(_hold_item(km, 'C', 'meso.snap_hold', 'EDGE') for km in _EDGE_SNAP_KEYMAPS),
         tuple(Displaced(km, Key('C'), _CURSOR_CYCLE, NOW_TAP) for km in _EDGE_SNAP_CURSOR_MAPS),
     ),
     Binding(
@@ -362,7 +368,7 @@ BINDINGS: tuple[Binding, ...] = (
         "Hold V before a drag to snap to vertices; the snap settings come back on release. A "
         "quick tap opens the View pie (click style)",
         True,
-        (Item('3D View', Key('V'), 'meso.snap_hold', (('element', 'VERTEX'),)),),
+        (_hold_item('3D View', 'V', 'meso.snap_hold', 'VERTEX'),),
         (Displaced('3D View', Key('V'),
                    native_call('wm.call_menu_pie', (('name', 'VIEW3D_MT_view_pie'),)), NOW_TAP),),
     ),
@@ -371,7 +377,7 @@ BINDINGS: tuple[Binding, ...] = (
         "Hold J before a drag to snap in increments (move, rotate and scale). Free in Industry "
         "Compatible. During a drag, hold Ctrl to invert snapping (native)",
         True,
-        (Item('3D View', Key('J'), 'meso.snap_hold', (('element', 'INCREMENT'),)),),
+        (_hold_item('3D View', 'J', 'meso.snap_hold', 'INCREMENT'),),
     ),
     # -- Pivot (step 3) ---------------------------------------------------------------------
     Binding(
@@ -379,7 +385,7 @@ BINDINGS: tuple[Binding, ...] = (
         "Hold D in Object Mode to transform object origins only; a quick tap still switches to "
         "the Annotate tool",
         False,
-        (Item('Object Mode', Key('D'), 'meso.pivot_hold'),),
+        (_hold_item('Object Mode', 'D', 'meso.pivot_hold'),),
         (Displaced('Object Mode', Key('D'), _ANNOTATE_CYCLE, NOW_TAP),),
     ),
     Binding(
