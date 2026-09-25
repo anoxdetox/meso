@@ -10,6 +10,9 @@
 # XDG_CONFIG_HOME for KWin); vblank_mode=0 (Mesa EGL on Wayland blocks otherwise). Nothing is written
 # under ~/.config. Each Blender launch is wrapped in `timeout`, and the probes quit Blender themselves.
 set -eu
+# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there.
+ulimit -c 0
 WHAT=${1:?usage: run.sh headless|gui|startup OUT_DIR [--host]}
 OUT=${2:?usage: run.sh headless|gui|startup OUT_DIR [--host]}
 MODE=${3:-nested}
@@ -29,7 +32,7 @@ gui_session() {  # $1 = session script body (sh); runs nested or on the host
         # --xwayland + Blender without WAYLAND_DISPLAY (X11 backend): in a --virtual KWin there is no
         # pointer device, and GUI Blender on the Wayland backend segfaults (libwayland-client
         # wl_proxy_get_version) as soon as a transform grabs the cursor (G, tool drag, gizmo drag).
-        env -u DISPLAY XDG_CONFIG_HOME="$T/xdg" timeout 400 kwin_wayland --virtual --xwayland --no-lockscreen \
+        mkdir -p -m 700 "$T/run"; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run" XDG_CONFIG_HOME="$T/xdg" timeout 400 dbus-run-session -- kwin_wayland --virtual --xwayland --no-lockscreen \
             --socket "meso-kmspike-$$" --width 1920 --height 1080 \
             --exit-with-session "$T/session.sh" > "$T/kwin.log" 2>&1 || echo "kwin_exit=$?"
     fi

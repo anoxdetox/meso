@@ -13,6 +13,9 @@
 # TMPDIR; GUI launches run in a nested kwin_wayland --virtual unless --host. Exit 0 only if
 # every check passed. Takes about a minute; wrap it in `timeout 400`.
 set -u
+# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there.
+ulimit -c 0
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 B="${B:-$HOME/.local/share/blender/blender}"
@@ -45,7 +48,7 @@ EOF
     if [ "$MODE" = host ]; then
         "$T/session.sh"
     else
-        env -u DISPLAY XDG_CONFIG_HOME="$T/xdg" timeout 150 kwin_wayland --virtual --no-lockscreen \
+        mkdir -p -m 700 "$T/run-$3"; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-$3" XDG_CONFIG_HOME="$T/xdg" timeout 150 dbus-run-session -- kwin_wayland --virtual --no-lockscreen \
             --socket "meso-persist-$$" --width 1600 --height 900 \
             --exit-with-session "$T/session.sh" > "$T/kwin_$3.log" 2>&1
     fi

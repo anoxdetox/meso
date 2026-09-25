@@ -10,6 +10,9 @@
 # BLENDER_USER_CONFIG, XDG_CONFIG_HOME and BLENDER_USER_EXTENSIONS point at a throw-away dir: nothing is written under
 # ~/.config (Blender also runs with --factory-startup and never saves preferences).
 set -eu
+# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there.
+ulimit -c 0
 OUT=${1:?usage: run.sh OUT.json [SHOTS_DIR] [--host]}
 SHOTS=${2:-}
 MODE=${3:-nested}
@@ -32,7 +35,7 @@ chmod +x "$T/session.sh"
 if [ "$MODE" = "--host" ]; then
     "$T/session.sh"
 else
-    env -u DISPLAY XDG_CONFIG_HOME="$T/cfg" timeout 200 kwin_wayland --virtual --no-lockscreen \
+    mkdir -p -m 700 "$T/run"; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run" XDG_CONFIG_HOME="$T/cfg" timeout 200 dbus-run-session -- kwin_wayland --virtual --no-lockscreen \
         --socket "meso-menus-$$" --width 1920 --height 1128 \
         --exit-with-session "$T/session.sh" > "$T/kwin.log" 2>&1 || echo "kwin_exit=$?"
 fi

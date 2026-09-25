@@ -69,13 +69,23 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   timers don't fire; NEVER call `popup_menu`/popover/`call_panel` in `-b` (segfaults), nor
   `_bpy._wm_capabilities()` (segfaults; `rna_keymap_ui.draw_kmi` calls it for an expanded item). Never open the
   keymap-choice dialog under `-b`.
+- EVERY Blender launch (headless, GUI, validate, spikes) runs under `ulimit -c 0` (the runners set it; prefix ad-hoc
+  commands): with cores enabled a test crash reaches the desktop crash handler (DrKonqi), which pops up on the user's
+  session and offers to restart Blender there.
+- NEVER put a test/spike Blender on the user's desktop. Nested GUI sessions get a private runtime dir and bus:
+  `env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<private 0700 dir> dbus-run-session --
+  kwin_wayland --virtual …` (as the runners do), and the session script refuses to start Blender otherwise. Never
+  rely on `unset WAYLAND_DISPLAY` alone: libwayland then falls back to `$XDG_RUNTIME_DIR/wayland-0`, the desktop
+  compositor (this leaked every "Xwayland" test/spike Blender onto the desktop until 2026-09-25). Never assume display
+  numbers or a single monitor. A launcher that uses the desktop on purpose requires an explicit `--host`.
 - Never write under `~/.config/blender` except the dev symlink. EVERY Blender launch (headless or GUI) sets
   `BLENDER_USER_CONFIG=$(mktemp -d)` and `BLENDER_USER_EXTENSIONS=$(mktemp -d)` — a GUI quit rewrites
   `config/recent-searches.txt` even with `--factory-startup`.
 - GUI spikes: drive with `--enable-event-simulate` + a timer state machine that quits itself, wrapped in `timeout`;
   if the desktop session is locked, run inside `kwin_wayland --virtual` (see `tools/spikes/*/run.sh`); `vblank_mode=0` for OpenGL.
-  Scenarios that start a transform run Blender on Xwayland (`--xwayland`, no `WAYLAND_DISPLAY`); on the nested
-  Wayland backend a cursor grab segfaults. A `tests/gui/scenarios_*.py` module whose scenarios start a transform
+  Scenarios that start a transform run Blender on the nested Xwayland (`--xwayland`). UNVERIFIED since 2026-09-25:
+  until then that session leaked onto the desktop compositor, so "a cursor grab segfaults on the nested Wayland
+  backend" and "the nested Xwayland fixes it" must be re-checked. A `tests/gui/scenarios_*.py` module whose scenarios start a transform
   sets `NEEDS_GRAB = True`: `run_gui_tests.sh` then runs it in its second (Xwayland) session only. A fresh enable in a GUI scenario opens the first-enable keymap question
   after 0.5 s: `gui_driver.enable_addon()` marks it asked unless `prompt=True`.
 - Phase 0 decisions in `docs/spikes.md` (D1–D5) supersede the plan where they differ.

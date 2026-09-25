@@ -6,6 +6,9 @@
 # desktop session is locked: a locked KDE Wayland session stops frame callbacks and GUI Blender hangs
 # before running --python (observed 2026-09-24, LockedHint=yes).
 set -u
+# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there.
+ulimit -c 0
 HERE=$(cd "$(dirname "$0")" && pwd)
 B=~/.local/share/blender/blender
 NESTED=0
@@ -20,7 +23,8 @@ if [ "${_PANELS_INNER:-0}" = "1" ]; then
 fi
 if [ $NESTED = 1 ]; then
     ARGS=$(printf ' %q' "$@")
-    timeout 180 env -u DISPLAY _PANELS_INNER=1 kwin_wayland --virtual --no-lockscreen \
+    RT=$(mktemp -d)   # private runtime dir: no desktop wayland-0 to fall back to
+    timeout 180 env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$RT" _PANELS_INNER=1 dbus-run-session -- kwin_wayland --virtual --no-lockscreen \
         --socket "wl-meso-panels-$$" --width 2560 --height 1565 \
         --exit-with-session "$HERE/run.sh $LOG$ARGS" > "$LOG.kwin" 2>&1
     echo "kwin_exit=$?"

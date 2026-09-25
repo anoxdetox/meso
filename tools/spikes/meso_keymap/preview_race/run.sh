@@ -14,6 +14,9 @@
 # RE_FreeUnusedGPUResources.
 # Output: one "run i: crash|ok" line per run with its RACE log lines, then a summary.
 set -u
+# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there.
+ulimit -c 0
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../../.." && pwd)
 BLENDER_BIN=$(readlink -f "${B:-$HOME/.local/share/blender/blender}")

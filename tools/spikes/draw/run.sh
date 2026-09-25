@@ -2,8 +2,17 @@
 # Run the DRAW spike probe under both GPU backends (GUI; needs a display). Each run merges its
 # results into docs/spikes/draw.json (runs[<BACKEND>]) and writes docs/spikes/draw_<backend>*.png.
 set -u
+# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there.
+ulimit -c 0
 B=~/.local/share/blender/blender
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# This spike opens Blender windows on the CURRENT desktop (it predates the nested runners):
+# never run it by accident.
+if [ "${1:-}" != "--host" ]; then
+    echo "tools/spikes/draw/run.sh opens Blender on your desktop; pass --host to confirm" >&2
+    exit 2
+fi
 LOGDIR="${LOGDIR:-${TMPDIR:-/tmp}}"
 rc_all=0
 for be in ${BACKENDS:-vulkan opengl}; do

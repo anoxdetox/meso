@@ -24,6 +24,9 @@
 # (path printed) on failure; the downscaled screenshots stay in docs/screenshots/.
 # The whole run takes a few minutes: wrap it in `timeout 700`.
 set -u
+# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there.
+ulimit -c 0
 HERE="$(cd "$(dirname "$0")" && pwd)"
 B="${B:-$HOME/.local/share/blender/blender}"
 PY="${PY:-$HOME/.local/share/blender/5.2/python/bin/python3.13}"
@@ -55,8 +58,24 @@ run_session() {
     local name=$1 display=$2 grab=$3 limit=$4
     local out="$T/$name.json" log="$T/$name.log" unset_wl=""
     [ "$display" = xwayland ] && unset_wl="unset WAYLAND_DISPLAY;"
+    local nested=1
+    [ "$display" = host ] && nested=0      # --host is on the desktop on purpose
     cat > "$T/$name.sh" <<EOF
 #!/bin/sh
+MESO_PRIVATE_RUN="$T"
+MESO_NESTED=$nested
+EOF
+    # Never reach the user's desktop: a nested session's runtime dir must be this run's private
+    # one (the nested compositor's socket and nothing else: no default wayland-0 to fall back to).
+    cat >> "$T/$name.sh" <<'EOF'
+if [ "$MESO_NESTED" = 1 ]; then
+    case "$XDG_RUNTIME_DIR" in
+        "$MESO_PRIVATE_RUN"/*) ;;
+        *) echo "refusing to start Blender: XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR is not private" >&2; exit 3 ;;
+    esac
+fi
+EOF
+    cat >> "$T/$name.sh" <<EOF
 $unset_wl
 MESO_GUI_GRAB="$grab" vblank_mode=0 TMPDIR="$T/tmp" BLENDER_USER_CONFIG="$T/cfg" BLENDER_USER_EXTENSIONS="$T/ext" \\
     timeout $limit "$B" --factory-startup --enable-event-simulate --gpu-backend "$BACKEND" \\
@@ -69,7 +88,12 @@ EOF
     else
         local xw=""
         [ "$display" = xwayland ] && xw="--xwayland"
-        env -u DISPLAY XDG_CONFIG_HOME="$T/xdg" timeout $((limit + 40)) kwin_wayland --virtual $xw \
+        mkdir -p -m 700 "$T/run-$name"
+        # Private runtime dir + private D-Bus: nothing inside can find the desktop's Wayland socket
+        # (libwayland falls back to $XDG_RUNTIME_DIR/wayland-0 when WAYLAND_DISPLAY is unset), its
+        # X server, or its session bus. Display numbers never matter.
+        env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-$name" \
+            XDG_CONFIG_HOME="$T/xdg" timeout $((limit + 40)) dbus-run-session -- kwin_wayland --virtual $xw \
             --no-lockscreen --socket "meso-gui-$$-$name" --width 1920 --height 1080 \
             --exit-with-session "$T/$name.sh" > "$T/kwin-$name.log" 2>&1
         echo "kwin_exit[$name]=$?"
