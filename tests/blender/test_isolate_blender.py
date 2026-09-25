@@ -96,6 +96,20 @@ class IsolateCase(unittest.TestCase):
         obj.select_set(True)
         run(bpy.ops.object.mode_set, mode=mode)
 
+    def assert_objects_isolated(self, obj):
+        """The element isolate also isolated the objects: our local view holds only ``obj``
+        (the default Cube and Light, every other object, are out)."""
+        space = view3d()[1].spaces.active
+        self.assertIsNotNone(space.local_view, "the other objects are still shown")
+        self.assertEqual(sorted(o.name for o in bpy.context.view_layer.objects
+                                if o.local_view_get(space)), [obj.name])
+        self.assertEqual(len(ops_iso().local_views()), 1)
+
+    def assert_objects_restored(self):
+        space = view3d()[1].spaces.active
+        self.assertIsNone(space.local_view, "the restore left the local view")
+        self.assertEqual(ops_iso().local_views(), set())
+
 
 class TestMesh(IsolateCase):
     def _grid(self):
@@ -569,8 +583,11 @@ class TestCurve(IsolateCase):
         self.assertEqual(toggle(), {'FINISHED'})
         isolated = [p.hide for p in self._points(obj)]
         self.assertEqual(isolated.count(False), 1, isolated)
+        self.assert_objects_isolated(obj)
+        self.assertEqual(bpy.context.mode, mode_name)
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual([p.hide for p in self._points(obj)], before)
+        self.assert_objects_restored()
         run(bpy.ops.object.mode_set, mode='OBJECT')
         self.assertEqual([p.hide for p in self._points(obj)], before)
 
@@ -646,8 +663,11 @@ class TestBones(IsolateCase):
         self.assertTrue(before["meso_0"])
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual([b.name for b in obj.data.edit_bones if not b.hide], ["meso_1"])
+        self.assert_objects_isolated(obj)
+        self.assertEqual(bpy.context.mode, 'EDIT_ARMATURE')
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual({b.name: b.hide for b in obj.data.edit_bones}, before)
+        self.assert_objects_restored()
 
     def test_edit_bones_rename_while_isolated(self):
         obj = self._armature()
@@ -760,8 +780,11 @@ class TestMetaball(IsolateCase):
         self.assertTrue(before[1])
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual([e.hide for e in elements].count(False), 1)
+        self.assert_objects_isolated(obj)
+        self.assertEqual(bpy.context.mode, 'EDIT_METABALL')
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual([e.hide for e in elements], before)
+        self.assert_objects_restored()
 
 
 class TestLocalView(IsolateCase):
