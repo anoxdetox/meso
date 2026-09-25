@@ -12,6 +12,9 @@ GUI harness facts that every future spike needs:
 - Send one simulated LEFTMOUSE press before any keyboard events.
 - Dismiss the splash with ESC.
 - A locked host session hangs GUI Blender; use a nested `kwin_wayland --virtual --no-lockscreen` instead (see menus.md and panels.md).
+- In that nested KWin, GUI Blender on the Wayland backend segfaults as soon as a transform grabs the cursor (G, tool or gizmo drag). Add `--xwayland` and unset `WAYLAND_DISPLAY` for Blender (X11 backend); see [meso-keymap-api](spikes/meso-keymap-api.md).
+
+Meso Keymap API spikes (a–f: Transform Modal Map, `modal_operators`, pre-drag hold, keyconfig selection, Ctrl+1 hide flags, Properties tabs) are in [meso-keymap-api](spikes/meso-keymap-api.md).
 
 ## Answers
 
