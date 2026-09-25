@@ -852,7 +852,12 @@ Snapping and pivot (Xwayland):
   Tweak drag, a Move-tool drag and a Move-gizmo drag: the transform runs, the cube lands on the grid, every repeat
   the hold saw returned PASS_THROUGH (also between the LMB press and the drag), exact restore; the short hold and
   the long hold with auto-repeat off (controls); a long hold with no drag is not a tap; V held long before a Tweak
-  drag; D held long before a Move-gizmo drag moves only the origin.
+  drag; D held long before a Move-gizmo drag moves only the origin. Review fix: C and J held long before a Tweak
+  drag, and every drag checks it was a free move (the translate it ran has no `constraint_axis`, the cube left a
+  single world axis): with Repeat ticked on the Transform Modal Map's AXIS_X item, X's repeats constrain the drag
+  to X and the old checks still passed (`[3, 0, 0]` is moved and on the grid); the new ones fail. The short-hold
+  control checks no repeat before the drag (one may come as the transform ends). No keyboard translate exists
+  in the Meso keymap (Industry Compatible: G is Repeat Last, W picks the Move tool).
 - G15 (step 7, `tests/gui/scenarios_hover.py` `hover_aim_guard_diagonal`, main session): Object clicked open in
   the Plaza, a straight path (3 px steps, 15 px per frame) from the Object label to the top of its panel crosses
   `TOPBAR_MT_help`: Object stays open, Help never opens, the path reaches the panel; a second session

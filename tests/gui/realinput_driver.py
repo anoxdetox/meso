@@ -30,6 +30,14 @@ and a non-empty individual snap set):
   exact restore.
 - ``ri_v_tweak_long``: V (vertex) held long before a Tweak drag: the transform starts.
 - ``ri_d_gizmo_long``: D held long before a Move-gizmo drag: only the origin moves.
+- ``ri_c_tweak_long`` / ``ri_j_tweak_long``: C (edge; C is also the Transform Modal Map's
+  CONS_OFF) and J (increment) held long before a Tweak drag: the transform starts and moves.
+
+Every drag also checks it was a free move (``check_free_move``): the translate it ran finished
+with no axis constraint, and the cube moved off a single world axis. A key repeat that reached
+the Transform Modal Map (X = AXIS_X) would still move the cube, only along X. There is no
+keyboard translate to test in the Meso keymap: it is Industry Compatible's, where G is Repeat
+Last and W picks the Move tool (the drags above are the translates).
 """
 
 import ctypes
@@ -352,6 +360,16 @@ def wait(case, seconds):
         yield min(0.015, left)
 
 
+def last_operator():
+    """(pointer, bl_idname, constraint_axis) of the newest registered operator, or None."""
+    ops = bpy.context.window_manager.operators
+    if not len(ops):
+        return None
+    op = ops[-1]
+    axis = getattr(op.properties, "constraint_axis", None)
+    return (op.as_pointer(), op.bl_idname, tuple(bool(a) for a in axis) if axis is not None else None)
+
+
 def world_verts(obj):
     mw = obj.matrix_world
     return [tuple(round(x, 4) for x in (mw @ v.co)) for v in obj.data.vertices]
@@ -384,6 +402,7 @@ def scenario(rec, key, path, hold, repeats=True):
         XT.move_win(c)
         yield 0.3
         verts = world_verts(cube)
+        op_before = last_operator()
         t0 = len(TRACE)
         XT.key(key.lower(), True)
         yield from wait(case, hold)
@@ -399,6 +418,10 @@ def scenario(rec, key, path, hold, repeats=True):
             XT.button(1, False)
             yield from wait(case, 0.4)
         case["location"] = [round(v, 4) for v in cube.location]
+        op = last_operator()
+        # the transform this drag ran: a new registered translate and its axis constraint (a
+        # key repeat reaching the Transform Modal Map, X = AXIS_X / C = CONS_OFF, would set it)
+        case["translate"] = (list(op[1:]) if op is not None and op != op_before else None)
         case["shape_in_place"] = world_verts(cube) == verts
         XT.key(key.lower(), False)
         yield from wait(case, 0.35)
@@ -410,6 +433,9 @@ def scenario(rec, key, path, hold, repeats=True):
         case["repeats_after_press"] = [e for e in TRACE[drag_at:t0 + len(trace)]
                                        if e["type"] == key and e["is_repeat"]]
         case["n_repeats"] = len(case["repeats"])
+        case["n_repeats_before_drag"] = sum(1 for e in TRACE[t0:drag_at]
+                                            if e["type"] == key and e["is_repeat"])
+        case["autorepeat"] = repeats
     finally:
         XT.release_all()
         for v, co in zip(me.vertices, original):
@@ -423,6 +449,11 @@ def check_common(rec, case, key, repeats_expected):
     if repeats_expected:
         # the OS pattern really happened: repeats reached the hold, also during the press
         check(rec, "repeats_seen", case["n_repeats"] >= 10, case["n_repeats"])
+    elif case["autorepeat"]:
+        # the short hold: no repeat before the drag (one may arrive as the transform ends,
+        # 0.6 s after the press, before the hold sees the end of the transform)
+        check(rec, "no_repeats_before_drag", case["n_repeats_before_drag"] == 0,
+              case["n_repeats_before_drag"])
     else:
         check(rec, "no_repeats", case["n_repeats"] == 0, case["n_repeats"])
     check(rec, "repeats_passed_through",
@@ -432,12 +463,24 @@ def check_common(rec, case, key, repeats_expected):
     check(rec, "hold_ended", case["holds_after"] == [], case["holds_after"])
 
 
+def check_free_move(rec, case):
+    """The drag was an ordinary free move: the translate it ran finished without an axis
+    constraint, and it moved the cube off every world axis the drag is not along (the view is
+    oblique, so a free view-plane move changes at least two coordinates)."""
+    tr = case["translate"]
+    check(rec, "free_translate", tr is not None and tr[0] == 'TRANSFORM_OT_translate'
+          and list(tr[1] or ()) == [False, False, False], tr)
+    check(rec, "not_on_one_axis", sum(abs(v) > 1e-3 for v in case["location"]) >= 2,
+          case["location"])
+
+
 def check_moved_on_grid(rec, case):
     loc = case["location"]
     check(rec, "transform_ran", 'TRANSFORM_OT_translate' in case["modals_seen"],
           case["modals_seen"])
     check(rec, "moved", any(abs(v) > 1e-3 for v in loc), loc)
     check(rec, "on_grid", all(abs(v - round(v)) < 1e-4 for v in loc), loc)
+    check_free_move(rec, case)
 
 
 def x_drag(path, hold, repeats=True):
@@ -465,7 +508,29 @@ def sc_v_tweak_long(rec):
     check(rec, "transform_ran", 'TRANSFORM_OT_translate' in case["modals_seen"],
           case["modals_seen"])
     check(rec, "moved", any(abs(v) > 1e-3 for v in case["location"]), case["location"])
+    check_free_move(rec, case)
     check_common(rec, case, 'V', True)
+
+
+def sc_c_tweak_long(rec):
+    """C (edge) held long before a Tweak drag: C is also CONS_OFF in the Transform Modal Map."""
+    case = yield from scenario(rec, 'C', 'tweak', LONG)
+    check(rec, "overlay_edge", case["overlay"]["use_snap"]
+          and case["overlay"]["snap_elements"] == ['EDGE'], case["overlay"])
+    check(rec, "transform_ran", 'TRANSFORM_OT_translate' in case["modals_seen"],
+          case["modals_seen"])
+    check(rec, "moved", any(abs(v) > 1e-3 for v in case["location"]), case["location"])
+    check_free_move(rec, case)
+    check_common(rec, case, 'C', True)
+
+
+def sc_j_tweak_long(rec):
+    """J (increment) held long before a Tweak drag: the move steps in whole increments."""
+    case = yield from scenario(rec, 'J', 'tweak', LONG)
+    check(rec, "overlay_increment", case["overlay"]["use_snap"]
+          and case["overlay"]["snap_elements"] == ['INCREMENT'], case["overlay"])
+    check_moved_on_grid(rec, case)
+    check_common(rec, case, 'J', True)
 
 
 def sc_d_gizmo_long(rec):
@@ -475,6 +540,7 @@ def sc_d_gizmo_long(rec):
           case["modals_seen"])
     check(rec, "origin_moved", any(abs(v) > 1e-3 for v in case["location"]), case["location"])
     check(rec, "shape_in_place", case["shape_in_place"])
+    check_free_move(rec, case)
     check_common(rec, case, 'D', True)
 
 
@@ -487,6 +553,8 @@ SCENARIOS = [
     ("ri_x_long_no_drag", sc_x_long_no_drag),
     ("ri_v_tweak_long", sc_v_tweak_long),
     ("ri_d_gizmo_long", sc_d_gizmo_long),
+    ("ri_c_tweak_long", sc_c_tweak_long),
+    ("ri_j_tweak_long", sc_j_tweak_long),
 ]
 _ONLY = [p for p in os.environ.get("MESO_GUI_ONLY", "").split(",") if p]
 if _ONLY:
