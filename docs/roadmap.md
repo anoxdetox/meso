@@ -97,7 +97,7 @@ Goal: nothing personal and no legacy-branding references (beyond the allowed ref
    - Also check screenshots, JSON dumps and logs for usernames or home paths.
    - `tools/dev_link.sh` is already generic (`$HOME`, repo-relative).
 2. **Public identity:**
-   - Manifest maintainer and commit author become the user's **GitHub noreply address**, `anoxdetox <ID+anoxdetox@users.noreply.github.com>`. **Ask the user for the exact address** from GitHub ▸ Settings ▸ Emails.
+   - Manifest maintainer and commit author: `anoxdetox <5579531+anoxdetox@users.noreply.github.com>` (given by the user 2026-09-25). ✅ repo-local `git config user.email` and the manifest are set; the rewrite maps older commits to it.
    - Set `git config user.email` for this repo.
 3. **Rewrite history, keeping the per-phase commits** (`git filter-repo`, on a backup clone first):
    - `--invert-paths` on every historical reference-image path (`docs/reference/`, and the earlier `notes/reference/`): drop the third-party screenshots from every commit.
