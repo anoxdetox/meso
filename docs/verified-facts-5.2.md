@@ -245,6 +245,12 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   XwaylandEisNoPrompt=true` in the (private) kwinrc. KWin drops an EI press of a key that is already down, so the
   repeats come from Xwayland's own auto-repeat (`XAutoRepeatOff` for a no-repeat control). Real events carry the
   held-key modifier (`keymodifier`), simulated ones never do.
+- Plaza aim test (step 7): MOUSEMOVE `mouse_x` / `mouse_y` are integer window pixels, so a steep path toward a
+  tall panel beside the pointer (the Object dropdown opens beside its label and reaches above the root row; in the
+  nested GUI session a path from Object to the top of it crosses `TOPBAR_MT_help`) is mostly steps straight up
+  (dx == 0). The exact per-move triangle toward the facing edge rejects those steps; measuring the heading over the
+  last >= 8 px of travel with 2 px of slack (`aim_origin`, `is_approaching(slack)`) accepts every step of that path
+  and still rejects a move away from the panel.
 - Plaza fallbacks: the Object Mode Tool Settings row holds every `snap_elements_base` / `snap_elements_individual`
   member, all `snap_target` values and Affect Move/Rotate/Scale in its Snap cascade, and Affect Only Origins in its
   "Options" cascade (`VIEW3D_PT_tools_object_options`); the Edit Mesh row the same snap set.

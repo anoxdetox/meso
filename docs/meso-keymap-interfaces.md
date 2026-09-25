@@ -244,6 +244,29 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     the bare key (the Text editor, the Console: TEXTINPUT with `repeat=True`), those repeats type the letter, as
     for any held key in Blender. The first press is still the hold's.
 
+- **Step 7 implemented** (user item 4 of 2026-09-25, the Plaza: "let's say I have Object open, then I try to
+  reach the Object submenu but it briefly hovers onto Help, Help pops open"):
+  - **Cause:** the Object dropdown is tall, so it opens beside the Object label and reaches above the root row;
+    Help sits above Object, left of that panel. The way from Object to the top of the panel crosses Help, and
+    any hover on another dropdown label switched the bar at once.
+  - **Fix (aim guard, `core/menubar.py`, pure):** while a chain is open, a HoverLabel on another dropdown label
+    with `aiming` (the pointer heads toward a panel of the open chain) only hovers it; the bar switches when the
+    pointer rests there (`switch_rest()` = max(hover_open_delay, 0.05 s)), when a move over it does not head for
+    the chain, or on a press. Reaching the chain, leaving the label and every close cancel it. Moves along the bar
+    still switch at once. `ops/dropdowns.py` now computes `aiming` for every open chain (it was hover-opened
+    chains only) from `core.dropdown_geometry.aim_origin` (the heading over the last >= 8 px of travel) and
+    `is_approaching(..., slack=2 px)`: the exact per-move triangle rejects the pixel steps straight up that a
+    steep path toward a panel beside the pointer is made of (measured on the reported layout). Full rules:
+    `docs/phase4-interfaces.md` "Aim guard".
+  - **Tests:** unit `TestAimGuard` (18 cases: the reported crossing, rest, refreshing aim, move away, the open
+    label / empty space / panel / Esc / Nav clearing, press, transient chains, press-drag, the delays) and the
+    random-sequence invariants (`switch_wait` only while open, never the open label, only a dropdown label);
+    geometry `TestAimOrigin` and the slack cases of `TestApproaching`; headless `TestAimGuard` in
+    `tests/blender/test_dropdowns.py` (the reported layout: a 125 Hz walk from Object to the top of its panel
+    over Help keeps Object; rest and move-away switch; a hover-opened chain); GUI G15. Without the reducer
+    guard 4 of the 5 headless cases and the GUI scenario fail; without the trail and slack the headless walk
+    fails (Help opens on the first straight-up step).
+
 ## Delivery model (user decision 1; step 4)
 - The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
   `keymap_data/industry_compatible_data.py` at every load, never exported) plus every item of the binding table,
@@ -817,6 +840,10 @@ Snapping and pivot (Xwayland):
   the hold saw returned PASS_THROUGH (also between the LMB press and the drag), exact restore; the short hold and
   the long hold with auto-repeat off (controls); a long hold with no drag is not a tap; V held long before a Tweak
   drag; D held long before a Move-gizmo drag moves only the origin.
+- G15 (step 7, `tests/gui/scenarios_hover.py` `hover_aim_guard_diagonal`, main session): Object clicked open in
+  the Plaza, a straight path (3 px steps, 15 px per frame) from the Object label to the top of its panel crosses
+  `TOPBAR_MT_help`: Object stays open, Help never opens, the path reaches the panel; a second session
+  (hover_open_delay 0.3 s) stops on Help mid-path: deferred, then resting switches to Help.
 - G11 window deactivate during a hold; file load during a hold; Space during a hold (Plaza opens, restore after it
   closes); X then V together (union), release order both ways.
 - G12 a pie opened by another key during a hold (the known limit; documents the behaviour).
@@ -868,6 +895,12 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
 ### Step 6 — key auto-repeat during a hold (✅ implemented, see Status; user item 3 of 2026-09-25)
 - Files: `core/snap_hold.py` (`step`), `ops/snap_hold.py` (`invoke`), `tests/unit/test_snap_hold.py`,
   `tests/blender/test_snap_hold_blender.py`, `tests/gui/realinput_driver.py`, `tests/gui/run_gui_tests.sh`.
+
+### Step 7 — Plaza aim guard for label switching (✅ implemented, see Status; user item 4 of 2026-09-25)
+- Files: `core/menubar.py` (`switch_wait`, `switch_since`, `switch_rest`, `SWITCH_REST_MIN`),
+  `core/dropdown_geometry.py` (`is_approaching(slack)`, `aim_origin`, `AIM_TRAIL_PX` / `AIM_TRAIL_LEN` /
+  `AIM_SLACK_PX`), `ops/dropdowns.py` (`MenuSession.trail`, `_aiming_chain`), the tests above,
+  `docs/phase4-interfaces.md` "Aim guard".
 
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
@@ -952,3 +985,7 @@ anything in Phase 5+.
     through (measured; the same as any held key: over the Text editor or the Console the repeats type the letter);
     (b) pass them through only after a mouse button press during the hold (`HoldState.used`), swallowing them
     before: narrower side effect, one more rule, not measured.
+32. **New in step 7 (DEFAULT in force: a).** The Plaza aim guard's rest before a crossed label switches: (a)
+    **in force:** the hover-open delay (default 0.05 s), at least one watchdog tick; (b) a separate, longer rest
+    preference (safer for slow diagonal paths, slower deliberate switches to a label reached diagonally). A
+    crossed label highlights while the switch waits (as any hovered label does).
