@@ -61,7 +61,28 @@ def scenarios(drv):
             yield 0.3
             drv.check(rec, "redrawn_collapsed", state["draws"] > n, state["draws"])
             drv.check(rec, "no_draw_error_collapsed", state["error"] is None, state["error"])
+            # The Meso Keymap box in use, every binding group expanded (real UILayout).
+            with bpy.context.temp_override(window=drv.win()):
+                bpy.ops.meso.keymap_choose(choice='MESO')
+            mb = importlib.import_module(drv.ADDON_MODULE + ".core.meso_bindings")
+            root = kp.MESO_ROOT
+            prefs.keymap_expanded = tree.EXPANDED_SEP.join(
+                [root] + [f"{root}{tree.PATH_SEP}{label}" for _g, label in mb.GROUPS])
+            prefs.bind_deselect_all = False          # one warning row too
+            n = state["draws"]
+            area.tag_redraw()
+            yield 0.6
+            drv.check(rec, "meso_box_drawn", state["draws"] > n, state["draws"])
+            drv.check(rec, "meso_box_no_draw_error", state["error"] is None, state["error"])
+            drv.save_screenshot("prefs_meso_keymap")
         finally:
+            p = drv.addon_prefs()
+            if p is not None and p.keymap_choice == 'MESO':
+                p.bind_deselect_all = True
+                with bpy.context.temp_override(window=drv.win()):
+                    bpy.ops.meso.keymap_choose(choice='KEEP')
+                p.keymap_choice = 'UNDECIDED'
+                p.previous_keyconfig = ""
             kmi.show_expanded = False
             prefs.keymap_expanded = saved_expanded
             space.show_region_ui = saved_ui
