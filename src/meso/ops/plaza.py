@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-2).
+"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-3).
 
 Lifecycle (notes/spikes.md D1/D2/D3/D5):
 
@@ -16,8 +16,13 @@ Lifecycle (notes/spikes.md D1/D2/D3/D5):
    layout and redraw only when the hovered item changes.
 4. On RELEASE: a tap (``core.tap.is_tap``) runs the ``tap_action`` command right before
    ``return {'FINISHED'}``, after teardown (D3/D5: in-modal, handlers already removed).
-5. An LMB PRESS + RELEASE over the same enabled menu label hands off to the native menu
-   (``wm.call_menu``) on the RELEASE, after teardown, right before FINISHED (D3).
+   Over the 3D View the ``tap_action_view3d`` pref applies (``core.tap.effective_tap_action``;
+   default PANE_TOGGLE -> ``meso.pane_toggle``, Phase 3).
+5. An LMB PRESS + RELEASE over the same clickable item (``core.model.item_action`` not None:
+   menus, cascades, toggles, workspaces, the side boxes) runs its :class:`core.model.Action`
+   through ``ops.invoke.execute`` on the RELEASE, after teardown, right before FINISHED (D3).
+   A workspace action replaces the screen: nothing touches area / region / screen after it.
+   v0.3: every click ends the session (``ExecResult.ends_session``).
 
 Only pointer ints and type strings outlive the modal. The live ``Window``/``Area``/``Region``
 objects sit in the state only while the modal runs and are dropped by ``_end()``.
@@ -35,14 +40,17 @@ from bpy.props import StringProperty
 from bpy.types import Operator
 
 from .. import prefs
+from ..core import actions as core_actions
 from ..core import geometry
-from ..core.model import KIND_MENU
+from ..core.model import item_action
 from ..core.rects import Rect, bounding_box
-from ..core.tap import TapCommand, is_tap, paint_mode_keymap, resolve_tap_action
+from ..core.tap import (TapCommand, effective_tap_action, is_tap, paint_mode_keymap,
+                        resolve_tap_action)
 from ..core.timing import TimingStats
 from ..record import rows
 from ..view import renderer, theme
 from ..view.draw_manager import HandlerSet
+from . import invoke
 
 if TYPE_CHECKING:
     from ..core.geometry import Layout
@@ -91,6 +99,7 @@ class PlazaState:
     transparency: int = 25                # prefs.transparency snapshot
     tap_threshold: float = 0.10           # prefs.tap_threshold snapshot
     tap_action: str = 'ORIGINAL'          # prefs.tap_action snapshot
+    tap_action_view3d: str = 'PANE_TOGGLE'  # prefs.tap_action_view3d snapshot (Phase 3)
     release_key: str = 'SPACE'
 
     # --- session flags ---
@@ -108,7 +117,7 @@ class PlazaState:
     layout: Layout | None = None          # core.geometry.layout(...); GUI tests read item rects
     palette: Palette | None = None        # view.theme.from_preferences(...)
     hover_id: str | None = None           # item under the mouse (core.geometry.hit_test)
-    pressed_id: str | None = None         # enabled menu item under the last LMB PRESS
+    pressed_id: str | None = None         # clickable item (item_action) under the last LMB PRESS
     hover_redraws: int = 0                # redraws requested because hover_id changed
     font_scale: float = 1.0               # prefs snapshots (Phase 2)
     row_spacing: float = 1.0
@@ -168,7 +177,10 @@ def last_session() -> dict[str, Any] | None:
     ``area_type``, ``region_type``, ``handler_region_type``, ``mode_keymap``,
     ``release_key``, ``draw_calls``, ``error``; Phase 2: ``hover_redraws``, ``handoff``
     (``('wm.call_menu', {'name': idname})`` or None), ``handoff_result`` (sorted list or
-    None) and ``timing`` (``core.timing.TimingStats.summary()``, filled with debug_timing).
+    None) and ``timing`` (``core.timing.TimingStats.summary()``, filled with debug_timing);
+    Phase 3: ``handoff`` is ``core.actions.describe`` of any clicked item's planned call
+    (None for a workspace switch), ``action`` = ``(kind, target, data_path)`` of the clicked
+    item's Action (or None), ``tap_action`` = the effective tap action of the session.
     """
     return dict(_last) if _last else None
 
@@ -261,9 +273,12 @@ def read_keyconfig(context) -> tuple[str | None, str | None]:
 
 
 def resolve_tap(state: PlazaState, context) -> TapCommand | None:
-    """``core.tap.resolve_tap_action`` fed from ``state`` and :func:`read_keyconfig`."""
+    """``core.tap.resolve_tap_action`` fed from ``state`` and :func:`read_keyconfig`, with
+    the tap action of the area (``core.tap.effective_tap_action``: over VIEW_3D the
+    ``tap_action_view3d`` snapshot unless SAME_AS_GLOBAL)."""
     kc_name, spacebar_action = read_keyconfig(context)
-    return resolve_tap_action(state.tap_action, kc_name, spacebar_action,
+    action = effective_tap_action(state.tap_action, state.tap_action_view3d, state.area_type)
+    return resolve_tap_action(action, kc_name, spacebar_action,
                               state.area_type, state.region_type, state.mode_keymap)
 
 
@@ -280,7 +295,8 @@ def run_tap(cmd: TapCommand, window, area, region) -> set[str] | None:
         op = getattr(getattr(bpy.ops, module), name)
         override = {key: value for key, value in
                     (('window', window), ('area', area), ('region', region)) if value is not None}
-        with bpy.context.temp_override(**override):
+        # Type-level call: the instance attribute is None in a refreshing File Browser.
+        with bpy.types.Context.temp_override(bpy.context, **override):
             return op('INVOKE_DEFAULT', **cmd.kwargs)
     except Exception as ex:
         _log(f"tap action {cmd.op_idname} failed: {ex!r}")
@@ -492,6 +508,8 @@ class MESO_OT_plaza(Operator):
                 state.transparency = int(addon_prefs.transparency)
                 state.tap_threshold = float(addon_prefs.tap_threshold)
                 state.tap_action = addon_prefs.tap_action
+                state.tap_action_view3d = getattr(addon_prefs, 'tap_action_view3d',
+                                                  state.tap_action_view3d)
                 state.font_scale = float(addon_prefs.font_scale)
                 state.row_spacing = float(addon_prefs.row_spacing)
                 state.use_theme_colors = bool(addon_prefs.use_theme_colors)
@@ -507,7 +525,9 @@ class MESO_OT_plaza(Operator):
                          area_type=area_type, area_ui_type=area_ui_type, region_type=region_type,
                          handler_region_type=handler_region_type,
                          mode_keymap=state.mode_keymap, release_key=state.release_key,
-                         hover_redraws=0, handoff=None, handoff_result=None)
+                         hover_redraws=0, handoff=None, handoff_result=None, action=None,
+                         tap_action=effective_tap_action(state.tap_action,
+                                                         state.tap_action_view3d, area_type))
 
             _running = state
             self._state = state
@@ -543,7 +563,7 @@ class MESO_OT_plaza(Operator):
           not tell us which timer fired).
         - MOUSEMOVE / INBETWEEN_MOUSEMOVE -> :meth:`_hover` (redraw only on a hover change).
         - LEFTMOUSE PRESS or DOUBLE_CLICK / RELEASE -> :meth:`_press` / :meth:`_release`
-          (native menu handoff on the RELEASE over the pressed menu label, D3).
+          (the item's Action runs on the RELEASE over the pressed item, D3).
         - ``event.type in INTERACTION_BUTTONS`` and PRESS or DOUBLE_CLICK -> ``interacted = True``.
         - Everything else -> ``{'RUNNING_MODAL'}`` (swallowed).
         """
@@ -603,32 +623,47 @@ class MESO_OT_plaza(Operator):
         return {'RUNNING_MODAL'}
 
     def _press(self, state: PlazaState, event) -> set[str]:
-        """LMB PRESS: the session is interacted (never a tap); remember an enabled menu
-        label under the mouse. Nothing opens on a PRESS (D3)."""
+        """LMB PRESS: the session is interacted (never a tap); remember the clickable item
+        under the mouse (``core.model.item_action`` not None: enabled menus, cascades,
+        toggles, workspaces, side boxes; never separators, labels, the centre box or disabled
+        items). Nothing runs on a PRESS (D3)."""
         state.interacted = True
         pid = geometry.hit_test(state.layout, event.mouse_x, event.mouse_y)
         item = state.model.find(pid) if state.model is not None else None
-        ok = item is not None and item.enabled and item.kind == KIND_MENU
-        state.pressed_id = pid if ok else None
+        state.pressed_id = pid if item_action(item) is not None else None
         return {'RUNNING_MODAL'}
 
     def _release(self, state: PlazaState, event) -> set[str]:
-        """LMB RELEASE over the pressed menu label: tear down, then ``wm.call_menu`` under the
-        invoking window/area/WINDOW region right before FINISHED (D3). Elsewhere: forget
-        the press and keep running."""
+        """LMB RELEASE over the pressed item: record the planned call, tear down, then run the
+        item's Action with ``ops.invoke.execute`` under the invoking window / area / WINDOW
+        region right before FINISHED (D3). Elsewhere: forget the press and keep running.
+
+        After ``execute`` nothing touches ``area`` / ``region`` / ``screen`` (a workspace
+        switch replaces them). v0.3: every executed action ends the session."""
         rid = geometry.hit_test(state.layout, event.mouse_x, event.mouse_y)
         pid, state.pressed_id = state.pressed_id, None
         item = state.model.find(pid) if (pid is not None and state.model is not None) else None
-        if item is None or rid != pid or 'menu' not in item.payload:
+        action = item_action(item)
+        if action is None or rid != pid:
             return {'RUNNING_MODAL'}
-        cmd = TapCommand('wm.call_menu', {'name': item.payload['menu']})
         window, area, region = state.window, state.area, state.region
-        _last.update(handoff=(cmd.op_idname, dict(cmd.kwargs)), tapped=False,
-                     elapsed=time.perf_counter() - state.t0)
+        area_type = state.area_type
+        try:
+            handoff = core_actions.describe(core_actions.plan_call(action,
+                                                                   invoke.addon_module()))
+        except Exception:
+            _log_exc(f"planning the {action.kind} action failed")
+            handoff = None
+        _last.update(handoff=handoff, action=(action.kind, action.target, action.data_path),
+                     tapped=False, elapsed=time.perf_counter() - state.t0)
         _end(state, 'handoff')
         self._state = None
-        result = run_tap(cmd, window, area, region)
-        _last['handoff_result'] = sorted(result) if result is not None else None
+        try:
+            res = invoke.execute(action, window, area, region, area_type)
+            _last['handoff_result'] = res.result
+        except Exception:
+            _log_exc(f"running the {action.kind} action failed")
+            _last['handoff_result'] = None
         return {'FINISHED'}
 
     def _finish(self, context, state: PlazaState) -> set[str]:

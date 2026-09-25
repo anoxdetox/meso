@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI event-simulate suite for the plaza: Phase 1 (hold / release / tap / cancel) and
-Phase 2 (screenshots at ui_scale 1.0 / 2.0, hover, click -> native File menu handoff).
+"""GUI event-simulate suite for the plaza: Phase 1 (hold / release / tap / cancel),
+Phase 2 (screenshots at ui_scale 1.0 / 2.0, hover, click -> native File menu handoff) and
+Phase 3 (contextual row, Tool Settings row, native handoffs of every item / action kind and
+the mode switcher, workspace switch, per-editor screenshots; plus every
+``tests/gui/scenarios_*.py`` module, e.g. the pane toggle).
 
 Run through ``tests/gui/run_gui_tests.sh`` (nested ``kwin_wayland --virtual`` by default), or
 directly:
 
     vblank_mode=0 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) \
-        timeout 170 ~/.local/share/blender/blender --factory-startup --enable-event-simulate \
+        timeout 640 ~/.local/share/blender/blender --factory-startup --enable-event-simulate \
         --python tests/gui/gui_driver.py -- --out "$(mktemp)"
 
 Enables the add-on from an in-memory extension repo pointing at ``<repo>/src`` (the same
@@ -17,10 +20,17 @@ report and always quits Blender itself (hard deadline); preferences are never sa
 
 Arguments after ``--``: ``--out FILE`` (JSON report), ``--shots DIR`` (full-size screenshots;
 default ``<dir of --out>/shots``). Screenshots are also copied, downscaled to <= 1200 px wide,
-to ``notes/screenshots/phase2_<backend>_<ui scale>.png``.
+to ``notes/screenshots/phase3_<backend>_<ui scale>.png`` and ``phase3_<editor/mode>.png``.
+
+Scenario modules: every ``tests/gui/scenarios_*.py`` exports ``scenarios(drv) -> [(name, fn)]``
+(``drv`` = this module); their scenarios run before the add-on disable/enable scenarios
+(``disable_addon`` stays last). 3D View tap scenarios of Phases 1-2 set
+``tap_action_view3d = 'SAME_AS_GLOBAL'`` (restored afterwards): the 3D View default is the
+pane toggle since Phase 3.
 """
 
 import importlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -40,7 +50,7 @@ ADDON_MODULE = f"bl_ext.{REPO_MODULE}.meso"
 OPERATOR_IDNAME = "meso.plaza"
 MODAL_IDNAME = "MESO_OT_plaza"
 
-DEADLINE = 150.0      # seconds after start; run_gui_tests.sh wraps Blender in `timeout 170`
+DEADLINE = 600.0      # seconds after start; run_gui_tests.sh wraps Blender in `timeout 640`
 HOLD = 0.5            # seconds a "hold" keeps Space down
 SETTLE = 0.25         # seconds to let queued events and redraws run
 T0 = time.time()
@@ -359,6 +369,23 @@ def tap(xy, **mods):
     sim('SPACE', 'PRESS', xy, unicode=' ', **mods)
     sim('SPACE', 'RELEASE', xy, **mods)
     yield SETTLE
+
+def view3d_global_tap(fn):
+    """Run a Phase 1-2 scenario that taps in the 3D View with ``tap_action_view3d =
+    'SAME_AS_GLOBAL'`` (the global ``tap_action`` applies there, as before Phase 3)."""
+    def wrapped(rec):
+        p = addon_prefs()
+        old = p.tap_action_view3d
+        p.tap_action_view3d = 'SAME_AS_GLOBAL'
+        try:
+            yield from fn(rec)
+        finally:
+            p = addon_prefs()
+            if p is not None:
+                p.tap_action_view3d = old
+    wrapped.__name__ = fn.__name__
+    wrapped.__doc__ = fn.__doc__
+    return wrapped
 
 # ----------------------------------------------------------------------------- scenarios
 
@@ -1126,7 +1153,7 @@ def _shot_at_scale(rec, scale, row_h_1x):
     yield 0.2
     check(rec, tag + "hover_cleared", st.hover_id is None, st.hover_id)
     shot = grab()
-    save_screenshot(f"phase2_{backend_name()}_{scale:.1f}")
+    save_screenshot(f"phase3_{backend_name()}_{scale:.1f}")
     # Structural pixels: every strip changed the image at one of a few padding spots (inside
     # the strip, off the labels); the viewport away from the plaza is untouched (no dim).
     changed = []
@@ -1367,12 +1394,641 @@ def sc_click_space_not_tap(rec):
 
 
 
+# ----------------------------------------------------------------------------- Phase 3 helpers
+
+OBJECT_MENU = "VIEW3D_MT_object"
+MENU_PROBE.update(object=0)
+
+
+def _object_probe(self, context):
+    MENU_PROBE["object"] += 1
+
+
+def add_p3_probes():
+    bpy.types.VIEW3D_MT_object.append(_object_probe)
+
+
+def remove_p3_probes():
+    try:
+        bpy.types.VIEW3D_MT_object.remove(_object_probe)
+    except Exception:
+        pass
+
+
+def model_mod():
+    return importlib.import_module(ADDON_MODULE + ".core.model")
+
+
+def row_ids(st, key):
+    row = st.model.row(key) if st is not None and st.model is not None else None
+    return [i.id for i in row.items] if row is not None else []
+
+
+def find_clickable(st, prefix, kinds=None):
+    """The first clickable item (``item_action`` not None) whose id starts with ``prefix``."""
+    md = model_mod()
+    for item in st.model.items():
+        if item.id.startswith(prefix) and md.item_action(item) is not None \
+                and (kinds is None or item.kind in kinds):
+            return item
+    return None
+
+
+def empty_point_in(layout, bounds):
+    """A window point inside ``bounds`` that hits no plaza item (beside the plaza)."""
+    hb_rect = layout.plaza_rect
+    cx, cy = int(hb_rect.x + hb_rect.w // 2), int(hb_rect.y + hb_rect.h // 2)
+    for xy in ((cx, int(hb_rect.y) - 40), (cx, int(hb_rect.y1) + 40),
+               (int(hb_rect.x1) + 40, cy), (int(hb_rect.x) - 40, cy),
+               (int(hb_rect.x) + 4, int(hb_rect.y1) - 2), (int(bounds.x) + 4, int(bounds.y) + 4)):
+        if bounds.contains(*xy) and geometry().hit_test(layout, *xy) is None:
+            return xy
+    raise RuntimeError("no empty point next to the plaza")
+
+
+def shot_open(rec, name, st):
+    """Unhover (mouse to an empty point), then save ``phase3_<name>`` of the open plaza."""
+    far = empty_point_in(st.layout, st.bounds)
+    sim('MOUSEMOVE', 'NOTHING', far)
+    yield 0.25
+    check(rec, f"{name}_hover_cleared", st.hover_id is None, st.hover_id)
+    save_screenshot(f"phase3_{name}")
+
+
+def press_click(xy):
+    """LMB press + release at ``xy`` (after a move); the plaza reacts on the release."""
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    yield 0.1
+    sim('LEFTMOUSE', 'PRESS', xy)
+    yield 0.1
+    sim('LEFTMOUSE', 'RELEASE', xy)
+    yield 0.4
+
+
+def click_item(rec, st, item_id, prefix="click"):
+    """Click ``item_id`` in the open session ``st``; checks the session ended by the handoff
+    and returns ``last()``."""
+    box = st.layout.item(item_id)
+    check(rec, f"{prefix}_placed", box is not None, item_id)
+    if box is None:
+        return last()
+    xy = rect_mid(box.rect)
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    yield 0.1
+    sim('LEFTMOUSE', 'PRESS', xy)
+    yield 0.1
+    check(rec, f"{prefix}_pressed", st.pressed_id == item_id, st.pressed_id)
+    check(rec, f"{prefix}_press_keeps_running", plaza().is_running())
+    sim('LEFTMOUSE', 'RELEASE', xy)
+    yield 0.4
+    ls = last()
+    check(rec, f"{prefix}_ended_by_handoff", ls.get("end") == "handoff", ls.get("end"))
+    check(rec, f"{prefix}_no_error", ls.get("error") is None, ls.get("error"))
+    check(rec, f"{prefix}_not_running", not plaza().is_running())
+    return ls
+
+
+def release_space(xy):
+    sim('SPACE', 'RELEASE', xy)
+    yield SETTLE
+
+
+def _capture_fd1(fn):
+    """What C code printed to fd 1 while running ``fn`` (print_undo_steps uses printf)."""
+    import ctypes
+    libc = ctypes.CDLL(None)
+    sys.stdout.flush()
+    libc.fflush(None)
+    saved = os.dup(1)
+    with tempfile.TemporaryFile() as tmp:
+        os.dup2(tmp.fileno(), 1)
+        try:
+            fn()
+            libc.fflush(None)
+        finally:
+            os.dup2(saved, 1)
+            os.close(saved)
+        tmp.seek(0)
+        return tmp.read().decode(errors='replace')
+
+
+def undo_steps():
+    import re
+    step = re.compile(r"\[(.)...\]\s+\d+\s+\{0x[0-9a-f]+\}\s+type='[^']*', name='(.*)'")
+    with bpy.context.temp_override(window=win()):
+        text = _capture_fd1(lambda: bpy.context.window_manager.print_undo_steps())
+    return [m.group(2) for m in map(step.match, (ln.strip() for ln in text.splitlines())) if m]
+
+
+def undo_marker(name):
+    with bpy.context.temp_override(window=win()):
+        bpy.ops.ed.undo_push(message=name)
+    return name
+
+
+def steps_since(marker):
+    steps = undo_steps()
+    if marker not in steps:
+        return None
+    return steps[len(steps) - steps[::-1].index(marker):]
+
+# ----------------------------------------------------------------------------- Phase 3 scenarios
+
+
+EDIT_MESH_MENUS = ("view", "select_edit_mesh", "mesh_add", "edit_mesh", "edit_mesh_vertices",
+                   "edit_mesh_edges", "edit_mesh_faces", "uv_map")
+
+
+def sc_p3_contextual_rows(rec):
+    """Object mode: mode switcher + VIEW3D Object-mode menus, Tool Settings row with a
+    separator; Tab into Edit Mode and re-invoke: the rows follow the mode."""
+    md = model_mod()
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    check(rec, "obj_running", st is not None and st.model is not None)
+    if st is None or st.model is None:
+        return
+    ctx = row_ids(st, md.ROW_CONTEXTUAL)
+    check(rec, "obj_mode_switch_first", ctx[:1] == [md.MODE_SWITCH_ID], ctx)
+    mode_item = st.model.find(md.MODE_SWITCH_ID)
+    check(rec, "obj_mode_label", mode_item is not None and mode_item.label.startswith("Object Mode")
+          and mode_item.cascade, mode_item and mode_item.label)
+    want = [md.contextual_item_id(f"VIEW3D_MT_{m}") for m in ("view", "select_object", "add",
+                                                                "object")]
+    check(rec, "obj_menus", ctx[1:] == want, ctx)
+    ts = row_ids(st, md.ROW_TOOL_SETTINGS)
+    check(rec, "obj_tool_settings", len(ts) > 3 and md.TOOL_SEPARATOR_ID in ts, ts)
+    check(rec, "obj_strips", all(st.layout.strip(k) is not None
+                                 for k in (md.ROW_ROOT, md.ROW_CONTEXTUAL, md.ROW_TOOL_SETTINGS)),
+          [s.key for s in st.layout.strips])
+    yield from shot_open(rec, "object", st)
+    yield from close_plaza(xy, rec, "obj_after")
+    # Tab into Edit Mode (the native keymap), then re-invoke.
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    yield 0.1
+    sim('TAB', 'PRESS', xy)
+    sim('TAB', 'RELEASE', xy)
+    yield 0.5
+    try:
+        check(rec, "tab_edit_mode", bpy.context.view_layer.objects.active.mode == 'EDIT',
+              bpy.context.view_layer.objects.active.mode)
+        st = yield from open_plaza(xy)
+        if st is None or st.model is None:
+            check(rec, "edit_running", False)
+            return
+        ctx = row_ids(st, md.ROW_CONTEXTUAL)
+        mode_item = st.model.find(md.MODE_SWITCH_ID)
+        check(rec, "edit_mode_label", mode_item is not None
+              and mode_item.label.startswith("Edit Mode"), mode_item and mode_item.label)
+        want = [md.contextual_item_id(f"VIEW3D_MT_{m}") for m in EDIT_MESH_MENUS]
+        check(rec, "edit_menus", ctx[1:] == want, ctx)
+        ts = row_ids(st, md.ROW_TOOL_SETTINGS)
+        check(rec, "edit_select_mode", sum(1 for i in ts if i.startswith("ts:select_mode:")) >= 3,
+              ts)
+        yield from shot_open(rec, "edit_mesh", st)
+        yield from close_plaza(xy, rec, "edit_after")
+    finally:
+        set_mode('OBJECT')
+        yield 0.3
+
+
+def sc_p3_screens(rec):
+    """Screenshots of the plaza in Sculpt mode and over the UV Editor, Shader Editor and
+    Timeline, with their contextual rows."""
+    md = model_mod()
+    set_mode('SCULPT')
+    yield 0.4
+    try:
+        xy = center_of("VIEW_3D")
+        st = yield from open_plaza(xy)
+        if st is not None and st.model is not None:
+            ctx = row_ids(st, md.ROW_CONTEXTUAL)
+            want = [md.MODE_SWITCH_ID] + [md.contextual_item_id(f"VIEW3D_MT_{m}")
+                                          for m in ("view", "sculpt", "mask", "face_sets")]
+            check(rec, "sculpt_menus", ctx == want, ctx)
+            yield from shot_open(rec, "sculpt", st)
+        else:
+            check(rec, "sculpt_running", False)
+        yield from close_plaza(xy, rec, "sculpt_after")
+    finally:
+        set_mode('OBJECT')
+        yield 0.3
+    # Exact rows (the headless header tests' lists; no 3D-only mode switcher).
+    for ui_type, name, menus in (
+            ("UV", "uv_editor", ["IMAGE_MT_view", "IMAGE_MT_image"]),
+            ("ShaderNodeTree", "shader_editor",
+             ["NODE_MT_view", "NODE_MT_select", "NODE_MT_add", "NODE_MT_node"]),
+            ("TIMELINE", "timeline", ["TIME_MT_view", "DOPESHEET_MT_marker"])):
+        swapped = ui_type != "TIMELINE"
+        if swapped:
+            _swap(ui_type)
+            yield 0.4
+        try:
+            xy = center_of(ui_type)
+            st = yield from open_plaza(xy)
+            if st is None or st.model is None:
+                check(rec, f"{name}_running", False)
+                continue
+            ctx = row_ids(st, md.ROW_CONTEXTUAL)
+            check(rec, f"{name}_area", st.area_ui_type == ui_type, st.area_ui_type)
+            check(rec, f"{name}_contextual",
+                  ctx == [md.contextual_item_id(m) for m in menus], ctx)
+            yield from shot_open(rec, name, st)
+            yield from close_plaza(xy, rec, f"{name}_after")
+        finally:
+            if swapped:
+                _unswap()
+                yield 0.3
+
+
+def sc_p3_click_object_menu(rec):
+    """Click 'Object' in the contextual row: the native VIEW3D_MT_object opens (probe)."""
+    md = model_mod()
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    item_id = md.contextual_item_id(OBJECT_MENU)
+    if st is None or st.layout is None or st.layout.item(item_id) is None:
+        check(rec, "layout", False, row_ids(st, md.ROW_CONTEXTUAL))
+        return
+    MENU_PROBE["object"] = 0
+    fxy = rect_mid(st.layout.item(item_id).rect)
+    ls = yield from click_item(rec, st, item_id)
+    check(rec, "handoff_cmd", ls.get("handoff") == ("wm.call_menu", {"name": OBJECT_MENU}),
+          ls.get("handoff"))
+    check(rec, "action", ls.get("action") == ("menu", OBJECT_MENU, ""), ls.get("action"))
+    check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
+          ls.get("handoff_result"))
+    check(rec, "object_menu_drawn", MENU_PROBE["object"] > 0, MENU_PROBE["object"])
+    check(rec, "menu_stays_open", not (yield from canary_ok(fxy)))
+    check(rec, "closed", (yield from close_popups(fxy)))
+    yield from release_space(xy)
+    check_ended(rec, "final")
+
+
+def sc_p3_mode_switch(rec):
+    """Click the mode switcher: MESO_MT_mode_switch opens natively (wm.call_menu) in the
+    hovered 3D View, and picking 'Edit Mode' (its accelerator 'E') switches the mode."""
+    md = model_mod()
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    if st is None or st.layout is None or st.layout.item(md.MODE_SWITCH_ID) is None:
+        check(rec, "layout", False, row_ids(st, md.ROW_CONTEXTUAL))
+        return
+    fxy = rect_mid(st.layout.item(md.MODE_SWITCH_ID).rect)
+    try:
+        ls = yield from click_item(rec, st, md.MODE_SWITCH_ID)
+        check(rec, "handoff_cmd", ls.get("handoff") == ("wm.call_menu",
+                                                        {"name": "MESO_MT_mode_switch"}),
+              ls.get("handoff"))
+        check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
+              ls.get("handoff_result"))
+        check(rec, "popup_open", not (yield from canary_ok(fxy)))
+        sim('E', 'PRESS', fxy, unicode='e')
+        yield 0.05
+        sim('E', 'RELEASE', fxy)
+        yield 0.5
+        mode = bpy.context.view_layer.objects.active.mode
+        check(rec, "edit_mode", mode == 'EDIT', mode)
+        check(rec, "menu_closed", (yield from canary_ok(fxy)))
+        yield from close_popups(fxy)
+        yield from release_space(xy)
+        check_ended(rec, "final")
+    finally:
+        set_mode('OBJECT')
+        yield 0.3
+
+
+def sc_p3_apply_scale(rec):
+    """Object > Apply > Scale through the native menu the plaza opened (driven with the
+    menu's accelerator keys: 'A'pply, then 'S'cale)."""
+    md = model_mod()
+    cube = bpy.data.objects.get("Cube")
+    if cube is None:
+        rec["skipped"] = "no Cube"
+        return
+    bpy.context.view_layer.objects.active = cube
+    cube.select_set(True)
+    cube.scale = (2.0, 2.0, 2.0)
+    max_x0 = max(v.co.x for v in cube.data.vertices)
+    yield 0.2
+    xy = center_of("VIEW_3D")
+    try:
+        st = yield from open_plaza(xy)
+        item_id = md.contextual_item_id(OBJECT_MENU)
+        if st is None or st.layout is None or st.layout.item(item_id) is None:
+            check(rec, "layout", False)
+            return
+        fxy = rect_mid(st.layout.item(item_id).rect)
+        ls = yield from click_item(rec, st, item_id)
+        check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
+              ls.get("handoff_result"))
+        for key in ('A', 'S'):
+            sim(key, 'PRESS', fxy, unicode=key.lower())
+            yield 0.05
+            sim(key, 'RELEASE', fxy)
+            yield 0.35
+        check(rec, "scale_applied", all(abs(c - 1.0) < 1e-5 for c in cube.scale),
+              list(cube.scale))
+        max_x1 = max(v.co.x for v in cube.data.vertices)
+        check(rec, "mesh_scaled", abs(max_x1 - 2 * max_x0) < 1e-4, [max_x0, max_x1])
+        check(rec, "menu_closed", (yield from canary_ok(fxy)))
+        yield from close_popups(fxy)
+        yield from release_space(xy)
+        check_ended(rec, "final")
+    finally:
+        # Put the factory cube back (mesh and scale).
+        from mathutils import Matrix
+        max_x = max(v.co.x for v in cube.data.vertices)
+        if abs(max_x - max_x0) > 1e-6 and max_x:
+            cube.data.transform(Matrix.Scale(max_x0 / max_x, 4))
+            cube.data.update()
+        cube.scale = (1.0, 1.0, 1.0)
+        yield 0.1
+
+
+def _click_cascade(rec, prefix, expected, pick=None):
+    """Open the plaza, click the first clickable Tool Settings item with id ``prefix``*, and
+    check it hands off exactly ``expected`` (op, kwargs), that the native popup opens (canary
+    swallowed) and closes with ESC. ``pick``: a generator ``fn(rec, fxy)`` run while the popup
+    is open (it may pick an entry and close the popup itself)."""
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    if st is None or st.model is None:
+        check(rec, "running", False)
+        return None
+    item = find_clickable(st, prefix)
+    check(rec, "item_found", item is not None, [i.id for i in st.model.items()
+                                                 if i.id.startswith("ts:")])
+    if item is None:
+        yield from close_plaza(xy, rec)
+        return None
+    box = st.layout.item(item.id)
+    fxy = rect_mid(box.rect)
+    ls = yield from click_item(rec, st, item.id)
+    handoff = ls.get("handoff")
+    check(rec, "handoff_cmd", handoff == expected, handoff)
+    check(rec, "handoff_ran", ls.get("handoff_result") is not None, ls.get("handoff_result"))
+    check(rec, "popup_open", not (yield from canary_ok(fxy)))
+    if pick is not None:
+        yield from pick(rec, fxy)
+    check(rec, "popup_closed", (yield from close_popups(fxy)))
+    yield from release_space(xy)
+    check_ended(rec, "final")
+    return ls
+
+
+def sc_p3_pivot_cascade(rec):
+    """Click the Pivot cascade: the native enum popup (wm.context_menu_enum) opens; a keyboard
+    pick (Down, Down, Return) changes the pivot (at most one undo step; D5 native parity)."""
+    ts = bpy.context.scene.tool_settings
+    before = ts.transform_pivot_point
+    marker = undo_marker("Meso Mode GUI pivot base")
+    yield 0.2
+
+    def pick(rec, fxy):
+        for key in ('DOWN_ARROW', 'DOWN_ARROW', 'RET'):
+            sim(key, 'PRESS', fxy)
+            yield 0.05
+            sim(key, 'RELEASE', fxy)
+            yield 0.2
+        yield 0.3
+        check(rec, "pivot_changed", ts.transform_pivot_point != before,
+              [before, ts.transform_pivot_point])
+        # Observed 5.2.2 (GUI): a pick in the native wm.context_menu_enum popup pushes NO undo
+        # step, and Ctrl+Z would not revert a ToolSettings value anyway (D5 native parity).
+        # Guard against spurious extra steps; record what happened.
+        steps = steps_since(marker)
+        rec["pivot_undo_steps"] = steps
+        check(rec, "undo_steps_at_most_one", steps is not None and len(steps) <= 1, steps)
+
+    try:
+        yield from _click_cascade(
+            rec, "ts:pivot:",
+            ("wm.context_menu_enum", {"data_path": "tool_settings.transform_pivot_point"}),
+            pick=pick)
+    finally:
+        ts.transform_pivot_point = before
+
+
+def sc_p3_orientation_cascade(rec):
+    """Click the orientation cascade: the native orientations popover opens."""
+    yield from _click_cascade(rec, "ts:orientation:", (
+        "wm.call_panel", {"name": "VIEW3D_PT_transform_orientations", "keep_open": True}))
+
+
+def sc_p3_snap_toggle(rec):
+    """Click the Snap toggle: tool_settings.use_snap flips, the plaza closes, one undo step."""
+    md = model_mod()
+    ts = bpy.context.scene.tool_settings
+    before = bool(ts.use_snap)
+    xy = center_of("VIEW_3D")
+    marker = undo_marker("Meso Mode GUI snap base")
+    yield 0.2
+    try:
+        st = yield from open_plaza(xy)
+        if st is None or st.model is None:
+            check(rec, "running", False)
+            return
+        item = find_clickable(st, "ts:snap:", kinds=(md.KIND_TOGGLE,))
+        check(rec, "toggle_found", item is not None, row_ids(st, md.ROW_TOOL_SETTINGS))
+        if item is None:
+            yield from close_plaza(xy, rec)
+            return
+        check(rec, "checked_matches", item.checked == before, [item.checked, before])
+        ls = yield from click_item(rec, st, item.id)
+        check(rec, "handoff_op", (ls.get("handoff") or ("",))[0] in (
+            "wm.context_toggle", "meso.toggle_flag"), ls.get("handoff"))
+        check(rec, "handoff_result", ls.get("handoff_result") == ["FINISHED"],
+              ls.get("handoff_result"))
+        check(rec, "use_snap_flipped", bool(ts.use_snap) == (not before), ts.use_snap)
+        steps = steps_since(marker)
+        check(rec, "one_undo_step", steps is not None and len(steps) == 1, steps)
+        check(rec, "plaza_closed", not plaza().is_running())
+        yield from release_space(xy)
+        check_ended(rec, "final")
+    finally:
+        ts.use_snap = before
+
+
+def sc_p3_workspace_click(rec):
+    """Click 'Modeling' in the workspace row: the workspace switches, the modal ended at
+    once; re-invoking in the new workspace works (no error), then back to Layout."""
+    md = model_mod()
+    w = win()
+    layout_ws = w.workspace
+    if bpy.data.workspaces.get("Modeling") is None:
+        rec["skipped"] = "no Modeling workspace"
+        return
+    xy = center_of("VIEW_3D")
+    try:
+        st = yield from open_plaza(xy)
+        if st is None or st.model is None:
+            check(rec, "running", False)
+            return
+        ls = yield from click_item(rec, st, md.workspace_item_id("Modeling"))
+        check(rec, "action", ls.get("action") == ("workspace", "Modeling", ""), ls.get("action"))
+        check(rec, "no_op_handoff", ls.get("handoff") is None, ls.get("handoff"))
+        yield 0.4
+        check(rec, "switched", win().workspace.name == "Modeling", win().workspace.name)
+        check(rec, "live_refs_dropped", st.window is None and st.area is None
+              and st.region is None)
+        yield from release_space(xy)
+        check_ended(rec, "after_switch")
+        xy2 = center_of("VIEW_3D")
+        sub = sub_rec(rec, "modeling")
+        st2 = yield from hold(xy2, sub, "VIEW_3D", "WINDOW")
+        merge(rec, sub, "modeling_")
+        if st2 is not None and st2.model is not None:
+            check(rec, "modeling_centre_line", st2.model.center is not None)
+            active = [i.id for i in st2.model.row(md.ROW_WORKSPACE).items if i.checked]
+            check(rec, "modeling_active_ws", active == [md.workspace_item_id("Modeling")], active)
+            # The factory Modeling workspace enters Edit Mode.
+            want = [md.MODE_SWITCH_ID] + [md.contextual_item_id(f"VIEW3D_MT_{m}")
+                                          for m in EDIT_MESH_MENUS]
+            check(rec, "modeling_contextual", row_ids(st2, md.ROW_CONTEXTUAL) == want,
+                  row_ids(st2, md.ROW_CONTEXTUAL))
+    finally:
+        win().workspace = layout_ws
+        yield 0.5
+    check(rec, "back_to_layout", win().workspace.name == layout_ws.name, win().workspace.name)
+
+
+def sc_p3_recent_commands(rec):
+    """Click 'Recent Commands': the native repeat-history popup opens."""
+    md = model_mod()
+    xy = center_of("VIEW_3D")
+    wm = bpy.context.window_manager
+    if len(wm.operators) == 0:
+        # Seed the history with a REGISTER operator (no reliance on earlier scenarios).
+        selected = [o.name for o in bpy.context.view_layer.objects if o.select_get()]
+        a = area_by("VIEW_3D")
+        with bpy.context.temp_override(window=win(), area=a, region=region_of(a, 'WINDOW')):
+            bpy.ops.object.select_all(action='SELECT')
+        yield SETTLE
+        if len(wm.operators) == 0:            # Python calls not registered: a real key press
+            sim('MOUSEMOVE', 'NOTHING', xy)
+            yield 0.1
+            sim('A', 'PRESS', xy, unicode='a')
+            sim('A', 'RELEASE', xy)
+            yield SETTLE
+        for o in bpy.context.view_layer.objects:
+            o.select_set(o.name in selected)
+    check(rec, "history_seeded", len(wm.operators) > 0, len(wm.operators))
+    st = yield from open_plaza(xy)
+    if st is None or st.layout is None or st.layout.item(md.RECENT_ID) is None:
+        check(rec, "layout", False)
+        return
+    fxy = rect_mid(st.layout.item(md.RECENT_ID).rect)
+    ls = yield from click_item(rec, st, md.RECENT_ID)
+    check(rec, "handoff_cmd", ls.get("handoff") == ("screen.repeat_history", {}),
+          ls.get("handoff"))
+    res = ls.get("handoff_result") or []
+    check(rec, "handoff_result", "INTERFACE" in res, res)
+    check(rec, "popup_open", not (yield from canary_ok(fxy)))
+    check(rec, "popup_closed", (yield from close_popups(fxy)))
+    yield from release_space(xy)
+    check_ended(rec, "final")
+
+
+def sc_p3_plaza_controls(rec):
+    """Click 'Plaza Controls': the Preferences open on Meso Mode's add-on entry."""
+    md = model_mod()
+    wm = bpy.context.window_manager
+    n_windows = len(wm.windows)
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    if st is None or st.layout is None or st.layout.item(md.CONTROLS_ID) is None:
+        check(rec, "layout", False)
+        return
+    try:
+        ls = yield from click_item(rec, st, md.CONTROLS_ID)
+        check(rec, "handoff_cmd", ls.get("handoff") == ("preferences.addon_show",
+                                                        {"module": ADDON_MODULE}),
+              ls.get("handoff"))
+        check(rec, "handoff_result", ls.get("handoff_result") == ["FINISHED"],
+              ls.get("handoff_result"))
+        yield 0.6
+        prefs = bpy.context.preferences
+        check(rec, "addons_section", prefs.active_section == 'ADDONS', prefs.active_section)
+        check(rec, "search_is_meso", "Meso Mode".lower() in wm.addon_search.lower(),
+              wm.addon_search)
+        pref_windows = [w for w in wm.windows
+                        if any(a.type == 'PREFERENCES' for a in w.screen.areas)]
+        check(rec, "prefs_window", len(wm.windows) == n_windows + 1 and pref_windows,
+              [len(wm.windows), n_windows])
+        yield from release_space(xy)
+    finally:
+        for w in list(wm.windows):
+            if w != win() and any(a.type == 'PREFERENCES' for a in w.screen.areas):
+                try:
+                    with bpy.context.temp_override(window=w):
+                        bpy.ops.wm.window_close()
+                except Exception:
+                    traceback.print_exc()
+        wm.addon_search = ""
+        yield 0.5
+    check(rec, "prefs_window_closed", len(wm.windows) == n_windows, len(wm.windows))
+    check_ended(rec, "final")
+
+
+P3_SCENARIOS = [
+    ("p3_contextual_rows", sc_p3_contextual_rows),
+    ("p3_screens", sc_p3_screens),
+    ("p3_click_object_menu", sc_p3_click_object_menu),
+    ("p3_mode_switch", sc_p3_mode_switch),
+    ("p3_apply_scale", sc_p3_apply_scale),
+    ("p3_pivot_cascade", sc_p3_pivot_cascade),
+    ("p3_orientation_cascade", sc_p3_orientation_cascade),
+    ("p3_snap_toggle", sc_p3_snap_toggle),
+    ("p3_recent_commands", sc_p3_recent_commands),
+    ("p3_plaza_controls", sc_p3_plaza_controls),
+    ("p3_workspace_click", sc_p3_workspace_click),
+]
+
+
+class _DriverProxy:
+    """This module as seen by ``scenarios_*.py`` (reads the live globals: Blender runs
+    ``--python`` scripts outside ``sys.modules``)."""
+
+    def __getattr__(self, name):
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(name) from None
+
+
+def driver_module():
+    mod = sys.modules.get(__name__)
+    return mod if getattr(mod, "sim", None) is sim else _DriverProxy()
+
+
+def load_scenario_modules():
+    """``[(name, fn)]`` from every ``tests/gui/scenarios_*.py`` (sorted by file name)."""
+    out = []
+    here = pathlib.Path(__file__).resolve().parent
+    for path in sorted(here.glob("scenarios_*.py")):
+        try:
+            spec = importlib.util.spec_from_file_location(f"meso_gui_{path.stem}", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            out.extend(mod.scenarios(driver_module()))
+        except Exception:
+            err = traceback.format_exc()
+            traceback.print_exc()
+
+            def failed(rec, _err=err):
+                rec["error"] = _err
+                yield 0.01
+            out.append((f"load_{path.stem}", failed))
+    return out
+
+
 SCENARIOS = [
     ("hold_view3d", sc_hold_view3d),
-    ("tap_play", sc_tap_play),
-    ("tap_realistic", sc_tap_realistic),
-    ("tap_none", sc_tap_none),
-    ("tap_maximize", sc_tap_maximize),
+    ("tap_play", view3d_global_tap(sc_tap_play)),
+    ("tap_realistic", view3d_global_tap(sc_tap_realistic)),
+    ("tap_none", view3d_global_tap(sc_tap_none)),
+    ("tap_maximize", view3d_global_tap(sc_tap_maximize)),
     ("click_is_not_tap", sc_click_is_not_tap),
     ("esc_cancel", sc_esc_cancel),
     ("p2_screenshot", sc_screenshot),
@@ -1385,10 +2041,10 @@ SCENARIOS = [
     ("topbar", sc_topbar),
     ("text_editor", sc_text_editor),
     ("console", sc_console),
-    ("sculpt_tool", sc_sculpt_tool),
-    ("tool_toolbar", sc_tool_toolbar),
-    ("search", sc_search),
-    ("header_tool", sc_header_tool),
+    ("sculpt_tool", view3d_global_tap(sc_sculpt_tool)),
+    ("tool_toolbar", view3d_global_tap(sc_tool_toolbar)),
+    ("search", view3d_global_tap(sc_search)),
+    ("header_tool", view3d_global_tap(sc_header_tool)),
     ("statusbar", sc_statusbar),
     ("rebound_key", sc_rebound_key),
     ("quad_view", sc_quad_view),
@@ -1399,6 +2055,9 @@ SCENARIOS = [
     ("disable_while_held", sc_disable_while_held),
     ("disable_addon", sc_disable_addon),     # must stay last
 ]
+# Phase 3 and the scenarios_*.py modules run before the add-on disable/enable scenarios.
+_P3_AT = next(i for i, (n, _f) in enumerate(SCENARIOS) if n == "disabled_poll")
+SCENARIOS[_P3_AT:_P3_AT] = P3_SCENARIOS + load_scenario_modules()
 
 # ----------------------------------------------------------------------------- driver
 
@@ -1426,6 +2085,7 @@ def setup():
     ensure_blender_keyconfig()
     add_canary()
     add_menu_probe()
+    add_p3_probes()
     enable_addon()
     w = win()
     META.update({"blender": bpy.app.version_string, "window": [w.width, w.height],
@@ -1501,6 +2161,7 @@ def finish(status):
     try:
         remove_canary()
         remove_menu_probe()
+        remove_p3_probes()
     except Exception:
         traceback.print_exc()
     try:

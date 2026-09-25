@@ -29,6 +29,7 @@ def _load_core(name="_meso_core"):
 
 
 tap = importlib.import_module(_load_core() + ".tap")
+tap_views = importlib.import_module(_load_core() + ".views")
 TapCommand, is_tap = tap.TapCommand, tap.is_tap
 paint_mode_keymap, resolve_tap_action = tap.paint_mode_keymap, tap.resolve_tap_action
 
@@ -341,8 +342,8 @@ class TestResolveTapAction(unittest.TestCase):
     def test_result_types_exhaustive(self):
         """Every combination returns None or a TapCommand with a known idname and dict kwargs."""
         known = {'screen.animation_play', 'wm.toolbar', 'wm.search_menu', 'screen.screen_full_area',
-                 'wm.call_asset_shelf_popover'}
-        for action in tap.TAP_ACTIONS + ('X',):
+                 'wm.call_asset_shelf_popover', tap.PANE_TOGGLE_OPERATOR}
+        for action in tap.TAP_ACTIONS + tap.TAP_ACTIONS_VIEW3D + ('X',):
             for kc in KEYCONFIGS:
                 for sba in tap.SPACEBAR_ACTIONS + (None, 'X'):
                     for area in ALL_AREAS:
@@ -358,6 +359,126 @@ class TestResolveTapAction(unittest.TestCase):
                                     self.assertIn(got.kwargs['name'], tap.ASSET_SHELVES.values())
                                 else:
                                     self.assertEqual(got.kwargs, {})
+
+
+PANE = TapCommand(tap.PANE_TOGGLE_OPERATOR)
+
+
+class TestPaneToggle(unittest.TestCase):
+    """Phase 3 D: PANE_TOGGLE branch, effective_tap_action and resolve_pane_action."""
+
+    def test_pane_toggle_view3d_any_region_keyconfig(self):
+        for kc in KEYCONFIGS:
+            for sba in tap.SPACEBAR_ACTIONS + (None,):
+                for region in REGIONS:
+                    for hit in ALL_HITS:
+                        with self.subTest(kc=kc, sba=sba, region=region, hit=hit):
+                            self.assertEqual(
+                                resolve_tap_action(tap.PANE_TOGGLE, kc, sba, 'VIEW_3D', region, hit),
+                                PANE)
+
+    def test_pane_toggle_elsewhere_is_none(self):
+        for area in ALL_AREAS:
+            if area == 'VIEW_3D':
+                continue
+            for region in REGIONS:
+                with self.subTest(area=area, region=region):
+                    self.assertIsNone(
+                        resolve_tap_action(tap.PANE_TOGGLE, tap.KC_BLENDER, 'PLAY', area, region, None))
+
+    def test_pane_command_value(self):
+        self.assertEqual(PANE.op_idname, 'meso.pane_toggle')
+        self.assertEqual(PANE.kwargs, {})
+
+    def test_same_as_global_is_not_an_action(self):
+        # SAME_AS_GLOBAL must be resolved by effective_tap_action first; raw it does nothing.
+        self.assertIsNone(resolve_tap_action(tap.SAME_AS_GLOBAL, tap.KC_BLENDER, 'PLAY',
+                                             'VIEW_3D', 'WINDOW', None))
+
+    def test_effective_tap_action(self):
+        eff = tap.effective_tap_action
+        for glob in tap.TAP_ACTIONS:
+            for v3d in tap.TAP_ACTIONS_VIEW3D + (None, ''):
+                for area in ALL_AREAS:
+                    with self.subTest(glob=glob, v3d=v3d, area=area):
+                        got = eff(glob, v3d, area)
+                        if area == 'VIEW_3D' and v3d and v3d != tap.SAME_AS_GLOBAL:
+                            self.assertEqual(got, v3d)
+                        else:
+                            self.assertEqual(got, glob)
+
+    def test_effective_defaults(self):
+        eff = tap.effective_tap_action
+        self.assertEqual(eff('ORIGINAL', tap.PANE_TOGGLE, 'VIEW_3D'), tap.PANE_TOGGLE)
+        self.assertEqual(eff('ORIGINAL', tap.PANE_TOGGLE, 'DOPESHEET_EDITOR'), 'ORIGINAL')
+        self.assertEqual(eff('ORIGINAL', tap.PANE_TOGGLE, None), 'ORIGINAL')
+        self.assertEqual(eff('MAXIMIZE', tap.SAME_AS_GLOBAL, 'VIEW_3D'), 'MAXIMIZE')
+        self.assertEqual(eff('ORIGINAL', 'NONE', 'VIEW_3D'), 'NONE')
+
+    def test_end_to_end_defaults(self):
+        """Prefs defaults (ORIGINAL + PANE_TOGGLE): pane toggle in the 3D View, play elsewhere."""
+        def run(area):
+            action = tap.effective_tap_action('ORIGINAL', tap.PANE_TOGGLE, area)
+            return resolve_tap_action(action, tap.KC_BLENDER, 'PLAY', area, 'WINDOW', None)
+        self.assertEqual(run('VIEW_3D'), PANE)
+        self.assertEqual(run('DOPESHEET_EDITOR'), PLAY)
+        self.assertEqual(run('IMAGE_EDITOR'), PLAY)
+        self.assertIsNone(run('OUTLINER'))
+        self.assertIsNone(run(None))
+
+    def test_global_pane_toggle_never_leaks(self):
+        for area in ALL_AREAS:
+            action = tap.effective_tap_action(tap.PANE_TOGGLE, tap.SAME_AS_GLOBAL, area)
+            got = resolve_tap_action(action, tap.KC_BLENDER, 'PLAY', area, 'WINDOW', None)
+            self.assertEqual(got, PANE if area == 'VIEW_3D' else None, area)
+
+    def test_resolve_pane_action_truth_table(self):
+        rpa = tap.resolve_pane_action
+        axes = tuple(tap_views.VIEW_AXES)
+        for persp in (None, True, False):
+            for axis in (None, 'BOGUS', '') + axes:
+                for saved in (False, True):
+                    with self.subTest(persp=persp, axis=axis, saved=saved):
+                        # Single view: only the saved state matters.
+                        self.assertEqual(rpa(False, persp, axis, saved),
+                                         tap.PANE_QUAD_ON_RESTORE if saved else tap.PANE_QUAD_ON)
+                        got = rpa(True, persp, axis, saved)
+                        if persp is True:
+                            want = tap.PANE_QUAD_OFF
+                        elif axis in axes:
+                            want = tap.PANE_MAXIMIZE_AXIS
+                        else:
+                            want = tap.PANE_QUAD_OFF
+                        self.assertEqual(got, want)
+                        self.assertIn(got, tap.PANE_ACTIONS)
+
+    def test_resolve_pane_action_named_cases(self):
+        rpa = tap.resolve_pane_action
+        self.assertEqual(rpa(False, None, None, False), tap.PANE_QUAD_ON)
+        self.assertEqual(rpa(False, None, None, True), tap.PANE_QUAD_ON_RESTORE)
+        self.assertEqual(rpa(True, True, None, False), tap.PANE_QUAD_OFF)
+        self.assertEqual(rpa(True, False, 'TOP', False), tap.PANE_MAXIMIZE_AXIS)
+        self.assertEqual(rpa(True, False, 'RIGHT', True), tap.PANE_MAXIMIZE_AXIS)
+        self.assertEqual(rpa(True, False, None, True), tap.PANE_QUAD_OFF)   # unrecognised
+        self.assertEqual(rpa(True, None, None, True), tap.PANE_QUAD_OFF)    # not over a quadrant
+        # The perspective quadrant wins even when it happens to be axis-aligned.
+        self.assertEqual(rpa(True, True, 'TOP', False), tap.PANE_QUAD_OFF)
+
+    def test_toggle_cycle(self):
+        """single -> quad -> (Top) maximized -> quad (restore) -> (persp) single."""
+        rpa = tap.resolve_pane_action
+        saved = False
+        steps = []
+        for is_quad, persp, axis in ((False, None, None), (True, False, 'TOP'),
+                                     (False, None, None), (True, True, None)):
+            act = rpa(is_quad, persp, axis, saved)
+            steps.append(act)
+            if act == tap.PANE_MAXIMIZE_AXIS:
+                saved = True
+            elif act in (tap.PANE_QUAD_OFF, tap.PANE_QUAD_ON_RESTORE):
+                saved = False
+        self.assertEqual(steps, [tap.PANE_QUAD_ON, tap.PANE_MAXIMIZE_AXIS,
+                                 tap.PANE_QUAD_ON_RESTORE, tap.PANE_QUAD_OFF])
 
 
 if __name__ == "__main__":

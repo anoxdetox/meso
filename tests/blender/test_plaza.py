@@ -4,8 +4,8 @@ notes/phase2-interfaces.md, ops/plaza.py).
 Runs inside Blender via tests/run_tests.py (which enables the add-on and loads the Blender
 keyconfig preset first). Headless, ``bpy.ops.meso.plaza('INVOKE_DEFAULT')`` is refused
 and ``modal_handler_add`` needs a real Operator, so the operator's functions are called on a
-plain stub with fake events. Never opens popups (they segfault in ``-b``): the Phase 2
-handoff tests replace ``run_tap`` with a recorder.
+plain stub with fake events. Never opens popups (they segfault in ``-b``): the click tests
+replace ``ops.invoke.execute`` (or its ``run_call`` seam) with a recorder.
 """
 
 import io
@@ -25,6 +25,8 @@ GEOMETRY_MODULE = ADDON_MODULE + ".core.geometry"
 MODEL_MODULE = ADDON_MODULE + ".core.model"
 RECTS_MODULE = ADDON_MODULE + ".core.rects"
 PREFS_MODULE = ADDON_MODULE + ".prefs"
+INVOKE_MODULE = ADDON_MODULE + ".ops.invoke"
+ACTIONS_MODULE = ADDON_MODULE + ".core.actions"
 
 
 def _hb():
@@ -583,18 +585,19 @@ class TestModalPhase2(_PlazaCase):
     def setUp(self):
         super().setUp()
         hb = _hb()
+        inv = sys.modules[INVOKE_MODULE]
         self.calls = []
-        original = hb.run_tap
+        original = inv.execute
 
-        def fake_run_tap(cmd, window, area, region):
-            self.calls.append({'cmd': (cmd.op_idname, dict(cmd.kwargs)), 'window': window,
-                               'area': area, 'region': region,
+        def fake_execute(action, window, area, region, area_type=None):
+            self.calls.append({'action': action, 'window': window, 'area': area,
+                               'region': region, 'area_type': area_type,
                                'running': hb.is_running(),
                                'stopped': self.handlers.stopped})
-            return {'INTERFACE'}
+            return inv.ExecResult(None, ['INTERFACE'], True)
 
-        hb.run_tap = fake_run_tap
-        self.addCleanup(setattr, hb, 'run_tap', original)
+        inv.execute = fake_execute
+        self.addCleanup(setattr, inv, 'execute', original)
         self.stub = _stub()
         self.state = _open_state(self.window)
         self.stub._state = self.state
@@ -664,7 +667,8 @@ class TestModalPhase2(_PlazaCase):
         self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', (xy[0] + 2, xy[1])), {'FINISHED'})
         self.assertEqual(len(self.calls), 1)
         call = self.calls[0]
-        self.assertEqual(call['cmd'], ('wm.call_menu', {'name': 'TOPBAR_MT_file'}))
+        md = _mods()[1]
+        self.assertEqual(call['action'], md.Action(md.ACTION_MENU, target='TOPBAR_MT_file'))
         self.assertEqual((call['window'], call['area'], call['region']),
                          (self.window, self.area, self.region))
         self.assertFalse(call['running'], "teardown before the handoff")
@@ -675,6 +679,7 @@ class TestModalPhase2(_PlazaCase):
         self.assertEqual(last['end'], 'handoff')
         self.assertEqual(last['handoff'], ('wm.call_menu', {'name': 'TOPBAR_MT_file'}))
         self.assertEqual(last['handoff_result'], ['INTERFACE'])
+        self.assertEqual(last['action'], ('menu', 'TOPBAR_MT_file', ''))
         self.assertFalse(last['tapped'])
         self.assertIsNone(self.state.window, "live refs dropped")
         self.assertIsNotNone(self.state.layout, "plain data stays")
@@ -690,8 +695,7 @@ class TestModalPhase2(_PlazaCase):
         self.assertEqual(self._ev('LEFTMOUSE', 'DOUBLE_CLICK', xy), {'RUNNING_MODAL'})
         self.assertEqual(self.state.pressed_id, 'TOPBAR_MT_file')
         self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
-        self.assertEqual([c['cmd'] for c in self.calls],
-                         [('wm.call_menu', {'name': 'TOPBAR_MT_file'})])
+        self.assertEqual([c['action'].target for c in self.calls], ['TOPBAR_MT_file'])
         self.assertEqual(hb.last_session()['end'], 'handoff')
 
     def test_other_button_double_click_interacts(self):
@@ -722,11 +726,10 @@ class TestModalPhase2(_PlazaCase):
         self.assertEqual((last['end'], last['tapped'], last['handoff']),
                          ('finish', False, None))
 
-    def test_non_menu_and_disabled_items_never_hand_off(self):
+    def test_centre_and_disabled_items_never_run(self):
         hb = _hb()
         md = _mods()[1]
-        for item_id in ('TOPBAR_MT_nope', md.CENTER_ID, md.RECENT_ID, md.CONTROLS_ID,
-                        md.workspace_item_id('Layout')):
+        for item_id in ('TOPBAR_MT_nope', md.CENTER_ID):
             with self.subTest(item=item_id):
                 xy = self._at(item_id)
                 self._ev('LEFTMOUSE', 'PRESS', xy)
@@ -763,6 +766,333 @@ class TestModalPhase2(_PlazaCase):
         self.assertAlmostEqual(last['timing']['max_ms'], 2.0)
         self.assertIsNone(last['handoff'])
         self.assertIn('Meso Mode: draw timing', out.getvalue())
+
+
+
+# ----------------------------------------------------------------------------- Phase 3
+
+
+def _model3():
+    """Every Phase 3 item kind and action kind, hand-built (no recorder)."""
+    _geo, md, _r = _mods()
+    A = md.Action
+
+    def ts(group, name, label, kind, action, **kw):
+        return md.Item(md.tool_item_id(group, name), label, kind, action=action, **kw)
+
+    root = md.Row(md.ROW_ROOT, [md.Item('TOPBAR_MT_file', 'File', md.KIND_MENU,
+                                        {'menu': 'TOPBAR_MT_file'})])
+    ctx = md.Row(md.ROW_CONTEXTUAL, [
+        md.Item(md.MODE_SWITCH_ID, 'Object Mode', md.KIND_CASCADE, cascade=True,
+                action=A(md.ACTION_MENU, target='MESO_MT_mode_switch')),
+        md.Item(md.contextual_item_id('VIEW3D_MT_object'), 'Object', md.KIND_MENU,
+                {'menu': 'VIEW3D_MT_object'}),
+        md.Item(md.contextual_item_id('VIEW3D_MT_pie'), 'Pie', md.KIND_MENU,
+                action=A(md.ACTION_MENU_PIE, target='VIEW3D_MT_object_mode_pie')),
+    ])
+    tool = md.Row(md.ROW_TOOL_SETTINGS, [
+        ts('orientation', 'type', 'Global', md.KIND_CASCADE,
+           A(md.ACTION_PROP_ENUM_MENU, data_path='scene.transform_orientation_slots[0].type'),
+           cascade=True),
+        ts('pivot', 'VIEW3D_PT_pivot_point', 'Pivot: Median Point', md.KIND_CASCADE,
+           A(md.ACTION_PANEL, target='VIEW3D_PT_pivot_point'), cascade=True),
+        ts('snap', 'use_snap', 'Snap', md.KIND_TOGGLE,
+           A(md.ACTION_TOGGLE, data_path='tool_settings.use_snap'), checked=False),
+        ts('snap', 'elements', 'Increment', md.KIND_CASCADE,
+           A(md.ACTION_SET_ENUM, data_path='tool_settings.proportional_edit_falloff',
+             value='SMOOTH'), cascade=True),
+        ts('mode', 'value', 'Value', md.KIND_TOGGLE,
+           A(md.ACTION_SET_VALUE, data_path='tool_settings.proportional_size', value=2.0),
+           checked=True),
+        ts('select', 'flag', 'Flag', md.KIND_TOGGLE,
+           A(md.ACTION_TOGGLE_FLAG, data_path='tool_settings.snap_elements_base',
+             value='VERTEX'), checked=False),
+        ts('select', 'vert', 'Vertex', md.KIND_TOGGLE,
+           A(md.ACTION_OPERATOR, target='mesh.select_mode', props={'type': 'VERT'},
+             operator_context='EXEC_DEFAULT'), checked=True),
+        ts('mode', 'off', 'Greyed', md.KIND_TOGGLE,
+           A(md.ACTION_TOGGLE, data_path='tool_settings.use_snap'), enabled=False),
+        ts('mode', 'noop', 'Display only', md.KIND_LABEL, A(md.ACTION_NONE)),
+        md.Item(md.TOOL_SEPARATOR_ID, '', md.KIND_SEPARATOR),
+        ts('display', 'xray', 'X-Ray', md.KIND_TOGGLE,
+           A(md.ACTION_OPERATOR, target='view3d.toggle_xray'), checked=False),
+    ])
+    ws = md.Row(md.ROW_WORKSPACE, [
+        md.Item(md.workspace_item_id(n), n, md.KIND_WORKSPACE, {'workspace': n},
+                checked=(n == 'Layout')) for n in ('Layout', 'Modeling')])
+    return md.make_model(
+        [root, ctx, tool, ws],
+        md.Item(md.CENTER_ID, '3D Viewport', md.KIND_CENTER),
+        md.Item(md.RECENT_ID, 'Recent Commands', md.KIND_RECENT),
+        md.Item(md.CONTROLS_ID, 'Plaza Controls', md.KIND_CONTROLS))
+
+
+class _Phase3Case(_PlazaCase):
+    """A session over the 3D View with :func:`_model3`; ``self.calls`` records execute()."""
+
+    stub_execute = True
+
+    def setUp(self):
+        super().setUp()
+        hb = _hb()
+        self.inv = inv = sys.modules[INVOKE_MODULE]
+        self.calls = []
+        self.area = _area(self.window, 'VIEW_3D')
+        self.region = _visible(self.area, 'WINDOW')
+        if self.stub_execute:
+            original = inv.execute
+
+            def fake_execute(action, window, area, region, area_type=None):
+                self.calls.append({'action': action, 'window': window, 'area': area,
+                                   'region': region, 'area_type': area_type,
+                                   'running': hb.is_running()})
+                return inv.ExecResult(('fake', {}), ['FINISHED'], True)
+
+            inv.execute = fake_execute
+            self.addCleanup(setattr, inv, 'execute', original)
+
+    def _session(self):
+        stub = _stub()
+        state = _open_state(self.window, area_type='VIEW_3D')
+        stub._state = state
+        state.model = _model3()
+        state.layout = _layout(state.model)
+        state.handlers = FakeHandlers()
+        state.area, state.region = self.area, self.region
+        return stub, state
+
+    def _ev(self, stub, etype, value, xy):
+        with bpy.context.temp_override(window=self.window):
+            return stub.modal(bpy.context, Ev(etype, value, *xy))
+
+    def _click(self, stub, state, item_id):
+        box = state.layout.item(item_id)
+        self.assertIsNotNone(box, item_id)
+        xy = _mid(box.rect)
+        press = self._ev(stub, 'LEFTMOUSE', 'PRESS', xy)
+        pressed = state.pressed_id
+        release = self._ev(stub, 'LEFTMOUSE', 'RELEASE', xy)
+        return press, pressed, release
+
+
+class TestModalPhase3(_Phase3Case):
+
+    def test_every_clickable_item_runs_its_action_on_release(self):
+        hb = _hb()
+        md = _mods()[1]
+        acts = sys.modules[ACTIONS_MODULE]
+        model = _model3()
+        clickable = [item for item in model.items() if md.item_action(item) is not None]
+        kinds = {md.item_action(item).kind for item in clickable}
+        self.assertEqual(kinds, set(md.ACTION_KINDS) - {md.ACTION_NONE},
+                         "the model covers every action kind")
+        for item in clickable:
+            with self.subTest(item=item.id):
+                self.calls.clear()
+                stub, state = self._session()
+                press, pressed, release = self._click(stub, state, item.id)
+                action = md.item_action(item)
+                self.assertEqual(press, {'RUNNING_MODAL'})
+                self.assertEqual(pressed, item.id)
+                self.assertEqual(release, {'FINISHED'})
+                self.assertEqual(len(self.calls), 1)
+                call = self.calls[0]
+                self.assertEqual(call['action'], action)
+                self.assertEqual((call['window'], call['area'], call['region'], call['area_type']),
+                                 (self.window, self.area, self.region, 'VIEW_3D'))
+                self.assertFalse(call['running'], "teardown before the action (D3)")
+                self.assertEqual(state.handlers, None)
+                self.assertFalse(hb.is_running())
+                self.assertIsNone(stub._state)
+                last = hb.last_session()
+                self.assertEqual(last['end'], 'handoff')
+                self.assertEqual(last['action'], (action.kind, action.target, action.data_path))
+                self.assertEqual(last['handoff'], acts.describe(
+                    acts.plan_call(action, self.inv.addon_module())))
+                self.assertEqual(last['handoff_result'], ['FINISHED'])
+                self.assertFalse(last['tapped'])
+
+    def test_passive_and_disabled_items_never_run(self):
+        hb = _hb()
+        md = _mods()[1]
+        stub, state = self._session()
+        for item_id in (md.TOOL_SEPARATOR_ID, md.tool_item_id('mode', 'off'),
+                        md.tool_item_id('mode', 'noop'), md.CENTER_ID):
+            with self.subTest(item=item_id):
+                box = state.layout.item(item_id)
+                xy = _mid(box.rect)
+                self.assertEqual(self._ev(stub, 'LEFTMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
+                self.assertIsNone(state.pressed_id)
+                self.assertEqual(self._ev(stub, 'LEFTMOUSE', 'RELEASE', xy), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
+        self.assertTrue(hb.is_running())
+        self.assertIsNone(hb.last_session().get('action'))
+
+    def test_separator_never_hovers(self):
+        md = _mods()[1]
+        stub, state = self._session()
+        box = state.layout.item(md.TOOL_SEPARATOR_ID)
+        self._ev(stub, 'MOUSEMOVE', 'NOTHING', _mid(box.rect))
+        self.assertIsNone(state.hover_id)
+
+    def test_press_on_one_release_on_another_does_nothing(self):
+        hb = _hb()
+        md = _mods()[1]
+        stub, state = self._session()
+        a = _mid(state.layout.item(md.tool_item_id('snap', 'use_snap')).rect)
+        b = _mid(state.layout.item(md.tool_item_id('pivot', 'VIEW3D_PT_pivot_point')).rect)
+        self._ev(stub, 'LEFTMOUSE', 'PRESS', a)
+        self.assertEqual(self._ev(stub, 'LEFTMOUSE', 'RELEASE', b), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
+        self.assertTrue(hb.is_running())
+
+    def test_workspace_click_returns_at_once(self):
+        hb = _hb()
+        md = _mods()[1]
+        stub, state = self._session()
+        _p, pressed, release = self._click(stub, state, md.workspace_item_id('Modeling'))
+        self.assertEqual((pressed, release), (md.workspace_item_id('Modeling'), {'FINISHED'}))
+        self.assertEqual(self.calls[0]['action'],
+                         md.Action(md.ACTION_WORKSPACE, target='Modeling'))
+        last = hb.last_session()
+        self.assertEqual(last['action'], ('workspace', 'Modeling', ''))
+        self.assertIsNone(last['handoff'], "a workspace switch is an assignment, not an op")
+        self.assertIsNone(state.window)
+        self.assertIsNone(state.area)
+
+    def test_execute_raising_still_finishes(self):
+        hb = _hb()
+        md = _mods()[1]
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("execute boom (test)")
+
+        self.inv.execute = boom
+        stub, state = self._session()
+        with _quiet() as (out, _err):
+            _p, _pr, release = self._click(stub, state, md.tool_item_id('snap', 'use_snap'))
+        self.assertEqual(release, {'FINISHED'})
+        self.assertFalse(hb.is_running())
+        self.assertIsNone(hb.last_session()['handoff_result'])
+        self.assertIn('Meso Mode:', out.getvalue())
+
+
+class TestModalPhase3RunCall(_Phase3Case):
+    """The real ``ops.invoke.execute`` behind the modal, with only its ``run_call`` seam
+    stubbed (never opens a popup headless)."""
+
+    stub_execute = False
+
+    def setUp(self):
+        super().setUp()
+        hb = _hb()
+        inv = self.inv
+        self.seen = []
+        original = inv.run_call
+
+        def fake_run_call(call, window, area, region):
+            self.seen.append({'call': call, 'window': window, 'area': area, 'region': region,
+                              'running': hb.is_running()})
+            return {'FINISHED'}
+
+        inv.run_call = fake_run_call
+        self.addCleanup(setattr, inv, 'run_call', original)
+
+    def test_menu_panel_toggle_reach_run_call_after_teardown(self):
+        hb = _hb()
+        md = _mods()[1]
+        acts = sys.modules[ACTIONS_MODULE]
+        for item_id, op in ((md.contextual_item_id('VIEW3D_MT_object'), 'wm.call_menu'),
+                            (md.tool_item_id('pivot', 'VIEW3D_PT_pivot_point'), 'wm.call_panel'),
+                            (md.tool_item_id('snap', 'use_snap'), 'wm.context_toggle')):
+            with self.subTest(item=item_id):
+                self.seen.clear()
+                stub, state = self._session()
+                action = md.item_action(state.model.find(item_id))
+                _p, _pr, release = self._click(stub, state, item_id)
+                self.assertEqual(release, {'FINISHED'})
+                self.assertEqual(len(self.seen), 1)
+                seen = self.seen[0]
+                self.assertEqual(seen['call'].op_idname, op)
+                self.assertEqual(seen['call'], acts.plan_call(action, self.inv.addon_module()))
+                self.assertEqual((seen['window'], seen['area']), (self.window, self.area))
+                self.assertEqual(seen['region'].as_pointer(), self.region.as_pointer())
+                self.assertFalse(seen['running'])
+                self.assertEqual(hb.last_session()['handoff'][0], op)
+                self.assertEqual(hb.last_session()['handoff_result'], ['FINISHED'])
+
+
+class TestTapView3d(_PlazaCase):
+
+    def _state(self, area_type, tap_action='ORIGINAL', view3d='PANE_TOGGLE'):
+        return _hb().PlazaState(window_ptr=1, screen_ptr=2, anchor=(0, 0), t0=0.0,
+                                 area_type=area_type, region_type='WINDOW',
+                                 tap_action=tap_action, tap_action_view3d=view3d)
+
+    def test_resolve_tap_uses_effective_action(self):
+        hb = _hb()
+        tap = sys.modules[TAP_MODULE]
+        kc, sb = hb.read_keyconfig(bpy.context)
+        pane = tap.TapCommand(tap.PANE_TOGGLE_OPERATOR)
+        self.assertEqual(hb.resolve_tap(self._state('VIEW_3D'), bpy.context), pane)
+        self.assertEqual(hb.resolve_tap(self._state('VIEW_3D', view3d='SAME_AS_GLOBAL'),
+                                        bpy.context),
+                         tap.resolve_tap_action('ORIGINAL', kc, sb, 'VIEW_3D', 'WINDOW', None))
+        self.assertIsNone(hb.resolve_tap(self._state('VIEW_3D', view3d='NONE'), bpy.context))
+        self.assertEqual(hb.resolve_tap(self._state('VIEW_3D', 'NONE', 'MAXIMIZE'),
+                                        bpy.context),
+                         tap.TapCommand('screen.screen_full_area'))
+        # Elsewhere the global action applies (PANE_TOGGLE never leaks out of the 3D View).
+        self.assertEqual(hb.resolve_tap(self._state('DOPESHEET_EDITOR'), bpy.context),
+                         tap.resolve_tap_action('ORIGINAL', kc, sb, 'DOPESHEET_EDITOR',
+                                                'WINDOW', None))
+        self.assertIsNone(hb.resolve_tap(self._state('OUTLINER', 'NONE'), bpy.context))
+
+    def test_modal_tap_in_view3d_runs_pane_toggle(self):
+        hb = _hb()
+        calls = []
+        original = hb.run_tap
+
+        def fake_run_tap(cmd, window, area, region):
+            calls.append((cmd.op_idname, dict(cmd.kwargs), window, area, region,
+                          hb.is_running()))
+            return {'FINISHED'}
+
+        hb.run_tap = fake_run_tap
+        self.addCleanup(setattr, hb, 'run_tap', original)
+        area = _area(self.window, 'VIEW_3D')
+        region = _visible(area, 'WINDOW')
+        stub = _stub()
+        state = stub._state = _open_state(self.window, tap_action='ORIGINAL',
+                                          area_type='VIEW_3D', region_type='WINDOW')
+        self.assertEqual(state.tap_action_view3d, 'PANE_TOGGLE')
+        state.area, state.region = area, region
+        with bpy.context.temp_override(window=self.window):
+            self.assertEqual(stub.modal(bpy.context, Ev('SPACE', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(calls, [('meso.pane_toggle', {}, self.window, area, region, False)])
+        last = hb.last_session()
+        self.assertTrue(last['tapped'])
+        self.assertEqual(last['tap_cmd'], ('meso.pane_toggle', {}))
+        self.assertEqual(last['tap_result'], ['FINISHED'])
+
+    def test_invoke_snapshots_view3d_pref(self):
+        hb = _hb()
+        prefs = sys.modules[PREFS_MODULE].get_prefs(bpy.context)
+        area = _area(self.window, 'VIEW_3D')
+        x, y = _center(_visible(area, 'WINDOW'))
+        old = prefs.tap_action_view3d
+        try:
+            for value in ('PANE_TOGGLE', 'SAME_AS_GLOBAL'):
+                with self.subTest(value=value):
+                    prefs.tap_action_view3d = value
+                    with bpy.context.temp_override(window=self.window), _quiet():
+                        # modal_handler_add rejects the stub: invoke ends in its error path,
+                        # after the snapshots and the last_session record.
+                        _stub().invoke(bpy.context, Ev('SPACE', 'PRESS', x, y))
+                    want = value if value != 'SAME_AS_GLOBAL' else prefs.tap_action
+                    self.assertEqual(hb.last_session()['tap_action'], want)
+        finally:
+            prefs.tap_action_view3d = old
 
 
 if __name__ == "__main__":

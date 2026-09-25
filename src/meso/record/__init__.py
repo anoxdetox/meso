@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Recording Blender UI into plaza rows (Phase 2 seed of the Phase 3 recorder).
+"""Recording Blender UI into plaza rows (Phases 2-3).
 
-- ``topbar``: the Root row from ``TOPBAR_MT_editor_menus.draw`` (minimal fake layout).
+- ``recorder``: FakeSelf / FakeLayout / PropsProxy; record any Menu / Panel / Header draw.
+- ``topbar``: the Root row from ``TOPBAR_MT_editor_menus.draw``.
+- ``header``: the hovered area's HEADER / TOOL_HEADER / FOOTER recordings + contextual menus.
+- ``header_controls``: header recordings -> Tool Settings row controls.
+- ``datapath``: RNA owner + property -> context-relative data_path string.
 - ``rows``: ``build_model()`` — the whole :class:`core.model.PlazaModel` for one invoke.
 
 May import ``bpy``. Records on every invoke and never caches (verified-facts §4); only

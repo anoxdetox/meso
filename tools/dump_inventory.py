@@ -1,11 +1,15 @@
 """Dump a Blender 5.2 UI inventory to notes/inventory_5_2.json.
 
 Usage (pure stdlib driver; no bpy needed):
-    $PY tools/dump_inventory.py [--out notes/inventory_5_2.json] [--blender PATH] [--only Layout,Modeling]
+    $PY tools/dump_inventory.py [--out notes/inventory_5_2.json] [--blender PATH] [--only Layout,Modeling,editors]
     $B -b --factory-startup --python tools/dump_inventory.py -- [same options]
 
 The driver launches ONE headless Blender subprocess per factory workspace (plus one 'global' run for types
-and keymaps) running tools/_inventory_worker.py. Overriding across screens in one process is unsafe
+and keymaps, and one 'editors' run for editors no factory workspace shows: Sequencer x sequencer_scene x
+view types, Clip tracking/masking, Graph F-Curves/Drivers, NLA, Asset Browser, Preferences, recorded by
+switching the Layout Timeline area's ui_type inside that throw-away process) running
+tools/_inventory_worker.py. Every subprocess gets its own temp BLENDER_USER_CONFIG and
+BLENDER_USER_EXTENSIONS. Overriding across screens in one process is unsafe
 (notes/header-controls-5.2.md section 5 HAZARD), so each worker enters at most one foreign screen.
 
 Per non-Layout workspace, the worker is first run with strategy 'direct' (temp_override(screen=...)
@@ -75,6 +79,7 @@ def _run_worker(blender, tmp, tag, extra):
     log_path = os.path.join(tmp, tag + ".log")
     env = dict(os.environ)
     env["BLENDER_USER_EXTENSIONS"] = tempfile.mkdtemp(prefix="ext_", dir=tmp)
+    env["BLENDER_USER_CONFIG"] = tempfile.mkdtemp(prefix="cfg_", dir=tmp)
     cmd = [blender, "-b", "--factory-startup", "--python-exit-code", "1", "--python", WORKER,
            "--", "--out", out_json] + extra
     attempt = {"args": extra}
@@ -156,6 +161,14 @@ def main():
                                       "window_workspace_assign_applied_in_background")})
         inv["global_attempt"] = att
 
+        if not only or "editors" in only:
+            print("editors section ...", end=" ", flush=True)
+            att, e = _run_worker(blender, tmp, "editors", ["--section", "editors"])
+            print("crashed (rc=%s)" % att["returncode"] if att["crashed"] else "ok", flush=True)
+            inv["editors_attempt"] = att
+            if e is not None:
+                inv["editors"] = e
+
         for i, name in enumerate(g["workspaces_alphabetical"]):
             if only and name not in only:
                 continue
@@ -186,6 +199,10 @@ def main():
                            "n_record_errors": w.get("n_record_errors")}
                        for n, w in inv["workspaces"].items()},
         "view3d_modes_vs_verified_facts_s2": _view3d_summary(inv["workspaces"].get("Layout")),
+        "editors_contextual_menus": {
+            k: (e.get("skipped") or e.get("error")
+                or {mt: v["ids"] for mt, v in e.get("contextual_menus", {}).items()})
+            for k, e in (inv.get("editors") or {}).get("editors", {}).items()},
     }
 
     os.makedirs(os.path.dirname(os.path.abspath(opts["out"])), exist_ok=True)
@@ -198,6 +215,8 @@ def main():
             n, s["status"], s["used_strategy"], s["crashed_strategies"], s["context_mode"], s["n_record_errors"]))
     for m, s in inv["summary"]["view3d_modes_vs_verified_facts_s2"].items():
         print("  %-14s match=%s %s" % (m, s["matches_verified_facts"], s["menus"]))
+    for k, v in inv["summary"]["editors_contextual_menus"].items():
+        print("  %-42s %s" % (k, v))
     return 0
 
 

@@ -18,8 +18,9 @@ notes/phase2-interfaces.md):
   line) but never closer than ``side_gap`` to the centre box;
 - four short 45-degree ticks lie on the diagonals through the centre box's centre, just
   outside the plaza (they mark the N/S/E/W Compass-menu zone borders, Phase 5);
-- empty rows are skipped (no strip, no gap); a row wider than the bounds wraps into several
-  lines, each its own strip centred on the anchor, in reading order (first line on top);
+- empty rows are skipped (no strip, no gap); a row wider than the bounds (or than the soft
+  row width ``max_row_w``, breaking at separators first) wraps into several lines, each its
+  own strip centred on the anchor, in reading order (first line on top);
 - the whole layout is shifted (never squashed) into ``window_bounds`` (inset by ``margin``).
 
 Text widths come from an injected ``text_width_fn(text) -> float`` (``blf.dimensions`` at
@@ -34,7 +35,8 @@ import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from .model import CENTER_ID, CONTROLS_ID, RECENT_ID, ROWS_ABOVE, PlazaModel, Item
+from .model import (CENTER_ID, CONTROLS_ID, KIND_SEPARATOR, KIND_TOGGLE, RECENT_ID, ROWS_ABOVE,
+                    PlazaModel, Item)
 from .rects import Rect, bounding_box
 
 TextWidthFn = Callable[[str], float]
@@ -58,6 +60,13 @@ BASE_TICK_MARGIN = 20    # distance (along the diagonal) from the plaza edge to 
 BASE_TICK_WIDTH = 1.0    # zone tick line width
 BASE_MARGIN = 8          # min distance kept from window_bounds (clamp and wrap)
 CAP_H_FACTOR = 0.72      # cap height estimate when no cap_height_fn is given
+# Phase 3 glyphs (Tool Settings / contextual rows; E fills metrics_for and the packing):
+BASE_CHECK_SIZE = 10     # checkbox side, left of a KIND_TOGGLE label
+BASE_GLYPH_GAP = 4       # gap between a glyph (checkbox / arrow) and its label
+BASE_ARROW_SIZE = 6      # cascade triangle (height), right of a ``cascade`` label
+BASE_SEPARATOR_GAP = 8   # empty space each side of a KIND_SEPARATOR line
+BASE_SEPARATOR_W = 1.0   # separator line width
+BASE_MAX_ROW_W = 960     # soft row width: a wider row breaks at its separators, then balances
 DEFAULT_WIDGET_POINTS = 11.0             # factory ui_styles[0].widget.points
 FONT_SCALE_RANGE = (0.5, 3.0)            # prefs.font_scale min/max
 ROW_SPACING_RANGE = (0.0, 3.0)           # prefs.row_spacing min/max
@@ -104,6 +113,14 @@ class Metrics:
     tick_margin: float
     tick_width: float
     margin: int
+    # Phase 3 (defaults = the 1x values; metrics_for scales them with ``fs`` / ``scale``).
+    check_size: int = BASE_CHECK_SIZE
+    glyph_gap: int = BASE_GLYPH_GAP
+    arrow_size: int = BASE_ARROW_SIZE
+    separator_gap: int = BASE_SEPARATOR_GAP
+    separator_w: float = BASE_SEPARATOR_W
+    # Soft row width (0 = none; metrics_for sets ``BASE_MAX_ROW_W * fs``). See :func:`_wrap`.
+    max_row_w: int = 0
 
 
 def metrics_for(ui_scale: float | None, widget_points: float, font_scale: float = 1.0,
@@ -120,6 +137,9 @@ def metrics_for(ui_scale: float | None, widget_points: float, font_scale: float 
       ``center_h = round_px(row_h * CENTER_H_FACTOR)``.
     - ``gap_y = round_px(BASE_GAP_Y * scale * row_spacing)`` (row_spacing 0 -> strips touch).
     - hover_inset, tick_len, tick_margin, tick_width and margin scale with ``scale`` only.
+    - Phase 3 glyphs: check_size, glyph_gap, arrow_size and separator_gap scale with ``fs``
+      (check_size / arrow_size at least 1); separator_w with ``scale``; the soft row width
+      ``max_row_w = round_px(BASE_MAX_ROW_W * fs)``.
     Invalid inputs (font_scale/row_spacing <= 0 or non-finite) are clamped to the pref ranges
     (font_scale 0.5..3.0, row_spacing 0..3; non-finite -> 1.0), as are a non-finite or
     non-positive ``ui_scale`` (-> 1.0) and ``widget_points`` (-> 11) and a non-finite or
@@ -147,7 +167,13 @@ def metrics_for(ui_scale: float | None, widget_points: float, font_scale: float 
         center_min_w=round_px(BASE_CENTER_MIN_W * fs), side_gap=round_px(BASE_SIDE_GAP * fs),
         hover_inset=round_px(BASE_HOVER_INSET * scale), tick_len=BASE_TICK_LEN * scale,
         tick_margin=BASE_TICK_MARGIN * scale, tick_width=BASE_TICK_WIDTH * scale,
-        margin=round_px(BASE_MARGIN * scale))
+        margin=round_px(BASE_MARGIN * scale),
+        check_size=max(1, round_px(BASE_CHECK_SIZE * fs)),
+        glyph_gap=round_px(BASE_GLYPH_GAP * fs),
+        arrow_size=max(1, round_px(BASE_ARROW_SIZE * fs)),
+        separator_gap=round_px(BASE_SEPARATOR_GAP * fs),
+        separator_w=BASE_SEPARATOR_W * scale,
+        max_row_w=round_px(BASE_MAX_ROW_W * fs))
 
 
 def _finite_or(v: float | None, default: float) -> float:
@@ -185,6 +211,13 @@ class ItemBox:
     enabled: bool = True
     checked: bool | None = None
     cascade: bool = False
+    # Phase 3: glyph rects inside ``rect`` (window coords, after the shift), or None.
+    # ``check_rect``: the checkbox of a KIND_TOGGLE item (left of the text; ``text_x`` moves
+    # right by check_size + glyph_gap). ``arrow_rect``: the cascade triangle (right of the
+    # text). A KIND_SEPARATOR item has neither; its line is drawn at ``rect``'s centre x.
+    check_rect: Rect | None = None
+    arrow_rect: Rect | None = None
+    active: bool = True     # Item.active: False draws dimmed (still enabled / clickable)
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,19 +302,61 @@ def measure(model: PlazaModel, text_width_fn: TextWidthFn) -> dict[str, float]:
     return out
 
 
+def content_width(item: Item, text_w: float, metrics: Metrics) -> float:
+    """Width an item takes inside its strip (Phase 3 glyphs; step 2/3 of :func:`layout`).
+
+    - :data:`KIND_SEPARATOR`: ``2 * separator_gap`` (no text; its line sits in the middle);
+    - :data:`KIND_TOGGLE`: ``check_size + glyph_gap`` extra on the left of the text;
+    - ``cascade=True``: ``glyph_gap + arrow_size`` extra on the right;
+    - otherwise the text width.
+    """
+    m = metrics
+    if item.kind == KIND_SEPARATOR:
+        return float(2 * m.separator_gap)
+    w = text_w
+    if item.kind == KIND_TOGGLE:
+        w += m.check_size + m.glyph_gap
+    if item.cascade:
+        w += m.glyph_gap + m.arrow_size
+    return w
+
+
+def _drop_stray_separators(items: tuple[Item, ...]) -> tuple[Item, ...]:
+    """``items`` without separators at either end or next to another separator (a separator
+    only ever sits between two non-separator items of the same line)."""
+    out: list[Item] = []
+    for item in items:
+        if item.kind == KIND_SEPARATOR and (not out or out[-1].kind == KIND_SEPARATOR):
+            continue
+        out.append(item)
+    while out and out[-1].kind == KIND_SEPARATOR:
+        out.pop()
+    return tuple(out)
+
+
 def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect | None,
            metrics: Metrics, text_width_fn: TextWidthFn) -> Layout:
     """Place ``model`` around ``anchor`` (window coords, usually ``state.anchor``).
 
     Algorithm (unit-tested; see the module docstring for the look):
 
-    1. Widths via :func:`measure`.
-    2. Wrap: ``avail = window_bounds.w - 2 * margin`` (no wrap when bounds are None/empty or
-       avail <= 0). Greedy per row: a line takes items while
-       ``2*pad_x + sum(w) + gap_x*(n-1) <= avail``; a line always holds >= 1 item.
+    1. Widths via :func:`measure`; the packed width ``w`` of an item is its
+       :func:`content_width` (text plus Phase 3 glyphs; separators ``2*separator_gap``).
+    2. Wrap: ``avail = window_bounds.w - 2 * margin`` (no hard limit when bounds are
+       None/empty or avail <= 0) and the soft width ``metrics.max_row_w`` (0 = none). A row
+       wider than the smaller limit breaks at its separators first (a wide Tool Settings row
+       becomes centre cluster / display); a segment still too wide is split greedily when
+       ``avail`` binds (a line takes items while ``2*pad_x + sum(w) + gap_x*(n-1) <=
+       avail``) and balanced when the soft width binds (see :func:`_wrap`); a line always
+       holds >= 1 item. Then
+       separators at a line's ends or next to another separator are dropped (not placed;
+       ``Layout.item`` returns None for them); a line left empty is dropped too.
     3. Strip width ``ceil(2*pad_x + sum(w) + gap_x*(n-1))``, ``x = round_px(ax - width/2)``;
-       text x of item i = ``round_px(x + pad_x + sum(w_j + gap_x for j < i))``; item edges at
-       ``round_px(text_x_i - gap_x/2)`` (strip edges for the first/last item).
+       content x of item i = ``round_px(x + pad_x + sum(w_j + gap_x for j < i))``; item edges
+       at ``round_px(x_i - gap_x/2)`` (strip edges for the first/last item). A KIND_TOGGLE
+       item's ``check_rect`` (``check_size`` square, vertically centred) starts at its content
+       x and its text at ``x_i + check_size + glyph_gap``; a ``cascade`` item's ``arrow_rect``
+       (``arrow_size`` square, vertically centred) starts ``glyph_gap`` right of its text.
     4. Centre box: ``w = ceil(max(text_w + 2*center_pad_x, center_min_w))``, ``h = center_h``,
        centred on the anchor (``round_px`` of the low corner); its text is centred in it.
     5. Vertical: lines above (ROWS_ABOVE order, each row's lines in reading order) stack
@@ -306,6 +381,7 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     m = metrics
     ax, ay = float(anchor[0]), float(anchor[1])
     widths = measure(model, text_width_fn)
+    extents = {item.id: content_width(item, widths[item.id], m) for item in model.items()}
     bounds = window_bounds if window_bounds is not None and not window_bounds.is_empty() else None
     avail = bounds.w - 2 * m.margin if bounds is not None else 0
     wrap_at = avail if avail > 0 else None
@@ -315,9 +391,9 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     above = [r for r in above_rows if r is not None and not r.is_empty()]
     below = [r for r in model.rows if r.key not in ROWS_ABOVE and not r.is_empty()]
     above_lines = [(r, i, items) for r in above
-                   for i, items in enumerate(_wrap(r.items, widths, m, wrap_at))]
+                   for i, items in enumerate(_wrap(r.items, extents, m, wrap_at))]
     below_lines = [(r, i, items) for r in below
-                   for i, items in enumerate(_wrap(r.items, widths, m, wrap_at))]
+                   for i, items in enumerate(_wrap(r.items, extents, m, wrap_at))]
 
     # Centre box.
     c_tw = widths[model.center.id]
@@ -337,7 +413,7 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     strips: list[Strip] = []
     boxes: list[ItemBox] = []
     for key, line, items, y in placed:
-        strip, line_boxes = _place_line(key, line, items, widths, ax, y, m)
+        strip, line_boxes = _place_line(key, line, items, widths, extents, ax, y, m)
         strips.append(strip)
         boxes.extend(line_boxes)
 
@@ -406,15 +482,46 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
 
 def _wrap(items: tuple[Item, ...], widths: Mapping[str, float], m: Metrics,
           avail: float | None) -> list[tuple[Item, ...]]:
-    """Greedy line split of one row (step 2); every line holds >= 1 item."""
-    if avail is None:
-        return [items]
+    """Split one row into lines (step 2; ``widths`` = content widths); every line holds >= 1
+    item, then stray separators are dropped (and lines left empty).
+
+    - Fits in ``L = min(avail, max_row_w)`` (the limits that are set) -> one line.
+    - Otherwise the row breaks at its separators first (separator-delimited segments are
+      packed greedily, whole, into lines of <= L); a segment wider than L on its own starts /
+      ends its own lines and is split inside: greedily when the hard limit ``avail`` binds
+      (``avail <= max_row_w`` or no soft width; the Phase 2 rule for narrow windows), else
+      into the same number of lines greedy would give but with the smallest line width that
+      still achieves it (balanced lines). A row without separators is one segment.
+    """
+    soft = float(m.max_row_w) if m.max_row_w > 0 else None
+    limits = [v for v in (avail, soft) if v is not None]
+    limit = min(limits) if limits else None
+    if limit is None or _line_w(items, widths, m) <= limit:
+        lines = [items]
+    else:
+        hard = soft is None or (avail is not None and avail <= soft)
+        lines = _soft_wrap(items, widths, m, limit, balance=not hard)
+    cleaned = (_drop_stray_separators(line) for line in lines)
+    return [line for line in cleaned if line]
+
+
+def _line_w(items: tuple[Item, ...] | list[Item], widths: Mapping[str, float],
+            m: Metrics) -> float:
+    """Unrounded strip width of one line (``2*pad_x + sum(w) + gap_x*(n-1)``)."""
+    if not items:
+        return 0.0
+    return 2 * m.pad_x + sum(widths[i.id] for i in items) + m.gap_x * (len(items) - 1)
+
+
+def _greedy(items: tuple[Item, ...], widths: Mapping[str, float], m: Metrics,
+            limit: float) -> list[tuple[Item, ...]]:
+    """Greedy split: a line takes items while its width stays <= ``limit`` (>= 1 item)."""
     lines: list[tuple[Item, ...]] = []
     cur: list[Item] = []
     total = 0.0
     for item in items:
         w = widths[item.id]
-        if cur and 2 * m.pad_x + total + m.gap_x + w > avail:
+        if cur and 2 * m.pad_x + total + m.gap_x + w > limit:
             lines.append(tuple(cur))
             cur, total = [], 0.0
         total = total + m.gap_x + w if cur else w
@@ -424,24 +531,89 @@ def _wrap(items: tuple[Item, ...], widths: Mapping[str, float], m: Metrics,
     return lines
 
 
+def _balanced(items: tuple[Item, ...], widths: Mapping[str, float], m: Metrics,
+              limit: float) -> list[tuple[Item, ...]]:
+    """:func:`_greedy` at the smallest width <= ``limit`` that needs no more lines than
+    greedy at ``limit`` (bisection; deterministic)."""
+    n = len(_greedy(items, widths, m, limit))
+    lo = max([_line_w(items, widths, m) / n] + [_line_w((i,), widths, m) for i in items])
+    hi = float(limit)
+    if lo >= hi:
+        return _greedy(items, widths, m, hi)
+    for _ in range(32):
+        mid = (lo + hi) / 2
+        if len(_greedy(items, widths, m, mid)) <= n:
+            hi = mid
+        else:
+            lo = mid
+    return _greedy(items, widths, m, hi)
+
+
+def _soft_wrap(items: tuple[Item, ...], widths: Mapping[str, float], m: Metrics,
+               limit: float, balance: bool = True) -> list[tuple[Item, ...]]:
+    """Separator-first wrap at ``limit``; an oversized segment is split balanced
+    (``balance``) or greedily (see :func:`_wrap`)."""
+    segments: list[tuple[Item | None, list[Item]]] = [(None, [])]
+    for item in items:
+        if item.kind == KIND_SEPARATOR:
+            segments.append((item, []))
+        else:
+            segments[-1][1].append(item)
+    lines: list[tuple[Item, ...]] = []
+    cur: list[Item] = []
+    for sep, seg in segments:
+        if not seg:
+            continue
+        joined = cur + ([sep] if sep is not None else []) + seg
+        if cur and _line_w(joined, widths, m) <= limit:
+            cur = joined
+            continue
+        if cur:
+            lines.append(tuple(cur))
+            cur = []
+        if _line_w(seg, widths, m) <= limit:
+            cur = list(seg)
+        else:
+            lines.extend((_balanced if balance else _greedy)(tuple(seg), widths, m, limit))
+    if cur:
+        lines.append(tuple(cur))
+    return lines
+
+
 def _place_line(key: str, line: int, items: tuple[Item, ...], widths: Mapping[str, float],
-                ax: float, y: int, m: Metrics) -> tuple[Strip, list[ItemBox]]:
-    """One strip centred on ``ax`` at bottom ``y``, with tiling item rects (step 3)."""
-    ws = [widths[item.id] for item in items]
+                extents: Mapping[str, float], ax: float, y: int,
+                m: Metrics) -> tuple[Strip, list[ItemBox]]:
+    """One strip centred on ``ax`` at bottom ``y``, with tiling item rects and glyph rects
+    (step 3). ``widths``: text widths; ``extents``: content widths."""
+    ws = [extents[item.id] for item in items]
     sw = math.ceil(2 * m.pad_x + sum(ws) + m.gap_x * (len(ws) - 1))
     sx = round_px(ax - sw / 2)
     text_y = round_px(y + (m.row_h - m.cap_h) / 2)
-    text_xs, acc = [], sx + m.pad_x
+    xs, acc = [], sx + m.pad_x
     for w in ws:
-        text_xs.append(round_px(acc))
+        xs.append(round_px(acc))
         acc += w + m.gap_x
-    edges = [sx] + [round_px(tx - m.gap_x / 2) for tx in text_xs[1:]] + [sx + sw]
+    edges = [sx] + [round_px(x - m.gap_x / 2) for x in xs[1:]] + [sx + sw]
     boxes = []
     for i, item in enumerate(items):
         rect = Rect(edges[i], y, edges[i + 1] - edges[i], m.row_h)
         highlight = Rect(rect.x, y + m.hover_inset, rect.w, m.row_h - 2 * m.hover_inset)
-        boxes.append(ItemBox(item.id, item.kind, key, rect, highlight, text_xs[i], text_y, ws[i],
-                             item.label, item.enabled, item.checked, item.cascade))
+        text_x, text_w, label = xs[i], widths[item.id], item.label
+        check_rect = arrow_rect = None
+        if item.kind == KIND_SEPARATOR:
+            text_w, label = 0.0, ''
+        else:
+            if item.kind == KIND_TOGGLE:
+                check_rect = Rect(xs[i], y + (m.row_h - m.check_size) // 2, m.check_size,
+                                  m.check_size)
+                text_x = xs[i] + m.check_size + m.glyph_gap
+            if item.cascade:
+                ax0 = round_px(text_x + text_w + m.glyph_gap)
+                arrow_rect = Rect(ax0, y + (m.row_h - m.arrow_size) // 2, m.arrow_size,
+                                  m.arrow_size)
+        boxes.append(ItemBox(item.id, item.kind, key, rect, highlight, text_x, text_y, text_w,
+                             label, item.enabled, item.checked, item.cascade, check_rect,
+                             arrow_rect, item.active))
     strip = Strip(key, line, ROLE_ROW, Rect(sx, y, sw, m.row_h), tuple(i.id for i in items))
     return strip, boxes
 
@@ -452,7 +624,8 @@ def _box(item: Item, row_key: str, rect: Rect, widths: Mapping[str, float],
     tw = widths[item.id]
     return ItemBox(item.id, item.kind, row_key, rect, rect,
                    round_px(rect.x + (rect.w - tw) / 2), round_px(rect.y + (rect.h - m.cap_h) / 2),
-                   tw, item.label, item.enabled, item.checked, item.cascade)
+                   tw, item.label, item.enabled, item.checked, item.cascade,
+                   active=item.active)
 
 
 def _strip_for(box: ItemBox, role: str) -> Strip:
@@ -493,7 +666,10 @@ def _shift_strip(s: Strip, dx: int, dy: int) -> Strip:
 def _shift_box(b: ItemBox, dx: int, dy: int) -> ItemBox:
     return ItemBox(b.item_id, b.kind, b.row_key, b.rect.translated(dx, dy),
                    b.highlight.translated(dx, dy), b.text_x + dx, b.text_y + dy, b.text_w,
-                   b.label, b.enabled, b.checked, b.cascade)
+                   b.label, b.enabled, b.checked, b.cascade,
+                   b.check_rect.translated(dx, dy) if b.check_rect is not None else None,
+                   b.arrow_rect.translated(dx, dy) if b.arrow_rect is not None else None,
+                   b.active)
 
 
 def _tick(name: str, sx: int, sy: int, origin: tuple[float, float], plaza: Rect,
@@ -511,11 +687,12 @@ def _tick(name: str, sx: int, sy: int, origin: tuple[float, float], plaza: Rect,
 def hit_test(layout_: Layout | None, x: float, y: float) -> str | None:
     """Id of the placed item whose ``rect`` contains window point ``(x, y)`` (half-open), or
     None (gaps between strips, outside, ``layout_`` None). Disabled items are returned too
-    (callers check ``enabled``). Items never overlap, so the result is unique."""
+    (callers check ``enabled``); :data:`KIND_SEPARATOR` items never are (their rect is a
+    hole). Items never overlap, so the result is unique."""
     if layout_ is None:
         return None
     for box in layout_.items:
-        if box.rect.contains(x, y):
+        if box.kind != KIND_SEPARATOR and box.rect.contains(x, y):
             return box.item_id
     return None
 

@@ -146,7 +146,8 @@ class TestPlazaModel(unittest.TestCase):
             self._model().center = _center()  # type: ignore[misc]
 
     def test_rows_above_constant(self):
-        self.assertEqual(model.ROWS_ABOVE, ('root', 'contextual', 'tool_settings'))
+        self.assertEqual(model.ROWS_ABOVE, ('root', 'contextual'))
+        self.assertNotIn(model.ROW_TOOL_SETTINGS, model.ROWS_ABOVE)
         self.assertNotIn(model.ROW_WORKSPACE, model.ROWS_ABOVE)
 
 

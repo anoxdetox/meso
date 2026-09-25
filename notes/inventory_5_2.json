@@ -11,6 +11,3379 @@
   ],
   "version_string": "5.2.2 LTS"
  },
+ "editors": {
+  "editors": {
+   "ASSETS": {
+    "setup": {},
+    "skipped": "SpaceFileBrowser.params is None in -b (no file list yet)",
+    "ui_type": "ASSETS"
+   },
+   "CLIP_EDITOR/MASK": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "CLIP_MT_masking_editor_menus": {
+      "ids": [
+       "CLIP_MT_view",
+       "CLIP_MT_clip"
+      ],
+      "labels": [
+       "View",
+       "Clip"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "HEADER": {
+      "CLIP_HT_header": {
+       "editor_menus": {
+        "CLIP_MT_masking_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "CLIP_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "CLIP_MT_clip",
+           "kind": "menu",
+           "label": "Clip"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "Mode",
+         "owner": "SpaceClipEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "mode",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "CLIP_MT_masking_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "template",
+         "name": "template_ID",
+         "owner": "SpaceClipEditor",
+         "prop": "clip"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon": "GIZMO",
+         "kind": "prop",
+         "label": "Show Gizmo",
+         "owner": "SpaceClipEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_gizmo",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "CLIP_PT_gizmo_display",
+         "kind": "popover",
+         "label": "Gizmos"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceClipOverlay",
+         "owner_path": "areas[2].spaces[0].overlay",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "CLIP_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     }
+    },
+    "setup": {
+     "mode": "MASK"
+    },
+    "show_menus": true,
+    "space": "SpaceClipEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_toolbar": true,
+     "show_region_ui": true
+    },
+    "space_state": {
+     "mode": "MASK"
+    },
+    "type": "CLIP_EDITOR",
+    "ui_type": "CLIP_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "CLIP_EDITOR/TRACKING": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "CLIP_MT_tracking_editor_menus": {
+      "ids": [
+       "CLIP_MT_view",
+       "CLIP_MT_clip"
+      ],
+      "labels": [
+       "View",
+       "Clip"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "HEADER": {
+      "CLIP_HT_header": {
+       "editor_menus": {
+        "CLIP_MT_tracking_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "CLIP_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "CLIP_MT_clip",
+           "kind": "menu",
+           "label": "Clip"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "Mode",
+         "owner": "SpaceClipEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "mode",
+         "ptype": "ENUM"
+        },
+        {
+         "kind": "prop",
+         "label": "View",
+         "owner": "SpaceClipEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "view",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "CLIP_MT_tracking_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "template",
+         "name": "template_ID",
+         "owner": "SpaceClipEditor",
+         "prop": "clip"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Pivot Point",
+         "owner": "SpaceClipEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "pivot_point",
+         "ptype": "ENUM"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon": "GIZMO",
+         "kind": "prop",
+         "label": "Show Gizmo",
+         "owner": "SpaceClipEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_gizmo",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "CLIP_PT_gizmo_display",
+         "kind": "popover",
+         "label": "Gizmos"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceClipOverlay",
+         "owner_path": "areas[2].spaces[0].overlay",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "CLIP_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     }
+    },
+    "setup": {
+     "mode": "TRACKING"
+    },
+    "show_menus": true,
+    "space": "SpaceClipEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_toolbar": true,
+     "show_region_ui": true
+    },
+    "space_state": {
+     "mode": "TRACKING"
+    },
+    "type": "CLIP_EDITOR",
+    "ui_type": "CLIP_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "DRIVERS": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "GRAPH_MT_editor_menus": {
+      "ids": [
+       "GRAPH_MT_view",
+       "GRAPH_MT_select",
+       "GRAPH_MT_channel",
+       "GRAPH_MT_key"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Channel",
+       "Key"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "GRAPH_HT_playback_controls": {
+       "opaque": 0,
+       "records": []
+      }
+     },
+     "HEADER": {
+      "GRAPH_HT_header": {
+       "editor_menus": {
+        "GRAPH_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "GRAPH_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "GRAPH_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "GRAPH_MT_channel",
+           "kind": "menu",
+           "label": "Channel"
+          },
+          {
+           "exists": true,
+           "id": "GRAPH_MT_key",
+           "kind": "menu",
+           "label": "Key"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "exists": true,
+         "id": "GRAPH_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "icon": "NORMALIZE_FCURVES",
+         "kind": "prop",
+         "label": "Normalize",
+         "owner": "SpaceGraphEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "use_normalization",
+         "ptype": "BOOLEAN",
+         "text": "Normalize",
+         "toggle": true
+        },
+        {
+         "active": false,
+         "icon": "FILE_REFRESH",
+         "kind": "prop",
+         "label": "Auto Normalization",
+         "owner": "SpaceGraphEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "use_auto_normalization",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Only Show Selected",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_only_selected",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "prop",
+         "label": "Show Hidden",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_hidden",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "prop",
+         "label": "Only Show Errors",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_only_errors",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "icon": "FCURVE_SNAPSHOT",
+         "id": "graph.ghost_curves_create",
+         "kind": "operator",
+         "label": "Create Ghost Curves",
+         "props": {}
+        },
+        {
+         "icon": "FILTER",
+         "id": "GRAPH_PT_filters",
+         "kind": "popover",
+         "label": "Filters"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Pivot Point",
+         "owner": "SpaceGraphEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "pivot_point",
+         "ptype": "ENUM"
+        },
+        {
+         "kind": "prop",
+         "label": "Snap",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_driver",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "GRAPH_PT_driver_snapping",
+         "kind": "popover",
+         "label": "Snapping"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Proportional Editing F-Curves",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_proportional_fcurve",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "active": false,
+         "icon_only": true,
+         "kind": "prop_with_popover",
+         "label": "Proportional Editing Falloff",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "panel": "GRAPH_PT_proportional_edit",
+         "prop": "proportional_edit_falloff",
+         "ptype": "ENUM"
+        }
+       ]
+      }
+     }
+    },
+    "setup": {},
+    "show_menus": true,
+    "space": "SpaceGraphEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": false,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_ui": true
+    },
+    "space_state": {
+     "mode": "DRIVERS"
+    },
+    "type": "GRAPH_EDITOR",
+    "ui_type": "DRIVERS",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "FCURVES": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "GRAPH_MT_editor_menus": {
+      "ids": [
+       "GRAPH_MT_view",
+       "GRAPH_MT_select",
+       "GRAPH_MT_marker",
+       "GRAPH_MT_channel",
+       "GRAPH_MT_key"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Marker",
+       "Channel",
+       "Key"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "GRAPH_HT_playback_controls": {
+       "opaque": 0,
+       "records": [
+        {
+         "id": "TIME_PT_playback",
+         "kind": "popover",
+         "label": "Playback",
+         "text": "Playback"
+        },
+        {
+         "icon": "KEYTYPE_KEYFRAME_VEC",
+         "id": "TIME_PT_keyframing_settings",
+         "kind": "popover",
+         "label": "Keyframing Settings"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Auto Keying",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_keyframe_insert_auto",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "active": false,
+         "id": "TIME_PT_auto_keyframing",
+         "kind": "popover",
+         "label": "Auto Keyframing"
+        },
+        {
+         "icon": "REW",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": false
+         }
+        },
+        {
+         "icon": "PREV_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": false
+         }
+        },
+        {
+         "icon": "PLAY_REVERSE",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {
+          "reverse": true
+         }
+        },
+        {
+         "icon": "PLAY",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {}
+        },
+        {
+         "icon": "NEXT_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": true
+         }
+        },
+        {
+         "icon": "FF",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": true
+         }
+        },
+        {
+         "icon": "FRAME_PREV",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": true
+         }
+        },
+        {
+         "icon": "FRAME_NEXT",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": false
+         }
+        },
+        {
+         "id": "TIME_PT_jump",
+         "kind": "popover",
+         "label": "Time Jump"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_playhead",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "TIME_PT_playhead_snapping",
+         "kind": "popover",
+         "label": "Playhead"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Current Frame",
+         "owner": "Scene",
+         "prop": "frame_current",
+         "ptype": "INT"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Preview Range",
+         "owner": "Scene",
+         "prop": "use_preview_range",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "kind": "prop",
+         "label": "Start",
+         "owner": "Scene",
+         "prop": "frame_start",
+         "ptype": "INT",
+         "text": "Start"
+        },
+        {
+         "kind": "prop",
+         "label": "End",
+         "owner": "Scene",
+         "prop": "frame_end",
+         "ptype": "INT",
+         "text": "End"
+        }
+       ]
+      }
+     },
+     "HEADER": {
+      "GRAPH_HT_header": {
+       "editor_menus": {
+        "GRAPH_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "GRAPH_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "GRAPH_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "GRAPH_MT_marker",
+           "kind": "menu",
+           "label": "Marker"
+          },
+          {
+           "exists": true,
+           "id": "GRAPH_MT_channel",
+           "kind": "menu",
+           "label": "Channel"
+          },
+          {
+           "exists": true,
+           "id": "GRAPH_MT_key",
+           "kind": "menu",
+           "label": "Key"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "exists": true,
+         "id": "GRAPH_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "icon": "NORMALIZE_FCURVES",
+         "kind": "prop",
+         "label": "Normalize",
+         "owner": "SpaceGraphEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "use_normalization",
+         "ptype": "BOOLEAN",
+         "text": "Normalize",
+         "toggle": true
+        },
+        {
+         "active": false,
+         "icon": "FILE_REFRESH",
+         "kind": "prop",
+         "label": "Auto Normalization",
+         "owner": "SpaceGraphEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "use_auto_normalization",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Only Show Selected",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_only_selected",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "prop",
+         "label": "Show Hidden",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_hidden",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "prop",
+         "label": "Only Show Errors",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_only_errors",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "icon": "FCURVE_SNAPSHOT",
+         "id": "graph.ghost_curves_create",
+         "kind": "operator",
+         "label": "Create Ghost Curves",
+         "props": {}
+        },
+        {
+         "icon": "FILTER",
+         "id": "GRAPH_PT_filters",
+         "kind": "popover",
+         "label": "Filters"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Pivot Point",
+         "owner": "SpaceGraphEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "pivot_point",
+         "ptype": "ENUM"
+        },
+        {
+         "kind": "prop",
+         "label": "Snap",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_anim",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "GRAPH_PT_snapping",
+         "kind": "popover",
+         "label": "Snapping"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Proportional Editing F-Curves",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_proportional_fcurve",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "active": false,
+         "icon_only": true,
+         "kind": "prop_with_popover",
+         "label": "Proportional Editing Falloff",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "panel": "GRAPH_PT_proportional_edit",
+         "prop": "proportional_edit_falloff",
+         "ptype": "ENUM"
+        }
+       ]
+      }
+     }
+    },
+    "setup": {},
+    "show_menus": true,
+    "space": "SpaceGraphEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": false,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_ui": true
+    },
+    "space_state": {
+     "mode": "FCURVES"
+    },
+    "type": "GRAPH_EDITOR",
+    "ui_type": "FCURVES",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "NLA_EDITOR": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "NLA_MT_editor_menus": {
+      "ids": [
+       "NLA_MT_view",
+       "NLA_MT_select",
+       "NLA_MT_marker",
+       "NLA_MT_add",
+       "NLA_MT_tracks",
+       "NLA_MT_strips"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Marker",
+       "Add",
+       "Track",
+       "Strip"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "NLA_HT_playback_controls": {
+       "opaque": 0,
+       "records": [
+        {
+         "id": "TIME_PT_playback",
+         "kind": "popover",
+         "label": "Playback",
+         "text": "Playback"
+        },
+        {
+         "icon": "KEYTYPE_KEYFRAME_VEC",
+         "id": "TIME_PT_keyframing_settings",
+         "kind": "popover",
+         "label": "Keyframing Settings"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Auto Keying",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_keyframe_insert_auto",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "active": false,
+         "id": "TIME_PT_auto_keyframing",
+         "kind": "popover",
+         "label": "Auto Keyframing"
+        },
+        {
+         "icon": "REW",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": false
+         }
+        },
+        {
+         "icon": "PREV_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": false
+         }
+        },
+        {
+         "icon": "PLAY_REVERSE",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {
+          "reverse": true
+         }
+        },
+        {
+         "icon": "PLAY",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {}
+        },
+        {
+         "icon": "NEXT_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": true
+         }
+        },
+        {
+         "icon": "FF",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": true
+         }
+        },
+        {
+         "icon": "FRAME_PREV",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": true
+         }
+        },
+        {
+         "icon": "FRAME_NEXT",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": false
+         }
+        },
+        {
+         "id": "TIME_PT_jump",
+         "kind": "popover",
+         "label": "Time Jump"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_playhead",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "TIME_PT_playhead_snapping",
+         "kind": "popover",
+         "label": "Playhead"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Current Frame",
+         "owner": "Scene",
+         "prop": "frame_current",
+         "ptype": "INT"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Preview Range",
+         "owner": "Scene",
+         "prop": "use_preview_range",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "kind": "prop",
+         "label": "Start",
+         "owner": "Scene",
+         "prop": "frame_start",
+         "ptype": "INT",
+         "text": "Start"
+        },
+        {
+         "kind": "prop",
+         "label": "End",
+         "owner": "Scene",
+         "prop": "frame_end",
+         "ptype": "INT",
+         "text": "End"
+        }
+       ]
+      }
+     },
+     "HEADER": {
+      "NLA_HT_header": {
+       "editor_menus": {
+        "NLA_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "NLA_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "NLA_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "NLA_MT_marker",
+           "kind": "menu",
+           "label": "Marker"
+          },
+          {
+           "exists": true,
+           "id": "NLA_MT_add",
+           "kind": "menu",
+           "label": "Add"
+          },
+          {
+           "exists": true,
+           "id": "NLA_MT_tracks",
+           "kind": "menu",
+           "label": "Track"
+          },
+          {
+           "exists": true,
+           "id": "NLA_MT_strips",
+           "kind": "menu",
+           "label": "Strip"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "exists": true,
+         "id": "NLA_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Only Show Selected",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_only_selected",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "prop",
+         "label": "Show Hidden",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_hidden",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "prop",
+         "label": "Include Missing NLA",
+         "owner": "DopeSheet",
+         "owner_path": "areas[2].spaces[0].dopesheet",
+         "prop": "show_missing_nla",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "icon": "FILTER",
+         "id": "NLA_PT_filters",
+         "kind": "popover",
+         "label": "Filters"
+        },
+        {
+         "kind": "prop",
+         "label": "Snap",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_anim",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "NLA_PT_snapping",
+         "kind": "popover",
+         "label": "Snapping"
+        }
+       ]
+      }
+     }
+    },
+    "setup": {},
+    "show_menus": true,
+    "space": "SpaceNLA",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": false,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_ui": true
+    },
+    "type": "NLA_EDITOR",
+    "ui_type": "NLA_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "PREFERENCES": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "USERPREF_MT_editor_menus": {
+      "ids": [
+       "USERPREF_MT_view",
+       "USERPREF_MT_save_load"
+      ],
+      "labels": [
+       "View",
+       "Preferences"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 77,
+      "type": "UI",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "EXECUTE",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "HEADER": {
+      "USERPREF_HT_header": {
+       "editor_menus": {
+        "USERPREF_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "USERPREF_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "USERPREF_MT_save_load",
+           "kind": "menu",
+           "label": "Preferences",
+           "text": "Preferences"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "exists": true,
+         "id": "USERPREF_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "id": "wm.save_userpref",
+         "kind": "operator",
+         "label": "Save Preferences",
+         "operator_context": "EXEC_AREA",
+         "props": {},
+         "text": "Save Preferences"
+        }
+       ]
+      }
+     }
+    },
+    "setup": {},
+    "show_menus": true,
+    "space": "SpacePreferences",
+    "space_flags": {
+     "show_region_header": true,
+     "show_region_ui": true
+    },
+    "type": "PREFERENCES",
+    "ui_type": "PREFERENCES",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "SEQUENCE_EDITOR/no_scene/PREVIEW": {
+    "context_sequencer_scene": false,
+    "contextual_menus": {
+     "SEQUENCER_MT_editor_menus": {
+      "ids": [
+       "SEQUENCER_MT_view",
+       "SEQUENCER_MT_select",
+       "SEQUENCER_MT_strip",
+       "SEQUENCER_MT_image"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Strip",
+       "Image"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOL_HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "SCRUBBING",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "SEQUENCER_HT_playback_controls": {
+       "opaque": 0,
+       "records": []
+      }
+     },
+     "HEADER": {
+      "SEQUENCER_HT_header": {
+       "editor_menus": {
+        "SEQUENCER_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_strip",
+           "kind": "menu",
+           "label": "Strip"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_image",
+           "kind": "menu",
+           "label": "Image"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "View Type",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "view_type",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "SEQUENCER_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Mode",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "display_mode",
+         "ptype": "ENUM"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Channels",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "preview_channels",
+         "ptype": "ENUM"
+        },
+        {
+         "icon": "GIZMO",
+         "kind": "prop",
+         "label": "Show Gizmo",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_gizmo",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "id": "SEQUENCER_PT_gizmo_display",
+         "kind": "popover",
+         "label": "Gizmos"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     },
+     "TOOL_HEADER": {
+      "SEQUENCER_HT_tool_header": {
+       "opaque": 0,
+       "records": []
+      }
+     }
+    },
+    "setup": {
+     "sequencer_scene": false,
+     "view_type": "PREVIEW"
+    },
+    "show_menus": true,
+    "space": "SpaceSequenceEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_tool_header": false,
+     "show_region_toolbar": true,
+     "show_region_ui": false
+    },
+    "space_state": {
+     "display_mode": "IMAGE",
+     "view_type": "PREVIEW"
+    },
+    "type": "SEQUENCE_EDITOR",
+    "ui_type": "SEQUENCE_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "SEQUENCE_EDITOR/no_scene/SEQUENCER": {
+    "context_sequencer_scene": false,
+    "contextual_menus": {
+     "SEQUENCER_MT_editor_menus": {
+      "ids": [
+       "SEQUENCER_MT_view",
+       "SEQUENCER_MT_select",
+       "SEQUENCER_MT_strip",
+       "SEQUENCER_MT_image"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Strip",
+       "Image"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOL_HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "SCRUBBING",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "SEQUENCER_HT_playback_controls": {
+       "opaque": 0,
+       "records": []
+      }
+     },
+     "HEADER": {
+      "SEQUENCER_HT_header": {
+       "editor_menus": {
+        "SEQUENCER_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_strip",
+           "kind": "menu",
+           "label": "Strip"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_image",
+           "kind": "menu",
+           "label": "Image"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "View Type",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "view_type",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "SEQUENCER_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "template",
+         "name": "template_ID",
+         "owner": "WorkSpace",
+         "prop": "sequencer_scene"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     },
+     "TOOL_HEADER": {
+      "SEQUENCER_HT_tool_header": {
+       "opaque": 0,
+       "records": []
+      }
+     }
+    },
+    "setup": {
+     "sequencer_scene": false,
+     "view_type": "SEQUENCER"
+    },
+    "show_menus": true,
+    "space": "SpaceSequenceEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_tool_header": false,
+     "show_region_toolbar": true,
+     "show_region_ui": false
+    },
+    "space_state": {
+     "display_mode": "IMAGE",
+     "view_type": "SEQUENCER"
+    },
+    "type": "SEQUENCE_EDITOR",
+    "ui_type": "SEQUENCE_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "SEQUENCE_EDITOR/no_scene/SEQUENCER_PREVIEW": {
+    "context_sequencer_scene": false,
+    "contextual_menus": {
+     "SEQUENCER_MT_editor_menus": {
+      "ids": [
+       "SEQUENCER_MT_view",
+       "SEQUENCER_MT_select",
+       "SEQUENCER_MT_strip"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Strip"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOL_HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "SCRUBBING",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "SEQUENCER_HT_playback_controls": {
+       "opaque": 0,
+       "records": []
+      }
+     },
+     "HEADER": {
+      "SEQUENCER_HT_header": {
+       "editor_menus": {
+        "SEQUENCER_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_strip",
+           "kind": "menu",
+           "label": "Strip"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "View Type",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "view_type",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "SEQUENCER_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "template",
+         "name": "template_ID",
+         "owner": "WorkSpace",
+         "prop": "sequencer_scene"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Mode",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "display_mode",
+         "ptype": "ENUM"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Channels",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "preview_channels",
+         "ptype": "ENUM"
+        },
+        {
+         "icon": "GIZMO",
+         "kind": "prop",
+         "label": "Show Gizmo",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_gizmo",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "id": "SEQUENCER_PT_gizmo_display",
+         "kind": "popover",
+         "label": "Gizmos"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     },
+     "TOOL_HEADER": {
+      "SEQUENCER_HT_tool_header": {
+       "opaque": 0,
+       "records": []
+      }
+     }
+    },
+    "setup": {
+     "sequencer_scene": false,
+     "view_type": "SEQUENCER_PREVIEW"
+    },
+    "show_menus": true,
+    "space": "SpaceSequenceEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_tool_header": false,
+     "show_region_toolbar": true,
+     "show_region_ui": false
+    },
+    "space_state": {
+     "display_mode": "IMAGE",
+     "view_type": "SEQUENCER_PREVIEW"
+    },
+    "type": "SEQUENCE_EDITOR",
+    "ui_type": "SEQUENCE_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "SEQUENCE_EDITOR/scene/PREVIEW": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "SEQUENCER_MT_editor_menus": {
+      "ids": [
+       "SEQUENCER_MT_view",
+       "SEQUENCER_MT_select",
+       "SEQUENCER_MT_strip",
+       "SEQUENCER_MT_image"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Strip",
+       "Image"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOL_HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "SCRUBBING",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "SEQUENCER_HT_playback_controls": {
+       "opaque": 0,
+       "records": [
+        {
+         "id": "TIME_PT_playback",
+         "kind": "popover",
+         "label": "Playback",
+         "text": "Playback"
+        },
+        {
+         "icon": "KEYTYPE_KEYFRAME_VEC",
+         "id": "TIME_PT_keyframing_settings",
+         "kind": "popover",
+         "label": "Keyframing Settings"
+        },
+        {
+         "kind": "prop",
+         "label": "Sync Scene Time",
+         "owner": "WorkSpace",
+         "prop": "use_scene_time_sync",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Auto Keying",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_keyframe_insert_auto",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "active": false,
+         "id": "TIME_PT_auto_keyframing",
+         "kind": "popover",
+         "label": "Auto Keyframing"
+        },
+        {
+         "icon": "REW",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": false
+         }
+        },
+        {
+         "icon": "PREV_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": false
+         }
+        },
+        {
+         "icon": "PLAY_REVERSE",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {
+          "reverse": true
+         }
+        },
+        {
+         "icon": "PLAY",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {}
+        },
+        {
+         "icon": "NEXT_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": true
+         }
+        },
+        {
+         "icon": "FF",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": true
+         }
+        },
+        {
+         "icon": "FRAME_PREV",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": true
+         }
+        },
+        {
+         "icon": "FRAME_NEXT",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": false
+         }
+        },
+        {
+         "id": "TIME_PT_jump",
+         "kind": "popover",
+         "label": "Time Jump"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_playhead",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "TIME_PT_playhead_snapping",
+         "kind": "popover",
+         "label": "Playhead"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Current Frame",
+         "owner": "Scene",
+         "prop": "frame_current",
+         "ptype": "INT"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Preview Range",
+         "owner": "Scene",
+         "prop": "use_preview_range",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "kind": "prop",
+         "label": "Start",
+         "owner": "Scene",
+         "prop": "frame_start",
+         "ptype": "INT",
+         "text": "Start"
+        },
+        {
+         "kind": "prop",
+         "label": "End",
+         "owner": "Scene",
+         "prop": "frame_end",
+         "ptype": "INT",
+         "text": "End"
+        }
+       ]
+      }
+     },
+     "HEADER": {
+      "SEQUENCER_HT_header": {
+       "editor_menus": {
+        "SEQUENCER_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_strip",
+           "kind": "menu",
+           "label": "Strip"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_image",
+           "kind": "menu",
+           "label": "Image"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "View Type",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "view_type",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "SEQUENCER_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Pivot Point",
+         "owner": "SequencerToolSettings",
+         "owner_path": "tool_settings.sequencer_tool_settings",
+         "prop": "pivot_point",
+         "ptype": "ENUM"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_sequencer",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_snapping",
+         "kind": "popover",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Mode",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "display_mode",
+         "ptype": "ENUM"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Channels",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "preview_channels",
+         "ptype": "ENUM"
+        },
+        {
+         "icon": "GIZMO",
+         "kind": "prop",
+         "label": "Show Gizmo",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_gizmo",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "id": "SEQUENCER_PT_gizmo_display",
+         "kind": "popover",
+         "label": "Gizmos"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     },
+     "TOOL_HEADER": {
+      "SEQUENCER_HT_tool_header": {
+       "opaque": 0,
+       "records": []
+      }
+     }
+    },
+    "setup": {
+     "sequencer_scene": true,
+     "view_type": "PREVIEW"
+    },
+    "show_menus": true,
+    "space": "SpaceSequenceEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_tool_header": false,
+     "show_region_toolbar": true,
+     "show_region_ui": false
+    },
+    "space_state": {
+     "display_mode": "IMAGE",
+     "view_type": "PREVIEW"
+    },
+    "type": "SEQUENCE_EDITOR",
+    "ui_type": "SEQUENCE_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "SEQUENCE_EDITOR/scene/SEQUENCER": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "SEQUENCER_MT_editor_menus": {
+      "ids": [
+       "SEQUENCER_MT_view",
+       "SEQUENCER_MT_select",
+       "SEQUENCER_MT_marker",
+       "SEQUENCER_MT_add",
+       "SEQUENCER_MT_strip",
+       "SEQUENCER_MT_image"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Marker",
+       "Add",
+       "Strip",
+       "Image"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOL_HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "SCRUBBING",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "SEQUENCER_HT_playback_controls": {
+       "opaque": 0,
+       "records": [
+        {
+         "id": "TIME_PT_playback",
+         "kind": "popover",
+         "label": "Playback",
+         "text": "Playback"
+        },
+        {
+         "icon": "KEYTYPE_KEYFRAME_VEC",
+         "id": "TIME_PT_keyframing_settings",
+         "kind": "popover",
+         "label": "Keyframing Settings"
+        },
+        {
+         "kind": "prop",
+         "label": "Sync Scene Time",
+         "owner": "WorkSpace",
+         "prop": "use_scene_time_sync",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Auto Keying",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_keyframe_insert_auto",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "active": false,
+         "id": "TIME_PT_auto_keyframing",
+         "kind": "popover",
+         "label": "Auto Keyframing"
+        },
+        {
+         "icon": "REW",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": false
+         }
+        },
+        {
+         "icon": "PREV_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": false
+         }
+        },
+        {
+         "icon": "PLAY_REVERSE",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {
+          "reverse": true
+         }
+        },
+        {
+         "icon": "PLAY",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {}
+        },
+        {
+         "icon": "NEXT_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": true
+         }
+        },
+        {
+         "icon": "FF",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": true
+         }
+        },
+        {
+         "icon": "FRAME_PREV",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": true
+         }
+        },
+        {
+         "icon": "FRAME_NEXT",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": false
+         }
+        },
+        {
+         "id": "TIME_PT_jump",
+         "kind": "popover",
+         "label": "Time Jump"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_playhead",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "TIME_PT_playhead_snapping",
+         "kind": "popover",
+         "label": "Playhead"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Current Frame",
+         "owner": "Scene",
+         "prop": "frame_current",
+         "ptype": "INT"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Preview Range",
+         "owner": "Scene",
+         "prop": "use_preview_range",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "kind": "prop",
+         "label": "Start",
+         "owner": "Scene",
+         "prop": "frame_start",
+         "ptype": "INT",
+         "text": "Start"
+        },
+        {
+         "kind": "prop",
+         "label": "End",
+         "owner": "Scene",
+         "prop": "frame_end",
+         "ptype": "INT",
+         "text": "End"
+        }
+       ]
+      }
+     },
+     "HEADER": {
+      "SEQUENCER_HT_header": {
+       "editor_menus": {
+        "SEQUENCER_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_marker",
+           "kind": "menu",
+           "label": "Marker"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_add",
+           "kind": "menu",
+           "label": "Add"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_strip",
+           "kind": "menu",
+           "label": "Strip"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_image",
+           "kind": "menu",
+           "label": "Image"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "View Type",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "view_type",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "SEQUENCER_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "template",
+         "name": "template_ID",
+         "owner": "WorkSpace",
+         "prop": "sequencer_scene"
+        },
+        {
+         "kind": "prop",
+         "label": "Overlap Mode",
+         "owner": "SequencerToolSettings",
+         "owner_path": "tool_settings.sequencer_tool_settings",
+         "prop": "overlap_mode",
+         "ptype": "ENUM"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_sequencer",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_snapping",
+         "kind": "popover",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     },
+     "TOOL_HEADER": {
+      "SEQUENCER_HT_tool_header": {
+       "opaque": 0,
+       "records": []
+      }
+     }
+    },
+    "setup": {
+     "sequencer_scene": true,
+     "view_type": "SEQUENCER"
+    },
+    "show_menus": true,
+    "space": "SpaceSequenceEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_tool_header": false,
+     "show_region_toolbar": true,
+     "show_region_ui": false
+    },
+    "space_state": {
+     "display_mode": "IMAGE",
+     "view_type": "SEQUENCER"
+    },
+    "type": "SEQUENCE_EDITOR",
+    "ui_type": "SEQUENCE_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   },
+   "SEQUENCE_EDITOR/scene/SEQUENCER_PREVIEW": {
+    "context_sequencer_scene": true,
+    "contextual_menus": {
+     "SEQUENCER_MT_editor_menus": {
+      "ids": [
+       "SEQUENCER_MT_view",
+       "SEQUENCER_MT_select",
+       "SEQUENCER_MT_marker",
+       "SEQUENCER_MT_add",
+       "SEQUENCER_MT_strip"
+      ],
+      "labels": [
+       "View",
+       "Select",
+       "Marker",
+       "Add",
+       "Strip"
+      ],
+      "n_errors": 0
+     }
+    },
+    "height": 77,
+    "regions": [
+     {
+      "height": 1,
+      "type": "HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "TOOL_HEADER",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 1,
+      "type": "FOOTER",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "SCRUBBING",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "UI",
+      "width": 1,
+      "x": 1577,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "TOOLS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "CHANNELS",
+      "width": 1,
+      "x": 0,
+      "y": 21
+     },
+     {
+      "height": 1,
+      "type": "PREVIEW",
+      "width": 1,
+      "x": 0,
+      "y": 97
+     },
+     {
+      "height": 77,
+      "type": "WINDOW",
+      "width": 1578,
+      "x": 0,
+      "y": 21
+     }
+    ],
+    "regions_recorded": {
+     "FOOTER": {
+      "SEQUENCER_HT_playback_controls": {
+       "opaque": 0,
+       "records": [
+        {
+         "id": "TIME_PT_playback",
+         "kind": "popover",
+         "label": "Playback",
+         "text": "Playback"
+        },
+        {
+         "icon": "KEYTYPE_KEYFRAME_VEC",
+         "id": "TIME_PT_keyframing_settings",
+         "kind": "popover",
+         "label": "Keyframing Settings"
+        },
+        {
+         "kind": "prop",
+         "label": "Sync Scene Time",
+         "owner": "WorkSpace",
+         "prop": "use_scene_time_sync",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Auto Keying",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_keyframe_insert_auto",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "active": false,
+         "id": "TIME_PT_auto_keyframing",
+         "kind": "popover",
+         "label": "Auto Keyframing"
+        },
+        {
+         "icon": "REW",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": false
+         }
+        },
+        {
+         "icon": "PREV_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": false
+         }
+        },
+        {
+         "icon": "PLAY_REVERSE",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {
+          "reverse": true
+         }
+        },
+        {
+         "icon": "PLAY",
+         "id": "screen.animation_play",
+         "kind": "operator",
+         "label": "Play Animation",
+         "props": {}
+        },
+        {
+         "icon": "NEXT_KEYFRAME",
+         "id": "screen.keyframe_jump",
+         "kind": "operator",
+         "label": "Jump to Keyframe",
+         "props": {
+          "next": true
+         }
+        },
+        {
+         "icon": "FF",
+         "id": "screen.frame_jump",
+         "kind": "operator",
+         "label": "Jump to Endpoint",
+         "props": {
+          "end": true
+         }
+        },
+        {
+         "icon": "FRAME_PREV",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": true
+         }
+        },
+        {
+         "icon": "FRAME_NEXT",
+         "id": "screen.time_jump",
+         "kind": "operator",
+         "label": "Jump Time by Delta",
+         "props": {
+          "backward": false
+         }
+        },
+        {
+         "id": "TIME_PT_jump",
+         "kind": "popover",
+         "label": "Time Jump"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_playhead",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "TIME_PT_playhead_snapping",
+         "kind": "popover",
+         "label": "Playhead"
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "prop",
+         "label": "Current Frame",
+         "owner": "Scene",
+         "prop": "frame_current",
+         "ptype": "INT"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Preview Range",
+         "owner": "Scene",
+         "prop": "use_preview_range",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "kind": "prop",
+         "label": "Start",
+         "owner": "Scene",
+         "prop": "frame_start",
+         "ptype": "INT",
+         "text": "Start"
+        },
+        {
+         "kind": "prop",
+         "label": "End",
+         "owner": "Scene",
+         "prop": "frame_end",
+         "ptype": "INT",
+         "text": "End"
+        }
+       ]
+      }
+     },
+     "HEADER": {
+      "SEQUENCER_HT_header": {
+       "editor_menus": {
+        "SEQUENCER_MT_editor_menus": {
+         "opaque": 0,
+         "records": [
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_view",
+           "kind": "menu",
+           "label": "View"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_select",
+           "kind": "menu",
+           "label": "Select"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_marker",
+           "kind": "menu",
+           "label": "Marker"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_add",
+           "kind": "menu",
+           "label": "Add"
+          },
+          {
+           "exists": true,
+           "id": "SEQUENCER_MT_strip",
+           "kind": "menu",
+           "label": "Strip"
+          }
+         ]
+        }
+       },
+       "opaque": 0,
+       "records": [
+        {
+         "kind": "template",
+         "name": "template_header"
+        },
+        {
+         "kind": "prop",
+         "label": "View Type",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "view_type",
+         "ptype": "ENUM"
+        },
+        {
+         "exists": true,
+         "id": "SEQUENCER_MT_editor_menus",
+         "kind": "menu_contents",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "kind": "template",
+         "name": "template_ID",
+         "owner": "WorkSpace",
+         "prop": "sequencer_scene"
+        },
+        {
+         "kind": "prop",
+         "label": "Overlap Mode",
+         "owner": "SequencerToolSettings",
+         "owner_path": "tool_settings.sequencer_tool_settings",
+         "prop": "overlap_mode",
+         "ptype": "ENUM"
+        },
+        {
+         "kind": "prop",
+         "label": "Use Snapping",
+         "owner": "ToolSettings",
+         "owner_path": "tool_settings",
+         "prop": "use_snap_sequencer",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_snapping",
+         "kind": "popover",
+         "label": ""
+        },
+        {
+         "kind": "separator_spacer"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Mode",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "display_mode",
+         "ptype": "ENUM"
+        },
+        {
+         "icon_only": true,
+         "kind": "prop",
+         "label": "Display Channels",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "preview_channels",
+         "ptype": "ENUM"
+        },
+        {
+         "icon": "GIZMO",
+         "kind": "prop",
+         "label": "Show Gizmo",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_gizmo",
+         "ptype": "BOOLEAN",
+         "toggle": true
+        },
+        {
+         "id": "SEQUENCER_PT_gizmo_display",
+         "kind": "popover",
+         "label": "Gizmos"
+        },
+        {
+         "icon": "OVERLAY",
+         "kind": "prop",
+         "label": "Show Overlays",
+         "owner": "SpaceSequenceEditor",
+         "owner_path": "areas[2].spaces[0]",
+         "prop": "show_overlays",
+         "ptype": "BOOLEAN"
+        },
+        {
+         "id": "SEQUENCER_PT_overlay",
+         "kind": "popover",
+         "label": "Overlays"
+        }
+       ]
+      }
+     },
+     "TOOL_HEADER": {
+      "SEQUENCER_HT_tool_header": {
+       "opaque": 0,
+       "records": []
+      }
+     }
+    },
+    "setup": {
+     "sequencer_scene": true,
+     "view_type": "SEQUENCER_PREVIEW"
+    },
+    "show_menus": true,
+    "space": "SpaceSequenceEditor",
+    "space_flags": {
+     "show_region_channels": true,
+     "show_region_footer": true,
+     "show_region_header": true,
+     "show_region_hud": true,
+     "show_region_tool_header": false,
+     "show_region_toolbar": true,
+     "show_region_ui": false
+    },
+    "space_state": {
+     "display_mode": "IMAGE",
+     "view_type": "SEQUENCER_PREVIEW"
+    },
+    "type": "SEQUENCE_EDITOR",
+    "ui_type": "SEQUENCE_EDITOR",
+    "width": 1578,
+    "x": 0,
+    "y": 21
+   }
+  },
+  "host_ui_type": "TIMELINE",
+  "workspace": "Layout"
+ },
+ "editors_attempt": {
+  "args": [
+   "--section",
+   "editors"
+  ],
+  "crashed": false,
+  "returncode": 0,
+  "timeout": false
+ },
  "generator": "tools/dump_inventory.py (+ tools/_inventory_worker.py)",
  "global_attempt": {
   "args": [
@@ -2459,6 +5832,104 @@
   "spacebar_action": "PLAY"
  },
  "summary": {
+  "editors_contextual_menus": {
+   "ASSETS": "SpaceFileBrowser.params is None in -b (no file list yet)",
+   "CLIP_EDITOR/MASK": {
+    "CLIP_MT_masking_editor_menus": [
+     "CLIP_MT_view",
+     "CLIP_MT_clip"
+    ]
+   },
+   "CLIP_EDITOR/TRACKING": {
+    "CLIP_MT_tracking_editor_menus": [
+     "CLIP_MT_view",
+     "CLIP_MT_clip"
+    ]
+   },
+   "DRIVERS": {
+    "GRAPH_MT_editor_menus": [
+     "GRAPH_MT_view",
+     "GRAPH_MT_select",
+     "GRAPH_MT_channel",
+     "GRAPH_MT_key"
+    ]
+   },
+   "FCURVES": {
+    "GRAPH_MT_editor_menus": [
+     "GRAPH_MT_view",
+     "GRAPH_MT_select",
+     "GRAPH_MT_marker",
+     "GRAPH_MT_channel",
+     "GRAPH_MT_key"
+    ]
+   },
+   "NLA_EDITOR": {
+    "NLA_MT_editor_menus": [
+     "NLA_MT_view",
+     "NLA_MT_select",
+     "NLA_MT_marker",
+     "NLA_MT_add",
+     "NLA_MT_tracks",
+     "NLA_MT_strips"
+    ]
+   },
+   "PREFERENCES": {
+    "USERPREF_MT_editor_menus": [
+     "USERPREF_MT_view",
+     "USERPREF_MT_save_load"
+    ]
+   },
+   "SEQUENCE_EDITOR/no_scene/PREVIEW": {
+    "SEQUENCER_MT_editor_menus": [
+     "SEQUENCER_MT_view",
+     "SEQUENCER_MT_select",
+     "SEQUENCER_MT_strip",
+     "SEQUENCER_MT_image"
+    ]
+   },
+   "SEQUENCE_EDITOR/no_scene/SEQUENCER": {
+    "SEQUENCER_MT_editor_menus": [
+     "SEQUENCER_MT_view",
+     "SEQUENCER_MT_select",
+     "SEQUENCER_MT_strip",
+     "SEQUENCER_MT_image"
+    ]
+   },
+   "SEQUENCE_EDITOR/no_scene/SEQUENCER_PREVIEW": {
+    "SEQUENCER_MT_editor_menus": [
+     "SEQUENCER_MT_view",
+     "SEQUENCER_MT_select",
+     "SEQUENCER_MT_strip"
+    ]
+   },
+   "SEQUENCE_EDITOR/scene/PREVIEW": {
+    "SEQUENCER_MT_editor_menus": [
+     "SEQUENCER_MT_view",
+     "SEQUENCER_MT_select",
+     "SEQUENCER_MT_strip",
+     "SEQUENCER_MT_image"
+    ]
+   },
+   "SEQUENCE_EDITOR/scene/SEQUENCER": {
+    "SEQUENCER_MT_editor_menus": [
+     "SEQUENCER_MT_view",
+     "SEQUENCER_MT_select",
+     "SEQUENCER_MT_marker",
+     "SEQUENCER_MT_add",
+     "SEQUENCER_MT_strip",
+     "SEQUENCER_MT_image"
+    ]
+   },
+   "SEQUENCE_EDITOR/scene/SEQUENCER_PREVIEW": {
+    "SEQUENCER_MT_editor_menus": [
+     "SEQUENCER_MT_view",
+     "SEQUENCER_MT_select",
+     "SEQUENCER_MT_marker",
+     "SEQUENCER_MT_add",
+     "SEQUENCER_MT_strip"
+    ]
+   }
+  },
   "view3d_modes_vs_verified_facts_s2": {
    "EDIT_MESH": {
     "context_mode": "EDIT_MESH",

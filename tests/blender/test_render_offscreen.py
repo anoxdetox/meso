@@ -135,6 +135,30 @@ def _thirty_item_model():
     return model
 
 
+def _phase3_model():
+    """Contextual row (mode switcher cascade + menus) and a Tool Settings row with checked /
+    unchecked / disabled toggles, cascades (one disabled) and a separator."""
+    m = _mod("core.model")
+    T, C = m.KIND_TOGGLE, m.KIND_CASCADE
+    ctx = m.Row(m.ROW_CONTEXTUAL, [
+        m.Item(m.MODE_SWITCH_ID, 'Object Mode', C, cascade=True),
+        m.Item(m.contextual_item_id('VIEW3D_MT_view'), 'View', m.KIND_MENU,
+               {'menu': 'VIEW3D_MT_view'}),
+        m.Item(m.contextual_item_id('VIEW3D_MT_object'), 'Object', m.KIND_MENU,
+               {'menu': 'VIEW3D_MT_object'})])
+    ts = m.Row(m.ROW_TOOL_SETTINGS, [
+        m.Item('ts:orientation:type', 'Global', C, cascade=True),
+        m.Item('ts:snap:use_snap', 'Snap', T, checked=True),
+        m.Item('ts:snap:elements', 'Increment', C, cascade=True),
+        m.Item('ts:proportional:use', 'Proportional', T, checked=False),
+        m.Item('ts:proportional:off', 'Greyed', T, checked=True, enabled=False),
+        m.Item('ts:proportional:falloff', 'Smooth', C, cascade=True, enabled=False),
+        m.Item(m.TOOL_SEPARATOR_ID, '', m.KIND_SEPARATOR),
+        m.Item('ts:display:xray', 'X-Ray', T, checked=False),
+        m.Item('ts:display:shading', 'Solid', C, cascade=True)])
+    return _model([ctx, ts])
+
+
 def _layout(model, scale, anchor=(W // 2, H // 2)):
     """The ``core.geometry`` layout of ``model`` at ``scale`` in the 800x500 bounds (blf widths)."""
     g, rd = _geo(), _rd()
@@ -502,7 +526,9 @@ class TestOffscreenPlaza(unittest.TestCase):
         self.assertEqual((cache.static_builds, cache.hover_builds), (1, 2),
                          "hover changes rebuild only the hover batch, once per item")
         self.assertIsNone(cache.hover(layout, 2.0, 'nope'))
-        self.assertEqual(set(cache.static(layout, 2.0)), {'strips', 'center', 'checked', 'ticks'})
+        self.assertEqual(set(cache.static(layout, 2.0)),
+                         {'strips', 'center', 'checked', 'ticks', 'glyphs', 'glyphs_disabled',
+                          'separators'})
         theme = _th().theme_palette(_fake_ui(), 25)
         _render(layout, theme, 'TOPBAR_MT_file', cache=cache)      # new radius -> rebuild
         self.assertEqual((cache.static_builds, cache.hover_builds), (2, 3))
@@ -532,6 +558,129 @@ class TestOffscreenPlaza(unittest.TestCase):
         obox = _Rect(other.text_x, other.text_y, math.ceil(other.text_w) + 1,
                      layout.metrics.cap_h + 1)
         self.assertLess(px.region_max(tbox), px.region_max(obox) - 0.1)
+
+    def test_inactive_item_dimmed_but_hoverable(self):
+        """``Item.active`` False: text drawn like disabled, yet it still hovers (clickable)."""
+        m, rd = _mod("core.model"), _rd()
+        model = m.make_model([m.Row(m.ROW_ROOT, [
+            m.Item('A_MT_a', 'Alpha', m.KIND_MENU, {'menu': 'A_MT_a'}, active=False),
+            m.Item('A_MT_b', 'Alpha', m.KIND_MENU, {'menu': 'A_MT_b'})])],
+            m.Item(m.CENTER_ID, 'Centre', m.KIND_CENTER))
+        layout = _layout(model, 1.0)
+        cache = _cache(self)
+        self.assertIsNotNone(cache.hover(layout, 2.0, 'A_MT_a'))
+        drawn, px, _ = _render(layout, self.palette, None, cache=cache)
+        self.assertTrue(drawn)
+
+        def text_max(item_id):
+            box = layout.item(item_id)
+            return px.region_max(_Rect(box.text_x, box.text_y, math.ceil(box.text_w) + 1,
+                                       layout.metrics.cap_h + 1))
+        self.assertLess(text_max('A_MT_a'), text_max('A_MT_b') - 0.1)
+
+    def _check_glyphs(self, scale):
+        rd, m = _rd(), _mod("core.model")
+        layout = _layout(_phase3_model(), scale)
+        hover = 'ts:proportional:use'
+        cache = _cache(self)
+        drawn, px, after = _render(layout, self.palette, hover, cache=cache)
+        path = _save_png(px.data, W, H, f"plaza_phase3_scale{scale:g}")
+        msg = f"(see {path})"
+        self.assertTrue(drawn)
+        self.assertEqual(after.blend, 'NONE')
+        # A row too wide for the window breaks at its separator (scale 2 in 800 px), which
+        # is then not placed: no separator line to check.
+        placed_sep = layout.item(m.TOOL_SEPARATOR_ID) is not None
+        for key in ('glyphs', 'glyphs_disabled') + (('separators',) if placed_sep else ()):
+            self.assertIsNotNone(cache.static(layout, rd.corner_radius(layout.metrics,
+                                                                       self.palette))[key])
+        t = rd.glyph_line_px(layout.metrics)
+        strip = layout.strip('tool_settings').rect
+        strip_grey = px.grey(strip.x + 2, strip.y + strip.h // 2)
+
+        def box_px(item_id):
+            box = layout.item(item_id)
+            self.assertTrue(_inside(box.rect), f"{item_id} on screen {msg}")
+            return box
+
+        # Checked toggle: bright inner square; unchecked: hollow (strip colour) but outlined.
+        on, off = box_px('ts:snap:use_snap'), box_px('ts:display:xray')
+        for box, checked in ((on, True), (off, False)):
+            cr = box.check_rect
+            cx, cy = cr.x + cr.w // 2, cr.y + cr.h // 2
+            edge = px.grey(cr.x + t // 2, cy)
+            self.assertGreater(edge, strip_grey + 0.3, f"{box.item_id} outline {msg}")
+            if checked:
+                self.assertGreater(px.grey(cx, cy), strip_grey + 0.3, f"check fill {msg}")
+            else:
+                self.assertAlmostEqual(px.grey(cx, cy), strip_grey, delta=0.03,
+                                       msg=f"{box.item_id} hollow {msg}")
+        # A toggle's checked state is its checkbox, never the workspace-style bar.
+        bar = rd.checked_bar(on.highlight)
+        self.assertAlmostEqual(px.grey(bar.x + bar.w // 2, bar.y + bar.h // 2), strip_grey,
+                               delta=0.03, msg=f"no checked bar on a toggle {msg}")
+        # Hovered toggle: its outline is drawn in text_hover (brighter than a plain one).
+        hov = box_px(hover)
+        self.assertGreater(px.grey(hov.check_rect.x + t // 2, hov.check_rect.y + hov.check_rect.h // 2),
+                           px.grey(off.check_rect.x + t // 2,
+                                   off.check_rect.y + off.check_rect.h // 2) + 0.05, msg)
+        # Disabled glyphs are dimmer than enabled ones.
+        dis = box_px('ts:proportional:off')
+        dc = dis.check_rect
+        self.assertLess(px.grey(dc.x + t // 2, dc.y + dc.h // 2),
+                        px.grey(on.check_rect.x + t // 2, on.check_rect.y + on.check_rect.h // 2)
+                        - 0.1, f"disabled outline {msg}")
+        # Cascade arrows: lit near the base (left) of the triangle, dark past its tip.
+        for item_id in (m.MODE_SWITCH_ID, 'ts:orientation:type', 'ts:display:shading'):
+            box = box_px(item_id)
+            ar = box.arrow_rect
+            cy = ar.y + ar.h // 2
+            self.assertGreater(px.region_max(_Rect(ar.x, cy - 1, 2, 3)), strip_grey + 0.3,
+                               f"arrow of {item_id} {msg}")
+            self.assertLess(px.grey(ar.x1 + 1, cy), strip_grey + 0.1, f"arrow tip {msg}")
+        dar = box_px('ts:proportional:falloff').arrow_rect
+        self.assertLess(px.region_max(_Rect(dar.x, dar.y + dar.h // 2 - 1, 2, 3)),
+                        px.region_max(_Rect(layout.item('ts:snap:elements').arrow_rect.x,
+                                            layout.item('ts:snap:elements').arrow_rect.y
+                                            + layout.item('ts:snap:elements').arrow_rect.h // 2
+                                            - 1, 2, 3)) - 0.1, f"disabled arrow {msg}")
+        # Separator: a thin vertical line (lighter than the strip) with strip colour beside it.
+        if placed_sep:
+            sep = box_px(m.TOOL_SEPARATOR_ID)
+            line = rd.separator_rect(sep, layout.metrics)
+            ym = line.y + line.h // 2
+            self.assertGreater(px.grey(line.x, ym), strip_grey + 0.1, f"separator {msg}")
+            self.assertAlmostEqual(px.grey(line.x - 3, ym), strip_grey, delta=0.03, msg=msg)
+            self.assertAlmostEqual(px.grey(line.x1 + 2, ym), strip_grey, delta=0.03, msg=msg)
+        else:
+            lines = [st for st in layout.strips if st.key == 'tool_settings']
+            self.assertGreater(len(lines), 1, msg)
+            for st in lines:                     # never centre and display on one line
+                groups = {i.split(':')[1] == 'display' for i in st.item_ids}
+                self.assertEqual(len(groups), 1, (st.item_ids, msg))
+        # Disabled label text is dimmer than an enabled one.
+        def text_max(box):
+            return px.region_max(_Rect(box.text_x, box.text_y, math.ceil(box.text_w) + 1,
+                                       layout.metrics.cap_h + 1))
+        self.assertLess(text_max(dis), text_max(off) - 0.1, msg)
+        self.assertEqual(cache.hover_builds, 1)
+
+    def test_phase3_glyphs_scale_1(self):
+        self._check_glyphs(1.0)
+
+    def test_phase3_glyphs_scale_2(self):
+        self._check_glyphs(2.0)
+
+    def test_separator_and_disabled_never_hover(self):
+        rd, m = _rd(), _mod("core.model")
+        layout = _layout(_phase3_model(), 1.0)
+        cache = _cache(self)
+        self.assertEqual(cache.hover(layout, 2.0, m.TOOL_SEPARATOR_ID), None)
+        self.assertEqual(cache.hover_glyphs(layout, 2.0, 'ts:proportional:off'), None)
+        self.assertIsNotNone(cache.hover_glyphs(layout, 2.0, 'ts:snap:use_snap'))
+        self.assertIsNone(cache.hover_glyphs(layout, 2.0, m.contextual_item_id('VIEW3D_MT_view')),
+                          "no glyphs, no glyph batch")
+        self.assertIsNotNone(cache.hover(layout, 2.0, m.contextual_item_id('VIEW3D_MT_view')))
 
     def test_blend_restored_on_error(self):
         # The raised exceptions and the mocks form reference cycles holding GPU batches;

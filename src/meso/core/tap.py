@@ -23,7 +23,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .views import VIEW_AXES as _VIEW_AXES
+
 TAP_ACTIONS = ('ORIGINAL', 'MAXIMIZE', 'NONE')
+
+# Phase 3: pane toggle (3D View only; notes/phase3-interfaces.md "D").
+PANE_TOGGLE = 'PANE_TOGGLE'
+SAME_AS_GLOBAL = 'SAME_AS_GLOBAL'
+# Items of prefs.tap_action_view3d (default PANE_TOGGLE); the global tap_action keeps TAP_ACTIONS.
+TAP_ACTIONS_VIEW3D = (SAME_AS_GLOBAL, 'ORIGINAL', PANE_TOGGLE, 'MAXIMIZE', 'NONE')
+PANE_TOGGLE_OPERATOR = 'meso.pane_toggle'    # ops/panes.py MESO_OT_pane_toggle
+
+# resolve_pane_action results.
+PANE_QUAD_ON = 'QUAD_ON'                  # single view -> quad view, nothing to restore
+PANE_QUAD_ON_RESTORE = 'QUAD_ON_RESTORE'  # single view -> quad view, restore the saved persp
+PANE_QUAD_OFF = 'QUAD_OFF'                # quad view -> single (perspective) view
+PANE_MAXIMIZE_AXIS = 'MAXIMIZE_AXIS'      # quad view -> single view aligned to the quadrant axis
+PANE_ACTIONS = (PANE_QUAD_ON, PANE_QUAD_ON_RESTORE, PANE_QUAD_OFF, PANE_MAXIMIZE_AXIS)
 SPACEBAR_ACTIONS = ('PLAY', 'TOOL', 'SEARCH')
 
 KC_BLENDER = 'Blender'
@@ -139,6 +155,9 @@ def resolve_tap_action(tap_action: str, keyconfig_name: str | None, spacebar_act
       - 'NONE' (or any unknown value) -> None.
       - 'MAXIMIZE' -> ``TapCommand('screen.screen_full_area')``; None when
         ``area_type`` is None or in ``NO_MAXIMIZE_AREAS``.
+      - :data:`PANE_TOGGLE` (Phase 3) -> ``TapCommand(PANE_TOGGLE_OPERATOR)`` when
+        ``area_type == 'VIEW_3D'`` (any region: the operator finds the hovered quadrant from
+        the mouse), else None. Callers pass :func:`effective_tap_action`'s result.
       - 'ORIGINAL' -> what native Space would have done here, evaluated in this order:
         1. ``area_type in NO_ACTION_AREAS`` -> None.
         2. ``keyconfig_name == KC_BLENDER_27X`` -> 'wm.search_menu' (27x Window Space = search).
@@ -157,6 +176,8 @@ def resolve_tap_action(tap_action: str, keyconfig_name: str | None, spacebar_act
       with ``sequencer_scene=None`` is native behaviour).
     Commands without properties use an empty ``kwargs``.
     """
+    if tap_action == PANE_TOGGLE:
+        return TapCommand(PANE_TOGGLE_OPERATOR) if area_type == 'VIEW_3D' else None
     if tap_action == 'MAXIMIZE':
         if area_type is None or area_type in NO_MAXIMIZE_AREAS:
             return None
@@ -184,6 +205,43 @@ def resolve_tap_action(tap_action: str, keyconfig_name: str | None, spacebar_act
             return TapCommand('wm.call_asset_shelf_popover', {'name': shelf})
         return TapCommand('wm.toolbar')
     return _play(area_type)
+
+
+def effective_tap_action(tap_action: str, tap_action_view3d: str | None,
+                         area_type: str | None) -> str:
+    """The tap action that applies over ``area_type``.
+
+    ``area_type == 'VIEW_3D'`` and ``tap_action_view3d`` set and not :data:`SAME_AS_GLOBAL`
+    -> ``tap_action_view3d``; otherwise ``tap_action``. :data:`PANE_TOGGLE` never leaks out of
+    the 3D View: a global ``tap_action`` of PANE_TOGGLE (not offered by the pref) is returned as
+    is, and :func:`resolve_tap_action` maps it to None outside VIEW_3D.
+    """
+    if area_type == 'VIEW_3D' and tap_action_view3d and tap_action_view3d != SAME_AS_GLOBAL:
+        return tap_action_view3d
+    return tap_action
+
+
+def resolve_pane_action(is_quad: bool, hovered_is_persp_quadrant: bool | None,
+                        quadrant_axis: str | None, has_saved_state: bool) -> str:
+    """pane toggle decision (one of :data:`PANE_ACTIONS`).
+
+    - ``not is_quad``: :data:`PANE_QUAD_ON_RESTORE` if ``has_saved_state`` else
+      :data:`PANE_QUAD_ON`.
+    - ``is_quad`` and ``hovered_is_persp_quadrant`` is True -> :data:`PANE_QUAD_OFF`.
+    - ``is_quad`` and ``quadrant_axis`` in ``core.views.VIEW_AXES`` (a locked ortho quadrant)
+      -> :data:`PANE_MAXIMIZE_AXIS`.
+    - ``is_quad`` otherwise (not over a quadrant: ``hovered_is_persp_quadrant`` None, e.g.
+      the header; or an unrecognised rotation) -> :data:`PANE_QUAD_OFF`.
+    ``has_saved_state`` does not matter while in quad view (MAXIMIZE_AXIS overwrites the saved
+    state, QUAD_OFF clears it: ops/panes.py).
+    """
+    if not is_quad:
+        return PANE_QUAD_ON_RESTORE if has_saved_state else PANE_QUAD_ON
+    if hovered_is_persp_quadrant is True:
+        return PANE_QUAD_OFF
+    if quadrant_axis in _VIEW_AXES:
+        return PANE_MAXIMIZE_AXIS
+    return PANE_QUAD_OFF
 
 
 def _play(area_type: str | None) -> TapCommand | None:

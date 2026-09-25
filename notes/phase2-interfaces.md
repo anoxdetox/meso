@@ -167,7 +167,7 @@ These are plain data, so it is safe that they outlive the modal. They carry no R
   - `KIND_WORKSPACE` carries `{'workspace': name}`.
 - `Row(key, items=(), align='center')`, where `items` becomes a tuple.
 - `PlazaModel(rows, center, recent=None, controls=None)`.
-  - Placement is fixed by `ROWS_ABOVE = ('root', 'contextual', 'tool_settings')`: those rows go above the centre line in that order, and every other row goes below it in model order.
+  - Placement is fixed by `ROWS_ABOVE` (Phase 2: `('root', 'contextual', 'tool_settings')`; since the Phase 3 review `('root', 'contextual')`, with Tool Settings below the workspace row): those rows go above the centre line in that order, and every other row goes below it in model order.
 
 ### core/geometry.py (pure; A)
 - `metrics_for(ui_scale, widget_points, font_scale=1, row_spacing=1, cap_height_fn=None) -> Metrics`.

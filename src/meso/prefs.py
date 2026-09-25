@@ -40,6 +40,20 @@ class MesoAddonPreferences(AddonPreferences):
         ),
         default='ORIGINAL',
     )
+    tap_action_view3d: EnumProperty(
+        name="Tap Action (3D Viewport)",
+        description="What a quick tap of the plaza key does over the 3D Viewport",
+        items=(
+            ('SAME_AS_GLOBAL', "Same as Tap Action", "Use the Tap Action setting"),
+            ('ORIGINAL', "Original", "Run what the key does natively (play, tools or search, "
+                                     "per the keymap's Spacebar Action)"),
+            ('PANE_TOGGLE', "Toggle Quad View", "pane toggle: single view <-> four views; "
+                                              "over a Top/Front/Side view, maximize that view"),
+            ('MAXIMIZE', "Maximize Area", "Toggle the area under the mouse maximized"),
+            ('NONE', "Nothing", "A tap does nothing"),
+        ),
+        default='PANE_TOGGLE',
+    )
     text_chord: EnumProperty(
         name="Text/Console Key",
         description="Chord that opens the plaza in the Text Editor and Python Console, "
@@ -74,6 +88,18 @@ class MesoAddonPreferences(AddonPreferences):
         min=0.0,
         max=3.0,
     )
+    show_tool_settings_row: BoolProperty(
+        name="Tool Settings Row",
+        description="Show the header tool settings (orientation, pivot, snapping, proportional "
+                    "editing, ...) as a plaza row",
+        default=True,
+    )
+    show_display_controls: BoolProperty(
+        name="Display Controls",
+        description="Add the header's display controls (X-ray, shading, overlays, gizmos) to "
+                    "the Tool Settings row",
+        default=True,
+    )
     use_theme_colors: BoolProperty(
         name="Use Theme Colors",
         description="Colour the plaza from the Blender theme instead of Plaza grey",
@@ -92,10 +118,15 @@ class MesoAddonPreferences(AddonPreferences):
         col = layout.column()
         col.prop(self, "tap_threshold")
         col.prop(self, "tap_action")
+        col.prop(self, "tap_action_view3d")
         col.prop(self, "text_chord")
         col.prop(self, "transparency")
         col.prop(self, "font_scale")
         col.prop(self, "row_spacing")
+        col.prop(self, "show_tool_settings_row")
+        sub = col.column()
+        sub.active = self.show_tool_settings_row
+        sub.prop(self, "show_display_controls")
         col.prop(self, "use_theme_colors")
         col.prop(self, "debug_timing")
         _draw_keymap_items(context, layout)

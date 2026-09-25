@@ -4,6 +4,12 @@
         --section global --out <json>
     $B -b --factory-startup --python-exit-code 1 --python tools/_inventory_worker.py -- \
         --section workspace --workspace <name> --strategy direct|premode --out <json>
+    $B -b --factory-startup --python-exit-code 1 --python tools/_inventory_worker.py -- \
+        --section editors --out <json>
+
+The 'editors' section (Phase 3) records baselines for editors no factory workspace shows
+(Sequencer x sequencer_scene x view types, Clip tracking/masking, Graph F-Curves/Drivers, NLA,
+Asset Browser, Preferences) by switching the Layout Timeline area's ui_type in this process.
 
 This is a TOOL, not the product recorder (that comes in Phase 3). The fake layout below is generated from
 the RNA function table of bpy.types.UILayout, so signatures always match the running Blender
@@ -842,6 +848,88 @@ def record_view3d_modes(window, screen, hc):
 
 
 # --------------------------------------------------------------------------------------------------
+# editors section (Phase 3): baselines for editors no factory workspace shows, recorded in Layout
+# by switching ONE area's ui_type inside this throw-away process (never a foreign screen).
+
+# (key, ui_type, space setup) in output order. Setup keys: view_type / mode (space attrs),
+# sequencer_scene (True -> workspace.sequencer_scene = the scene, False -> None).
+_SEQ_VIEWS = ("SEQUENCER", "PREVIEW", "SEQUENCER_PREVIEW")
+EDITOR_VARIANTS = tuple(
+    [("SEQUENCE_EDITOR/%s/%s" % ("scene" if sc else "no_scene", vt), "SEQUENCE_EDITOR",
+      {"view_type": vt, "sequencer_scene": sc}) for sc in (False, True) for vt in _SEQ_VIEWS]
+    + [("CLIP_EDITOR/TRACKING", "CLIP_EDITOR", {"mode": "TRACKING"}),
+       ("CLIP_EDITOR/MASK", "CLIP_EDITOR", {"mode": "MASK"}),
+       ("FCURVES", "FCURVES", {}),
+       ("DRIVERS", "DRIVERS", {}),
+       ("NLA_EDITOR", "NLA_EDITOR", {}),
+       ("ASSETS", "ASSETS", {}),
+       ("PREFERENCES", "PREFERENCES", {})])
+
+# The area whose ui_type is switched (factory Layout: the bottom Timeline, wide and short).
+_EDITOR_HOST_UI_TYPE = "TIMELINE"
+
+
+def _editor_menu_summary(d):
+    """Contextual menu ids / labels of an area recording (the HEADER class's editor_menus
+    expansion), for the inventory summary."""
+    out = {}
+    for cname, rec in sorted(d.get("regions_recorded", {}).get("HEADER", {}).items()):
+        for mt, mrec in sorted(rec.get("editor_menus", {}).items()):
+            recs = mrec.get("records", [])
+            out[mt] = {"ids": [r["id"] for r in recs if r.get("kind") == "menu"],
+                       "labels": [r.get("label") for r in recs if r.get("kind") == "menu"],
+                       "n_errors": len(mrec.get("errors", []) or [])}
+    return out
+
+
+def section_editors():
+    window = bpy.context.window
+    screen = window.screen
+    hc = header_classes()
+    out = {"host_ui_type": _EDITOR_HOST_UI_TYPE, "workspace": window.workspace.name,
+           "editors": {}}
+    area = next((a for a in screen.areas if a.ui_type == _EDITOR_HOST_UI_TYPE), None)
+    if area is None:
+        out["error"] = "no %s area in the startup screen" % _EDITOR_HOST_UI_TYPE
+        return out
+    workspace = window.workspace
+    old_seq = getattr(workspace, "sequencer_scene", None)
+    try:
+        for key, ui_type, setup in EDITOR_VARIANTS:
+            entry = {"ui_type": ui_type, "setup": dict(setup)}
+            try:
+                area.ui_type = ui_type
+                space = area.spaces.active
+                if "sequencer_scene" in setup:
+                    workspace.sequencer_scene = bpy.context.scene if setup["sequencer_scene"] else None
+                for attr in ("view_type", "mode"):
+                    if attr in setup:
+                        setattr(space, attr, setup[attr])
+                if ui_type == "ASSETS" and getattr(space, "params", None) is None:
+                    entry["skipped"] = "SpaceFileBrowser.params is None in -b (no file list yet)"
+                    out["editors"][key] = entry
+                    continue
+                with bpy.context.temp_override(window=window, area=area):
+                    entry["context_sequencer_scene"] = (
+                        getattr(bpy.context, "sequencer_scene", None) is not None)
+                entry.update(describe_area(area))
+                entry.update(record_area(window, screen, area, False, hc))
+                if area.type in ("VIEW_3D", "IMAGE_EDITOR"):
+                    _tool_fixup(window, screen, area, False, hc, entry)
+                entry["contextual_menus"] = _editor_menu_summary(entry)
+            except Exception as ex:
+                entry["error"] = _err(ex)
+            out["editors"][key] = entry
+    finally:
+        try:
+            workspace.sequencer_scene = old_seq
+        except Exception:
+            pass
+        area.ui_type = _EDITOR_HOST_UI_TYPE
+    return out
+
+
+# --------------------------------------------------------------------------------------------------
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -854,6 +942,8 @@ def main():
     section = args.get("section", "workspace")
     if section == "global":
         data = section_global()
+    elif section == "editors":
+        data = section_editors()
     else:
         data = section_workspace(args["workspace"], args.get("strategy", "premode"))
     with open(out_path, "w", encoding="utf-8") as fh:

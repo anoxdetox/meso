@@ -206,7 +206,7 @@ class TestPacking(unittest.TestCase):
                 menu_row('contextual', ('View', 'Select'))]
         lay = do_layout(full_model(rows=rows))
         keys = [s.key for s in row_strips(lay)]
-        self.assertEqual(keys, ['root', 'contextual', 'tool_settings', 'extra2', 'workspace',
+        self.assertEqual(keys, ['root', 'contextual', 'extra2', 'workspace', 'tool_settings',
                                 'extra1'])
         center = lay.center.rect
         for s in row_strips(lay):
@@ -777,6 +777,320 @@ class TestRoundedRect(unittest.TestCase):
         arc = pts[:5]
         for x, y in arc:
             self.assertAlmostEqual(math.hypot(x - 8, y - 8), 8)
+
+
+
+# ----------------------------------------------------------------------------- Phase 3
+
+
+def ts_row(items):
+    return Row(model_mod.ROW_TOOL_SETTINGS, items)
+
+
+def toggle(name, label, checked=False, enabled=True):
+    return Item(model_mod.tool_item_id('snap', name), label, model_mod.KIND_TOGGLE,
+                checked=checked, enabled=enabled)
+
+
+def cascade(name, label, enabled=True):
+    return Item(model_mod.tool_item_id('pivot', name), label, model_mod.KIND_CASCADE,
+                cascade=True, enabled=enabled)
+
+
+def sep(n=''):
+    return Item(model_mod.TOOL_SEPARATOR_ID + n, '', model_mod.KIND_SEPARATOR)
+
+
+class TestGlyphMetrics(unittest.TestCase):
+    def test_1x_and_scaled(self):
+        a = g.metrics_for(1.0, 11)
+        self.assertEqual((a.check_size, a.glyph_gap, a.arrow_size, a.separator_gap,
+                          a.separator_w), (10, 4, 6, 8, 1.0))
+        b = g.metrics_for(2.0, 11)
+        self.assertEqual((b.check_size, b.glyph_gap, b.arrow_size, b.separator_gap,
+                          b.separator_w), (20, 8, 12, 16, 2.0))
+        c = g.metrics_for(1.0, 11, font_scale=2.0)
+        self.assertEqual((c.check_size, c.arrow_size, c.separator_w), (20, 12, 1.0))
+        self.assertGreaterEqual(g.metrics_for(1.0, 11, font_scale=0.5).check_size, 1)
+
+    def test_content_width(self):
+        m = g.metrics_for(1.0, 11)
+        self.assertEqual(g.content_width(Item('a', 'A', model_mod.KIND_MENU), 30.0, m), 30.0)
+        self.assertEqual(g.content_width(toggle('t', 'T'), 30.0, m),
+                         30.0 + m.check_size + m.glyph_gap)
+        self.assertEqual(g.content_width(cascade('c', 'C'), 30.0, m),
+                         30.0 + m.glyph_gap + m.arrow_size)
+        both = Item('b', 'B', model_mod.KIND_TOGGLE, cascade=True)
+        self.assertEqual(g.content_width(both, 30.0, m),
+                         30.0 + m.check_size + m.arrow_size + 2 * m.glyph_gap)
+        self.assertEqual(g.content_width(sep(), 99.0, m), 2 * m.separator_gap)
+
+
+class TestGlyphLayout(unittest.TestCase):
+    def _lay(self, items, **kw):
+        rows = [menu_row('root', ROOT_LABELS), ts_row(items), ws_row()]
+        return do_layout(full_model(rows=rows), **kw)
+
+    def test_toggle_check_rect_and_text_shift(self):
+        lay = self._lay([toggle('use_snap', 'Snap', checked=True), cascade('pivot', 'Pivot')])
+        m = lay.metrics
+        box = lay.item('ts:snap:use_snap')
+        strip = lay.strip('tool_settings')
+        self.assertTrue(box.checked)
+        self.assertIsNone(box.arrow_rect)
+        cr = box.check_rect
+        self.assertEqual((cr.w, cr.h), (m.check_size, m.check_size))
+        self.assertEqual(cr.x, strip.rect.x + m.pad_x)
+        self.assertEqual(box.text_x, cr.x + m.check_size + m.glyph_gap)
+        self.assertLessEqual(abs((cr.y + cr.h / 2) - (box.rect.y + box.rect.h / 2)), 1)
+        self.assertTrue(box.rect.intersect(cr) == cr, "glyph inside the hit rect")
+        for v in (cr.x, cr.y, cr.w, cr.h, box.text_x):
+            self.assertIs(type(v), int)
+
+    def test_cascade_arrow_rect(self):
+        lay = self._lay([toggle('use_snap', 'Snap'), cascade('pivot', 'Pivot: Median Point')])
+        m = lay.metrics
+        box = lay.item('ts:pivot:pivot')
+        self.assertIsNone(box.check_rect)
+        ar = box.arrow_rect
+        self.assertEqual((ar.w, ar.h), (m.arrow_size, m.arrow_size))
+        self.assertEqual(ar.x, g.round_px(box.text_x + box.text_w + m.glyph_gap))
+        self.assertLessEqual(abs((ar.y + ar.h / 2) - (box.rect.y + box.rect.h / 2)), 1)
+        self.assertLessEqual(ar.x1, box.rect.x1)
+        self.assertEqual(lay.strip('tool_settings').rect.x1 - m.pad_x, ar.x1)
+
+    def test_strip_width_includes_glyphs(self):
+        items = [toggle('use_snap', 'Snap'), cascade('pivot', 'Pivot'), sep(),
+                 Item('ts:display:xray', 'X-Ray', model_mod.KIND_TOGGLE, checked=False)]
+        lay = self._lay(items)
+        m = lay.metrics
+        w = fake_width(m.font_px)
+        content = [w('Snap') + m.check_size + m.glyph_gap,
+                   w('Pivot') + m.glyph_gap + m.arrow_size, 2 * m.separator_gap,
+                   w('X-Ray') + m.check_size + m.glyph_gap]
+        self.assertEqual(lay.strip('tool_settings').rect.w,
+                         math.ceil(2 * m.pad_x + sum(content) + m.gap_x * 3))
+
+    def test_menu_items_unchanged(self):
+        # Phase 2 items (no toggle, no cascade) keep the Phase 2 geometry exactly.
+        lay = self._lay([])
+        for box in lay.items:
+            self.assertIsNone(box.check_rect)
+            self.assertIsNone(box.arrow_rect)
+
+    def test_separator_not_hit_testable(self):
+        lay = self._lay([toggle('a', 'Alpha'), sep(), toggle('b', 'Beta')])
+        m = lay.metrics
+        box = lay.item(model_mod.TOOL_SEPARATOR_ID)
+        self.assertIsNotNone(box)
+        self.assertEqual((box.label, box.text_w, box.check_rect, box.arrow_rect),
+                         ('', 0.0, None, None))
+        r = box.rect
+        self.assertGreaterEqual(r.w, 2 * m.separator_gap)
+        for x in (r.x, r.x + r.w / 2, r.x1 - 0.5):
+            self.assertIsNone(g.hit_test(lay, x, r.y + r.h / 2))
+        a, b = lay.item('ts:snap:a'), lay.item('ts:snap:b')
+        self.assertEqual((a.rect.x1, r.x1), (r.x, b.rect.x), "rects still tile the strip")
+        self.assertEqual(g.hit_test(lay, a.rect.x1 - 1, r.y + 1), 'ts:snap:a')
+        self.assertEqual(g.hit_test(lay, b.rect.x, r.y + 1), 'ts:snap:b')
+
+    def test_no_stray_or_double_separators(self):
+        items = [sep('0'), toggle('a', 'Alpha'), sep('1'), sep('2'), toggle('b', 'Beta'),
+                 sep('3')]
+        lay = self._lay(items)
+        ids = lay.strip('tool_settings').item_ids
+        self.assertEqual(ids, ('ts:snap:a', 'ts:separator1', 'ts:snap:b'))
+        for gone in ('ts:separator0', 'ts:separator2', 'ts:separator3'):
+            self.assertIsNone(lay.item(gone))
+        only = self._lay([sep()])
+        self.assertIsNone(only.strip('tool_settings'), "a separator-only row is skipped")
+
+    def test_separator_dropped_at_wrap_edges(self):
+        labels = ['Toggle%02d' % i for i in range(12)]
+        items = [toggle(f't{i}', t) for i, t in enumerate(labels[:6])] + [sep()] + \
+            [toggle(f't{i}', t) for i, t in enumerate(labels[6:], 6)]
+        rows = [ts_row(items)]
+        m = g.metrics_for(1.0, 11)
+        w = fake_width(m.font_px)
+        # Bounds so the first line holds exactly the 6 toggles before the separator.
+        six = 2 * m.pad_x + sum(w(t) + m.check_size + m.glyph_gap for t in labels[:6]) \
+            + 5 * m.gap_x
+        bounds = Rect(0, 0, math.ceil(six) + 2 * m.margin + 1, 900)
+        lay = do_layout(full_model(rows=rows), anchor=(bounds.w // 2, 450), bounds=bounds)
+        lines = [s for s in row_strips(lay) if s.key == 'tool_settings']
+        self.assertGreater(len(lines), 1)
+        for s in lines:
+            kinds = [lay.item(i).kind for i in s.item_ids]
+            self.assertNotEqual(kinds[0], model_mod.KIND_SEPARATOR)
+            self.assertNotEqual(kinds[-1], model_mod.KIND_SEPARATOR)
+        self.assertIsNone(lay.item(model_mod.TOOL_SEPARATOR_ID))
+
+    def test_inactive_items_stay_triggerable(self):
+        """``Item.active`` False (``layout.active = False``): drawn dimmed, still clickable."""
+        act = model_mod.Action(model_mod.ACTION_PANEL, target='VIEW3D_PT_proportional_edit')
+        item = Item(model_mod.tool_item_id('proportional', 'falloff'), 'Smooth',
+                    model_mod.KIND_CASCADE, cascade=True, action=act, active=False)
+        self.assertIs(model_mod.item_action(item), act)
+        lay = self._lay([toggle('a', 'Alpha'), item])
+        box = lay.item(item.id)
+        self.assertEqual((box.enabled, box.active), (True, False))
+        self.assertTrue(lay.item('ts:snap:a').active)
+        moved = do_layout(full_model(rows=[ts_row([item]), ws_row()]), anchor=(5, 5))
+        self.assertFalse(moved.item(item.id).active)     # survives the clamp shift
+        self.assertNotEqual(self._lay([dataclasses.replace(item, active=True)]).signature,
+                            self._lay([item]).signature)
+
+    def test_disabled_and_checked_fields(self):
+        lay = self._lay([toggle('a', 'Alpha', checked=False, enabled=False),
+                         cascade('p', 'Pivot', enabled=False)])
+        a, p = lay.item('ts:snap:a'), lay.item('ts:pivot:p')
+        self.assertEqual((a.enabled, a.checked, a.kind), (False, False, model_mod.KIND_TOGGLE))
+        self.assertIsNotNone(a.check_rect)
+        self.assertEqual((p.enabled, p.cascade), (False, True))
+        self.assertIsNotNone(p.arrow_rect)
+        self.assertEqual(g.hit_test(lay, *[v + 1 for v in (a.rect.x, a.rect.y)]), 'ts:snap:a',
+                         "disabled items still hover-test (callers check enabled)")
+
+    def test_rows_order_contextual_above_tool_settings_below(self):
+        rows = [ts_row([toggle('a', 'Alpha')]), menu_row('contextual', ('View', 'Select')),
+                menu_row('root', ROOT_LABELS), ws_row()]
+        rows = [rows[2], rows[1], rows[3], rows[0]]      # build_model order
+        lay = do_layout(full_model(rows=rows))
+        ys = {k: lay.strip(k).rect.y for k in ('root', 'contextual', 'workspace', 'tool_settings')}
+        m = lay.metrics
+        self.assertGreater(ys['root'], ys['contextual'])
+        self.assertEqual(ys['contextual'], lay.center.rect.y1 + m.gap_y)
+        self.assertEqual(ys['workspace'], lay.center.rect.y - m.gap_y - m.row_h)
+        self.assertLess(ys['tool_settings'], ys['workspace'])
+
+    def test_menu_strips_fixed_when_tool_settings_wraps(self):
+        """The root / contextual strips keep their offset from the centre whether the Tool
+        Settings row takes 1 or 3 lines (muscle memory across modes / editors)."""
+        def offsets(n):
+            items = [toggle(f't{i}', 'Toggle%02d' % i) for i in range(n)]
+            rows = [menu_row('root', ROOT_LABELS), menu_row('contextual', ('View', 'Select')),
+                    ws_row(), ts_row(items)]
+            lay = do_layout(full_model(rows=rows))
+            lines = [s for s in row_strips(lay) if s.key == 'tool_settings']
+            return len(lines), {k: lay.strip(k).rect.y - lay.center.rect.y
+                                for k in ('root', 'contextual', 'workspace')}
+        n1, one = offsets(2)
+        n3, three = offsets(40)
+        self.assertEqual(n1, 1)
+        self.assertGreaterEqual(n3, 3)
+        self.assertEqual(one, three)
+
+    def test_glyph_rects_follow_the_clamp_shift(self):
+        items = [toggle('a', 'Alpha'), cascade('p', 'Pivot')]
+        rows = [ts_row(items), ws_row()]
+        free = do_layout(full_model(rows=rows), anchor=(800, 450))
+        moved = do_layout(full_model(rows=rows), anchor=(5, 5))
+        self.assertNotEqual(moved.shift, (0, 0))
+        dx = moved.item('ts:snap:a').rect.x - free.item('ts:snap:a').rect.x
+        dy = moved.item('ts:snap:a').rect.y - free.item('ts:snap:a').rect.y
+        self.assertEqual(moved.item('ts:snap:a').check_rect,
+                         free.item('ts:snap:a').check_rect.translated(dx, dy))
+        self.assertEqual(moved.item('ts:pivot:p').arrow_rect,
+                         free.item('ts:pivot:p').arrow_rect.translated(dx, dy))
+
+    def test_signature_changes_with_checked(self):
+        a = self._lay([toggle('a', 'Alpha', checked=False)])
+        b = self._lay([toggle('a', 'Alpha', checked=True)])
+        self.assertNotEqual(a.signature, b.signature)
+        self.assertNotEqual(a, b)
+
+
+class TestSoftWrap(unittest.TestCase):
+    """Rows wider than ``metrics.max_row_w`` (but inside the bounds) break at separators
+    first, then balance (a wide Tool Settings row: centre cluster / display controls)."""
+
+    def _ts_lines(self, items, m=None, bounds=BOUNDS):
+        m = m or g.metrics_for(1.0, 11)
+        lay = g.layout(full_model(rows=[ts_row(items), ws_row()]), (800, 450), bounds, m,
+                       fake_width(m.font_px))
+        return lay, [s for s in row_strips(lay) if s.key == 'tool_settings']
+
+    def test_metric(self):
+        self.assertEqual(g.metrics_for(1.0, 11).max_row_w, g.BASE_MAX_ROW_W)
+        self.assertEqual(g.metrics_for(2.0, 11).max_row_w, 2 * g.BASE_MAX_ROW_W)
+        self.assertEqual(g.metrics_for(1.0, 11, font_scale=1.5).max_row_w,
+                         g.round_px(1.5 * g.BASE_MAX_ROW_W))
+
+    def test_breaks_at_separator(self):
+        left = [toggle(f'l{i}', 'Toggle%02d' % i) for i in range(10)]
+        right = [toggle(f'r{i}', 'Toggle%02d' % i) for i in range(8)]
+        lay, lines = self._ts_lines(left + [sep()] + right)
+        self.assertEqual([s.item_ids for s in lines],
+                         [tuple(i.id for i in left), tuple(i.id for i in right)])
+        self.assertIsNone(lay.item(model_mod.TOOL_SEPARATOR_ID))
+        for s in lines:
+            self.assertLessEqual(s.rect.w, lay.metrics.max_row_w)
+        self.assertGreater(lines[0].rect.y, lines[1].rect.y)       # reading order
+
+    def test_fitting_row_keeps_separator(self):
+        items = [toggle('a', 'Alpha'), sep(), toggle('b', 'Beta')]
+        lay, lines = self._ts_lines(items)
+        self.assertEqual(len(lines), 1)
+        self.assertIsNotNone(lay.item(model_mod.TOOL_SEPARATOR_ID))
+
+    def test_small_segments_share_a_line(self):
+        a = [toggle(f'a{i}', 'Toggle%02d' % i) for i in range(6)]
+        b = [toggle(f'b{i}', 'Toggle%02d' % i) for i in range(4)]
+        c = [toggle(f'c{i}', 'Toggle%02d' % i) for i in range(9)]
+        lay, lines = self._ts_lines(a + [sep('a')] + b + [sep('b')] + c)
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[0].item_ids,
+                         tuple(i.id for i in a) + (model_mod.TOOL_SEPARATOR_ID + 'a',)
+                         + tuple(i.id for i in b))
+        self.assertEqual(lines[1].item_ids, tuple(i.id for i in c))
+
+    def test_oversize_segment_balanced(self):
+        items = [toggle(f't{i}', 'Toggle%02d' % i) for i in range(30)]
+        lay, lines = self._ts_lines(items)
+        m = lay.metrics
+        greedy = g._greedy(tuple(items), {i.id: g.content_width(i, 44.0, m) for i in items},
+                           m, m.max_row_w)
+        self.assertEqual(len(lines), len(greedy))
+        counts = [len(s.item_ids) for s in lines]
+        self.assertLessEqual(max(counts) - min(counts), 1, counts)
+        self.assertEqual([i for s in lines for i in s.item_ids], [i.id for i in items])
+        for s in lines:
+            self.assertLessEqual(s.rect.w, m.max_row_w)
+
+    def test_zero_disables(self):
+        items = [toggle(f't{i}', 'Toggle%02d' % i) for i in range(20)]
+        m = dataclasses.replace(g.metrics_for(1.0, 11), max_row_w=0)
+        _, lines = self._ts_lines(items, m=m)
+        self.assertEqual(len(lines), 1)
+
+    def test_hard_limit_binding_stays_greedy(self):
+        items = [toggle(f't{i}', 'Toggle%02d' % i) for i in range(30)]
+        bounds = Rect(0, 0, 700, 900)
+        m = g.metrics_for(1.0, 11)
+        lay, lines = self._ts_lines(items, bounds=bounds)
+        avail = bounds.w - 2 * m.margin
+        w = fake_width(m.font_px)
+        for a, b in zip(lines, lines[1:]):
+            n = len(a.item_ids) + 1
+            need = 2 * m.pad_x + n * (w('Toggle00') + m.check_size + m.glyph_gap) \
+                + m.gap_x * (n - 1)
+            self.assertGreater(need, avail)
+
+    def test_hard_limit_still_breaks_at_separator(self):
+        """UI scale 2: the soft width (1920 px) exceeds the window, yet the row still breaks
+        at the separator (no display group split across lines)."""
+        left = [toggle(f'l{i}', 'Toggle%02d' % i) for i in range(6)]
+        right = [toggle(f'r{i}', 'Toggle%02d' % i) for i in range(5)]
+        m = g.metrics_for(2.0, 11)
+        bounds = Rect(0, 0, 1600, 900)
+        self.assertGreater(m.max_row_w, bounds.w)
+        lay, lines = self._ts_lines(left + [sep()] + right, m=m, bounds=bounds)
+        self.assertEqual([s.item_ids for s in lines],
+                         [tuple(i.id for i in left), tuple(i.id for i in right)])
+
+    def test_deterministic(self):
+        items = [toggle(f't{i}', 'T' * (3 + i % 7)) for i in range(40)]
+        self.assertEqual(self._ts_lines(items)[0], self._ts_lines(items)[0])
 
 
 if __name__ == "__main__":

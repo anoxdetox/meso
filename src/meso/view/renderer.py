@@ -29,7 +29,8 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 
 from ..core import geometry
-from ..core.geometry import ROLE_CENTER, Layout, Metrics, TextWidthFn
+from ..core.geometry import ROLE_CENTER, ItemBox, Layout, Metrics, TextWidthFn
+from ..core.model import KIND_SEPARATOR, KIND_TOGGLE
 from ..core.rects import Rect, linear_blend_alpha
 from .theme import RGBA, Palette
 
@@ -151,6 +152,76 @@ def checked_bar(h: Rect) -> Rect:
     return Rect(h.x + inset, h.y + 1, max(h.w - 2 * inset, 0), max(2, round(h.h * 0.1)))
 
 
+def _add_rect(verts: list[Point], tris: list[tuple[int, int, int]], x0: float, y0: float,
+              x1: float, y1: float) -> None:
+    if x1 <= x0 or y1 <= y0:
+        return
+    b = len(verts)
+    verts.extend(((x0, y0), (x1, y0), (x1, y1), (x0, y1)))
+    tris.extend(((b, b + 1, b + 2), (b, b + 2, b + 3)))
+
+
+def glyph_line_px(metrics: Metrics) -> int:
+    """Stroke width of the checkbox outline and the separator line: ``max(1, round(scale))``
+    px (crisp at any ui scale; ``separator_w`` rounded the same way for separators)."""
+    return max(1, round(metrics.scale))
+
+
+def arrow_points(rect: Rect) -> tuple[Point, Point, Point]:
+    """The cascade triangle in ``rect`` pointing right: full height, 0.8 x as wide (a
+    slimmer arrow than the square), left-aligned in the rect."""
+    w = max(1.0, rect.h * 0.8)
+    x0, y0, y1 = rect.x, rect.y, rect.y1
+    return ((x0, y0), (x0 + w, (y0 + y1) / 2), (x0, y1))
+
+
+def separator_rect(box: ItemBox, metrics: Metrics) -> Rect:
+    """The separator line of a KIND_SEPARATOR ``box``: ``round(separator_w)`` (>= 1) px wide at
+    the centre x of ``box.rect``, the strip height inset by ``hover_inset`` at both ends."""
+    w = max(1, round(metrics.separator_w))
+    r = box.rect
+    x = round(r.x + r.w / 2 - w / 2)
+    return Rect(x, r.y + metrics.hover_inset, w, max(r.h - 2 * metrics.hover_inset, 0))
+
+
+def _glyph_mesh(boxes: Iterable[ItemBox],
+                metrics: Metrics) -> tuple[list[Point], list[tuple[int, int, int]]]:
+    """TRIS mesh of the Phase 3 glyphs of ``boxes``: checkbox outlines (4 bars of
+    :func:`glyph_line_px`) plus the inner square when checked, and cascade arrows."""
+    verts: list[Point] = []
+    tris: list[tuple[int, int, int]] = []
+    t = glyph_line_px(metrics)
+    for box in boxes:
+        cr = box.check_rect
+        if cr is not None and not cr.is_empty():
+            x0, y0, x1, y1 = cr.x, cr.y, cr.x1, cr.y1
+            _add_rect(verts, tris, x0, y0, x1, y0 + t)
+            _add_rect(verts, tris, x0, y1 - t, x1, y1)
+            _add_rect(verts, tris, x0, y0 + t, x0 + t, y1 - t)
+            _add_rect(verts, tris, x1 - t, y0 + t, x1, y1 - t)
+            if box.checked:
+                inset = t + max(1, round(min(cr.w, cr.h) * 0.15))
+                _add_rect(verts, tris, x0 + inset, y0 + inset, x1 - inset, y1 - inset)
+        ar = box.arrow_rect
+        if ar is not None and not ar.is_empty():
+            b = len(verts)
+            verts.extend(arrow_points(ar))
+            tris.append((b, b + 1, b + 2))
+    return verts, tris
+
+
+def _mesh_batch(mesh: tuple[list[Point], list[tuple[int, int, int]]]) -> Any:
+    verts, tris = mesh
+    if not tris:
+        return None
+    return batch_for_shader(shader(UNIFORM), 'TRIS', {'pos': verts}, indices=tris)
+
+
+def _separator_batch(layout: Layout) -> Any:
+    rects = [separator_rect(b, layout.metrics) for b in layout.items if b.kind == KIND_SEPARATOR]
+    return _fill_batch(rects, 0.0)
+
+
 def _draw_fill(batch: Any, color: RGBA) -> None:
     sh = shader(UNIFORM)
     sh.bind()
@@ -255,9 +326,13 @@ class BatchCache:
 
     Static batches are keyed by ``(layout.signature, radius)``: the strips (ROLE_ROW and
     ROLE_SIDE), the centre box, the checked-item bars (:func:`checked_bar` of the
-    ``ItemBox.highlight`` of items with ``checked``) and the ticks (POLYLINE ``LINES``). Hover batches are keyed by
-    ``(layout.signature, radius, hover_id)`` and kept up to HOVER_CACHE_SIZE (oldest dropped),
-    so moving the hover never rebuilds the static batches. A new signature drops everything.
+    ``ItemBox.highlight`` of items with ``checked``, except KIND_TOGGLE items whose checkbox
+    shows the state), the ticks (POLYLINE ``LINES``), and (Phase 3) the glyphs of enabled
+    items (``glyphs``), of disabled or inactive items (``glyphs_disabled``) and the separator lines
+    (``separators``). Hover batches are keyed by ``(layout.signature, radius, hover_id)`` and
+    kept up to HOVER_CACHE_SIZE (oldest dropped); each entry holds the highlight and the
+    hovered item's glyphs (redrawn in ``text_hover``), so moving the hover never rebuilds
+    the static batches. A new signature drops everything.
 
     Counters for tests: ``static_builds``, ``hover_builds``.
     """
@@ -270,39 +345,57 @@ class BatchCache:
         self._hover: dict[tuple, Any] = {}
 
     def static(self, layout: Layout, radius: float) -> dict[str, Any]:
-        """Static batches ``{'strips', 'center', 'checked', 'ticks'}`` (a value is None when
-        there is nothing of that kind); built on first use or when the key changes."""
+        """Static batches ``{'strips', 'center', 'checked', 'ticks', 'glyphs',
+        'glyphs_disabled', 'separators'}`` (a value is None when there is nothing of that
+        kind); built on first use or when the key changes."""
         self._sync(layout, radius)
         if not self._static:
             strips = [s.rect for s in layout.strips if s.role != ROLE_CENTER]
             centers = [s.rect for s in layout.strips if s.role == ROLE_CENTER]
-            checked = [checked_bar(box.highlight) for box in layout.items if box.checked]
+            checked = [checked_bar(box.highlight) for box in layout.items
+                       if box.checked and box.kind != KIND_TOGGLE]
+            m = layout.metrics
             self._static = {
                 'strips': _fill_batch(strips, radius),
                 'center': _fill_batch(centers, radius),
                 'checked': _fill_batch(checked, 0.0),
                 'ticks': _lines_batch((t.x0, t.y0, t.x1, t.y1) for t in layout.ticks),
+                'glyphs': _mesh_batch(_glyph_mesh(
+                    (b for b in layout.items if b.enabled and b.active), m)),
+                'glyphs_disabled': _mesh_batch(_glyph_mesh(
+                    (b for b in layout.items if not (b.enabled and b.active)), m)),
+                'separators': _separator_batch(layout),
             }
             self.static_builds += 1
         return self._static
 
     def hover(self, layout: Layout, radius: float, hover_id: str | None) -> Any:
         """The hover-highlight batch for ``hover_id`` (its ``ItemBox.highlight``), or None when
-        ``hover_id`` is None, unknown or a disabled item."""
+        ``hover_id`` is None, unknown, a disabled item or a separator."""
+        return self._hover_entry(layout, radius, hover_id)[0]
+
+    def hover_glyphs(self, layout: Layout, radius: float, hover_id: str | None) -> Any:
+        """The hovered item's glyph batch (checkbox / arrow, drawn in ``text_hover`` over the
+        static one), or None; shares the :meth:`hover` cache entry (no extra build)."""
+        return self._hover_entry(layout, radius, hover_id)[1]
+
+    def _hover_entry(self, layout: Layout, radius: float,
+                     hover_id: str | None) -> tuple[Any, Any]:
         self._sync(layout, radius)
         if hover_id is None:
-            return None
+            return None, None
         key = (layout.signature, radius, hover_id)
         if key in self._hover:
             return self._hover[key]
         box = layout.item(hover_id)
-        if box is None or not box.enabled:
-            return None
-        batch = self._hover[key] = _fill_batch((box.highlight,), radius)
+        if box is None or not box.enabled or box.kind == KIND_SEPARATOR:
+            return None, None
+        entry = self._hover[key] = (_fill_batch((box.highlight,), radius),
+                                    _mesh_batch(_glyph_mesh((box,), layout.metrics)))
         self.hover_builds += 1
         while len(self._hover) > HOVER_CACHE_SIZE:
             del self._hover[next(iter(self._hover))]
-        return batch
+        return entry
 
     def _sync(self, layout: Layout, radius: float) -> None:
         """Drop every batch when ``(layout.signature, radius)`` differs from the cached key."""
@@ -333,7 +426,9 @@ def draw_plaza(layout: Layout, palette: Palette, hover_id: str | None,
     (``palette.dim`` over ``layout.window_bounds``, only if its alpha > 0); strips
     (``palette.strip``); centre box (``center_back``); hover highlight (``item_hover``; none
     for disabled items); checked bars (``item_checked``, on top so they show while hovered); ticks (``palette.ticks``,
-    ``metrics.tick_width``); ``gpu.matrix.pop()``; then labels with blf at
+    ``metrics.tick_width``); Phase 3: separator lines (``text_disabled``), glyphs (``text``;
+    disabled items ``text_disabled``; the hovered item's again in ``text_hover``);
+    ``gpu.matrix.pop()``; then labels with blf at
     ``(text_x - ox, text_y - oy)``, size ``metrics.font_px``, colour: disabled ->
     ``text_disabled``, hovered -> ``text_hover``, centre -> ``center_text``, else ``text``.
     Fill alphas pass through :func:`corrected` with ``linear_blend``. ``finally``: pop the
@@ -352,6 +447,7 @@ def draw_plaza(layout: Layout, palette: Palette, hover_id: str | None,
     radius = corner_radius(m, palette)
     static = cache.static(layout, radius)
     hover_batch = cache.hover(layout, radius, hover_id)
+    hover_glyphs = cache.hover_glyphs(layout, radius, hover_id)
     ox, oy = region_offset
     pushed = False
     try:
@@ -370,6 +466,13 @@ def draw_plaza(layout: Layout, palette: Palette, hover_id: str | None,
             _draw_fill(static['checked'], corrected(palette.item_checked, linear_blend))
         if static['ticks'] is not None:
             _draw_lines(static['ticks'], palette.ticks, m.tick_width)
+        for key, color in (('separators', palette.text_disabled),
+                           ('glyphs_disabled', palette.text_disabled),
+                           ('glyphs', palette.text)):
+            if static[key] is not None:
+                _draw_fill(static[key], color)
+        if hover_glyphs is not None:
+            _draw_fill(hover_glyphs, palette.text_hover)
         gpu.matrix.pop()
         pushed = False
         _draw_labels(layout, palette, hover_id, ox, oy, clip)
@@ -393,7 +496,9 @@ def _draw_labels(layout: Layout, palette: Palette, hover_id: str | None, ox: int
         if not box.enabled:
             color = palette.text_disabled
         elif box.item_id == hover_id:
-            color = palette.text_hover
+            color = palette.text_hover          # inactive but clickable: hover still shows
+        elif not box.active:
+            color = palette.text_disabled
         elif box.item_id == center_id:
             color = palette.center_text
         else:

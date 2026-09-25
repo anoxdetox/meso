@@ -1,4 +1,6 @@
-"""Root-row recorder and model builder tests (record/topbar.py, record/rows.py).
+"""Root-row recorder tests (record/topbar.py) and the Phase 2 tables. The model builder tests
+(record/rows.py build_model) live in test_rows.py (Phase 3 file split: A owns this file, C
+owns test_rows.py).
 
 Runs inside Blender via tests/run_tests.py under ``--factory-startup`` (factory workspaces,
 English UI). Modules are imported by name on every use (nothing imports ``record`` before
@@ -21,6 +23,7 @@ TABLES_MODULE = ADDON_MODULE + ".core.tables"
 ROOT_IDS = ['TOPBAR_MT_blender', 'TOPBAR_MT_file', 'TOPBAR_MT_edit', 'TOPBAR_MT_render',
             'TOPBAR_MT_window', 'TOPBAR_MT_help']
 ROOT_LABELS = ['Blender', 'File', 'Edit', 'Render', 'Window', 'Help']
+EDITOR = 'TOPBAR_MT_editor_menus'
 
 
 def _tb():
@@ -248,6 +251,50 @@ class TestRecord(unittest.TestCase):
         self.assertEqual(calls, real.calls, "same menus as draw_ls")
 
 
+class TestRecorderPort(unittest.TestCase):
+    """Phase 3: record_editor_menus runs on record.recorder (same output shape)."""
+
+    def test_uses_the_recorder(self):
+        tb = _tb()
+        rec_mod = importlib.import_module(ADDON_MODULE + ".record.recorder")
+        seen = []
+        real = rec_mod.record_menu
+
+        def spy(menu, context, **kwargs):
+            seen.append((menu, kwargs))
+            return real(menu, context, **kwargs)
+        with _Patch(tb.recorder, 'record_menu', spy):
+            calls = tb.record_editor_menus(bpy.context)
+        self.assertEqual(len(seen), 1)
+        self.assertIs(seen[0][0], bpy.types.TOPBAR_MT_editor_menus)
+        self.assertEqual(seen[0][1], {'call_poll': False})
+        self.assertEqual([c[0] for c in calls], ROOT_IDS)
+        # Omitted text -> '' (label from bl_label later), explicit text -> display string.
+        self.assertEqual(calls[1], ('TOPBAR_MT_file', ''))
+
+    def test_plain_draw_error_raises(self):
+        tb = _tb()
+        rec_mod = importlib.import_module(ADDON_MODULE + ".record.recorder")
+        cls = bpy.types.TOPBAR_MT_editor_menus
+
+        def failing(menu, context, **kwargs):
+            return rec_mod.Recording(EDITOR, rec_mod.DRAW_MENU, errors=['boom'],
+                                     records=[rec_mod.Record(rec_mod.REC_ERROR, text='f',
+                                                             error='boom')])
+        extended = getattr(cls.draw, '_draw_funcs', None) is not None
+        tb._logged.discard('draw_func:f')
+        with _Patch(tb.recorder, 'record_menu', failing):
+            if extended:
+                calls, out = _quiet(tb.record_editor_menus, bpy.context)
+                self.assertEqual(calls, [])
+                self.assertIn('Meso Mode:', out)
+            else:
+                with self.assertRaises(RuntimeError):
+                    tb.record_editor_menus(bpy.context)
+            row, _ = _quiet(tb.root_row, bpy.context)
+        self.assertEqual([i.id for i in row.items], ROOT_IDS, "fallback menus")
+
+
 class TestMenuLabel(unittest.TestCase):
     def test_label_sources(self):
         tb = _tb()
@@ -263,93 +310,6 @@ class TestMenuLabel(unittest.TestCase):
         self.assertEqual(tb.menu_label(tb.EDITOR_MENUS), tb.EDITOR_MENUS)
         with _Patch(tb, 'MENU_LABEL_FALLBACKS', {tb.EDITOR_MENUS: 'Editor Menus'}):
             self.assertEqual(tb.menu_label(tb.EDITOR_MENUS), 'Editor Menus')
-
-
-class TestBuildModel(unittest.TestCase):
-    def _build(self, area_type='VIEW_3D'):
-        window = _window()
-        area = _area(window, area_type) if area_type else None
-        if area_type:
-            self.assertIsNotNone(area, area_type)
-        return _rows().build_model(bpy.context, _info(window, area), None)
-
-    def test_structure(self):
-        m = _model()
-        model = self._build()
-        self.assertIsInstance(model, m.PlazaModel)
-        self.assertEqual([r.key for r in model.rows],
-                         [m.ROW_ROOT, m.ROW_CONTEXTUAL, m.ROW_TOOL_SETTINGS, m.ROW_WORKSPACE])
-        self.assertEqual([i.id for i in model.row(m.ROW_ROOT).items], ROOT_IDS)
-        self.assertTrue(model.row(m.ROW_CONTEXTUAL).is_empty())
-        self.assertTrue(model.row(m.ROW_TOOL_SETTINGS).is_empty())
-
-    def test_workspace_row_factory_order(self):
-        m = _model()
-        model = self._build()
-        row = model.row(m.ROW_WORKSPACE)
-        names = list(_tables().FACTORY_WORKSPACE_ORDER)
-        self.assertEqual([i.label for i in row.items], names)
-        self.assertEqual([i.id for i in row.items], [m.workspace_item_id(n) for n in names])
-        active = _window().workspace.name
-        self.assertEqual(active, 'Layout')
-        for item in row.items:
-            self.assertEqual(item.kind, m.KIND_WORKSPACE)
-            self.assertEqual(dict(item.payload), {'workspace': item.label})
-            self.assertIs(item.checked, item.label == active)
-            self.assertTrue(item.enabled)
-
-    def test_center_editor_label(self):
-        m = _model()
-        model = self._build('VIEW_3D')
-        self.assertEqual(model.center.id, m.CENTER_ID)
-        self.assertEqual(model.center.kind, m.KIND_CENTER)
-        self.assertEqual(model.center.label, '3D Viewport')
-        for area_type, label in (('PROPERTIES', 'Properties'), ('OUTLINER', 'Outliner')):
-            self.assertEqual(self._build(area_type).center.label, label)
-
-    def test_center_without_area_is_workspace(self):
-        model = self._build(None)
-        self.assertEqual(model.center.label, 'Layout')
-        # No window workspace either: context.workspace, then the fixed fallback.
-        info = _rows().InvokeInfo(None, None, None, 'TOPBAR', None, 'OBJECT')
-        self.assertEqual(_rows().center_item(bpy.context, info).label,
-                         bpy.context.workspace.name)
-        self.assertEqual(_rows().center_item(None, info).label, _rows().FALLBACK_CENTER_LABEL)
-
-    def test_side_items(self):
-        m = _model()
-        model = self._build()
-        self.assertEqual((model.recent.id, model.recent.kind, model.recent.label),
-                         (m.RECENT_ID, m.KIND_RECENT, 'Recent Commands'))
-        self.assertEqual((model.controls.id, model.controls.kind, model.controls.label),
-                         (m.CONTROLS_ID, m.KIND_CONTROLS, 'Plaza Controls'))
-
-    def test_workspace_row_failure_is_empty(self):
-        rows = _rows()
-
-        def boom(_names):
-            raise RuntimeError("no workspaces")
-
-        rows._logged.discard('workspace_row')
-        with _Patch(rows, 'ordered_workspaces', boom):
-            row, out = _quiet(rows.workspace_row, bpy.context, _info(_window(), None))
-        self.assertEqual(row.key, _model().ROW_WORKSPACE)
-        self.assertTrue(row.is_empty())
-        self.assertIn('Meso Mode:', out)
-
-    def test_editor_label_fallbacks(self):
-        rows = _rows()
-        self.assertIsNone(rows.editor_label(None, None))
-        self.assertEqual(rows.editor_label(None, 'VIEW_3D'), '3D Viewport')
-        self.assertEqual(rows.editor_label(None, 'NOT_AN_EDITOR'), 'NOT_AN_EDITOR')
-        area = _area(_window(), 'VIEW_3D')
-        self.assertEqual(rows.editor_label(area, 'NOT_AN_EDITOR'), 'NOT_AN_EDITOR')
-
-    def test_model_is_plain_data(self):
-        model = self._build()
-        for item in model.items():
-            for value in (item.id, item.label, *item.payload.values()):
-                self.assertIsInstance(value, str)
 
 
 class TestTables(unittest.TestCase):

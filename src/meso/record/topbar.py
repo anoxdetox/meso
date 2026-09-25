@@ -8,6 +8,13 @@
 invoking context as is. If the draw is extended (``draw._draw_funcs``, draw_ls), every function
 is called in its own try/except (draw_ls swallows exceptions) behind draw_ls's owner filter
 (``workspace.use_filter_by_owner``), so the row lists what the real top bar shows.
+
+Phase 3: the recording is done by ``record.recorder.record_menu`` (the full fake UILayout,
+FakeSelf, owner filter and per-function try/except live there). This module keeps its Phase 2
+public API on top of it: ``EDITOR_MENUS``, ``menu_label``, ``record_editor_menus`` ->
+``[(idname, display text)]`` and ``root_row``. :class:`MenuLog` / :class:`_FakeMenu` stay as
+thin compatibility shims (tests drive the real draw_ls with them to cross-check the owner
+filter); live code no longer uses them.
 """
 
 from __future__ import annotations
@@ -18,6 +25,7 @@ import bpy
 
 from ..core.model import KIND_MENU, ROW_ROOT, Item, Row
 from ..core.tables import MENU_LABEL_FALLBACKS, TOPBAR_FALLBACK_MENUS
+from . import recorder
 
 EDITOR_MENUS = 'TOPBAR_MT_editor_menus'
 
@@ -37,7 +45,9 @@ def _log_once(key: str, msg: str) -> None:
 
 
 class MenuLog:
-    """Minimal fake ``UILayout`` capturing ``menu()`` calls; every other attribute is a no-op
+    """Compatibility shim (Phase 2; live code uses ``record.recorder``).
+
+    Minimal fake ``UILayout`` capturing ``menu()`` calls; every other attribute is a no-op
     callable returning ``self`` (so ``layout.row().menu(...)`` still records) and attribute
     writes (``operator_context = ...``) are accepted and ignored.
 
@@ -79,32 +89,24 @@ class _FakeMenu:
 
 
 def record_editor_menus(context: Any) -> list[tuple[str, str]]:
-    """Run ``bpy.types.TOPBAR_MT_editor_menus.draw`` (or each ``draw._draw_funcs`` entry) with a
-    fake self (``layout`` = a :class:`MenuLog`, ``bl_idname`` = EDITOR_MENUS) and ``context``;
-    return the ``(menu_idname, display text)`` calls (see :class:`MenuLog`). Appended
-    functions follow draw_ls's owner filter: with ``workspace.use_filter_by_owner`` a function
-    whose ``_owner`` is not in ``workspace.owner_ids`` is skipped. Raises when the class is
-    missing or the (plain) draw raises; the caller falls back."""
+    """Record ``bpy.types.TOPBAR_MT_editor_menus`` with ``recorder.record_menu`` (no poll,
+    INVOKE_REGION_WIN root) and return its ``menu()`` calls as ``(menu_idname, display
+    text)`` in call order: the display text is the translated call text when ``text`` was
+    passed (``text=''`` stays ''), else '' (the label then comes from ``bl_label``; same
+    shape as :class:`MenuLog`). C-only / unknown / poll-failing menus are not included.
+    Appended draw functions follow draw_ls's owner filter; a failing one is logged once with
+    'Meso Mode:' and the others still record. Raises when the class is missing or its plain
+    (non-extended) draw raises; the caller falls back."""
     cls = getattr(bpy.types, EDITOR_MENUS)
-    log = MenuLog()
-    fake = _FakeMenu(log, EDITOR_MENUS)
-    funcs = getattr(cls.draw, '_draw_funcs', None)
-    if funcs is None:
-        cls.draw(fake, context)
-    else:
-        ws = getattr(context, 'workspace', None)
-        owners = ({o.name for o in ws.owner_ids}
-                  if ws is not None and getattr(ws, 'use_filter_by_owner', False) else None)
-        for func in list(funcs):
-            owner = getattr(func, '_owner', None)
-            if owners is not None and owner is not None and owner not in owners:
-                continue
-            try:
-                func(fake, context)
-            except Exception as ex:  # an appended draw function must not drop the row
-                _log_once(f'draw_func:{getattr(func, "__qualname__", func)!r}',
-                          f"{EDITOR_MENUS} draw function {func!r} failed: {ex!r}")
-    return log.calls
+    rec = recorder.record_menu(cls, context, call_poll=False)
+    if rec.errors:
+        if getattr(getattr(cls, 'draw', None), '_draw_funcs', None) is None:
+            raise RuntimeError(f"{EDITOR_MENUS} draw failed: {rec.errors[0]}")
+        for err in rec.iter_kind(recorder.REC_ERROR):
+            _log_once(f'draw_func:{err.text}',
+                      f"{EDITOR_MENUS} draw function {err.text} failed: {err.error}")
+    return [(r.menu, r.text if 'text' in r.kwargs else '')
+            for r in rec.iter_kind(recorder.REC_MENU)]
 
 
 def menu_label(idname: str, text: str = '', translate: bool = True) -> str:
