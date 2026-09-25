@@ -9,7 +9,7 @@ built by B (record), placed by A (``core.dropdown_geometry``), drawn by C (``vie
 and driven by D (``ops.dropdowns`` / ``ops.plaza``) through the pure reducer
 ``core.menubar`` (A).
 
-Addressing (notes/phase4-interfaces.md "Paths"): an item of the open chain is addressed by a
+Addressing (docs/phase4-interfaces.md "Paths"): an item of the open chain is addressed by a
 :data:`Path`, the tuple of item indices from the root dropdown: ``(3,)`` is item 3 of the
 root dropdown, ``(3, 1)`` item 1 of the submenu opened from item 3. ``len(path)`` is the
 1-based depth of the panel holding the item; ``path[:-1]`` is the opener chain of that panel.
@@ -63,7 +63,7 @@ CHECK_KINDS = frozenset({DD_TOGGLE, DD_RADIO, DD_FLAG})
 # Kinds that never react to the pointer (hover highlight none, clicks ignored).
 PASSIVE_DD_KINDS = frozenset({DD_LABEL, DD_SEPARATOR})
 
-# --- DropdownModel.coverage (notes/phase4-interfaces.md "Native fallback policy") ---
+# --- DropdownModel.coverage (docs/phase4-interfaces.md "Native fallback policy") ---
 COVERAGE_CUSTOM = 'custom'      # drawn fully custom
 COVERAGE_MORE = 'more'          # static part custom + ONE trailing DD_NATIVE_MORE item (DYNAMIC)
 COVERAGE_NATIVE = 'native'      # opaque item / C-only / recording failed: the whole menu hands off
@@ -91,7 +91,7 @@ SOURCE_ENUM = 'enum'            # the inline children of an enum_cascade item (e
 # operator_context every recorded dropdown starts at (D4: header roots and every submenu).
 DROPDOWN_OPERATOR_CONTEXT = 'INVOKE_REGION_WIN'
 
-# --- roles (what the reducer does with a label / item; notes/phase4-interfaces.md) ---
+# --- roles (what the reducer does with a label / item; docs/phase4-interfaces.md) ---
 ROLE_PASSIVE = 'passive'        # nothing (disabled, labels, separators, centre box, empty)
 ROLE_DROPDOWN = 'dropdown'      # row label: opens its custom dropdown (press), menu-bar hover
 ROLE_HANDOFF = 'handoff'        # ends the plaza, then ops.invoke.execute(action) (D3): native

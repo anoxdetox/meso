@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""3D View axis math for the pane toggle (Phase 3, pure; notes/phase3-interfaces.md "D").
+"""3D View axis math for the pane toggle (Phase 3, pure; docs/phase3-interfaces.md "D").
 
 Two conventions (verified live in the GUI suite, 5.2.2):
 

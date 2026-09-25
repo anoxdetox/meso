@@ -1,7 +1,7 @@
 # Phase 2 interfaces: renderer and static layout
 
 The skeleton code is the source of truth. Each function's docstring is its contract, and this page summarises those contracts.
-Where this page and a docstring disagree, fix both in the same change. D1–D5 in `notes/spikes.md` still supersede the plan, and `notes/phase1-interfaces.md` still holds for everything Phase 2 does not change.
+Where this page and a docstring disagree, fix both in the same change. D1–D5 in `docs/spikes.md` still supersede the plan, and `docs/phase1-interfaces.md` still holds for everything Phase 2 does not change.
 
 ## Status of the skeleton
 
@@ -20,14 +20,14 @@ Stubs: every other new function body raises `NotImplementedError`.
 
 Unit (70), Blender (64) and validate all pass on the skeleton. All new modules import inside Blender, and `PlazaState(...)` still builds with its Phase 1 arguments.
 
-## PLAZA LOOK (target, from `notes/reference/reference_plaza.png`)
+## PLAZA LOOK (target, from `docs/reference/reference_plaza.png`)
 
 These measurements come from the reference image (image pixels at about 1x):
 - **Strips.** Each is about 28 px high with flat, near-square corners, filled #595959 at about 85% opacity. Text is #dcdcdc, about 13 px between labels and about 8 px padding at the ends.
 - **Gaps.**
   - About 8 px between strips.
   - About 6 px between the centre box and the first strip above or below it.
-- **Chosen 1x sizes** (`core/geometry.py` BASE_*, pinned as literals by `test_base_values_at_1x`): strip 26, end padding 8, label gap 13, strip gap 5 (also centre box to strip), tick 40/20/1. These follow the spec's 1x numbers (strip ~26, label gap 12-14, strip gap 4-6); the reference is a hi-res crop (`notes/reference/README.md`), so its raw pixel sizes above (28, 8, 6) are not 1x values.
+- **Chosen 1x sizes** (`core/geometry.py` BASE_*, pinned as literals by `test_base_values_at_1x`): strip 26, end padding 8, label gap 13, strip gap 5 (also centre box to strip), tick 40/20/1. These follow the spec's 1x numbers (strip ~26, label gap 12-14, strip gap 4-6); the reference is a hi-res crop (`docs/reference/README.md`), so its raw pixel sizes above (28, 8, 6) are not 1x values.
 - **Centre box.** #595959 (strip fill, as in the reference: it stands out only by height) and about 1.5 times a strip's height (40 against 28), with its label centred. The side boxes are strip height (28).
   - **Deviation from the spec text ("same height as a strip").** The image is authoritative here, so the default is `CENTER_H_FACTOR = 1.5`. Set it to 1.0 to follow the spec text instead.
 - **Side boxes.**
@@ -52,7 +52,7 @@ The scaled sizes are in `core/geometry.py` `BASE_*`:
 | A: core | `core/geometry.py` (`metrics_for`, `measure`, `layout`, `hit_test`, `corner_segments`, `rounded_rect_polygon`), `tests/unit/test_geometry.py`, `tests/unit/test_model.py`, `tests/unit/test_tables.py` (ordered_workspaces), `tests/unit/test_timing.py` | none (model and tables are filled) |
 | B: view | `view/theme.py`, `view/renderer.py`, `tests/blender/test_theme.py`, `tests/blender/test_render_offscreen.py`, CLAUDE.md commands note (`--gpu-backend vulkan` / `opengl` for the offscreen test) | the geometry dataclasses (filled). Until A lands, hand-build `Layout`/`ItemBox`/`Strip`/`Tick` in tests. `rounded_rect_polygon`/`corner_segments` come from A; stub them locally only in tests if needed |
 | C: record | `record/topbar.py`, `record/rows.py`, `tests/blender/test_topbar.py` (includes the build_model tests) | model and tables (filled) |
-| D: integration | `ops/plaza.py`, `view/draw_manager.py`, `prefs.py`, `tests/blender/test_plaza.py`, `tests/blender/test_draw_manager.py`, `tests/gui/gui_driver.py`, `tests/gui/run_gui_tests.sh`, `notes/screenshots/` | all of A, B and C. Start with the prefs and the modal hover/press/release plumbing against fakes |
+| D: integration | `ops/plaza.py`, `view/draw_manager.py`, `prefs.py`, `tests/blender/test_plaza.py`, `tests/blender/test_draw_manager.py`, `tests/gui/gui_driver.py`, `tests/gui/run_gui_tests.sh`, `docs/screenshots/` | all of A, B and C. Start with the prefs and the modal hover/press/release plumbing against fakes |
 
 `record/__init__.py` has only its docstring and needs no owner. `core/timing.py` is done, so A only adds its test.
 
@@ -292,7 +292,7 @@ The session reads them at invoke, so a change applies to the next Plaza with no 
   - `test_plaza.py`: the new fields and defaults, plus modal hover, press and release with a fake event against a hand-built layout (headless: never call `popup_menu`/`call_menu`; stub `run_tap`).
   - `test_draw_manager.py`: the placeholder tests replaced; `redraw(rects)`; timing on and off.
   - GUI scenarios (a)–(e) from the phase spec:
-    - (a) the screenshot goes to the run temp dir and to `notes/screenshots/phase2_<backend>_<scale>.png`, at most 1200 px wide, with ui_scale 1.0 and 2.0 set at runtime;
+    - (a) the screenshot goes to the run temp dir and to `docs/screenshots/phase2_<backend>_<scale>.png`, at most 1200 px wide, with ui_scale 1.0 and 2.0 set at runtime;
     - (b) hover 'File' via `state.layout.item('TOPBAR_MT_file').rect`: `hover_id` and `hover_redraws` change only when the hover changes;
     - (c) click File: the Plaza ends and the native File menu opens (a `TOPBAR_MT_file.append` probe flag), then ESC;
     - (d) press on File and release on empty space: nothing opens and the Plaza stays open;

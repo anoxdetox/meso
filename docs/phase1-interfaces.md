@@ -1,7 +1,7 @@
 # Phase 1 interfaces: skeleton, keymaps, hold/release
 
 The source of truth is the skeleton code. Each function's docstring is its contract, and this page summarises those contracts.
-Where this page and a docstring disagree, fix both in the same change. D1–D5 in `notes/spikes.md` supersede the plan.
+Where this page and a docstring disagree, fix both in the same change. D1–D5 in `docs/spikes.md` supersede the plan.
 
 ## Status of the skeleton
 

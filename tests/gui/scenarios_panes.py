@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for the pane toggle (Phase 3 D; notes/phase3-interfaces.md "Tests / D").
+"""GUI scenarios for the pane toggle (Phase 3 D; docs/phase3-interfaces.md "Tests / D").
 
 Loaded by ``tests/gui/gui_driver.py``, which calls :func:`scenarios` with its own module and
 appends the result before ``disable_addon``. Every scenario sets

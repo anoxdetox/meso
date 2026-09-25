@@ -16,13 +16,13 @@ are uniforms, so batches depend only on geometry: hovering rebuilds (or re-fetch
 hover batch. Translucent fills get ``core.rects.linear_blend_alpha`` (colour-aware) when ``linear_blend``
 (the region is in ``draw_manager.LINEAR_BLEND_REGIONS``); text and opaque fills never.
 
-Phase 4 dropdowns (:func:`draw_dropdowns`, notes/phase4-interfaces.md "Look"): drawn ABOVE the
+Phase 4 dropdowns (:func:`draw_dropdowns`, docs/phase4-interfaces.md "Look"): drawn ABOVE the
 strips in the same callback pass (``view.draw_manager.draw_region`` calls ``draw_plaza`` then
 ``draw_dropdowns`` per visible piece); colours come from :func:`dropdown_colors`, derived from
 the session :class:`view.theme.Palette` only (the palette itself is frozen: user-approved).
 
 Headless: needs ``gpu.init()`` + a bound ``GPUOffScreen`` with a pixel-ortho projection
-(tests/blender/test_render_offscreen.py, notes/spikes/draw.md). Never call from ``register()``.
+(tests/blender/test_render_offscreen.py, docs/spikes/draw.md). Never call from ``register()``.
 """
 
 from __future__ import annotations
@@ -539,8 +539,8 @@ def _draw_labels(layout: Layout, palette: Palette, hover_id: str | None, ox: int
 
 # --------------------------------------------------------------------------- Phase 4 dropdowns
 
-# Derived tones (notes/phase4-interfaces.md "Colours"; sampled on the Plaza list panel of
-# notes/reference/reference_plaza_and_rmb.jpg: a near-black 1 px outline and separator lines a
+# Derived tones (docs/phase4-interfaces.md "Colours"; sampled on the Plaza list panel of
+# docs/reference/reference_plaza_and_rmb.jpg: a near-black 1 px outline and separator lines a
 # little LIGHTER than the panel grey).
 DD_BORDER_FACTOR = 0.3          # border RGB = strip RGB x this (a darker strip grey)
 DD_SEPARATOR_MIX = 0.2          # separator RGB = strip RGB mixed this far toward palette.text

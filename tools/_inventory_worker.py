@@ -13,9 +13,9 @@ Asset Browser, Preferences) by switching the Layout Timeline area's ui_type in t
 
 This is a TOOL, not the product recorder (that comes in Phase 3). The fake layout below is generated from
 the RNA function table of bpy.types.UILayout, so signatures always match the running Blender
-(notes/verified-facts-5.2.md section 4).
+(docs/verified-facts-5.2.md section 4).
 
-Workspace access (notes/header-controls-5.2.md section 5 HAZARD): `window.workspace = ws` does not apply in
+Workspace access (docs/header-controls-5.2.md section 5 HAZARD): `window.workspace = ws` does not apply in
 `-b` (no event loop, verified: the window stays on 'Layout'), so non-Layout workspaces are reached with
 `temp_override(window=..., screen=ws.screens[0])`, which switches workspace AND object mode. Doing that
 directly for 'Sculpting' segfaults 5.2.2; the 'premode' strategy first enters the workspace's object_mode

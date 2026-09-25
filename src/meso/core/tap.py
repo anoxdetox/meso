@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Tap detection and the tap-action table (notes/spikes.md D1, "Tap = ORIGINAL table").
+"""Tap detection and the tap-action table (docs/spikes.md D1, "Tap = ORIGINAL table").
 
 A *tap* is a plaza-key press released within ``tap_threshold`` seconds with no
 interaction in between. The reference DCC's tap is purely time-based: moving the mouse is not
@@ -27,7 +27,7 @@ from .views import VIEW_AXES as _VIEW_AXES
 
 TAP_ACTIONS = ('ORIGINAL', 'MAXIMIZE', 'NONE')
 
-# Phase 3: pane toggle (3D View only; notes/phase3-interfaces.md "D").
+# Phase 3: pane toggle (3D View only; docs/phase3-interfaces.md "D").
 PANE_TOGGLE = 'PANE_TOGGLE'
 SAME_AS_GLOBAL = 'SAME_AS_GLOBAL'
 # Items of prefs.tap_action_view3d (default PANE_TOGGLE); the global tap_action keeps TAP_ACTIONS.

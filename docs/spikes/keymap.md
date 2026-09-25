@@ -1,10 +1,10 @@
 # Keymap spikes 1–3 (+ Text/Console chord) — Blender 5.2.2 LTS, GUI, event-simulated
 
-Raw data: `notes/spikes/keymap.json` has 1341 distinct cases from 44 GUI runs, 0 unstable. The builder's 1320 cases ran **3×** (2 builder runs + 1
+Raw data: `docs/spikes/keymap.json` has 1341 distinct cases from 44 GUI runs, 0 unstable. The builder's 1320 cases ran **3×** (2 builder runs + 1
 independent verifier re-run, files `*_r3`, identical verdicts and hit contexts); the verifier's `verify` suite (21 cases) ran 2×.
 Tools: `tools/spikes/keymap/probe.py` (the GUI probe), `run_all.sh` (runs every suite N times, 3 in parallel; suites matrix, editors2, paint2, chords, fallthrough, survival and the verifier's `verify`) and `merge.py`.
 Reproduce with `tools/spikes/keymap/run_all.sh <out_dir> 2 3 [merged.json]`. That takes about 9 minutes; merge writes the 4th argument,
-default `notes/spikes/keymap.json` (overwritten).
+default `docs/spikes/keymap.json` (overwritten).
 
 ## Method
 - `blender --factory-startup --enable-event-simulate --python probe.py -- --suite … --action …`. The probe runs as a

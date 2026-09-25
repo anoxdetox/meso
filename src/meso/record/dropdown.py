@@ -13,7 +13,7 @@ after every in-place change (checked states and poll results may change anywhere
 invoke pre-fills ``cache.coverage`` for the root / contextual row menus through
 :func:`classify_rows` (their row labels need the '…' decision up front).
 
-Conversion rules (notes/phase4-interfaces.md "Dropdown model"; recorder kinds from
+Conversion rules (docs/phase4-interfaces.md "Dropdown model"; recorder kinds from
 ``record.recorder``):
 
 ========================== ===========================================================

@@ -1,7 +1,7 @@
 # Phase 4 interfaces: reference-style custom dropdowns, menu-bar semantics
 
 The skeleton code is the source of truth: each docstring is its contract, and this page summarises them. If this page and a docstring disagree, fix both in the same change.
-Precedence: `notes/spikes.md` D1–D5 overrides the plan; `notes/phase1-interfaces.md`, `phase2-interfaces.md` and `phase3-interfaces.md` still hold for anything Phase 4 leaves alone.
+Precedence: `docs/spikes.md` D1–D5 overrides the plan; `docs/phase1-interfaces.md`, `phase2-interfaces.md` and `phase3-interfaces.md` still hold for anything Phase 4 leaves alone.
 
 ## What the user asked for
 1. **Menu-bar semantics (the reference DCC).** While Space is held the Plaza stays open when menus are used:
@@ -31,7 +31,7 @@ Precedence: `notes/spikes.md` D1–D5 overrides the plan; `notes/phase1-interfac
 **Stubs** (raise `NotImplementedError`; nothing calls them yet): `menubar.step`, `child_opener`, `is_open_path`; every `dropdown_geometry` function; `record.dropdown.build_dropdown`, `menu_coverage`, `dropdown_items`, `classify_rows`, `shortcut_hint`; `record.popover.*`; `record.rows.refresh_tool_settings`; `renderer.dropdown_colors`, `DropdownBatchCache` methods, `draw_dropdowns`; `ops.invoke.apply_in_place`; every `ops.dropdowns` function; `tools/coverage_dropdowns.py`. Behaviour is still exactly Phase 3.
 
 Unit (242), Blender (370) and validate all pass on the skeleton.
-`notes/roadmap.md` had uncommitted edits from someone else when the skeleton was written; they were left untouched.
+`docs/roadmap.md` had uncommitted edits from someone else when the skeleton was written; they were left untouched.
 
 ## Ownership (disjoint files)
 
@@ -40,7 +40,7 @@ Unit (242), Blender (370) and validate all pass on the skeleton.
 | **A: core** | `core/menubar.py`, `core/dropdown_geometry.py`, `tests/unit/test_menubar.py`, `tests/unit/test_dropdown_geometry.py` (both new) | `core/dropdown_model.py`, `core/geometry.py` (read-only) |
 | **B: record** | `record/dropdown.py`, `record/popover.py`, `record/rows.py` (`refresh_tool_settings` only), `record/topbar.py` (only if the root row needs it), `tools/coverage_dropdowns.py`, `tests/blender/test_dropdown.py`, `tests/blender/test_popover.py` (both new) | the recorder, `header_controls`, `datapath` (read-only; a needed recorder fix is a note here first) |
 | **C: view** | `view/renderer.py` (dropdown primitives, `DropdownBatchCache`, `draw_dropdowns`, the `open_label` highlight in `draw_plaza`), `view/draw_manager.py` (draw the chain after the Plaza, culling by the union extent, the second cache on `HandlerSet`), `tests/blender/test_render_offscreen.py` (dropdown + submenu structural render on both backends), `tests/blender/test_draw_manager.py` | A's `ChainLayout` (hand-build chains in tests until A lands) |
-| **D: integration** | `ops/dropdowns.py`, `ops/plaza.py`, `ops/invoke.py` (`apply_in_place`), `ops/actions.py` (only if a setter needs it), `tests/blender/test_plaza.py` (update the Phase 2–3 click expectations), `tests/blender/test_dropdowns.py` (new: the modal against hand-built models with `run_call` / builders stubbed), `tests/gui/gui_driver.py` (update changed scenarios), `tests/gui/scenarios_phase4.py` (new), `notes/screenshots/phase4_*.png`, CLAUDE.md (if commands change) | everything; stub A/B/C with hand-built data until they land |
+| **D: integration** | `ops/dropdowns.py`, `ops/plaza.py`, `ops/invoke.py` (`apply_in_place`), `ops/actions.py` (only if a setter needs it), `tests/blender/test_plaza.py` (update the Phase 2–3 click expectations), `tests/blender/test_dropdowns.py` (new: the modal against hand-built models with `run_call` / builders stubbed), `tests/gui/gui_driver.py` (update changed scenarios), `tests/gui/scenarios_phase4.py` (new), `docs/screenshots/phase4_*.png`, CLAUDE.md (if commands change) | everything; stub A/B/C with hand-built data until they land |
 
 - **No owner: filled, change only with a note here:** `core/dropdown_model.py`, `core/model.py`, `core/tables.py`, `prefs.py`, `__init__.py`, `record/__init__.py`, `view/theme.py` (**frozen**), the two `*_phase4_skeleton.py` tests.
 - **Shared harness:** `tests/run_tests.py` is unchanged. Anyone may add new `tests/blender/test_*.py` files; never edit another implementer's files.
@@ -241,7 +241,7 @@ modal(event)                                     ops.plaza (failure / watchdog /
   - **(f)** a '…' / DD_NATIVE item (File ▸ Open Recent is C-only) hands off natively.
   - **(g)** `execute_on_release` True runs the hovered item on Space release; False runs nothing.
   - **(h)** ESC with the chain open closes the chain only; a second ESC cancels.
-  - **(i)** screenshots `notes/screenshots/phase4_{file_dropdown,object_apply_submenu,snap_cascade,pivot_cascade}.png`.
+  - **(i)** screenshots `docs/screenshots/phase4_{file_dropdown,object_apply_submenu,snap_cascade,pivot_cascade}.png`.
   - Every Phase 1–3 scenario stays green.
 
 ## Phase 1–3 expectations that change (update, never delete coverage)

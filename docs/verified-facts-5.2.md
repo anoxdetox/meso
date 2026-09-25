@@ -12,7 +12,7 @@ Status tags: **V** means verified with the evidence given. **R** means the hypot
 | Python | 3.13.13, bundled at `~/.local/share/blender/5.2/python/bin/python3.13`. `unittest`, `tomllib` and numpy 2.3.4 are present. There is no pytest, ruff or pyright. `import bpy` and `import mathutils` fail outside Blender. | V |
 | Blender ignores PYTHONPATH | It is only read with `--python-use-system-env`, so scripts must adjust `sys.path` themselves. | V |
 | `bpy_types` | R: the module is now `_bpy_types` (`modules/_bpy_types.py`). Use `bpy.types.*` instead. | V |
-| Docs | Only HTML ships (1991 entries, 939 MB). `_sources/` is empty. Search with `sed 's/<[^>]*>//g' X.html \| grep ...`. `change_log.html` contains only the "5.1 to 5.2" section. | V |
+| Docs | The API reference is online: https://docs.blender.org/api/5.2/ (no local copy since 2026-09-25). `change_log.html` there contains only the "5.1 to 5.2" section. | V |
 | GPU backend | The factory default is OPENGL. The user's own prefs use VULKAN. `gpu.init()` works headless on both (`--gpu-backend vulkan` reports Intel MTL). | V |
 | `context.window` in background | R: it is not None. It is a 0x0 Window with screen 'Layout', whose areas are PROPERTIES, OUTLINER, DOPESHEET_EDITOR (TIMELINE) and VIEW_3D. `context.area` and `context.region` are None. | V |
 | temp_override | An area that belongs to `window.screen` can be overridden without `screen=`. My re-check printed `R1 ... SpaceView3D`. An area from any other screen needs `screen=`; without it: `R2 ERR Area not found in screen`, and with it: `R3 SpaceNodeEditor`. `region` stays None unless you pass it. `area.ui_type` can be switched headless. | V (re-checked) |
@@ -288,7 +288,7 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
 
 ## 6. Packaging and repo layout
 
-**Manifest** (`blender_manifest.toml`; rules from bl_pkg/cli/blender_ext.py; the docs only mention it in passing in info_overview.html):
+**Manifest** (`blender_manifest.toml`; rules from bl_pkg/cli/blender_ext.py; the docs only mention it in passing in https://docs.blender.org/api/5.2/info_overview.html):
 ```toml
 schema_version = "1.0.0"
 id = "meso"
@@ -346,7 +346,7 @@ Meso Mode/  .gitignore  CLAUDE.md  README.md  LICENSE(GPL-3.0-or-later)
   tools/                # blender -b --factory-startup --python tools/x.py -- args
   dist/                 # ignored
 ```
-`.gitignore`: `__pycache__/`, `*.py[cod]`, `dist/`, `*.zip`, `*.blend1`, `*.blend[1-9]`, `.blender_ext/`, `/docs/blender_python_reference_5_2/`, `.venv/`, `.idea/`, `.vscode/`.
+`.gitignore`: `__pycache__/`, `*.py[cod]`, `dist/`, `*.zip`, `*.blend1`, `*.blend[1-9]`, `.blender_ext/`, `/docs/reference/`, `/local/`, `.venv/`, `.idea/`, `.vscode/`.
 
 **Test harness** (unittest, not pytest):
 1. `run_tests.py` asserts `bpy.app.factory_startup`.
@@ -466,7 +466,7 @@ Each spike: launch the GUI with the dev link enabled through Preferences, and us
 
 ## Decisions (Phase 0)
 
-Settled by the GUI spikes (details, evidence and open issues: `notes/spikes.md`, D1–D5). Where this file disagrees, those decisions override it.
+Settled by the GUI spikes (details, evidence and open issues: `docs/spikes.md`, D1–D5). Where this file disagrees, those decisions override it.
 - **Keymaps (§3, spikes 1–3).**
   - Space PRESS `repeat=False` goes in the add-on 'Window', 'Frames' and the 9 paint/sculpt mode maps, registered in that order and unregistered in reverse.
   - The Text/Console chord pref defaults to **Ctrl+Shift+Space**. Never bind bare Space there, and add no per-editor items.

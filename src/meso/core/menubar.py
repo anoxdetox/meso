@@ -8,7 +8,7 @@ the cursor into a :class:`Target` (zone, label id / item path, role, action) wit
 ``core.dropdown_geometry.resolve_hit`` + ``core.dropdown_model.label_role`` / ``item_role``,
 and tells the reducer about opened levels with :class:`Opened`.
 
-Behaviour (spec: notes/phase4-interfaces.md "Menu-bar semantics"; every row is unit-tested in
+Behaviour (spec: docs/phase4-interfaces.md "Menu-bar semantics"; every row is unit-tested in
 tests/unit/test_menubar.py). "Chain" = the open root dropdown plus its open submenus;
 ``depth`` = number of open levels (0 = closed). ``L`` = ``len(path)`` = depth of the panel
 holding an item. LMB = ``'LEFTMOUSE'``; other buttons never produce effects.

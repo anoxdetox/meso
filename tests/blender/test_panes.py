@@ -1,6 +1,6 @@
 """ops/panes.py (pane toggle), headless-safe parts only.
 
-``screen.region_quadview`` and ``view3d.view_axis`` segfault in ``-b`` (notes/phase3-interfaces.md
+``screen.region_quadview`` and ``view3d.view_axis`` segfault in ``-b`` (docs/phase3-interfaces.md
 "Headless crashes"), so they are never called here: ``panes._call`` (the single operator seam) is
 stubbed. The toggle's control flow runs against fakes that mimic the native region handling
 (quad on: the original region becomes a locked quadrant and a copy at the tail is the user view;

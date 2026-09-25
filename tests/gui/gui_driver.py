@@ -22,7 +22,7 @@ report and always quits Blender itself (hard deadline); preferences are never sa
 
 Arguments after ``--``: ``--out FILE`` (JSON report), ``--shots DIR`` (full-size screenshots;
 default ``<dir of --out>/shots``). Screenshots are also copied, downscaled to <= 1200 px wide,
-to ``notes/screenshots/phase3_<backend>_<ui scale>.png`` and ``phase3_<editor/mode>.png``.
+to ``docs/screenshots/phase3_<backend>_<ui scale>.png`` and ``phase3_<editor/mode>.png``.
 
 Scenario modules: every ``tests/gui/scenarios_*.py`` exports ``scenarios(drv) -> [(name, fn)]``
 (``drv`` = this module); their scenarios run before the add-on disable/enable scenarios
@@ -1023,7 +1023,7 @@ def sc_disable_addon(rec):
 # ----------------------------------------------------------------------------- Phase 2 helpers
 
 FILE_MENU = "TOPBAR_MT_file"
-SHOT_MAX_W = 1200     # notes/screenshots copies are downscaled to at most this width
+SHOT_MAX_W = 1200     # docs/screenshots copies are downscaled to at most this width
 
 # Draws of the native File menu (TOPBAR_MT_file.append probe, as in tools/spikes/menus).
 MENU_PROBE = {"file": 0}
@@ -1076,7 +1076,7 @@ def backend_name():
 
 
 def save_screenshot(name):
-    """Save the window as <shots>/<name>.png (full size) and notes/screenshots/<name>.png
+    """Save the window as <shots>/<name>.png (full size) and docs/screenshots/<name>.png
     (downscaled to <= SHOT_MAX_W wide). Returns both paths."""
     import imbuf
     pixels = win().screenshot()
@@ -1092,7 +1092,7 @@ def save_screenshot(name):
     if w > SHOT_MAX_W:
         ibuf.resize((SHOT_MAX_W, max(1, round(h * SHOT_MAX_W / w))), method='BILINEAR')
     ibuf.compress = 100
-    notes = ROOT / "notes" / "screenshots"
+    notes = ROOT / "docs" / "screenshots"
     notes.mkdir(parents=True, exist_ok=True)
     small = notes / f"{name}.png"
     imbuf.write(ibuf, filepath=str(small))

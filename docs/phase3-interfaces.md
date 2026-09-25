@@ -1,7 +1,7 @@
 # Phase 3 interfaces: menu discovery, native handoff, Tool Settings row v1, pane toggle
 
 The skeleton code is the source of truth: each docstring is its contract, and this page summarises them. If this page and a docstring disagree, fix both in the same change.
-Precedence: `notes/spikes.md` D1–D5 overrides the plan; `notes/phase1-interfaces.md` and `notes/phase2-interfaces.md` still hold for anything Phase 3 leaves alone.
+Precedence: `docs/spikes.md` D1–D5 overrides the plan; `docs/phase1-interfaces.md` and `docs/phase2-interfaces.md` still hold for anything Phase 3 leaves alone.
 
 ## What the user asked for (relayed request, 2026-09-25)
 1. **Colours and opacity are right.** Leave `view/theme.py`, `MESO_PALETTE` and the transparency default alone. New visuals (separator, check glyph, arrow, disabled text) use existing palette fields only: `text`, `text_disabled`, `ticks`.
@@ -117,7 +117,7 @@ Unit (161), Blender (130) and validate all pass on the skeleton.
 | **B: header, Tool Settings, datapath** | `record/header.py`, `record/header_controls.py`, `record/datapath.py`, `tests/blender/test_header.py`, `tests/blender/test_header_controls.py`, `tests/blender/test_datapath.py` (all new) | A's `record_header` / `record_menu` / `record_panel`. Until A lands, build `Recording`s by hand in the tests (the dataclasses are filled) |
 | **C: actions, rows, handoff** | `core/actions.py`, `ops/actions.py`, `ops/invoke.py`, `record/rows.py`, `tests/unit/test_actions.py`, `tests/unit/test_no_screen_override.py` (guard), `tests/blender/test_actions.py`, `tests/blender/test_rows.py` (update `test_structure`: the rows are no longer empty) | B (`record_area`, `classify`, `row_items`), A (`display_label`). Stub them in the tests until they land |
 | **D: pane toggle** | `core/tap.py`, `core/views.py`, `ops/panes.py`, `tests/unit/test_tap.py` (extend), `tests/unit/test_views.py`, `tests/blender/test_panes.py` (headless-safe parts only), `tests/gui/scenarios_panes.py` (new; see GUI contract) | none |
-| **E: integration, look, inventory** | `ops/plaza.py`, `core/geometry.py`, `view/renderer.py`, `view/draw_manager.py`, `tests/unit/test_geometry.py`, `tests/blender/test_plaza.py`, `tests/blender/test_draw_manager.py`, `tests/blender/test_render_offscreen.py`, `tests/gui/gui_driver.py`, `tests/gui/run_gui_tests.sh`, `notes/screenshots/phase3_*.png`, `tools/dump_inventory.py`, `tools/_inventory_worker.py`, `notes/inventory_5_2.json`, CLAUDE.md (if the commands change) | everything. Start with geometry, the renderer and the modal against hand-built models |
+| **E: integration, look, inventory** | `ops/plaza.py`, `core/geometry.py`, `view/renderer.py`, `view/draw_manager.py`, `tests/unit/test_geometry.py`, `tests/blender/test_plaza.py`, `tests/blender/test_draw_manager.py`, `tests/blender/test_render_offscreen.py`, `tests/gui/gui_driver.py`, `tests/gui/run_gui_tests.sh`, `docs/screenshots/phase3_*.png`, `tools/dump_inventory.py`, `tools/_inventory_worker.py`, `docs/inventory_5_2.json`, CLAUDE.md (if the commands change) | everything. Start with geometry, the renderer and the modal against hand-built models |
 
 - **No owner: filled, change only with a note here.** `core/model.py`, `core/tables.py`, `prefs.py`, `__init__.py`, `record/__init__.py`, `view/theme.py` (**frozen**: the user approved the palette), and the two `*_phase3_skeleton.py` tests.
 - **Shared test harness.** `tests/run_tests.py` is unchanged. Any implementer may add new `tests/blender/test_*.py` files; they must never edit another implementer's files.
@@ -308,7 +308,7 @@ core.actions       -> core.model;  core.tap -> core.views;  core.{views,tables,m
 
 **Inventory** (throw-away subprocesses only):
 - Record baselines for Sequencer, Clip (tracking + masking), Graph (F-Curves + Drivers), NLA, the Asset Browser (skip it when `params` is None) and Preferences, by switching an area's `ui_type` inside the subprocess.
-- Regenerate `notes/inventory_5_2.json` deterministically: sorted keys and no timestamps in the compared parts.
+- Regenerate `docs/inventory_5_2.json` deterministically: sorted keys and no timestamps in the compared parts.
 
 ## Tests (who writes what)
 
@@ -374,7 +374,7 @@ core.actions       -> core.model;  core.tap -> core.views;  core.{views,tables,m
   - a workspace click switches the workspace, and a re-invoke there works with no traceback;
   - Recent Commands opens the repeat history;
   - Plaza Controls opens the add-on prefs;
-  - screenshots `notes/screenshots/phase3_<mode>.png` for 3D Object, Edit Mesh, Sculpt, UV Editor, Shader Editor and Timeline.
+  - screenshots `docs/screenshots/phase3_<mode>.png` for 3D Object, Edit Mesh, Sculpt, UV Editor, Shader Editor and Timeline.
 - **Phase 1–2 scenarios stay green.** Taps in the 3D View now default to PANE_TOGGLE, so `sc_tap_play`, `sc_tap_realistic`, `sc_tap_none`, `sc_tap_maximize` and any other 3D View tap scenario must set `tap_action_view3d = 'SAME_AS_GLOBAL'` (restore it in `finally`). `tests/blender/test_plaza.py` fake sessions must pass `tap_action_view3d` wherever they assert on VIEW_3D taps.
 
 ## Invariants (in addition to Phases 1–2)

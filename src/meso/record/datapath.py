@@ -2,7 +2,7 @@
 """Owner + property -> context-relative data_path string (Phase 3, implementer B).
 
 Actions store data_path STRINGS, never RNA (undo and workspace changes invalidate pointers;
-notes/header-controls-5.2.md §5). The strings are what ``wm.context_toggle`` /
+docs/header-controls-5.2.md §5). The strings are what ``wm.context_toggle`` /
 ``context_set_enum`` / ``context_set_int`` / ``context_set_float`` / ``context_menu_enum`` and
 ``meso.toggle_flag`` evaluate against ``bpy.context`` under the invoking area's override.
 

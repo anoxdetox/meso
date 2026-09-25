@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the DRAW spike probe under both GPU backends (GUI; needs a display). Each run merges its
-# results into notes/spikes/draw.json (runs[<BACKEND>]) and writes notes/spikes/draw_<backend>*.png.
+# results into docs/spikes/draw.json (runs[<BACKEND>]) and writes docs/spikes/draw_<backend>*.png.
 set -u
 B=~/.local/share/blender/blender
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -18,7 +18,7 @@ for be in ${BACKENDS:-vulkan opengl}; do
   echo "$be exit=$rc log=$LOGDIR/draw_probe_$be.log"
   if [ $rc -ne 0 ]; then
     # Record the failed launch (e.g. timeout 124) so draw.json shows every attempted backend.
-    ~/.local/share/blender/5.2/python/bin/python3.13 - "$HERE/../../../notes/spikes/draw.json" "$be" "$rc" \
+    ~/.local/share/blender/5.2/python/bin/python3.13 - "$HERE/../../../docs/spikes/draw.json" "$be" "$rc" \
       "$LOGDIR/draw_probe_$be.log" <<'PY'
 import json, sys, pathlib
 out, be, rc, logf = pathlib.Path(sys.argv[1]), sys.argv[2].upper(), int(sys.argv[3]), pathlib.Path(sys.argv[4])

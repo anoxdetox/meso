@@ -1,5 +1,5 @@
-"""Plaza operator tests (notes/spikes.md D1/D3/D5; notes/phase1-interfaces.md,
-notes/phase2-interfaces.md, ops/plaza.py).
+"""Plaza operator tests (docs/spikes.md D1/D3/D5; docs/phase1-interfaces.md,
+docs/phase2-interfaces.md, ops/plaza.py).
 
 Runs inside Blender via tests/run_tests.py (which enables the add-on and loads the Blender
 keyconfig preset first). Headless, ``bpy.ops.meso.plaza('INVOKE_DEFAULT')`` is refused

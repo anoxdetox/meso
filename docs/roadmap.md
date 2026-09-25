@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (Plaza on Space). Status: 0–3 ✅ (v0.3), 4 in progress.
+Phases 0–7 are in the approved plan (Plaza on Space). Status: 0–4 ✅, notes→docs merge ✅; next: prefs keymap sections.
 
 ## Guiding principle — never erase native Blender features (user rule 2026-09-25)
 Meso Mode **adds** and **relocates**. It never removes a Blender feature. Every native action we displace must stay reachable, and each binding must be individually switchable off.
@@ -27,18 +27,11 @@ Meso Mode **adds** and **relocates**. It never removes a Blender feature. Every 
   - The cursor must stay reachable in both states, and the tests check both.
 - **Tests:** every Meso keymap PR checks that each protected feature is still reachable, through its original or relocated binding.
 
-## Queued first after Phase 4 lands — merge notes/ into docs/ (user request 2026-09-25)
-- `git mv notes/* docs/` (flat: `docs/verified-facts-5.2.md`, `docs/spikes.md`, `docs/spikes/`, `docs/screenshots/`, `docs/roadmap.md`, `docs/inventory_5_2.json`, `docs/phase*-interfaces.md`, …). The Blender API reference stays at `docs/blender_python_reference_5_2/` and remains gitignored.
-- Third-party reference screenshots go to gitignored `docs/reference/`. They are purged from history before any push (see the pre-publish checklist).
-- Update every `notes/` path: CLAUDE.md, tools/*, tests/* (inventory JSON, screenshots output), the approved plan file, and memory.
-- `.gitignore`: keep `/docs/blender_python_reference_5_2/`, add `/docs/reference/`.
-- **Link the Blender API docs online instead of storing them** (user request):
-  - Replace the local `docs/blender_python_reference_5_2/` (939 MB, gitignored) with links to **https://docs.blender.org/api/5.2/**. Blender hosts the API reference there, not on GitHub.
-  - For the UI source, link the Blender repo (projects.blender.org/blender/blender, GitHub mirror github.com/blender/blender) at the 5.2 release branch, path `scripts/startup/bl_ui/`. Verify the branch name when implementing.
-  - The installed copy under `~/.local/share/blender/5.2/scripts/` stays the local ground truth for agents, since it is part of the Blender install and not stored in the repo.
-  - Update CLAUDE.md "Environment" and every doc citation of the HTML files to use the URLs.
-  - Delete the local HTML copy only after Phase 4 finishes (agents may still grep it), and drop its `.gitignore` line.
-- Verify: `git grep -n "notes/"` returns nothing, and all suites pass.
+## ✅ Done 2026-09-25 — merged the old notes folder into docs/ (user request)
+- All project notes were moved into `docs/` with `git mv`, so their history is kept.
+- Third-party reference screenshots now live in gitignored `docs/reference/`. They are still in the history of older commits; the pre-push history rewrite purges them.
+- The local 939 MB Blender API HTML was removed. Docs now link to https://docs.blender.org/api/5.2/ and the source to the `blender-v5.2-release` branch (projects.blender.org, GitHub mirror). The installed `bl_ui` scripts stay the local ground truth.
+- `.gitignore` covers `/docs/reference/` and `/local/`.
 
 ## Queued fix (after Phase 4 lands) — prefs keymap UI, grouped by section (user report 2026-09-25)
 The prefs panel lists 13 identical "Meso Mode Plaza" rows, so they look like duplicates. There are 11 Space items (Window, Frames and 9 paint/sculpt mode maps, per D1) and 2 Ctrl+Shift+Space items (Text and Console). The user wants them **by section, like Blender's Keymap editor**:
@@ -69,8 +62,8 @@ The prefs panel lists 13 identical "Meso Mode Plaza" rows, so they look like dup
      - **No trademarks (user decision 2026-09-25):** no ™ marks, no TRADEMARKS.md, no fork-rename clause, no registration.
      - Upload to extensions.blender.org early to claim the id `meso`.
    - **Reference screenshots (third-party UI):**
-     - Move `notes/reference/*` out of the tracked tree into a gitignored local dir, e.g. `local/reference/`, which stays usable for dev reviews.
-     - Before any public push, **purge them from git history** (`git filter-repo --path notes/reference --invert-paths`).
+     - Move `docs/reference/*` out of the tracked tree into a gitignored local dir, e.g. `local/reference/`, which stays usable for dev reviews.
+     - Before any public push, **purge them from git history** (`git filter-repo --path docs/reference --invert-paths`).
      - Never commit third-party screenshots or documentation text again.
    - **Legal-exposure findings (2026-09-25 research, not legal advice):**
      - The overlay and radial-menu patents are expired (US 6,414,700 family, last 2021; US 5,689,667 family, last 2017).
@@ -94,8 +87,8 @@ The prefs panel lists 13 identical "Meso Mode Plaza" rows, so they look like dup
      - a Google Patents check for radial-menu/plaza patents: expected expired, to be confirmed
      - LICENSE (GPL-3.0-or-later) and SPDX headers kept. The project is **free and open source only, never commercial** (user decision). GPL cannot forbid resale, but it forces any redistribution to stay GPL with source; do not switch to an NC license, since that is not OSS and is GPL-incompatible.
      - CC-BY-SA-4.0 for docs and media via REUSE/SPDX. Everything inside the extension zip is GPL-3.0-or-later.
-     - The repo has **never been pushed**, so run `git filter-repo --path notes/reference --invert-paths` (and the later local path) before the first push, verify with `git log --all --stat -- notes/reference`, and **push from a fresh clone**.
-     - A pre-commit hook blocks `*.png` / `*.jpg` under `notes/` and `local/`.
+     - The repo has **never been pushed**, so run `git filter-repo --path docs/reference --invert-paths` (and the later local path) before the first push, verify with `git log --all --stat -- docs/reference`, and **push from a fresh clone**.
+     - A pre-commit hook blocks `*.png` / `*.jpg` under `docs/` and `local/`.
      - Grep the tree and history (`git grep -i`, `git log -S`) for every term in `local/rewrite/terms.txt`. Hits are allowed only in the README "coming from" sentence, the non-affiliation notice and the docs comparison page.
      - No sampled colours, icons, MEL or pasted help text remain.
      - Files: CONTRIBUTING.md (DCO `git commit -s`, no third-party screenshots, icons or docs) and a README "free; if you paid, get it at <official URL>" line. No trademark files or notices.
@@ -127,7 +120,7 @@ Goal: nothing personal and no legacy-branding references (beyond the allowed ref
    - Manifest maintainer and commit author become the user's **GitHub noreply address**, `anoxdetox <ID+anoxdetox@users.noreply.github.com>`. **Ask the user for the exact address** from GitHub ▸ Settings ▸ Emails.
    - Set `git config user.email` for this repo.
 3. **Rewrite history, keeping the per-phase commits** (`git filter-repo`, on a backup clone first):
-   - `--invert-paths --path notes/reference --path docs/reference`: drop the third-party screenshots from every commit.
+   - `--invert-paths --path docs/reference --path docs/reference`: drop the third-party screenshots from every commit.
    - `--replace-text rules.txt`: legacy terms→neutral terms, personal paths→$HOME, the email→noreply. The rules keep the allowed referential sentences, which only exist in the final README and docs.
    - `--replace-message` with the same rules, for commit messages.
    - `--mailmap`: author and committer become the noreply identity. Co-Authored-By trailers stay.
@@ -136,7 +129,7 @@ Goal: nothing personal and no legacy-branding references (beyond the allowed ref
 4. Only then start Phase 5.
 
 ## Phase 8+ (requested by the user, not scheduled yet)
-References: `notes/reference/reference_plaza_and_rmb.jpg` (right half), `notes/reference/reference_shift_rmb_menus.jpg`.
+References: `docs/reference/reference_plaza_and_rmb.jpg` (right half), `docs/reference/reference_shift_rmb_menus.jpg`.
 
 - **Right-click Compass menu (any editor, "Any – Right Click").** Radial component-mode menu at the cursor
   (Blender: Object Mode / Vertex / Edge / Face / UV / multi-select…) with a centre dot, gesture pick,

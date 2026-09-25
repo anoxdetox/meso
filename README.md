@@ -33,4 +33,4 @@ tools/dev_link.sh                                                     # symlink 
 After `tools/dev_link.sh`, enable Meso Mode with the checkbox in Preferences > Add-ons. Do not use
 "Uninstall" on the linked extension and never add `src/` as an extension repository.
 
-See `CLAUDE.md` for project rules and `notes/` for verified Blender 5.2 API facts.
+See `CLAUDE.md` for project rules and `docs/` for verified Blender 5.2 API facts.

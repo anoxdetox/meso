@@ -3,7 +3,7 @@
 Runs inside Blender via tests/run_tests.py (``--factory-startup``, Layout workspace). Other
 editors are reached by switching the ``ui_type`` of the test window's OWN areas (restored in
 ``finally``); modes by ``object.mode_set`` on objects created here (removed afterwards). No
-cross-screen override anywhere. Expected menus: notes/verified-facts-5.2.md §2 (the
+cross-screen override anywhere. Expected menus: docs/verified-facts-5.2.md §2 (the
 per-editor table and the VIEW3D_MT_editor_menus mode sub-table) and the bl_ui sources.
 
 The helpers at the top are shared with test_header_controls.py (plain functions / context
@@ -22,7 +22,7 @@ from contextlib import redirect_stdout
 import bpy
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
-INVENTORY = pathlib.Path(__file__).resolve().parents[2] / 'notes' / 'inventory_5_2.json'
+INVENTORY = pathlib.Path(__file__).resolve().parents[2] / 'docs' / 'inventory_5_2.json'
 
 
 def _mod(name):
@@ -514,7 +514,7 @@ class TestView3DContextualMenus(unittest.TestCase):
 
 
 class TestInventoryCrossCheck(unittest.TestCase):
-    """The live contextual menus match notes/inventory_5_2.json (a throw-away subprocess
+    """The live contextual menus match docs/inventory_5_2.json (a throw-away subprocess
     recording of the same factory startup): the Layout screen's own areas, the per-editor
     summary and the per-mode VIEW3D summary. Skipped when the inventory lacks those sections."""
 

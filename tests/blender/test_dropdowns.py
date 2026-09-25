@@ -1,5 +1,5 @@
 """Phase 4 (D): the plaza modal driven by the dropdown session (ops/dropdowns.py,
-notes/phase4-interfaces.md "Event flow", "Run semantics").
+docs/phase4-interfaces.md "Event flow", "Run semantics").
 
 The modal runs on a plain stub (as in test_plaza.py) against hand-built PlazaModels and
 DropdownModels: ``record.dropdown.build_dropdown`` / ``classify_rows``,

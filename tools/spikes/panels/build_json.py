@@ -1,6 +1,6 @@
-"""Build the curated notes/spikes/panels.json from the raw probe output.
+"""Build the curated docs/spikes/panels.json from the raw probe output.
 
-    python3 tools/spikes/panels/build_json.py tools/spikes/panels/out/results.json notes/spikes/panels.json
+    python3 tools/spikes/panels/build_json.py tools/spikes/panels/out/results.json docs/spikes/panels.json
 """
 
 import json

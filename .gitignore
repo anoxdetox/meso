@@ -5,7 +5,8 @@ dist/
 *.blend1
 *.blend[1-9]
 .blender_ext/
-/docs/blender_python_reference_5_2/
+# third-party reference screenshots: local only, never commit
+/docs/reference/
 .venv/
 .vscode/
 .idea/

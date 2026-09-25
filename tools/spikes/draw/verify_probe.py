@@ -11,7 +11,7 @@ V2  draw_cursor_add: does the callback also run on a plain tag_redraw (no mouse 
 V3  a keymap-invoked operator with the mouse over the top bar / status bar: what is context.area?
 V4  stale region buffers when drawing is switched off without tag_redraw.
 V5  multi-window filter re-check with per-window draw counters (probe.py saw win1 change 76% on OpenGL).
-Results merge into notes/spikes/draw.json under verifier[<BACKEND>].
+Results merge into docs/spikes/draw.json under verifier[<BACKEND>].
 """
 
 import json
@@ -26,7 +26,7 @@ import numpy as np
 from gpu_extras.batch import batch_for_shader
 
 ROOT = Path(__file__).resolve().parents[3]
-OUT = ROOT / "notes" / "spikes" / "draw.json"
+OUT = ROOT / "docs" / "spikes" / "draw.json"
 DEADLINE = time.monotonic() + 100.0
 S = {"fill": None, "only": None, "pc": {}, "errors": [], "target": None, "drawn": {}, "filtered": {}}
 R = {}

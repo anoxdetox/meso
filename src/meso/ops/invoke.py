@@ -2,7 +2,7 @@
 """Run an item's :class:`core.model.Action` after the plaza is torn down (Phase 3,
 implementer C), or in place inside the running modal (Phase 4 :func:`apply_in_place`).
 
-Timing (notes/spikes.md D3/D5): ``ops.plaza`` calls :func:`execute` inside ``modal()`` on the
+Timing (docs/spikes.md D3/D5): ``ops.plaza`` calls :func:`execute` inside ``modal()`` on the
 LMB RELEASE over the pressed item, AFTER ``_end()`` (handlers removed, areas tagged) and right
 before ``return {'FINISHED'}``. The override is ``temp_override(window=, area=, region=)`` of
 the invoking area with ``region`` = the WINDOW region under the mouse (else the area's first

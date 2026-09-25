@@ -1,5 +1,5 @@
-"""Setter / hand-off tests (ops/actions.py, ops/invoke.py; notes/spikes.md D3/D5,
-notes/header-controls-5.2.md §5).
+"""Setter / hand-off tests (ops/actions.py, ops/invoke.py; docs/spikes.md D3/D5,
+docs/header-controls-5.2.md §5).
 
 Runs inside Blender via tests/run_tests.py under ``--factory-startup``. Headless there is no
 undo stack until the first push, so every undo test starts with a uniquely named

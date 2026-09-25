@@ -1,4 +1,4 @@
-"""Draw-manager tests (notes/spikes.md D2; notes/phase1-interfaces.md, view/draw_manager.py).
+"""Draw-manager tests (docs/spikes.md D2; docs/phase1-interfaces.md, view/draw_manager.py).
 
 Runs inside Blender via tests/run_tests.py (which enables the add-on first). Headless:
 handlers install but never fire, so the callback is also called directly, and the drawing

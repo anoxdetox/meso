@@ -2,7 +2,7 @@
 
 Probe: `tools/spikes/menus/probe.py`, run by `tools/spikes/menus/run.sh OUT.json [SHOTS]`, which uses
 `--factory-startup --enable-event-simulate`, OpenGL, a 1920x1100 window and ui_scale 1.0. Curated
-evidence is in `notes/spikes/menus.json`, built from the raw probe output by `tools/spikes/menus/build_json.py`
+evidence is in `docs/spikes/menus.json`, built from the raw probe output by `tools/spikes/menus/build_json.py`
 (`build_json.py RAW.json OUT.json [HANDOFF.json]`; the optional third file is the verifier's
 `probe_handoff.py` output, stored under `verifier_corrections`).
 One bpy.app.timers generator drives each run. It has a 150 s hard deadline, finishes in about 106 s,
@@ -181,7 +181,7 @@ Controls: VIEW3D_MT_object_apply opens. An unknown name raises
 TIMER event. The real Plaza hands off when a row is clicked, so the rest of the click arrives in the new
 popup, whose first item sits under the cursor. `tools/spikes/menus/probe_handoff.py`
 (`PROBE=probe_handoff.py tools/spikes/menus/run.sh OUT.json`, exit 0, 2 identical runs; results in
-`notes/spikes/menus.json` → `verifier_corrections`) opens a 4-item probe menu from a modal on LMB:
+`docs/spikes/menus.json` → `verifier_corrections`) opens a 4-item probe menu from a modal on LMB:
 
 | Handoff on | Method | PRESS→RELEASE gap | Result |
 |---|---|---|---|

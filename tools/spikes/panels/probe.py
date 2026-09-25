@@ -3,7 +3,7 @@
 Run (GUI, needs --enable-event-simulate; the script quits Blender itself). Preferred wrapper:
 
     tools/spikes/panels/run.sh [--nested] LOG -- [--only 13,14,15,16] [--out results.json] [--dump-dir DIR]
-    python3 tools/spikes/panels/build_json.py tools/spikes/panels/out/results.json notes/spikes/panels.json
+    python3 tools/spikes/panels/build_json.py tools/spikes/panels/out/results.json docs/spikes/panels.json
 
 (--nested = private `kwin_wayland --virtual`, needed while the desktop session is locked.) Direct form:
 
@@ -15,7 +15,7 @@ Run (GUI, needs --enable-event-simulate; the script quits Blender itself). Prefe
 Everything is driven by a bpy.app.timers generator state machine. Results are written
 incrementally (after every spike) to --out (default: tools/spikes/panels/out/results.json).
 
-Spikes (notes/header-controls-5.2.md §6 items 1-5):
+Spikes (docs/header-controls-5.2.md §6 items 1-5):
   13  wm.call_panel(name=P, keep_open=True) for HEADER / TOPBAR / TIMELINE panels, called
       (a) at the end of a probe modal() and (b) from a timer under temp_override(window, area, region).
       Detection: a draw function appended to the panel class (Panel._GenericUI.append) counts draws,

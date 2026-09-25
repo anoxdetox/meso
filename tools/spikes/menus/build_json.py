@@ -133,5 +133,5 @@ if H is not None:
         "spike9_filebrowser": "FILEBROWSER_MT_operations_menu never opened in any tested context; 'only in file-browser dialogs' is untested inference.",
         "spike8_plan_conflict": "Plan Phase 4 says 'EXEC_REGION_WIN is the root default for header menus'; spike 8 shows real header pulldowns draw at INVOKE_REGION_WIN (no 'Search...'). The spike result supersedes the plan wording.",
     }
-json.dump(out, open(sys.argv[2] if len(sys.argv) > 2 else 'notes/spikes/menus.json', 'w'), indent=1, default=repr)
+json.dump(out, open(sys.argv[2] if len(sys.argv) > 2 else 'docs/spikes/menus.json', 'w'), indent=1, default=repr)
 print("ok", len(json.dumps(out)))

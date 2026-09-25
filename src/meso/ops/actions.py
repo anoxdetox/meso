@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Setters behind the Tool Settings row and the workspace row (Phase 3, implementer C).
 
-Every setter pushes exactly one undo step via the positional undo flag (notes/spikes.md D5):
+Every setter pushes exactly one undo step via the positional undo flag (docs/spikes.md D5):
 ``bpy.ops.wm.context_toggle('EXEC_DEFAULT', True, data_path=...)`` etc. Space-owned paths
 (``space_data.*``) return CANCELLED with the value changed and no step (native parity).
 The plaza operator itself never has UNDO.

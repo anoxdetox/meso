@@ -6,7 +6,7 @@ Built once per invoke by ``record.rows.build_model`` from live Blender data, the
 action). Plain immutable data: nothing here refers to RNA, so a model may outlive the
 modal safely (it never does in practice: it lives in ``PlazaState`` for one session).
 
-Row placement (the Plaza look, notes/phase2-interfaces.md "PLAZA LOOK"): rows whose key is in
+Row placement (the Plaza look, docs/phase2-interfaces.md "PLAZA LOOK"): rows whose key is in
 :data:`ROWS_ABOVE` sit above the centre line in that top->bottom order; every other row sits
 below it in model order. Empty rows are skipped by the layout. Only the single-line menu
 strips (root + contextual) sit above, at a fixed offset from the centre like the reference DCC's main /

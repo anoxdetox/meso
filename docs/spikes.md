@@ -188,7 +188,7 @@ Run these in a real Blender 5.2.2 window with `tools/dev_link.sh` and Meso Mode 
 - **Handoff gaps.**
   - Click-triggered (PRESS vs RELEASE) handoff was tested for `call_menu` only. D3 applies the same rule to `call_panel` by analogy.
   - `operator_menu_enum` popups were not covered by spike 8.
-- **Inventory gaps** (`notes/inventory_5_2.json`):
+- **Inventory gaps** (`docs/inventory_5_2.json`):
   - Missing editors: no SEQUENCE_EDITOR, CLIP_EDITOR, GRAPH/DRIVERS, NLA, ASSETS or PREFERENCES areas.
   - Missing bars: no TOPBAR_HT_upper_bar, no STATUSBAR.
   - PROPERTIES_HT_header is skipped headless.

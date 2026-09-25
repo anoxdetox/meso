@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-4).
 
-Lifecycle (notes/spikes.md D1/D2/D3/D5):
+Lifecycle (docs/spikes.md D1/D2/D3/D5):
 
 1. ``poll()`` declines (returns False) when Meso Mode is disabled for this context, so the
    built-in Space action runs; never ``PASS_THROUGH`` from invoke (spike 2).
@@ -18,7 +18,7 @@ Lifecycle (notes/spikes.md D1/D2/D3/D5):
    ``return {'FINISHED'}``, after teardown (D3/D5: in-modal, handlers already removed).
    Over the 3D View the ``tap_action_view3d`` pref applies (``core.tap.effective_tap_action``;
    default PANE_TOGGLE -> ``meso.pane_toggle``, Phase 3).
-5. Phase 4 (notes/phase4-interfaces.md): with a dropdown session (``state.menus``, set up
+5. Phase 4 (docs/phase4-interfaces.md): with a dropdown session (``state.menus``, set up
    by ``ops.dropdowns.start_session`` in invoke) every pointer / LMB / ESC / timer / nav
    event and the key release go through ``ops.dropdowns.handle_event`` (menu-bar
    semantics, the pure reducer ``core.menubar``): menu labels open custom dropdowns and the
@@ -123,7 +123,7 @@ class PlazaState:
     draw_calls: int = 0
     draw_filtered: int = 0
 
-    # --- Phase 2 content (plain data, built once in invoke; see notes/phase2-interfaces.md) ---
+    # --- Phase 2 content (plain data, built once in invoke; see docs/phase2-interfaces.md) ---
     model: PlazaModel | None = None      # record.rows.build_model(...)
     layout: Layout | None = None          # core.geometry.layout(...); GUI tests read item rects
     palette: Palette | None = None        # view.theme.from_preferences(...)
@@ -136,7 +136,7 @@ class PlazaState:
     debug_timing: bool = False            # draw_manager times callbacks into ``timing``
     timing: TimingStats = field(default_factory=TimingStats)
 
-    # --- Phase 4 dropdowns (notes/phase4-interfaces.md; D fills and drives them) ---
+    # --- Phase 4 dropdowns (docs/phase4-interfaces.md; D fills and drives them) ---
     submenu_delay: float = 0.12           # prefs.submenu_delay snapshot
     execute_on_release: bool = False      # prefs.execute_on_release snapshot
     show_shortcuts: bool = True           # prefs.show_shortcuts snapshot
@@ -481,7 +481,7 @@ class MESO_OT_plaza(Operator):
           empty transparent-header space, as natively), else the hit-tested type; ``region`` =
           the hit WINDOW region, else the area's first; ``release_key`` =
           :func:`release_key_for`), ``t0 = time.perf_counter()``.
-        - Phase 2 content (notes/phase2-interfaces.md "Data flow"): pref snapshots
+        - Phase 2 content (docs/phase2-interfaces.md "Data flow"): pref snapshots
           (font_scale, row_spacing, use_theme_colors, debug_timing), ``state.model`` from
           ``record.rows.build_model``, ``state.layout`` from ``core.geometry.layout`` (text
           measured with ``renderer.text_width_fn``: the only measuring of the session),

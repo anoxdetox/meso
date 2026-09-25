@@ -1,7 +1,7 @@
 # Spikes 13, 14, 15, 16: panels, undo, paint header, tool-dependent header (Blender 5.2.2 LTS GUI)
 
-Probe: `tools/spikes/panels/probe.py`. Run it with `tools/spikes/panels/run.sh --nested LOG -- [--only 13,14,15,16] [--out RAW.json] [--dump-dir DIR]`, then build the notes with `python3 tools/spikes/panels/build_json.py RAW.json notes/spikes/panels.json`.
-- The raw output of the final run is `tools/spikes/panels/out/results.json`. Curated evidence is in `notes/spikes/panels.json`.
+Probe: `tools/spikes/panels/probe.py`. Run it with `tools/spikes/panels/run.sh --nested LOG -- [--only 13,14,15,16] [--out RAW.json] [--dump-dir DIR]`, then build the notes with `python3 tools/spikes/panels/build_json.py RAW.json docs/spikes/panels.json`.
+- The raw output of the final run is `tools/spikes/panels/out/results.json`. Curated evidence is in `docs/spikes/panels.json`.
 - Run settings: `--factory-startup --enable-event-simulate`, default GPU backend, window 2560x1537.
 - One `bpy.app.timers` generator drives the whole run. It has a 150 s internal deadline, finishes in about 79-80 s, ends with `wm.quit_blender`, and reported 0 errors.
 
@@ -14,7 +14,7 @@ Probe: `tools/spikes/panels/probe.py`. Run it with `tools/spikes/panels/run.sh -
 - **Keyboard needs a click first.** Simulated **keyboard** events (N, Tab, Shift+Tab, Ctrl+Z) are ignored by keymaps until the first simulated `LEFTMOUSE` press in the window. ESC handling inside a popup works without that click. The probe starts by clicking the already-selected cube. It is a 2-run A/B test (MIDDLEMOUSE first: keys dead; LEFTMOUSE first: all keys work). Verifier re-check in one run (`verify_probe.py` V1, after a 3 s start-up wait): N before any click → no toggle; N after MIDDLEMOUSE → no toggle; N after LEFTMOUSE → toggles on, again → off.
 - **Pass x/y on key events.** `event_simulate` defaults to x=y=0.
 - **Capturing the undo stack.** `wm.print_undo_steps()` prints through C stdout, so capture it with `os.dup2` plus libc `fflush`. Line format: `[* M ]   3 {0x…} type='Global Undo', name='Context Toggle'`, where `*` marks the active step.
-- **introspect() in a real header.** `UILayout.introspect()` works on the live header layout from a function appended to `VIEW3D_HT_header`. This is the same schema as notes/spikes/menus.md spike 7. Popover buttons (type 18) carry no panel name.
+- **introspect() in a real header.** `UILayout.introspect()` works on the live header layout from a function appended to `VIEW3D_HT_header`. This is the same schema as docs/spikes/menus.md spike 7. Popover buttons (type 18) carry no panel name.
 
 | # | Question | Answer |
 |---|---|---|
@@ -163,7 +163,7 @@ The default cube is used in each mode. Weight paint is also tested with an Armat
 ```
 tools/spikes/panels/run.sh --nested LOG -- --out tools/spikes/panels/out/results.json --dump-dir <scratch>   # kwin_exit=0 blender_exit=0, ~79 s, errors [] (re-run by verifier with the fixed spike-15 control; 13 still 14/14)
 PANELS_PROBE=tools/spikes/panels/verify_probe.py tools/spikes/panels/run.sh --nested LOG -- tools/spikes/panels/out/verify_results.json   # verifier cross-checks V1-V3, kwin_exit=0 blender_exit=0, 14 s, errors []
-python3 tools/spikes/panels/build_json.py tools/spikes/panels/out/results.json notes/spikes/panels.json
+python3 tools/spikes/panels/build_json.py tools/spikes/panels/out/results.json docs/spikes/panels.json
 # host display (before lock), spike 13 only: timeout 180 stdbuf -o0 -e0 $B --factory-startup --enable-event-simulate --python tools/spikes/panels/probe.py -- --only 13   # exit 0, 14/14 opened+closed
 # host display after lock: every GUI start hung -> timeout exit 124 (see environment note)
 ```

@@ -1,7 +1,7 @@
-"""Dump a Blender 5.2 UI inventory to notes/inventory_5_2.json.
+"""Dump a Blender 5.2 UI inventory to docs/inventory_5_2.json.
 
 Usage (pure stdlib driver; no bpy needed):
-    $PY tools/dump_inventory.py [--out notes/inventory_5_2.json] [--blender PATH] [--only Layout,Modeling,editors]
+    $PY tools/dump_inventory.py [--out docs/inventory_5_2.json] [--blender PATH] [--only Layout,Modeling,editors]
     $B -b --factory-startup --python tools/dump_inventory.py -- [same options]
 
 The driver launches ONE headless Blender subprocess per factory workspace (plus one 'global' run for types
@@ -10,7 +10,7 @@ view types, Clip tracking/masking, Graph F-Curves/Drivers, NLA, Asset Browser, P
 switching the Layout Timeline area's ui_type inside that throw-away process) running
 tools/_inventory_worker.py. Every subprocess gets its own temp BLENDER_USER_CONFIG and
 BLENDER_USER_EXTENSIONS. Overriding across screens in one process is unsafe
-(notes/header-controls-5.2.md section 5 HAZARD), so each worker enters at most one foreign screen.
+(docs/header-controls-5.2.md section 5 HAZARD), so each worker enters at most one foreign screen.
 
 Per non-Layout workspace, the worker is first run with strategy 'direct' (temp_override(screen=...)
 straight from Layout). If that process crashes, it is retried with 'premode' (enter the workspace's
@@ -28,10 +28,10 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 WORKER = os.path.join(HERE, "_inventory_worker.py")
-DEFAULT_OUT = os.path.join(ROOT, "notes", "inventory_5_2.json")
+DEFAULT_OUT = os.path.join(ROOT, "docs", "inventory_5_2.json")
 WORKER_TIMEOUT = 300
 
-# notes/verified-facts-5.2.md section 2, "VIEW3D_MT_editor_menus by mode" (default cube, no paint masks).
+# docs/verified-facts-5.2.md section 2, "VIEW3D_MT_editor_menus by mode" (default cube, no paint masks).
 EXPECTED_VIEW3D_MENUS = {
     "OBJECT": ["view", "select_object", "add", "object"],
     "EDIT_MESH": ["view", "select_edit_mesh", "mesh_add", "edit_mesh", "edit_mesh_vertices",

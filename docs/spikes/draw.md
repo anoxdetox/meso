@@ -5,7 +5,7 @@ Environment: Blender 5.2.2 LTS GUI, `--factory-startup --enable-event-simulate`.
 - Probe: `tools/spikes/draw/probe.py`. It is a timer-driven generator that quits Blender itself, with a hard deadline of 150 s.
 - Runner: `tools/spikes/draw/run.sh`. It runs vulkan then opengl, each under `timeout 180`, with `vblank_mode=0` and a throw-away `BLENDER_USER_CONFIG` (see the verifier notes below).
 - Verifier follow-up probe: `tools/spikes/draw/verify_probe.py` (V1-V5). Its results are in `draw.json` under `verifier.VULKAN` and `verifier.OPENGL`.
-- Raw data: `notes/spikes/draw.json`. It holds `runs.VULKAN`, `runs.OPENGL` (a full run since the verifier's fix), `verifier.*` and `summary`.
+- Raw data: `docs/spikes/draw.json`. It holds `runs.VULKAN`, `runs.OPENGL` (a full run since the verifier's fix), `verifier.*` and `summary`.
 - Screenshots (the same set exists for each backend, `draw_vulkan*` and `draw_opengl*`):
   - `draw_<backend>.png`: every handler with distinct colours
   - `draw_<backend>_cursor_topbar_mid.png` and `draw_<backend>_cursor_view3d.png`: draw_cursor_add

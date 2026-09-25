@@ -92,7 +92,7 @@ class TestRoundPx(unittest.TestCase):
 class TestMetrics(unittest.TestCase):
     def test_base_values_at_1x(self):
         m = g.metrics_for(1.0, 11)
-        # Literal Plaza-look sizes at 1x (spec + notes/phase2-interfaces.md "Chosen 1x sizes"),
+        # Literal Plaza-look sizes at 1x (spec + docs/phase2-interfaces.md "Chosen 1x sizes"),
         # not the module constants, so a changed constant fails here.
         self.assertEqual((m.scale, m.font_px, m.row_h, m.pad_x, m.pad_y, m.gap_x, m.gap_y),
                          (1.0, 11, 26, 8, 4, 13, 5))

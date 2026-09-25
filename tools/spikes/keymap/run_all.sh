@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Run every keymap spike suite N times (GUI, event-simulated) and merge into notes/spikes/keymap.json.
+# Run every keymap spike suite N times (GUI, event-simulated) and merge into docs/spikes/keymap.json.
 #
 #   tools/spikes/keymap/run_all.sh [OUT_DIR] [RUNS] [PARALLEL] [MERGED_JSON]
 #
-# MERGED_JSON defaults to notes/spikes/keymap.json (overwritten).
+# MERGED_JSON defaults to docs/spikes/keymap.json (overwritten).
 # Each Blender run is wrapped in `timeout 180` and quits itself (probe.py has a 165 s deadline).
 # vblank_mode=0: with Mesa EGL on Wayland, eglSwapBuffers blocks forever waiting for a frame callback
 # when the window is not visible (other workspace / occluded); with vsync off the run never hangs.
@@ -17,7 +17,7 @@ PY="$HOME/.local/share/blender/5.2/python/bin/python3.13"
 OUT="${1:-$(mktemp -d)}"
 RUNS="${2:-2}"
 PAR="${3:-3}"
-DST="${4:-$ROOT/notes/spikes/keymap.json}"
+DST="${4:-$ROOT/docs/spikes/keymap.json}"
 mkdir -p "$OUT"
 
 jobs_list=()

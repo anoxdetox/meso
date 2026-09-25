@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Plaza colours (Phase 2).
 
-The default look is the reference DCC's grey plaza (``notes/reference/reference_plaza.png``): flat dark-grey
+The default look is the reference DCC's grey plaza (``docs/reference/reference_plaza.png``): flat dark-grey
 translucent strips, light-grey text, a taller centre box in the strip grey, light-grey zone
 ticks and no full-screen dim. ``use_theme_colors`` (pref, default False) maps the Blender theme instead.
 

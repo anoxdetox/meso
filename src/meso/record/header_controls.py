@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Header recordings -> Tool Settings row controls (Phase 3 v1, implementer B).
 
-Spec: notes/header-controls-5.2.md §1-§2 (per editor / mode tables), §4 (widgets), §5
-(execution), §7 (goldens); notes/spikes.md D5 (undo, C-template rebuilds).
+Spec: docs/header-controls-5.2.md §1-§2 (per editor / mode tables), §4 (widgets), §5
+(execution), §7 (goldens); docs/spikes.md D5 (undo, C-template rebuilds).
 
 :func:`classify` walks the HEADER, TOOL_HEADER and FOOTER recordings of the hovered area and
 maps records to :class:`Control` s by OWNER TYPE + PROPERTY / PANEL NAME (never by

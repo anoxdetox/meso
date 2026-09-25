@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for the Phase 4 custom dropdowns (notes/phase4-interfaces.md "Tests / D").
+"""GUI scenarios for the Phase 4 custom dropdowns (docs/phase4-interfaces.md "Tests / D").
 
 Loaded by ``tests/gui/gui_driver.py``, which calls :func:`scenarios` with its own module and
 appends the result before ``disable_addon``. Every scenario restores what it changes (scene

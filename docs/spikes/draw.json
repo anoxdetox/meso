@@ -1064,7 +1064,7 @@
    },
    "screenshots": {
     "distinct": {
-     "file": "notes/spikes/draw_vulkan.png",
+     "file": "docs/spikes/draw_vulkan.png",
      "bytes": 99156,
      "px": [
       640,
@@ -1072,7 +1072,7 @@
      ]
     },
     "cursor_topbar_mid": {
-     "file": "notes/spikes/draw_vulkan_cursor_topbar_mid.png",
+     "file": "docs/spikes/draw_vulkan_cursor_topbar_mid.png",
      "bytes": 56190,
      "px": [
       480,
@@ -1080,7 +1080,7 @@
      ]
     },
     "cursor_view3d": {
-     "file": "notes/spikes/draw_vulkan_cursor_view3d.png",
+     "file": "docs/spikes/draw_vulkan_cursor_view3d.png",
      "bytes": 53853,
      "px": [
       480,
@@ -1088,7 +1088,7 @@
      ]
     },
     "win2_filtered": {
-     "file": "notes/spikes/draw_vulkan_win2.png",
+     "file": "docs/spikes/draw_vulkan_win2.png",
      "bytes": 7392,
      "px": [
       456,
@@ -4862,7 +4862,7 @@
    },
    "screenshots": {
     "distinct": {
-     "file": "notes/spikes/draw_opengl.png",
+     "file": "docs/spikes/draw_opengl.png",
      "bytes": 99166,
      "px": [
       640,
@@ -4870,7 +4870,7 @@
      ]
     },
     "cursor_topbar_mid": {
-     "file": "notes/spikes/draw_opengl_cursor_topbar_mid.png",
+     "file": "docs/spikes/draw_opengl_cursor_topbar_mid.png",
      "bytes": 56145,
      "px": [
       480,
@@ -4878,7 +4878,7 @@
      ]
     },
     "cursor_view3d": {
-     "file": "notes/spikes/draw_opengl_cursor_view3d.png",
+     "file": "docs/spikes/draw_opengl_cursor_view3d.png",
      "bytes": 53850,
      "px": [
       480,
@@ -4886,7 +4886,7 @@
      ]
     },
     "win2_filtered": {
-     "file": "notes/spikes/draw_opengl_win2.png",
+     "file": "docs/spikes/draw_opengl_win2.png",
      "bytes": 7392,
      "px": [
       456,
