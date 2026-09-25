@@ -5,14 +5,18 @@
 - Object Mode, and the edit modes without a per-element hide (lattice, Curves, point cloud,
   Grease Pencil): the native local view (``view3d.localview``), toggled.
 - Edit mesh / curve / surface / armature, pose and metaball: the native
-  ``hide(unselected=True)``; the next Ctrl 1 writes the recorded hide flags back, so exactly
-  what was hidden before stays hidden (never the native reveal, which unhides everything).
+  ``hide(unselected=True)``, and the objects too: a 3D View that is not in a local view enters
+  the native local view of the objects in the mode. The next Ctrl 1 writes the recorded hide
+  flags back, so exactly what was hidden before stays hidden (never the native reveal, which
+  unhides everything), and leaves the local view that the isolate entered.
 
 The records hold plain flags keyed by (object session uid, data session uid, kind) in module
 memory, so a rename keeps them; no RNA pointer outlives the operator call. They survive mode
 switches (the flags live in the data) and are dropped on file load. A restore deselects what it
 hides, as the native hide does (a hidden and selected mesh element crashes the next transform).
-Native hide keys and Shift I local view are untouched.
+The local views an element isolate entered are kept as (screen name, area index) keys, dropped
+when the area is no longer in a local view and on file load. Native hide keys and Shift I local
+view are untouched.
 """
 
 from __future__ import annotations
@@ -30,13 +34,21 @@ from ..core import isolate as iso
 # (object session uid, data session uid, kind) -> iso.Record
 _records: dict[tuple[int, int, str], iso.Record] = {}
 
+# (screen name, area index) of the 3D Views whose local view an element isolate entered.
+_local_views: set[tuple[str, int]] = set()
+
 
 def records() -> dict:
     return _records
 
 
+def local_views() -> set:
+    return _local_views
+
+
 def clear_records() -> None:
     _records.clear()
+    _local_views.clear()
 
 
 # ------------------------------------------------------------------------------ per-kind flags
@@ -226,12 +238,88 @@ def _tag_redraw(context):
             area.tag_redraw()
 
 
+# ------------------------------------------------------------------------------ local view
+
+
+def area_key(screen, area) -> tuple[str, int] | None:
+    """A plain key for a 3D View area (never the RNA pointer)."""
+    if screen is None or area is None:
+        return None
+    for index, candidate in enumerate(screen.areas):
+        if candidate == area:
+            return (screen.name, index)
+    return None
+
+
+def _window_region(area):
+    return next((r for r in area.regions if r.type == 'WINDOW'), None)
+
+
+def _prune_local_views(screen) -> None:
+    """Forget the keys of this screen whose area is no longer a 3D View in a local view (left
+    with Shift I or Ctrl 1 in Object Mode, the area changed or is gone)."""
+    if screen is None:
+        return
+    areas = list(screen.areas)
+    for key in [k for k in _local_views if k[0] == screen.name]:
+        index = key[1]
+        area = areas[index] if index < len(areas) else None
+        space = area.spaces.active if area is not None and area.type == 'VIEW_3D' else None
+        if space is None or getattr(space, 'local_view', None) is None:
+            _local_views.discard(key)
+
+
+def _enter_local_view(context, frame: bool) -> bool:
+    """The native local view of exactly the objects in the mode (edit modes: the native
+    operator takes those; pose: it takes the selected objects, so the posed armatures are
+    selected for the call and the local view set is made exact afterwards)."""
+    in_mode = [o for o in (getattr(context, 'objects_in_mode', None) or ()) if o is not None]
+    if not in_mode and context.active_object is not None:
+        in_mode = [context.active_object]
+    selected_for_call = [o for o in in_mode if not o.select_get()]
+    for obj in selected_for_call:
+        obj.select_set(True)
+    try:
+        result = bpy.ops.view3d.localview(frame_selected=frame)
+    finally:
+        for obj in selected_for_call:
+            obj.select_set(False)
+    space = context.space_data
+    if 'FINISHED' not in result or getattr(space, 'local_view', None) is None:
+        return False
+    context.view_layer.update()
+    wanted = {o.name for o in in_mode}
+    for obj in context.view_layer.objects:
+        want = obj.name in wanted
+        if obj.local_view_get(space) != want:
+            obj.local_view_set(space, want)
+    return True
+
+
+def _exit_local_views(context) -> None:
+    """Leave every local view of this screen that an element isolate entered."""
+    screen = context.screen
+    _prune_local_views(screen)
+    areas = list(screen.areas) if screen is not None else []
+    for key in sorted(k for k in _local_views if k[0] == getattr(screen, 'name', None)):
+        area = areas[key[1]]
+        _local_views.discard(key)
+        if area == context.area:
+            bpy.ops.view3d.localview()
+            continue
+        region = _window_region(area)
+        if region is None:
+            continue
+        with context.temp_override(area=area, region=region):
+            bpy.ops.view3d.localview()
+
+
 # ------------------------------------------------------------------------------ operator
 
 
 class MESO_OT_isolate_toggle(Operator):
-    """Isolate the selection (local view in Object Mode, hide the unselected elements in edit \
-modes); again to go back to exactly what was hidden before"""
+    """Isolate the selection (local view in Object Mode; in edit modes, hide the unselected \
+elements and show only the edited objects); again to go back to exactly what was shown before"""
     bl_idname = "meso.isolate_toggle"
     bl_label = "Isolate Selection"
     bl_options = {'REGISTER', 'UNDO'}
@@ -252,13 +340,12 @@ modes); again to go back to exactly what was hidden before"""
     def _local_view(self, context):
         space = context.space_data
         if getattr(space, 'local_view', None) is not None:
+            _local_views.discard(area_key(context.screen, context.area))
             return bpy.ops.view3d.localview(frame_selected=False)
         if not context.selected_objects:
             self.report({'INFO'}, iso.MSG_NOTHING_SELECTED)
             return {'CANCELLED'}
-        p = prefs.get_prefs(context)
-        frame = bool(getattr(p, 'isolate_frame_selected', False))
-        return bpy.ops.view3d.localview(frame_selected=frame)
+        return bpy.ops.view3d.localview(frame_selected=_frame(context))
 
     # -- element hide --------------------------------------------------------------------------
     def _elements(self, context, kind):
@@ -271,10 +358,17 @@ modes); again to go back to exactly what was hidden before"""
             record = _records.get(key)
             if record is not None:
                 _records[key] = iso.rebase(record, now)   # bones renamed / reordered
-        action, decisions = iso.plan([(_records.get(k), c) for k, c in zip(keys, current)])
-        if action == iso.RESTORE:
+        _prune_local_views(context.screen)
+        view_key = area_key(context.screen, context.area)
+        in_local_view = getattr(context.space_data, 'local_view', None) is not None
+        screen_name = getattr(context.screen, 'name', None)
+        plan = iso.edit_plan([(_records.get(k), c) for k, c in zip(keys, current)],
+                             in_local_view=in_local_view, ours=view_key in _local_views,
+                             ours_elsewhere=any(k != view_key and k[0] == screen_name
+                                                for k in _local_views))
+        if plan.action == iso.RESTORE:
             changed = False
-            for obj, key, now, decision in zip(objects, keys, current, decisions):
+            for obj, key, now, decision in zip(objects, keys, current, plan.decisions):
                 if decision == iso.SKIP:
                     continue
                 record = _records[key]
@@ -284,6 +378,8 @@ modes); again to go back to exactly what was hidden before"""
                     changed = True
                 else:
                     _records[key] = iso.after_restore(record)
+            if plan.exit_local_view:
+                _exit_local_views(context)
             if changed:
                 self.report({'WARNING'}, iso.MSG_TOPOLOGY_CHANGED)
             _tag_redraw(context)
@@ -302,11 +398,21 @@ modes); again to go back to exactly what was hidden before"""
                 stored = True
             else:
                 _records.pop(key, None)
-        if not stored:
+        entered = False
+        if plan.enter_local_view and view_key is not None:
+            entered = _enter_local_view(context, _frame(context))
+            if entered:
+                _local_views.add(view_key)
+        if not stored and not entered:
             self.report({'INFO'}, iso.MSG_NOTHING_TO_ISOLATE)
             return {'CANCELLED'}
         _tag_redraw(context)
         return {'FINISHED'}
+
+
+def _frame(context) -> bool:
+    p = prefs.get_prefs(context)
+    return bool(getattr(p, 'isolate_frame_selected', False))
 
 
 @persistent

@@ -135,6 +135,66 @@ class TestPlan(unittest.TestCase):
         self.assertEqual(iso.plan([]), (iso.ISOLATE, ()))
 
 
+class TestEditPlan(unittest.TestCase):
+    """Element modes isolate the objects too: local view in, and out on the restore."""
+
+    def test_isolate_enters_the_local_view(self):
+        p = iso.edit_plan([(None, BEFORE)], in_local_view=False, ours=False)
+        self.assertEqual(p, iso.EditPlan(iso.ISOLATE, (iso.ISOLATE,), True, False))
+
+    def test_isolate_keeps_a_local_view_that_is_already_there(self):
+        """No nested local view: the user's (Shift I, or Object Mode Ctrl 1) stays."""
+        p = iso.edit_plan([(None, BEFORE)], in_local_view=True, ours=False)
+        self.assertEqual(p, iso.EditPlan(iso.ISOLATE, (iso.ISOLATE,), False, False))
+
+    def test_restore_leaves_our_local_view(self):
+        rec = iso.Record(BEFORE, AFTER)
+        p = iso.edit_plan([(rec, AFTER)], in_local_view=True, ours=True)
+        self.assertEqual(p, iso.EditPlan(iso.RESTORE, (iso.RESTORE,), False, True))
+
+    def test_restore_keeps_the_users_local_view(self):
+        rec = iso.Record(BEFORE, AFTER)
+        p = iso.edit_plan([(rec, AFTER)], in_local_view=True, ours=False)
+        self.assertEqual(p, iso.EditPlan(iso.RESTORE, (iso.RESTORE,), False, False))
+
+    def test_restore_after_the_local_view_was_left(self):
+        """The user left our local view (Shift I): Ctrl 1 still restores the elements."""
+        rec = iso.Record(BEFORE, AFTER)
+        p = iso.edit_plan([(rec, AFTER)], in_local_view=False, ours=False)
+        self.assertEqual(p, iso.EditPlan(iso.RESTORE, (iso.RESTORE,), False, False))
+
+    def test_our_local_view_alone_toggles_back(self):
+        """Nothing to restore in the elements (the hide was undone, or every element was
+        selected) but our local view is on: Ctrl 1 leaves it and skips every object."""
+        rec = iso.Record(BEFORE, AFTER)
+        for entries in ([(rec, BEFORE)], [(None, BEFORE), (None, AFTER)], []):
+            with self.subTest(entries=len(entries)):
+                p = iso.edit_plan(entries, in_local_view=True, ours=True)
+                self.assertEqual(p.action, iso.RESTORE)
+                self.assertTrue(p.exit_local_view)
+                self.assertFalse(p.enter_local_view)
+                self.assertEqual(p.decisions, tuple(iso.SKIP for _e in entries))
+
+    def test_topology_change_restore_keeps_its_decision(self):
+        rec = iso.Record(BEFORE, AFTER)
+        grown = F("10110", "011010", "110")
+        p = iso.edit_plan([(rec, grown), (None, BEFORE)], in_local_view=True, ours=True)
+        self.assertEqual(p.decisions, (iso.RESTORE_TOPOLOGY_CHANGED, iso.SKIP))
+        self.assertTrue(p.exit_local_view)
+
+    def test_restore_leaves_our_local_view_in_another_3d_view(self):
+        rec = iso.Record(BEFORE, AFTER)
+        p = iso.edit_plan([(rec, AFTER)], in_local_view=False, ours=False, ours_elsewhere=True)
+        self.assertEqual(p, iso.EditPlan(iso.RESTORE, (iso.RESTORE,), False, True))
+        # nothing to restore here and no local view here: isolate here, the other stays
+        p = iso.edit_plan([(None, BEFORE)], in_local_view=False, ours=False, ours_elsewhere=True)
+        self.assertEqual(p, iso.EditPlan(iso.ISOLATE, (iso.ISOLATE,), True, False))
+
+    def test_ours_without_a_local_view_is_ignored(self):
+        p = iso.edit_plan([(None, BEFORE)], in_local_view=False, ours=True)
+        self.assertEqual(p, iso.EditPlan(iso.ISOLATE, (iso.ISOLATE,), True, False))
+
+
 def B(names, bits, sigs=None):
     """Bone flags: ``counts`` is the names in read order, one level, a sig per bone."""
     return iso.Flags(tuple(names), (bytes(int(c) for c in bits),),

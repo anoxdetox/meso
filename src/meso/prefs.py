@@ -298,7 +298,7 @@ class MesoAddonPreferences(AddonPreferences):
     )
     isolate_frame_selected: BoolProperty(
         name="Frame Isolated Selection",
-        description="Ctrl 1 in Object Mode also frames the isolated objects",
+        description="Ctrl 1 also frames the isolated objects when it enters the local view",
         default=False,
     )
     hold_tap_threshold: FloatProperty(

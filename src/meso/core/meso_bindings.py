@@ -306,8 +306,9 @@ BINDINGS: tuple[Binding, ...] = (
     # -- Isolate (step 2) -------------------------------------------------------------------
     Binding(
         'isolate', 'ISOLATE', "Isolate Selection",
-        "Ctrl 1 isolates the selection (local view in Object Mode, hide unselected in edit "
-        "modes) and toggles back to exactly the previous state. In Edit Mesh it replaces "
+        "Ctrl 1 isolates the selection (local view in Object Mode; in edit modes it hides the "
+        "unselected elements and shows only the edited objects) and toggles back to exactly "
+        "the previous state. In Edit Mesh it replaces "
         "Industry Compatible's vertex select mode with expand, which moves to Ctrl Alt 1",
         True,
         tuple(Item(km, KEY_ISOLATE, 'meso.isolate_toggle') for km in _ISOLATE_KEYMAPS),

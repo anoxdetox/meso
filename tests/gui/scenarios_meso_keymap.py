@@ -21,9 +21,11 @@ G1, G3-G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
 - G7 ``mk_apply_menu``: Ctrl Alt A opens Object > Apply and Pose > Apply; the Plaza's Object >
   Apply submenu still opens.
 - G5 ``mk_isolate``: Ctrl 1 local view in and out in Object Mode (selection kept, the light
-  left out); in Edit Mesh with a vertex already hidden, Ctrl 1 isolates and Ctrl 1 again gives
-  back exactly that hidden vertex; Ctrl Alt 1 is the relocated vertex select mode with expand;
-  with the binding off Ctrl 1 is Industry Compatible's again; Pose Mode round trip.
+  left out); in Edit Mesh with a vertex already hidden, Ctrl 1 isolates the elements and the
+  object (local view of the cube only) and Ctrl 1 again gives back exactly that hidden vertex
+  and leaves the local view; after Ctrl Z the next Ctrl 1 leaves the local view; Ctrl Alt 1 is
+  the relocated vertex select mode with expand; with the binding off Ctrl 1 is Industry
+  Compatible's again; Pose Mode round trip (local view of the armature only).
 - G6 ``mk_properties_cycle``: Ctrl A cycles Object > Data > Modifiers > Material for the cube,
   skips Modifiers and Material for the camera; with the 3D View maximized it shows the sidebar
   on its Item tab (also from another tab, and stays there); Sculpt Ctrl A still opens the mask
@@ -744,6 +746,11 @@ def scenarios(drv):
         bm = bmesh.from_edit_mesh(obj.data)
         return tuple(tuple(e.hide for e in seq) for seq in (bm.verts, bm.edges, bm.faces))
 
+    def in_local_view(space):
+        if space.local_view is None:
+            return []
+        return sorted(o.name for o in bpy.context.view_layer.objects if o.local_view_get(space))
+
     def sc_isolate(rec):
         """Ctrl 1: local view in Object Mode; exact hide restore in Edit Mesh (with vertices
         already hidden) and Pose Mode; Ctrl Alt 1 is the relocated vertex select mode with
@@ -807,10 +814,32 @@ def scenarios(drv):
             yield 0.3
             isolated = mesh_hidden(cube)
             drv.check(rec, "mesh_isolated", sum(1 for h in isolated[0] if not h) == 2, isolated[0])
+            # the objects are isolated too: local view of the edited cube only
+            drv.check(rec, "mesh_local_view_on", space.local_view is not None)
+            drv.check(rec, "mesh_only_cube_shown", in_local_view(space) == ["Cube"],
+                      in_local_view(space))
+            drv.check(rec, "mesh_still_edit_mode", bpy.context.mode == 'EDIT_MESH',
+                      bpy.context.mode)
             yield from key(v3d, 'ONE', ctrl=True)
             yield 0.3
             drv.check(rec, "mesh_exact_restore", mesh_hidden(cube) == before,
                       [mesh_hidden(cube)[0], before[0]])
+            drv.check(rec, "mesh_local_view_off", space.local_view is None)
+            # Ctrl Z after the isolate gives the elements back but not the local view (screen
+            # data): Ctrl 1 then leaves the local view
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "undo_isolated", space.local_view is not None
+                      and mesh_hidden(cube) == isolated)
+            yield from key(v3d, 'Z', ctrl=True)
+            yield 0.4
+            drv.check(rec, "undo_elements_back", mesh_hidden(cube) == before,
+                      mesh_hidden(cube)[0])
+            drv.check(rec, "undo_local_view_stays", space.local_view is not None)
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "undo_ctrl_1_leaves_local_view", space.local_view is None
+                      and mesh_hidden(cube) == before, mesh_hidden(cube)[0])
             # Ctrl Alt 1: vertex select mode with expand (from edge mode)
             scene.tool_settings.mesh_select_mode = (False, True, False)
             yield 0.2
@@ -863,10 +892,13 @@ def scenarios(drv):
             yield 0.3
             drv.check(rec, "pose_isolated", [pb.name for pb in bones if not pb.hide] == ["meso_1"],
                       {pb.name: pb.hide for pb in bones})
+            drv.check(rec, "pose_only_armature_shown",
+                      in_local_view(space) == [arm_obj.name], in_local_view(space))
             yield from key(v3d, 'ONE', ctrl=True)
             yield 0.3
             drv.check(rec, "pose_exact_restore", {pb.name: pb.hide for pb in bones} == before,
                       {pb.name: pb.hide for pb in bones})
+            drv.check(rec, "pose_local_view_off", space.local_view is None)
             drv.set_mode('OBJECT')
             yield 0.2
         finally:

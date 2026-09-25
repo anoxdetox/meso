@@ -4,7 +4,10 @@
 Object Mode (and the edit modes without a per-element hide) isolate with the native local view.
 The element kinds hide the unselected elements with the native ``hide(unselected=True)`` and
 toggle back by writing the recorded hide flags, so the previous hidden state comes back exactly
-(the native reveal unhides everything, also what was hidden before).
+(the native reveal unhides everything, also what was hidden before). They also isolate the
+objects: the 3D View enters the native local view of the objects in the mode (unless it is in a
+local view already), and the Ctrl 1 that restores the elements leaves the local view that the
+isolate entered (``edit_plan``).
 
 The bpy side (``ops/isolate.py``) reads the hide flags of each object into ``Flags`` (plain
 tuples and bytes, no RNA), keeps one ``Record`` per (object session uid, data session uid,
@@ -124,6 +127,39 @@ def plan(entries) -> tuple[str, tuple[str, ...]]:
     if any(d in (RESTORE, RESTORE_TOPOLOGY_CHANGED) for d in decisions):
         return RESTORE, tuple(d if d != ISOLATE else SKIP for d in decisions)
     return ISOLATE, tuple(ISOLATE for _d in decisions)
+
+
+@dataclass(frozen=True)
+class EditPlan:
+    """What Ctrl 1 does in an element mode (``edit_plan``)."""
+    action: str                      # ISOLATE | RESTORE
+    decisions: tuple[str, ...]       # per object, as ``plan()`` (SKIP for "leave alone")
+    enter_local_view: bool           # ISOLATE: enter the local view of the objects in the mode
+    exit_local_view: bool            # RESTORE: leave the local view(s) the isolate entered
+
+
+def edit_plan(entries, *, in_local_view: bool, ours: bool,
+              ours_elsewhere: bool = False) -> EditPlan:
+    """Ctrl 1 in an element mode: the element decisions of ``plan()`` plus the object isolate.
+
+    ``in_local_view``: the 3D View is in a local view; ``ours``: an element-mode isolate entered
+    it (a local view entered otherwise, e.g. Shift I or Ctrl 1 in Object Mode, is the user's);
+    ``ours_elsewhere``: another 3D View of the same screen is in a local view an element-mode
+    isolate entered.
+
+    - an element to restore, or our local view here -> RESTORE: the elements with a record
+      restore (the rest are skipped) and our local views of the screen are left, so both come
+      back as they were;
+    - otherwise ISOLATE: every object hides its unselected elements, and a 3D View that is not
+      in a local view enters one with the objects in the mode (a local view that is already
+      there is kept: there is no nested local view).
+    """
+    action, decisions = plan(entries)
+    here = in_local_view and ours
+    if action == RESTORE or here:
+        return EditPlan(RESTORE, tuple(SKIP if d == ISOLATE else d for d in decisions),
+                        False, here or ours_elsewhere)
+    return EditPlan(ISOLATE, decisions, not in_local_view, False)
 
 
 def restore_target(decision: str, record: Record, current: Flags) -> Flags:
