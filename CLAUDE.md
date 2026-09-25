@@ -56,7 +56,9 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   keyconfig and the preset path; the package's `unregister()` ends with `keyconfigs.update(keep_properties=True)`.
   Select a keyconfig only on the user's choice (`meso.keymap_choose`, the MESO choice in `register()`); never export
   a preset. Product code never adds, removes or edits items of the `default`/`user` keyconfigs, except "Reset to
-  default (Meso)" (`restore_item_to_default` + removing user-added items; add-on items keep their edits). Tests and
+  default (Meso)" (`KeyMap.restore_to_default` of each keymap that holds Meso items and has an edit, then the user's
+  edits of add-on items there are put back; keymaps without Meso items are never reset: Blender shares their edits
+  with the user's other keymaps; never reuse a km pointer across `restore_to_default`, it rebuilds the user keyconfig). Tests and
   scenarios emulate keymap-editor edits with `meso_keymap.set_binding_active` and reset them
   (`meso_keymap.reset_to_default`). Never add a keymap name the default keyconfig lacks (it never reaches the user
   keyconfig); Meso items never bind the Plaza's keys (add-on items shadow them).

@@ -300,11 +300,28 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
 - Unregistering the operators frees the operator properties of user-edited Meso items at the next keyconfig
   update unless it is `keyconfigs.update(keep_properties=True)` (run at the end of the package's `unregister()`;
   a disable/enable keeps a rebind with a changed property and a user-added item's property).
-- "Reset to Default (Meso)": `km.restore_item_to_default(kmi)` for each modified item and
-  `km.keymap_items.remove(kmi)` for each user-added one, modal maps included, then `keyconfigs.update()`; add-on
-  items are skipped (found with `find_match` against the add-on keymap), so the Plaza's edits stay.
+- "Reset to Default (Meso)" (review fix of 2026-09-25; headless `TestReset`, `run_persist_check.sh` `c_*`):
+  - A default item deleted in the keymap editor (its X button, `preferences.keyitem_remove`) is a 'remove' edit:
+    the item is no longer in the user keymap, so a walk over `km.keymap_items` never sees it
+    (`restore_item_to_default` needs the item). It is found as a Meso keyconfig item without
+    `user_km.keymap_items.find_match(meso_km, kmi)`; `KeyMap.restore_to_default()` on the user keymap brings it
+    back (it drops the keymap's whole stored edit and runs `WM_keyconfig_update`, which rebuilds every user
+    keymap: re-find keymaps by name afterwards, never reuse an older pointer).
+  - `restore_to_default` also drops the user's edits of add-on items in that keymap ('Sculpt Curves' holds a
+    Plaza Space item and Meso items): record them first (`find_match` against the add-on keymap; a missing match
+    = deleted) and put them back on the fresh items. Both survive a save and a real restart (`c_restart_reset_kept`).
+  - Only the keymaps that hold Meso items are reset, and only when they have an edit that applies to the Meso
+    keymap. `is_user_modified` of a user keymap is True whenever a stored edit exists for its name, even one made
+    under Blender that matches no Meso item (Blender's X `object.delete` in 'Object Mode'); resetting such a keymap
+    would silently drop it.
 - User keymap edits are stored per keymap name, not per keyconfig: an edit made under Meso to an item Industry
-  Compatible or Blender also has applies under those too (standard Blender behaviour, spike section 3).
+  Compatible or Blender also has applies under those too (standard Blender behaviour, spike section 3), and an
+  edit made under Blender to 'Window' (e.g. an added F19 item) shows under Meso as a user-added item.
+- Every edit rebuilds the keymap's stored edit against the ACTIVE keyconfig only (`wm_keymap_diff_update`
+  replaces the previous one). Edits that cannot apply there are dropped: rebind the Object Mode Ctrl 1 isolate
+  item to F13 under Meso, switch to Blender and untick any item of Blender's 'Object Mode', select Meso again:
+  the isolate item is back on Ctrl 1 (verified headless). The same happens to Blender-only edits of a keymap
+  edited under Meso. Blender has one set of edits per keymap name; nothing an add-on does can keep both.
 
 **Meso Keymap, step 5: local view in edit modes, D + LMB (headless `test_isolate_blender.py`
 `TestEditIsolatesObjects`; nested XTEST spike `docs/spikes/meso-pivot-hold.md`, 5.2.2):**

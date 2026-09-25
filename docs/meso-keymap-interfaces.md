@@ -177,7 +177,8 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
   preset, IC + table, shadow test on IC and in Meso, user edits, reset, watcher),
   `tests/blender/test_keyconfig_choice_blender.py` (incl. `keep_properties` across a disable/enable), the Meso part of
   `tests/blender/test_keymap_prefs.py`, GUI `mk_keyconfig_switch` (the menu lists and selects Meso; the watcher
-  records the pick) and `run_persist_check.sh` (22 checks: edits kept across a real restart, clean preferences).
+  records the pick) and `run_persist_check.sh` (22 checks: edits kept across a real restart, clean preferences;
+  30 since the review fixes, see G2).
 - **Deviations of step 4 from the spike's recommended shape** (`docs/spikes/meso-keyconfig-preset.md`):
   1. **Displaced IC items are kept, not removed**, after the Meso item on the same key. Switching a Meso item off in
      the keymap editor then gives the key back (never-erase rule), a hold key whose poll fails (e.g. X in Sculpt)
@@ -281,8 +282,9 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
 - **Keep, or disabling the add-on**, restores the previous keyconfig while Meso is active (rules in "Keyconfig
   choice"); the Meso keyconfig is removed with the add-on.
 - **Customizing:** users rebind, switch off and add items in Blender's keymap editor, like in any keymap. "Reset to
-  Default (Meso)" in the add-on preferences undoes their edits of the Meso keyconfig. Blender keeps keymap edits per
-  keymap name, so an edit made under Meso to an item IC or BL also has applies there too (spike section 3).
+  Default (Meso)" in the add-on preferences undoes their edits of the keymaps that hold Meso items (decision 33).
+  Blender keeps keymap edits per keymap name, so an edit made under Meso to an item IC or BL also has applies there
+  too (spike section 3), and an edit of a keymap under another keymap replaces the Meso edits of it (decision 26).
 - The Plaza's own Space items stay in `wm.keyconfigs.addon` (`keymaps.py`): they work with every keymap, merge ahead
   of the Meso items, and Meso binds none of their keys. No Meso binding exists on any other keyconfig.
 
@@ -446,13 +448,18 @@ never saved. The user's keymap edits live in Blender's own keymap preferences (t
   - A mismatch warning when `keymap_choice == 'MESO'` but Meso is not active ("The Meso keymap is not active"), with
     **Select Meso** and **Keep <name>** buttons; otherwise, on Meso, "Keep, or disabling Meso Mode, restores the
     <previous> keymap".
-  - **Reset to Default (Meso)** (`meso.keymap_reset`; greyed out unless Meso is active), with the number of changes,
-    and the hint "Switch off, rebind or add Meso keys in Preferences > Keymap (the Meso keymap), or in the sections
-    below".
+  - **Reset to Default (Meso)** (`meso.keymap_reset`; greyed out unless Meso is active), with the number of changes
+    (changed, switched-off, added and deleted items of the keymaps that hold Meso items), the hint "Switch off,
+    rebind or add Meso keys in Preferences > Keymap (the Meso keymap), or in the sections below" and the shared-edits
+    hint (`SHARED_EDITS_HINT`: Blender stores one set of changes per keymap name; changing a keymap under Blender or
+    Industry Compatible replaces the Meso changes of it, and the reset resets it there too). The reset covers only
+    the keymaps that hold Meso items (`reset_keymap_names()`, decision 33): each with an edit that applies to the
+    Meso keymap is restored whole (`KeyMap.restore_to_default`, so deleted items come back), then the user's
+    edits of add-on items there (the Plaza's, other add-ons') are put back.
   - `warnings()` of the live bindings as alert rows.
 - **Binding list** (collapsible, root "Meso Keymap", one child per group, paths `Meso Keymap/<Group>`, expansion in
   `keymap_expanded`): each binding is one row, its label and its keys as the user has them now (`kmi.to_string()`,
-  "off" for a switched-off item), and a greyed line "Replaces <native> — now <new home>" for each `Displaced`. No
+  "off" for a switched-off item, "removed" for one deleted in the keymap editor), and a greyed line "Replaces <native> — now <new home>" for each `Displaced`. No
   switches. The Properties group also draws `properties_cycle_order`; Isolate draws `isolate_frame_selected`;
   Snapping draws `hold_tap_threshold` and the hint "During a drag, hold Ctrl to invert snapping (native)".
 - The existing **section tree** prunes the hierarchy to the Plaza keymaps **plus**, while Meso is active, every keymap
@@ -772,8 +779,10 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   preset path and listed like the keymap menu lists it, and `preferences.keyconfig_activate` selects it; Meso =
   IC + the table (every IC keymap's items in order after the Meso block, 2845 items); the shadow test on IC and in
   the Meso keyconfig; Meso items fire first in the user keymap; `set_binding_active` gives the key back; "Reset to
-  Default (Meso)" undoes a rebind with a property, switched-off items, a native-item edit, a user-added item and a
-  modal-map edit, and keeps a Plaza edit; the watcher records menu picks; `register()` under RestrictBlend reselects
+  Default (Meso)" undoes a rebind with a property, switched-off items, a native-item edit, a user-added item and
+  deleted items (Meso's and native), keeps the Plaza's edits (also a rebind or a deletion in 'Sculpt Curves', a
+  keymap it shares with Meso items), and keeps the edits of keymaps without Meso items ('Window', Transform Modal
+  Map) and stored edits that do not apply to Meso; the watcher records menu picks; `register()` under RestrictBlend reselects
   Meso and keeps clean preferences clean; a disable/enable keeps a rebind with a changed property and a user-added
   item's property (`keep_properties`). The step 1–3 lines below that mention `sync()`, the gate or `bind_<id>` are
   history.
@@ -815,6 +824,10 @@ Keyconfig and dialog:
 - G1 first enable: the dialog opens once; Esc → UNDECIDED, nothing changed; Enter → KEEP; choosing Use → IC active,
   bindings live.
 - G2 disable in the Preferences, then quit and restart: the previous keyconfig is persisted (spike d's untested case).
+  `run_persist_check.sh` (30 checks): also the edits (a rebind with a property, switched-off items, a deleted Meso
+  item, a Plaza item rebound in a Meso keymap) start from the defaults once Meso is picked (`b_default_before_edit`,
+  read after the pick), survive a restart, and a Reset to Default (Meso) after that restart survives the next one
+  (`c_*`: the defaults are back, the Plaza item keeps its key, nothing left to reset, clean preferences).
 - G3 switching the keymap dropdown to Blender pauses the Meso bindings (msgbus check, or the mismatch warning).
 
 Selection, isolate, Properties, Apply:
@@ -967,11 +980,15 @@ anything in Phase 5+.
 25. **New in step 4 (DEFAULT in force: a).** A keymap picked in Blender's own keymap menu is the user's choice:
     Meso → the Meso Keymap choice (reselected at every start); another keymap while on Meso → Keep. Options: (a) in
     force; (b) only Meso's own buttons change the choice, and a menu pick lasts one session.
-26. **New in step 4 (DEFAULT in force: accept).** Blender keeps keymap edits per keymap name: an edit made under
-    Meso to an item Industry Compatible or Blender also has (e.g. switching off IC's Ctrl D duplicate) applies there
-    too after Meso restores the previous keymap (spike section 3; Blender's Shift D duplicate was replaced in the
-    spike). Options: accept (Blender's normal behaviour, in force), warn in the Keep/disable flow, or offer "Reset
-    Meso edits" there.
+26. **New in step 4 (DEFAULT in force: accept + warn).** Blender keeps keymap edits per keymap name: an edit made
+    under Meso to an item Industry Compatible or Blender also has (e.g. switching off IC's Ctrl D duplicate) applies
+    there too after Meso restores the previous keymap (spike section 3; Blender's Shift D duplicate was replaced in
+    the spike). And every edit rebuilds that keymap's stored edits against the active keymap only: editing
+    'Object Mode' under Blender (or IC) drops the user's Meso edits of 'Object Mode' (e.g. a Ctrl 1 rebound to F13
+    is back on Ctrl 1), and the reverse (verified headless, `docs/verified-facts-5.2.md`). The Meso box states it
+    (`SHARED_EDITS_HINT`, review fix). Options: accept + the hint (in force); also warn in the first-enable Keep
+    dialog; or back up the Meso edits and re-apply them when Meso is selected (decision 27 (b); re-applying
+    rebuilds the stored edits against Meso, so it would drop the Blender-only edits of that keymap in turn).
 27. **New in step 4 (DEFAULT in force: accept).** While Meso Mode is disabled, two or more operator removals by
     other add-ons can still drop the operator properties of edited Meso items (`keep_properties` protects one
     disable/enable). Options: accept, or back up the Meso edits to the extension's user dir on disable.
@@ -991,3 +1008,10 @@ anything in Phase 5+.
     **in force:** the hover-open delay (default 0.05 s), at least one watchdog tick; (b) a separate, longer rest
     preference (safer for slow diagonal paths, slower deliberate switches to a label reached diagonally). A
     crossed label highlights while the switch waits (as any hovered label does).
+33. **New in the review fixes (DEFAULT in force: a).** What "Reset to Default (Meso)" resets: (a) **in force:** the
+    keymaps that hold Meso items (where Meso differs from Industry Compatible), each restored whole when it has an
+    edit that applies to the Meso keymap (deleted items come back; add-on items keep their edits); the other
+    keymaps are Industry Compatible's unchanged and their edits are shared with the user's own Blender / IC keymap,
+    so they stay (an F19 item added to 'Window' under Blender survives; so does a Transform Modal Map edit made
+    under Meso); (b) every keymap with an edit, with a confirmation that lists the keymaps whose edits are also
+    lost under the other keymaps.
