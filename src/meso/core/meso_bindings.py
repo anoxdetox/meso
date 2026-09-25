@@ -384,9 +384,10 @@ BINDINGS: tuple[Binding, ...] = (
     # -- Pivot (step 3) ---------------------------------------------------------------------
     Binding(
         'pivot_hold', 'PIVOT', "Hold D: Edit Origins",
-        "Hold D in Object Mode to transform object origins only; a quick tap still switches to "
-        "the Annotate tool",
-        False,
+        "Hold D in Object Mode to transform object origins only (Affect Only Origins while "
+        "held); a quick tap still switches to the Annotate tool, and D + drag off the gizmo "
+        "still draws an annotation",
+        True,
         (_hold_item('Object Mode', 'D', 'meso.pivot_hold'),),
         (Displaced('Object Mode', Key('D'), _ANNOTATE_CYCLE, NOW_TAP),),
     ),

@@ -295,7 +295,6 @@ class TestKeymapItems(MesoKeymapCase):
             for item in mb().binding(bid).items:
                 self.assertEqual(dict(item.props)['keymap'], item.keymap, bid)
         self.meso_on()
-        mk_mod().set_binding_active('pivot_hold', True)
         ids = mk_mod().live_ids()
         for bid in self.HOLD_IDS + ('pivot_toggle',):
             self.assertIn(bid, ids)
@@ -307,7 +306,6 @@ class TestKeymapItems(MesoKeymapCase):
 
     def test_native_tap_items_in_industry_compatible(self):
         self.meso_on()                          # our items come first: never picked
-        mk_mod().set_binding_active('pivot_hold', True)
         mod = hold()
         cases = {
             ('3D View', 'X'): "wm.context_toggle(data_path='tool_settings.use_snap')",

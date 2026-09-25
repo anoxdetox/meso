@@ -162,8 +162,18 @@ class TestTable(unittest.TestCase):
                           if i.keymap == 'Clip Editor' and i.key == mb.KEY_DESELECT_ALL])
 
     def test_defaults(self):
+        """Every binding ships on (the D pivot hold too since 2026-09-25, user decision 5)."""
         off = [b.id for b in mb.BINDINGS if not b.default_on]
-        self.assertEqual(off, ['pivot_hold'])
+        self.assertEqual(off, [])
+
+    def test_pivot_hold_keeps_annotate_on_the_tap(self):
+        b = mb.binding('pivot_hold')
+        self.assertEqual([(i.keymap, i.key, i.idname) for i in b.items],
+                         [('Object Mode', mb.Key('D'), 'meso.pivot_hold')])
+        self.assertEqual([(d.keymap, d.key, d.now) for d in b.displaces],
+                         [('Object Mode', mb.Key('D'), mb.NOW_TAP)])
+        self.assertIn('builtin.annotate', b.displaces[0].native)
+        self.assertTrue(mb.binding('pivot_toggle').default_on)
 
     def test_native_call(self):
         self.assertEqual(mb.native_call('object.select_all', (('action', 'SELECT'),)),
@@ -212,7 +222,7 @@ class TestKeyconfigData(unittest.TestCase):
                                                                              'native.other']
                 self.assertEqual(natives, expected)
         pivot = [i for i in by_name['Object Mode'] if i[0] == 'meso.pivot_hold']
-        self.assertEqual(pivot[0][2]["active"], False)       # default off (C3)
+        self.assertNotIn("active", pivot[0][2])              # on by default
 
     def test_merge_refuses_a_missing_keymap(self):
         data = [d for d in ic_like_data() if d[0] != 'Clip Graph Editor']
@@ -234,7 +244,7 @@ class TestKeyconfigData(unittest.TestCase):
 class TestWarnings(unittest.TestCase):
     def test_none_with_everything_on(self):
         self.assertEqual(mb.warnings(mb.BINDINGS), ())
-        self.assertEqual(mb.warnings(live()), ())    # defaults: pivot_hold off displaces only a tap
+        self.assertEqual(mb.warnings(live()), ())
 
     def test_select_all_without_deselect(self):
         w = mb.warnings(live(off={'deselect_all'}))

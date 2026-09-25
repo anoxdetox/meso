@@ -12,17 +12,17 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
   transform ends, with the key released after it, during it (swallowed), and on a cancel;
   nothing is written while the transform runs; the late release toggles nothing.
 - G9 ``mk_snap_taps``: taps replay the native keys (X toggles snapping, C the Cursor tool, V
-  opens the View pie click-style, D the Annotate tool with the pivot hold on); J does nothing; a
-  long hold is not a tap; a second press while held is swallowed; Insert toggles Affect Only
-  Origins; a switched-off binding gives the key back.
+  opens the View pie click-style, D the Annotate tool: the pivot hold is on by default); J does
+  nothing; a long hold is not a tap; a second press while held is swallowed; Insert toggles
+  Affect Only Origins; a switched-off binding gives the key back (X, D).
 - G11 ``mk_snap_teardown``: X and V together snap to both (release order both ways); J adds
   Affect Rotate/Scale; a window deactivate, Esc, and Space (the Plaza opens; the restore waits
   until it closes) end the hold with an exact restore. File load: covered headless (load_pre)
   and by the API spike (the driver's timer does not survive a load).
 - G12 ``mk_snap_pie_limit``: a pie opened by another key during a hold (the known limit): what
   happens to the release is recorded; the next tap of the hold key restores exactly.
-- G13 ``mk_pivot``: Insert toggles Affect Only Origins; with the D hold on, D held + Move-gizmo
-  drag moves only the origin, and the release restores the option.
+- G13 ``mk_pivot``: Insert toggles Affect Only Origins; the D hold is on by default: D held +
+  Move-gizmo drag moves only the origin, and the release restores the option.
 - ``mk_protected_features``: with every binding on, Shift RMB places and drags the 3D cursor
   (and no add-on item uses Shift RMB, IC's cursor items fire first),
   RMB opens the context menu, Tab the search, Shift Tab (Quick Favorites) reaches no hold, a box
@@ -30,9 +30,11 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
   selects, Shift I local view, and typing X C V J D in the Text editor, the Console and 3D text
   edit types the letters.
 
-Not simulable (manual checks): key auto-repeat while X is held during a drag (UH1:
-``event_simulate`` has no repeat flag), and D + LMB annotate while D is held (UH2: simulated
-events never set the held-key modifier).
+Not simulable: key auto-repeat while X is held during a drag (UH1: ``event_simulate`` has no
+repeat flag), and D + LMB annotate while D is held (UH2: simulated events never set the held-key
+modifier). Both were measured with real X11 input in the nested XTEST spikes
+(``docs/spikes/meso-hold-long-press.md``, ``docs/spikes/meso-pivot-hold.md``: D + drag on the
+gizmo edits the origin, D + drag elsewhere still annotates).
 
 Every scenario starts and ends on the Blender keyconfig with the choice undecided and the
 user edits of the Meso keymap reset.
@@ -390,16 +392,25 @@ def scenarios(drv):
             drv.check(rec, "j_tap_nothing", state() == USER
                       and len(bpy.context.window_manager.operators) == ops_before, state())
             drv.check(rec, "j_tap_no_popup", (yield from drv.canary_ok(c)))
-            # D tap with the pivot hold on: the Annotate tool (cycle)
-            mk().set_binding_active('pivot_hold', True)
-            yield 0.2
+            # D tap (the pivot hold is on by default): the Annotate tool (cycle)
             drv.check(rec, "pivot_hold_live", 'pivot_hold' in mk().live_ids())
             yield from key(c, 'D')
             drv.check(rec, "d_tap_annotate_tool", active_tool() == "builtin.annotate",
                       active_tool())
             drv.check(rec, "d_tap_state_untouched", state() == USER, state())
             tool("builtin.select_box")
+            yield 0.2
+            # switched off in the keymap editor: D is Industry Compatible's Annotate on the press
             mk().set_binding_active('pivot_hold', False)
+            yield 0.2
+            drv.sim('D', 'PRESS', c)
+            yield 0.3
+            drv.check(rec, "off_d_native_on_press", active_tool() == "builtin.annotate"
+                      and holds_running() == [], [active_tool(), drv.modal_ops()])
+            drv.sim('D', 'RELEASE', c)
+            yield 0.2
+            tool("builtin.select_box")
+            mk().set_binding_active('pivot_hold', True)
             yield 0.2
             # Insert: Affect Only Origins, sticky
             yield from key(c, 'INSERT')
@@ -553,9 +564,8 @@ def scenarios(drv):
         original = [tuple(v.co) for v in me.vertices]
         try:
             begin(rec, cube)
-            mk().set_binding_active('pivot_hold', True)
             yield 0.3
-            drv.check(rec, "pivot_hold_live", 'pivot_hold' in mk().live_ids())
+            drv.check(rec, "pivot_hold_on_by_default", 'pivot_hold' in mk().live_ids())
             tool("builtin.move")
             yield 0.3
             c = to_win(cube.location)
@@ -597,7 +607,6 @@ def scenarios(drv):
             drv.set_mode('OBJECT')
             yield 0.2
         finally:
-            mk().set_binding_active('pivot_hold', False)
             for v, co in zip(me.vertices, original):
                 v.co = co
             me.update()
@@ -627,8 +636,7 @@ def scenarios(drv):
         bpy.types.VIEW3D_MT_object_context_menu.append(_context_probe)
         text = font = None
         try:
-            begin(rec, cube)
-            mk().set_binding_active('pivot_hold', True)      # every binding on
+            begin(rec, cube)                                  # every binding on (defaults)
             yield 0.3
             drv.check(rec, "every_binding_on",
                       set(mk().live_ids()) == {b.id for b in mb().BINDINGS}, mk().live_ids())
@@ -793,7 +801,6 @@ def scenarios(drv):
                 with v3d_ctx():
                     bpy.ops.view3d.localview()
             scene.cursor.location = cursor_before
-            mk().set_binding_active('pivot_hold', False)
             end(cube)
             yield 0.3
 
