@@ -9,6 +9,7 @@ background-mode guards of the first-enable dialog (it is never opened under ``-b
 """
 
 import importlib
+import os
 import unittest
 
 import addon_utils
@@ -223,6 +224,70 @@ class TestAddonReload(MesoKeymapCase):
         added = [k for k in km.keymap_items if k.type == 'F14' and k.is_user_defined]
         self.assertEqual([(k.idname, k.properties.element) for k in added],
                          [('meso.snap_hold', 'EDGE')])
+
+
+class TestCheckboxReload(MesoKeymapCase):
+    """The Preferences add-on checkbox: ``preferences.addon_disable`` / ``addon_enable``
+    (``default_set=True``). Blender drops the add-on's preferences entry on that disable, so the
+    choice, the recorded keymap and "asked" go with it: a re-enable is a first enable (Meso is
+    not reselected, the question comes back), while the user's edits of Meso items stay in the
+    user keymaps (``keep_properties``) and apply again once Meso is picked."""
+
+    def _checkbox_reload(self):
+        try:
+            self.assertEqual(bpy.ops.preferences.addon_disable(module=ADDON_MODULE), {'FINISHED'})
+            self.assertNotIn(ADDON_MODULE, bpy.context.preferences.addons)
+            self.assertEqual(active_name(), 'Blender')
+            self.assertNotIn('Meso', wm().keyconfigs)
+        finally:
+            if ADDON_MODULE not in bpy.context.preferences.addons:
+                self.assertEqual(bpy.ops.preferences.addon_enable(module=ADDON_MODULE),
+                                 {'FINISHED'})
+        self.p = prefs()
+        self.assertIsNotNone(self.p)
+
+    def test_a_reenable_is_a_first_enable(self):
+        kc_choice = importlib.import_module(ADDON_MODULE + ".core.keyconfig_choice")
+        bpy.ops.meso.keymap_choose(choice='MESO')
+        self.assertEqual((self.p.keymap_choice, self.p.keymap_prompted), ('MESO', True))
+        self._checkbox_reload()
+        self.assertEqual(active_name(), 'Blender', "not reselected: the choice is gone")
+        self.assertEqual((self.p.keymap_choice, self.p.previous_keyconfig,
+                          self.p.keymap_prompted), ('UNDECIDED', '', False))
+        self.assertEqual(mk().live_ids(), ())
+        # what register() plans in a GUI session: the first-enable question again
+        self.assertEqual(kc_choice.register_plan(mk().choice(), active_name(),
+                                                 self.p.keymap_prompted, False),
+                         kc_choice.REGISTER_PROMPT)
+        self.assertEqual(os.path.normpath(bpy.utils.preset_find('Meso', 'keyconfig')),
+                         os.path.normpath(mk().PRESET_PATH), "listed in the keymap menu again")
+
+    def test_edits_of_meso_items_come_back_when_meso_is_picked_again(self):
+        bpy.ops.meso.keymap_choose(choice='MESO')
+        cycle = next(k for _km, k, i in mk().user_items('properties_cycle')
+                     if i.keymap == 'Object Mode')
+        cycle.type = 'F13'
+        cycle.properties.direction = -1
+        km = wm().keyconfigs.user.keymaps.find('Object Mode', space_type='EMPTY',
+                                              region_type='WINDOW')
+        added = km.keymap_items.new('meso.snap_hold', 'F14', 'PRESS')
+        added.properties.element = 'EDGE'
+        mk().set_binding_active('apply_menu', False)
+        wm().keyconfigs.update()
+        self._checkbox_reload()
+        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
+        self.assertEqual(active_name(), 'Meso')
+        mod = mk()
+        cycle = next(k for _km, k, i in mod.user_items('properties_cycle')
+                     if i.keymap == 'Object Mode')
+        self.assertEqual((cycle.type, cycle.properties.direction), ('F13', -1))
+        km = wm().keyconfigs.user.keymaps.find('Object Mode', space_type='EMPTY',
+                                              region_type='WINDOW')
+        added = [k for k in km.keymap_items if k.type == 'F14' and k.is_user_defined]
+        self.assertEqual([(k.idname, k.properties.element) for k in added],
+                         [('meso.snap_hold', 'EDGE')])
+        self.assertNotIn('apply_menu', mod.live_ids())
+        self.assertEqual(self.p.previous_keyconfig, 'Blender')
 
 
 if __name__ == '__main__':
