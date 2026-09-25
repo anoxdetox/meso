@@ -1,0 +1,537 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phase 1).
+
+Lifecycle (notes/spikes.md D1/D2/D3/D5):
+
+1. ``poll()`` declines (returns False) when Meso Mode is disabled for this context, so the
+   built-in Space action runs; never ``PASS_THROUGH`` from invoke (spike 2).
+2. ``invoke()`` locates window/area/region under ``event.mouse_x/y`` (not
+   ``context.region``: over an empty 3D header the Frames item runs with region WINDOW),
+   builds a :class:`PlazaState`, starts the draw handlers, adds a 0.05 s watchdog timer and
+   the modal handler.
+3. ``modal()`` swallows everything (repeat presses included) except timers; it finishes on
+   the RELEASE of the invoking key (so user rebinds work; ``release_key`` is only the fallback)
+   and cancels on ESC / WINDOW_DEACTIVATE / watchdog failure.
+4. On RELEASE: a tap (``core.tap.is_tap``) runs the ``tap_action`` command right before
+   ``return {'FINISHED'}``, after teardown (D3/D5: in-modal, handlers already removed).
+
+Only pointer ints and type strings outlive the modal. The live ``Window``/``Area``/``Region``
+objects sit in the state only while the modal runs and are dropped by ``_end()``.
+No 'UNDO' in ``bl_options`` (D5).
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from typing import Any
+
+import bpy
+from bpy.props import StringProperty
+from bpy.types import Operator
+
+from .. import prefs
+from ..core.rects import Rect, bounding_box
+from ..core.tap import TapCommand, is_tap, paint_mode_keymap, resolve_tap_action
+from ..view.draw_manager import HandlerSet
+
+WATCHDOG_INTERVAL = 0.05   # seconds, wm.event_timer_add on the invoking window
+
+# The operator's name as reported by ``Window.modal_operators`` (stale-session check).
+MODAL_IDNAME = 'MESO_OT_plaza'
+
+# Mouse buttons whose PRESS marks the session as interacted (not a tap).
+INTERACTION_BUTTONS = frozenset({'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE',
+                                 'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE'})
+
+# Invoking event types that are not a held key/button (no RELEASE will follow).
+_NON_KEY_EVENTS = frozenset({'NONE', 'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'WINDOW_DEACTIVATE'})
+
+
+@dataclass(eq=False)
+class PlazaState:
+    """Per-session state; satisfies ``view.draw_manager.DrawState``.
+
+    Identity-compared (``eq=False``). Created in invoke, dropped by ``_end()``. Fields read by
+    the draw callbacks: ``active``, ``failed``, ``window_ptr``, ``anchor``, ``bounds``,
+    ``transparency``, ``draw_calls``, ``draw_filtered``, ``fail()``.
+    """
+
+    # --- identity of the target (plain data; safe to keep) ---
+    window_ptr: int
+    screen_ptr: int                       # window.screen.as_pointer() at invoke (watchdog)
+    anchor: tuple[int, int]               # window coords of the invoking event
+    t0: float                             # time.perf_counter() at invoke
+    bounds: Rect | None = None            # bbox of window.screen.areas (excludes global bars)
+    area_type: str | None = None          # None over no area; 'TOPBAR'/'STATUSBAR' over bars
+    area_ui_type: str | None = None
+    region_type: str | None = None        # region under the mouse (hit-tested)
+    handler_region_type: str | None = None  # context.region.type at invoke (keymap handler)
+    area_index: int | None = None         # index in window.screen.areas; None for bars / no area
+    context_mode: str | None = None       # context.mode at invoke
+    mode_keymap: str | None = None        # core.tap.paint_mode_keymap(...) at invoke
+    transparency: int = 25                # prefs.transparency snapshot
+    tap_threshold: float = 0.10           # prefs.tap_threshold snapshot
+    tap_action: str = 'ORIGINAL'          # prefs.tap_action snapshot
+    release_key: str = 'SPACE'
+
+    # --- session flags ---
+    active: bool = True                   # draw callbacks draw only while True
+    failed: bool = False                  # a draw callback failed; modal cancels on next tick
+    error: str | None = None
+    interacted: bool = False              # a mouse button was pressed during the session
+
+    # --- debug counters (draw_manager increments; GUI tests read via current_state()) ---
+    draw_calls: int = 0
+    draw_filtered: int = 0
+
+    # --- live objects: modal lifetime only, dropped by drop_live() ---
+    window: Any = None                    # bpy.types.Window
+    area: Any = None                      # bpy.types.Area in window.screen.areas, or None
+    region: Any = None                    # WINDOW region under the mouse, else the area's first
+    timer: Any = None                     # bpy.types.Timer (watchdog)
+    handlers: HandlerSet | None = None
+
+    def fail(self, reason: str) -> None:
+        """Deactivate after a draw failure. Idempotent; never raises."""
+        if not self.failed:
+            self.error = reason
+        self.failed = True
+        self.active = False
+
+    def drop_live(self) -> None:
+        """Forget every live RNA reference (end of modal)."""
+        self.window = self.area = self.region = self.timer = None
+        self.handlers = None
+
+
+# The running session, if any (at most one plaza at a time).
+_running: PlazaState | None = None
+
+# Global decline switch checked by poll() (future: prefs.enabled_editors, Phase 7).
+_disabled: bool = False
+
+
+def is_running() -> bool:
+    """True while a plaza modal is open."""
+    return _running is not None
+
+
+def current_state() -> PlazaState | None:
+    """The running session's state, or None (tests and later phases)."""
+    return _running
+
+
+def set_disabled(disabled: bool) -> None:
+    """Make poll() decline everywhere (True) or accept again (False)."""
+    global _disabled
+    _disabled = bool(disabled)
+
+
+def last_session() -> dict[str, Any] | None:
+    """Plain-data summary of the most recent session (tests / debug; never RNA objects).
+
+    Keys: ``serial`` (sessions opened since load), ``end`` ('finish' | 'cancel' | 'error' |
+    'external' | 'watchdog' | 'failed' | 'unregister'), ``tapped``, ``elapsed``,
+    ``tap_cmd`` (``(op_idname, kwargs)`` or None), ``tap_result`` (sorted list or None),
+    ``area_type``, ``region_type``, ``handler_region_type``, ``mode_keymap``,
+    ``release_key``, ``draw_calls``, ``error``.
+    """
+    return dict(_last) if _last else None
+
+
+def _log(msg: str) -> None:
+    print(f"Meso Mode: {msg}", flush=True)
+
+
+def _log_exc(msg: str) -> None:
+    import traceback
+    _log(msg)
+    traceback.print_exc()
+
+
+def _region_rect(obj) -> Rect:
+    return Rect(obj.x, obj.y, obj.width, obj.height)
+
+
+def hit_test(screen, x: int, y: int) -> tuple[Any, Any, int | None]:
+    """Return ``(area, region, area_index)`` under window coords ``(x, y)``.
+
+    Iterates ``screen.areas`` (the global TOPBAR/STATUSBAR are not in it: over them this
+    returns ``(None, None, None)``). Inside the hit area, non-WINDOW regions with
+    ``w, h > 1`` are tested before WINDOW (they overlap it), then every WINDOW region (quad
+    view has 4); half-open rect test in window coords (``region.x/y/width/height``). An area
+    hit with no region hit returns ``(area, None, index)``.
+    """
+    if screen is None:
+        return None, None, None
+    for index, area in enumerate(screen.areas):
+        if not _region_rect(area).contains(x, y):
+            continue
+        window_regions = []
+        for region in area.regions:
+            if region.width <= 1 or region.height <= 1:
+                continue
+            if region.type == 'WINDOW':
+                window_regions.append(region)
+            elif _region_rect(region).contains(x, y):
+                return area, region, index
+        for region in window_regions:
+            if _region_rect(region).contains(x, y):
+                return area, region, index
+        return area, None, index
+    return None, None, None
+
+
+def _window_region(area):
+    """The WINDOW region of ``area`` (the tap override target), or None."""
+    if area is None:
+        return None
+    for region in area.regions:
+        if region.type == 'WINDOW':
+            return region
+    return None
+
+
+def release_key_for(event, fallback: str = 'SPACE') -> str:
+    """The key whose RELEASE closes the plaza: the invoking key/button (follows user rebinds
+    of the keymap item), else ``fallback`` (the ``release_key`` property)."""
+    etype = getattr(event, 'type', None)
+    if (getattr(event, 'value', None) == 'PRESS' and isinstance(etype, str)
+            and etype not in _NON_KEY_EVENTS and not etype.startswith(('TIMER', 'NDOF_MOTION'))):
+        return etype
+    return fallback or 'SPACE'
+
+
+def _find_window(context, window_ptr: int):
+    """Resolve a window from its pointer int, or None when it is gone."""
+    for window in context.window_manager.windows:
+        if window.as_pointer() == window_ptr:
+            return window
+    return None
+
+
+def read_keyconfig(context) -> tuple[str | None, str | None]:
+    """Return ``(kc.name, spacebar_action)`` of ``wm.keyconfigs.active``, read lazily.
+
+    ``spacebar_action = getattr(getattr(kc, 'preferences', None), 'spacebar_action', None)``;
+    both None when there is no active keyconfig. Never raises.
+    """
+    try:
+        kc = context.window_manager.keyconfigs.active
+        if kc is None:
+            return None, None
+        return kc.name, getattr(getattr(kc, 'preferences', None), 'spacebar_action', None)
+    except Exception:
+        _log_exc("reading the active keyconfig failed")
+        return None, None
+
+
+def resolve_tap(state: PlazaState, context) -> TapCommand | None:
+    """``core.tap.resolve_tap_action`` fed from ``state`` and :func:`read_keyconfig`."""
+    kc_name, spacebar_action = read_keyconfig(context)
+    return resolve_tap_action(state.tap_action, kc_name, spacebar_action,
+                              state.area_type, state.region_type, state.mode_keymap)
+
+
+def run_tap(cmd: TapCommand, window, area, region) -> set[str] | None:
+    """Invoke ``cmd`` as ``bpy.ops.<mod>.<op>('INVOKE_DEFAULT', **cmd.kwargs)``.
+
+    Runs under ``context.temp_override(window=window, area=area, region=region)``, passing
+    only the non-None objects (bars / no area -> window only). Returns the operator result,
+    or None if the call raised (poll failure RuntimeError etc.; logged with 'Meso Mode:').
+    Must be called inside modal() right before ``return {'FINISHED'}`` (D3).
+    """
+    try:
+        module, name = cmd.op_idname.split('.', 1)
+        op = getattr(getattr(bpy.ops, module), name)
+        override = {key: value for key, value in
+                    (('window', window), ('area', area), ('region', region)) if value is not None}
+        with bpy.context.temp_override(**override):
+            return op('INVOKE_DEFAULT', **cmd.kwargs)
+    except Exception as ex:
+        _log(f"tap action {cmd.op_idname} failed: {ex!r}")
+        return None
+
+
+def _tag_window(window_ptr: int) -> None:
+    """Fallback redraw when no HandlerSet was started (it tags on stop otherwise)."""
+    window = _find_window(bpy.context, window_ptr)
+    if window is not None and window.screen is not None:
+        for area in window.screen.areas:
+            area.tag_redraw()
+
+
+def _end(state: PlazaState | None, reason: str = 'finish') -> None:
+    """Idempotent teardown shared by finish, cancel, errors and unregister.
+
+    Removes the watchdog timer (``wm.event_timer_remove``, try/except), stops the draw
+    handlers (``HandlerSet.stop()`` tags the final redraw), sets ``active = False``, clears
+    ``_running`` if it is ``state``, and ``drop_live()``. Never raises. ``reason`` is only
+    recorded in :func:`last_session`.
+    """
+    global _running
+    if state is None:
+        return
+    try:
+        state.active = False
+        first = state.timer is not None or state.handlers is not None or _running is state
+        if state.timer is not None:
+            try:
+                bpy.context.window_manager.event_timer_remove(state.timer)
+            except Exception:
+                _log_exc("removing the watchdog timer failed")
+        if state.handlers is not None:
+            try:
+                state.handlers.stop()
+            except Exception:
+                _log_exc("stopping the draw handlers failed")
+        elif first:
+            try:
+                _tag_window(state.window_ptr)
+            except Exception:
+                pass
+        if first and _last and _last.get('serial') == getattr(state, '_serial', None):
+            _last.setdefault('end', reason)
+            _last['draw_calls'] = state.draw_calls
+            _last['draw_filtered'] = state.draw_filtered
+            _last['error'] = state.error
+    except Exception:
+        _log_exc("teardown failed")
+    finally:
+        if _running is state:
+            _running = None
+        try:
+            state.drop_live()
+        except Exception:
+            pass
+
+
+def _is_stale(state: PlazaState, context) -> bool:
+    """True if ``state`` claims to run but its window has no plaza modal any more."""
+    window = _find_window(context, state.window_ptr)
+    if window is None:
+        return True
+    return not any(op.bl_idname == MODAL_IDNAME for op in window.modal_operators)
+
+
+# Counter for last_session()['serial'] and its record (plain data only).
+_serial = 0
+_last: dict[str, Any] = {}
+
+
+class MESO_OT_plaza(Operator):
+    """Show the Meso Mode plaza while the key is held"""
+
+    bl_idname = 'meso.plaza'
+    bl_label = 'Meso Mode Plaza'
+    bl_options = {'INTERNAL'}
+
+    release_key: StringProperty(
+        name="Release Key",
+        description="Event type whose release closes the plaza when the invoking event is "
+                    "not a key or button press",
+        default='SPACE',
+        options={'SKIP_SAVE', 'HIDDEN'},
+    )
+
+    @classmethod
+    def poll(cls, context) -> bool:
+        """Decline (built-in Space runs) when disabled. Must stay cheap and deterministic."""
+        return not _disabled
+
+    def invoke(self, context, event) -> set[str]:
+        """Open a session.
+
+        - ``{'CANCELLED'}`` if :func:`is_running` (a second press never stacks plazaes).
+          A stale session (its window has no plaza modal any more) is ended first.
+        - ``window = context.window``; :func:`hit_test` on ``window.screen`` with
+          ``event.mouse_x/y``; bars / no area -> ``area_type`` from ``context.area.type`` when it
+          is TOPBAR/STATUSBAR else None, ``area``/``region``/``area_index`` None.
+        - Fill a :class:`PlazaState` (prefs snapshots via ``prefs.get_prefs``, defaults when
+          None; ``bounds`` = ``core.rects.bounding_box`` of ``screen.areas``; ``mode_keymap`` from
+          ``core.tap.paint_mode_keymap(context.mode, area_type, handler_region_type,
+          image_ui_mode)`` where ``handler_region_type`` is ``context.region.type`` when
+          ``context.area`` is the hit area (the region whose keymap handler fired: WINDOW over
+          empty transparent-header space, as natively), else the hit-tested type; ``region`` =
+          the hit WINDOW region, else the area's first; ``release_key`` =
+          :func:`release_key_for`), ``t0 = time.perf_counter()``.
+        - ``HandlerSet().start(state)``, ``wm.event_timer_add(WATCHDOG_INTERVAL,
+          window=window)``, ``wm.modal_handler_add(self)``, set ``_running``;
+          return ``{'RUNNING_MODAL'}``. Any exception -> ``_end`` + log + ``{'CANCELLED'}``.
+        """
+        global _running, _serial
+        self._state = None
+        if _running is not None:
+            if not _is_stale(_running, context):
+                return {'CANCELLED'}
+            _log("ending a stale plaza session")
+            _end(_running, 'stale')
+        state = None
+        try:
+            t0 = time.perf_counter()
+            window = context.window
+            if window is None or window.screen is None:
+                return {'CANCELLED'}
+            screen = window.screen
+            x, y = event.mouse_x, event.mouse_y
+            area, region, area_index = hit_test(screen, x, y)
+            if area is not None:
+                area_type, area_ui_type = area.type, area.ui_type
+            else:
+                bar = context.area.type if context.area is not None else None
+                area_type = bar if bar in ('TOPBAR', 'STATUSBAR') else None
+                area_ui_type = area_type
+            region_type = region.type if region is not None else None
+            handler_region_type = region_type
+            if (area is not None and context.area is not None and context.region is not None
+                    and context.area.as_pointer() == area.as_pointer()):
+                handler_region_type = context.region.type
+            image_ui_mode = None
+            if area_type == 'IMAGE_EDITOR':
+                image_ui_mode = getattr(area.spaces.active, 'ui_mode', None)
+            context_mode = context.mode
+
+            addon_prefs = prefs.get_prefs(context)
+            state = PlazaState(
+                window_ptr=window.as_pointer(),
+                screen_ptr=screen.as_pointer(),
+                anchor=(x, y),
+                t0=t0,
+                bounds=bounding_box(_region_rect(a) for a in screen.areas),
+                area_type=area_type,
+                area_ui_type=area_ui_type,
+                region_type=region_type,
+                handler_region_type=handler_region_type,
+                area_index=area_index,
+                context_mode=context_mode,
+                mode_keymap=paint_mode_keymap(context_mode, area_type, handler_region_type,
+                                              image_ui_mode),
+                release_key=release_key_for(event, self.release_key),
+            )
+            if addon_prefs is not None:
+                state.transparency = int(addon_prefs.transparency)
+                state.tap_threshold = float(addon_prefs.tap_threshold)
+                state.tap_action = addon_prefs.tap_action
+            state.window, state.area = window, area
+            state.region = region if region_type == 'WINDOW' else _window_region(area)
+
+            _serial += 1
+            state._serial = _serial
+            _last.clear()
+            _last.update(serial=_serial, tapped=False, elapsed=None, tap_cmd=None, tap_result=None,
+                         area_type=area_type, area_ui_type=area_ui_type, region_type=region_type,
+                         handler_region_type=handler_region_type,
+                         mode_keymap=state.mode_keymap, release_key=state.release_key)
+
+            _running = state
+            self._state = state
+            state.handlers = HandlerSet()
+            state.handlers.start(state)
+            wm = context.window_manager
+            state.timer = wm.event_timer_add(WATCHDOG_INTERVAL, window=window)
+            wm.modal_handler_add(self)
+            if addon_prefs is not None and addon_prefs.debug_timing:
+                _log(f"plaza open in {(time.perf_counter() - t0) * 1000.0:.2f} ms "
+                     f"({area_type}/{region_type})")
+            return {'RUNNING_MODAL'}
+        except Exception:
+            _log_exc("opening the plaza failed")
+            _end(state, 'error')
+            self._state = None
+            return {'CANCELLED'}
+
+    def modal(self, context, event) -> set[str]:
+        """Event loop (never raises: any exception -> ``_end`` + log + ``{'CANCELLED'}``).
+
+        - ``_running`` is not our state (ended externally) -> ``{'CANCELLED'}``.
+        - ``state.failed`` -> ``_end`` -> ``{'CANCELLED'}`` (checked on every event).
+        - ``event.type == state.release_key`` (the invoking key): PRESS (repeat or not) ->
+          ``{'RUNNING_MODAL'}``;
+          RELEASE -> finish: ``tapped = is_tap(time.perf_counter() - t0, tap_threshold,
+          interacted)``; if tapped, ``cmd = resolve_tap(...)`` and capture window/area/region;
+          ``_end(state)``; ``run_tap(cmd, ...)`` if cmd; return ``{'FINISHED'}``.
+        - ESC PRESS or WINDOW_DEACTIVATE -> ``_end`` -> ``{'CANCELLED'}``.
+        - ``event.type.startswith('TIMER')``: watchdog — window pointer no longer in
+          ``wm.windows`` or ``window.screen.as_pointer() != screen_ptr`` -> ``_end`` ->
+          ``{'CANCELLED'}``; else ``{'PASS_THROUGH'}`` (timers are not ours to eat; Blender does
+          not tell us which timer fired).
+        - ``event.type in INTERACTION_BUTTONS`` and PRESS -> ``interacted = True``.
+        - Everything else -> ``{'RUNNING_MODAL'}`` (swallowed).
+        """
+        state = getattr(self, '_state', None)
+        try:
+            if state is None or _running is not state:
+                if state is not None:
+                    _end(state, 'external')
+                return {'CANCELLED'}
+            if state.failed:
+                _end(state, 'failed')
+                return {'CANCELLED'}
+
+            etype, value = event.type, event.value
+            if etype == state.release_key:
+                if value != 'RELEASE':
+                    return {'RUNNING_MODAL'}
+                return self._finish(context, state)
+            if etype.startswith('TIMER'):
+                window = _find_window(context, state.window_ptr)
+                if window is None or window.screen is None \
+                        or window.screen.as_pointer() != state.screen_ptr:
+                    _end(state, 'watchdog')
+                    return {'CANCELLED'}
+                return {'PASS_THROUGH'}
+            if (etype == 'ESC' and value == 'PRESS') or etype == 'WINDOW_DEACTIVATE':
+                _end(state, 'cancel')
+                return {'CANCELLED'}
+            if etype in INTERACTION_BUTTONS and value == 'PRESS':
+                state.interacted = True
+            return {'RUNNING_MODAL'}
+        except Exception:
+            _log_exc("plaza modal failed")
+            _end(state, 'error')
+            return {'CANCELLED'}
+
+    def _finish(self, context, state: PlazaState) -> set[str]:
+        """Release: tear down, then run the tap command (if any) right before FINISHED (D3)."""
+        elapsed = time.perf_counter() - state.t0
+        tapped = is_tap(elapsed, state.tap_threshold, state.interacted)
+        cmd = resolve_tap(state, context) if tapped else None
+        # Capture the live targets before _end() drops them.
+        window, area, region = state.window, state.area, state.region
+        _last.update(tapped=tapped, elapsed=elapsed,
+                     tap_cmd=(cmd.op_idname, dict(cmd.kwargs)) if cmd is not None else None)
+        _end(state, 'finish')
+        self._state = None
+        if cmd is not None:
+            result = run_tap(cmd, window, area, region)
+            _last['tap_result'] = sorted(result) if result is not None else None
+        return {'FINISHED'}
+
+    def cancel(self, context) -> None:
+        """Called by Blender when the modal is cancelled externally (file load, window close)."""
+        state = getattr(self, '_state', None)
+        _end(state if state is not None else _running, 'external')
+        self._state = None
+
+
+_classes = (
+    MESO_OT_plaza,
+)
+
+
+def register() -> None:
+    for cls in _classes:
+        bpy.utils.register_class(cls)
+
+
+def unregister() -> None:
+    # Close a plaza left open (Blender drops the modal handler when the type is removed).
+    if _running is not None:
+        try:
+            _end(_running, 'unregister')
+        except Exception:
+            import traceback
+            traceback.print_exc()
+    for cls in reversed(_classes):
+        bpy.utils.unregister_class(cls)

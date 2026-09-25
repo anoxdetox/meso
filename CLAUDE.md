@@ -16,6 +16,7 @@ verified ground truth for Blender 5.2.2 API behaviour; read the relevant section
 $PY -m unittest discover -s tests/unit -t .                          # pure tests (no bpy)
 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 $B --command extension validate src/meso                          # positional path
+tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl] [--out F]  # GUI event-simulate suite (nested kwin_wayland by default)
 $B --command extension build --source-dir src/meso --output-dir dist
 tools/dev_link.sh                                                     # symlink into user_default for GUI testing
 ```
