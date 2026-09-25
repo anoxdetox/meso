@@ -413,7 +413,7 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 | `pivot_toggle` | Pivot | 'Object Mode' | Insert | `meso.pivot_toggle` | **on** | nothing (Insert only bound in 'Text') |
 
 Not bound, by design: hold-J snap inversion during a transform (API blocker, below); anything on Shift+RMB or
-Ctrl+Shift+RMB (Phase 8+); hold keys in the UV Editor, Grease Pencil modes and paint/sculpt modes (C11: the mode maps
+Ctrl+Shift+RMB (Phase 5b); hold keys in the UV Editor, Grease Pencil modes and paint/sculpt modes (C11: the mode maps
 there keep X/V/C/D native); Ctrl+A outside the 3D View (C8); Alt+D in 'User Interface' (the hovered-property driver
 remove stays native: 'User Interface' is a default handler that runs before editor maps).
 
@@ -734,7 +734,7 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
 
 ## Shift+RMB (recorded only; nothing is bound)
 Meso binds nothing on Shift+RMB or Ctrl+Shift+RMB in this work; IC's `view3d.cursor3d` (PRESS) and cursor drag
-(CLICK_DRAG) stay native. Planned for Phase 8+: pref `shift_rmb_owner = COMPASS (default) | CURSOR` in the Compass
+(CLICK_DRAG) stay native. Planned for Phase 5b: pref `shift_rmb_owner = COMPASS (default) | CURSOR` in the Compass
 menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two cursor items move to Ctrl+Shift+RMB
 (verified unbound in every IC keymap); with CURSOR nothing moves. Both states keep the cursor reachable and are tested.
 
@@ -924,7 +924,7 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
 
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
-live-transform duplication, D+V pivot-to-vertex, RMB/Shift+RMB Compass menus (Phase 8+), the rest of the parity
+live-transform duplication, D+V pivot-to-vertex, RMB/Shift+RMB Compass menus (Phase 5b), the rest of the parity
 backlog (display cluster, F8–F12 component modes, animation keys, hide/show semantics, …) in its recorded order, and
 anything in Phase 5+.
 

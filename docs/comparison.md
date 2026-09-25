@@ -14,12 +14,13 @@ code, assets, icons, colours or documentation, and it is not affiliated with Aut
 | Tap Space: toggle single/four-pane layout | Tap Space in the 3D Viewport: quad view ↔ single view; over Top/Front/Side, maximize it | ✅ |
 | Marking menus on the hotbox zones (N/S/E/W/centre) | **Compass menus** on the Plaza zones | Phase 5 |
 | Hotbox zone menus per mouse button | Compass slots per mouse button (left/middle/right) | Phase 5 |
-| Right-click component marking menu | Right-click Compass menu (component modes + context list) | Phase 8+ |
-| Shift+right-click tool marking menus | Shift+right-click tool Compass menus | Phase 8+ |
-| Hold X / C / V to snap while dragging | Meso Keymap momentary snapping before a drag | Queued |
-| Isolate select (Ctrl+1) | Meso Keymap Ctrl+1 isolate (objects and components) | Queued |
-| Attribute Editor / Channel Box (Ctrl+A) | Meso Keymap Ctrl+A: cycle Properties editor tabs | Queued |
+| Right-click component marking menu | Right-click Compass menu (component modes + context list) | Phase 5b |
+| Shift+right-click tool marking menus | Shift+right-click tool Compass menus | Phase 5b |
+| Hold X / C / V to snap while dragging | Meso Keymap: hold X / C / V / J before a drag to snap (your settings come back after) | ✅ |
+| Isolate select (Ctrl+1) | Meso Keymap Ctrl+1 isolate (objects and components) | ✅ |
+| Attribute Editor / Channel Box (Ctrl+A) | Meso Keymap Ctrl+A: cycle Properties editor tabs | ✅ |
+| Hold D / Insert to edit the pivot | Meso Keymap: hold D (or Insert to toggle) edits origins only | ✅ |
 
-Blender's own **Industry Compatible** keymap already covers much of the rest (navigation, QWER
-tools, frame selected/all). Meso Mode builds on it rather than replacing it, and never removes a
-native Blender feature.
+The **Meso** keymap is Blender's **Industry Compatible** keymap (navigation, QWER tools, frame
+selected/all) plus Meso's bindings. It appears in Blender's keymap list and is customized in
+Blender's keymap editor like any other; Meso never removes a native Blender feature.

@@ -267,7 +267,7 @@ This is what the keys the Meso Keymap wants do natively in IC 5.2. Only unmodifi
 
 **Mouse and function keys**
 - **Shift+RMB (3D View):** `view3d.cursor3d` PRESS, and `transform.translate(cursor_transform=True, release_confirm=True)` CLICK_DRAG.
-- **Ctrl+Shift+RMB:** unbound in every IC keymap, so it is free for the planned `shift_rmb_owner` swap. The Compass side is Phase 8+ and nothing is bound now.
+- **Ctrl+Shift+RMB:** unbound in every IC keymap, so it is free for the planned `shift_rmb_owner` swap. The Compass side is Phase 5b and nothing is bound now.
 - **F8–F12:** unbound, except Alt+F12 / Ctrl+Alt+F12 render.
 
 ## API blockers

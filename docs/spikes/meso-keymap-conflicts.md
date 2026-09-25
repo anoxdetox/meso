@@ -290,7 +290,7 @@ Mode, Mesh, Curve, Armature, Pose, Particle, UV and Graph. Meso adds the exact-r
 | Sequencer text strips ('Preview') | IC 'Preview' has no select keys; BL has Ctrl+A `sequencer.text_select_all`: leave 'Preview' alone (C10) |
 
 ## Shift+RMB (recorded only; no binding now)
-- Meso binds nothing on Shift+RMB in this phase. The Compass RMB menus are Phase 8+.
+- Meso binds nothing on Shift+RMB in this phase. The Compass RMB menus are Phase 5b.
 - IC native, verified in 5.2.2:
   - '3D View': Shift+RMB PRESS = `view3d.cursor3d`; Shift+RMB CLICK_DRAG = `transform.translate` (the cursor drag)
   - 'Node Editor': Shift+RMB CLICK_DRAG = reroute

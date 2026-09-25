@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; Meso Keymap step 1 ✅ (delivery, select keys, Apply on Ctrl+Alt+A, per-binding toggles; open decision C13 on Alt+D); Meso Keymap step 2 ✅ (Ctrl+1 isolate, Ctrl+A Properties cycle); Meso Keymap step 3 ✅ (pre-drag hold snapping on X/C/V/J, Insert / D-hold Affect Only Origins; hold-J inversion during a drag not bound yet); Meso Keymap step 4 ✅ (user decision 1 of 2026-09-25: "Meso" is a real keyconfig in Blender's keymap list, customized in Blender's keymap editor, "Reset to Default (Meso)" in the preferences; the per-binding switches are gone); Meso Keymap step 5 ✅ (edit-mode Ctrl+1 isolates the objects too; hold D on); Meso Keymap step 6 ✅ (a long hold of X/C/V/J/D before a drag works: the holds let the key's auto-repeats through); step 7 ✅ (Plaza aim guard: crossing another menu label on the way to an open dropdown no longer switches to it) — contract in `docs/meso-keymap-interfaces.md`, built on `docs/spikes/meso-keymap-api.md` and `docs/spikes/meso-keymap-conflicts.md`; next: the rest of the parity backlog below, in its recorded order.
+Phases 0–7 are in the approved plan (the Plaza on Space), plus Phase 5b (RMB/Shift+RMB Compass menus) between 5 and 6. Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; Meso Keymap step 1 ✅ (delivery, select keys, Apply on Ctrl+Alt+A, per-binding toggles; open decision C13 on Alt+D); Meso Keymap step 2 ✅ (Ctrl+1 isolate, Ctrl+A Properties cycle); Meso Keymap step 3 ✅ (pre-drag hold snapping on X/C/V/J, Insert / D-hold Affect Only Origins; hold-J inversion during a drag not bound yet); Meso Keymap step 4 ✅ (user decision 1 of 2026-09-25: "Meso" is a real keyconfig in Blender's keymap list, customized in Blender's keymap editor, "Reset to Default (Meso)" in the preferences; the per-binding switches are gone); Meso Keymap step 5 ✅ (edit-mode Ctrl+1 isolates the objects too; hold D on); Meso Keymap step 6 ✅ (a long hold of X/C/V/J/D before a drag works: the holds let the key's auto-repeats through); step 7 ✅ (Plaza aim guard: crossing another menu label on the way to an open dropdown no longer switches to it) — contract in `docs/meso-keymap-interfaces.md`, built on `docs/spikes/meso-keymap-api.md` and `docs/spikes/meso-keymap-conflicts.md`; next: the rest of the parity backlog below, in its recorded order.
 
 ## Guiding principle — Plaza menus mirror native behaviour (user rule 2026-09-25)
 Wherever the Plaza redraws a native control, it behaves like the native one: the same click conventions (a plain click on a multi-value button is exclusive, Shift extends), the same grouping and labels. See `docs/phase4-interfaces.md` "Native click conventions".
@@ -24,7 +24,7 @@ Meso Mode **adds** and **relocates**. It never removes a Blender feature. Every 
   - local view
   - pies we don't replace
 - **Resolved collision (user decision 2026-09-25): Shift+RMB is swapped, and the reference-DCC behaviour wins by default.**
-  - Under the Meso Keymap, **Shift+RMB opens the Phase 8+ tool Compass menu**.
+  - Under the Meso Keymap, **Shift+RMB opens the Phase 5b tool Compass menu**.
   - The IC 3D-cursor bindings move to **Ctrl+Shift+RMB**: place, and drag to move the cursor. Verify that chord is free in 5.2 IC before binding.
   - Pref `shift_rmb_owner = COMPASS (default) | CURSOR` is an easy toggle in the Compass menu settings that swaps them back.
   - The cursor must stay reachable in both states, and the tests check both.
@@ -48,7 +48,7 @@ The prefs panel lists 13 identical "Meso Mode Plaza" rows, so they look like dup
 - **Tests:** every registered item appears exactly once under its keymap's section, and the hierarchy parents match `keymap_hierarchy`.
 
 ## Queued — checkbox drag-toggle in Plaza dropdowns (user request 2026-09-25)
-Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table cell) and drag across its neighbours; every toggle passed gets the first one's **new** state (set, not flip), then release. Scope: toggles of the same kind in one open panel; in a toggle table, stay within the pressed column (Sel and Vis never mix). One in-place apply per changed toggle, and the checks update live. The Plaza stays open. Needs reducer support for a press-drag "paint" gesture that doesn't break press-drag-release onto items. Ask whether it should be one undo step, as natively.
+Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table cell) and drag across its neighbours; every toggle passed gets the first one's **new** state (set, not flip), then release. Scope: toggles of the same kind in one open panel; in a toggle table, stay within the pressed column (Sel and Vis never mix). One in-place apply per changed toggle, and the checks update live. The Plaza stays open. Needs reducer support for a press-drag "paint" gesture that doesn't break press-drag-release onto items. **One undo step for the whole stroke** (user decision 2026-09-25, as natively): the checks update live as the drag passes; the undo step is pushed once on release.
 
 ## ✅ Done — rename to Meso Mode (user decisions 2026-09-25)
 "Meso" stands for Mesoamerican. Public name **Meso Mode for Blender**, extension id and package `meso` (`src/meso/`), operators `meso.*`, classes `MESO_*`. The Space overlay is the **Plaza** (`meso.plaza`, "Plaza Controls"). Zone and radial gesture menus are **Compass menus**. "Glyph" is never used as a feature name, tab or tag, because a commercial Space-triggered pie-menu add-on with that name exists.
@@ -109,7 +109,8 @@ Goal: nothing personal and no legacy-branding references (beyond the allowed ref
    - Then **re-clone fresh** for the first push, so no stale refs, reflogs or stashes remain, and run all suites on the fresh clone.
 4. Only then start Phase 5.
 
-## Phase 8+ (requested by the user, not scheduled yet)
+## Phase 5b — RMB and Shift+RMB Compass menus (promoted by the user 2026-09-25: after Phase 5, before Phase 6; formerly Phase 8+)
+Reuses the Phase 5 radial engine and the Phase 4 dropdown renderer. A tap (quick click) keeps Blender's native context menu; hold/drag opens the Compass. `shift_rmb_owner = COMPASS (default) | CURSOR`: the 3D cursor moves to Ctrl+Shift+RMB (free in Industry Compatible and Meso). Must work with the "Select with" left/right-click preference.
 References: `docs/reference/reference_plaza_and_rmb.jpg` (right half), `docs/reference/reference_shift_rmb_menus.jpg`.
 
 - **Right-click Compass menu (any editor, "Any – Right Click").** Radial component-mode menu at the cursor
