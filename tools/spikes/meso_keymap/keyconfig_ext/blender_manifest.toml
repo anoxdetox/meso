@@ -1,0 +1,10 @@
+schema_version = "1.0.0"
+
+id = "meso_kcspike"
+version = "0.0.1"
+name = "Meso keyconfig preset spike"
+tagline = "Throw-away spike: an extension that ships a keyconfig preset"
+maintainer = "anoxdetox <5579531+anoxdetox@users.noreply.github.com>"
+type = "add-on"
+blender_version_min = "5.2.0"
+license = ["SPDX:GPL-3.0-or-later"]

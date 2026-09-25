@@ -4,6 +4,7 @@
 #   tools/spikes/meso_keymap/run.sh headless OUT_DIR          # headless.py -> OUT_DIR/headless.json
 #   tools/spikes/meso_keymap/run.sh gui OUT_DIR [--host]      # gui.py      -> OUT_DIR/gui.json
 #   tools/spikes/meso_keymap/run.sh startup OUT_DIR [--host]  # startup_ext  -> OUT_DIR/startup_*.json
+#   tools/spikes/meso_keymap/run.sh keyconfig OUT_DIR [--host] # keyconfig_ext -> OUT_DIR/kc_*.json
 #
 # GUI runs go inside a nested, virtual-framebuffer KWin (kwin_wayland --virtual) unless --host.
 # Every Blender launch gets throw-away BLENDER_USER_CONFIG / BLENDER_USER_EXTENSIONS (and
@@ -13,8 +14,8 @@ set -eu
 # No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
 # which would pop up on the user's session and offer to restart Blender there.
 ulimit -c 0
-WHAT=${1:?usage: run.sh headless|gui|startup OUT_DIR [--host]}
-OUT=${2:?usage: run.sh headless|gui|startup OUT_DIR [--host]}
+WHAT=${1:?usage: run.sh headless|gui|startup|keyconfig OUT_DIR [--host]}
+OUT=${2:?usage: run.sh headless|gui|startup|keyconfig OUT_DIR [--host]}
 MODE=${3:-nested}
 HERE=$(cd "$(dirname "$0")" && pwd)
 B=${B:-$HOME/.local/share/blender/blender}
@@ -85,6 +86,47 @@ echo \"blender_exit=\$?\" >> \"$T/$1.log\""
     run_headless enable2 "$T/cfg2"
     run_gui inreg "$T/cfg2"
     run_headless read2 "$T/cfg2"
+    ;;
+keyconfig)
+    # docs/spikes/meso-keyconfig-preset.md. An extension that ships presets/keyconfig/Meso.py
+    # (keyconfig_ext/, in the temp user_default repo); phases in keyconfig_phase.py. One config dir:
+    #   h_api, h_read (headless), then real GUI restarts: select on / select off / extension removed /
+    #   extension back, each followed by h_peek (what the quit saved); then two h_read variants
+    #   that show when user edits of the extension's items lose their operator properties.
+    mkdir -p "$T/ext/user_default"
+    cp -r "$HERE/keyconfig_ext" "$T/ext/user_default/meso_kcspike"
+    find "$T/ext/user_default/meso_kcspike" -name __pycache__ -prune -exec rm -rf {} +
+    kc_headless() {  # $1 phase, $2 out name, $3 extra env (VAR=value ...)
+        rc=0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS ${3:-} MESO_KC_PHASE=$1 \
+            MESO_KC_OUT="$OUT/kc_$2.json" TMPDIR="$T/tmp" BLENDER_USER_CONFIG="$T/cfg" \
+            BLENDER_USER_EXTENSIONS="$T/ext" timeout 180 "$B" -b --python-exit-code 1 \
+            --python "$HERE/keyconfig_phase.py" > "$T/kc_$2.log" 2>&1 || rc=$?
+        echo "$2 exit=$rc"
+        grep '^MESO_KC' "$T/kc_$2.log" || tail -5 "$T/kc_$2.log"
+    }
+    kc_gui() {  # $1 out name, $2 extra env
+        gui_session "unset WAYLAND_DISPLAY; vblank_mode=0 TMPDIR=\"$T/tmp\" ${2:-} MESO_KC_PHASE=g_restart \
+MESO_KC_OUT=\"$OUT/kc_$1.json\" BLENDER_USER_CONFIG=\"$T/cfg\" BLENDER_USER_EXTENSIONS=\"$T/ext\" \
+timeout 120 \"$B\" --python \"$HERE/keyconfig_phase.py\" > \"$T/kc_$1.log\" 2>&1
+echo \"blender_exit=\$?\" >> \"$T/kc_$1.log\""
+        echo "$1: $(tail -1 "$T/kc_$1.log")"
+        grep '^MESO_KC' "$T/kc_$1.log" || true
+    }
+    kc_headless h_api api
+    kc_headless h_read read "MESO_KC_KEEP=1"
+    kc_gui g1_select "MESO_KC_SELECT=1"
+    kc_headless h_peek peek1 "MESO_KC_SELECT=0"
+    kc_gui g2_noselect "MESO_KC_SELECT=0"
+    kc_headless h_peek peek2 "MESO_KC_SELECT=0"
+    mv "$T/ext/user_default/meso_kcspike" "$T/kcspike_removed"
+    kc_gui g3_removed ""
+    kc_headless h_peek peek3
+    mv "$T/kcspike_removed" "$T/ext/user_default/meso_kcspike"
+    kc_gui g4_back "MESO_KC_SELECT=1"
+    kc_headless h_peek peek4 "MESO_KC_SELECT=0"
+    # zombie properties: disable without keep_properties; with it but 3 other operator removals
+    kc_headless h_read read_nokeep "MESO_KC_KEEP=0"
+    kc_headless h_read read_other_ops "MESO_KC_KEEP=1 MESO_KC_READ_NONE=0 MESO_KC_OTHER_OP_REMOVAL=3"
     ;;
 *)
     echo "unknown: $WHAT" >&2
