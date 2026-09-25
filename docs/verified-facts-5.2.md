@@ -258,6 +258,34 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
 
 ---
 
+**Meso Keymap, step 4: the "Meso" keyconfig preset (spike `docs/spikes/meso-keyconfig-preset.md`; headless
+`test_meso_keymap.py`, `test_keyconfig_choice_blender.py`; GUI `mk_keyconfig_switch`; `run_persist_check.sh`, 5.2.2):**
+- `bpy.utils.register_preset_path(<package dir>)` (fine inside `register()`, RestrictBlend) adds
+  `<package dir>/presets/keyconfig` to `preset_paths('keyconfig')`, so `USERPREF_MT_keyconfigs` lists "Meso" next to
+  Blender, Blender 27x and Industry Compatible, and `preferences.keyconfig_activate` selects it. The keymap panel's
+  "-" button refuses to delete it (`is_path_extension`). `extension validate` / `build` accept and pack
+  `presets/keyconfig/Meso.py` with no manifest change.
+- `keyconfig_set` runs the preset as `__main__`: relative imports fail. The shim finds the loaded package whose
+  `__init__.py` `samefile`s its folder in `sys.modules` (also through the dev symlink) and calls into it.
+- Industry Compatible data + the 111 table items: 280 keymaps, 2845 items (IC: 2734); built in about 15 ms. Items
+  are tried in order, so the Meso items go first in their keymap; IC's items on the same key stay after them and fire
+  again when the user switches the Meso item off in the keymap editor.
+- `KeyMapItems.find_match(preset_km, preset_kmi)` on the user keymap finds the user copy of a preset item by its
+  item id, also after a rebind; ids are per keymap and stable across a reload of the preset.
+- At start-up Blender's `keyconfig_init()` runs before extensions register, finds no "Meso" preset and falls back
+  to 'Blender' in memory (the saved preference still says "Meso"). `register()` therefore selects Meso again for
+  the MESO choice; setting `preferences.is_dirty = False` again when it was clean keeps the restart clean
+  (`run_persist_check.sh` `b_restart_clean_prefs`), and the user's edits of Meso items (a rebind with a changed
+  operator property, switched-off items) are back after a real restart (`b_restart_edits_kept`).
+- Unregistering the operators frees the operator properties of user-edited Meso items at the next keyconfig
+  update unless it is `keyconfigs.update(keep_properties=True)` (run at the end of the package's `unregister()`;
+  a disable/enable keeps a rebind with a changed property and a user-added item's property).
+- "Reset to Default (Meso)": `km.restore_item_to_default(kmi)` for each modified item and
+  `km.keymap_items.remove(kmi)` for each user-added one, modal maps included, then `keyconfigs.update()`; add-on
+  items are skipped (found with `find_match` against the add-on keymap), so the Plaza's edits stay.
+- User keymap edits are stored per keymap name, not per keyconfig: an edit made under Meso to an item Industry
+  Compatible or Blender also has applies under those too (standard Blender behaviour, spike section 3).
+
 ## 4. Recorder
 
 **Coverage.** Headless, over 685 registered Menu subclasses:

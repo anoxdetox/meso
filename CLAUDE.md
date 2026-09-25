@@ -44,13 +44,22 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - No `bl_info`; manifest has no `[build]`/`[permissions]`.
 - `src/meso/core/` is pure Python — must never import `bpy`/`gpu`/`blf`/`mathutils` (unit-tested with `$PY`).
 - `register()` runs under RestrictBlend: no `bpy.data`/scene access; no module-level `from bpy import context, data`.
-- Keymaps: only `wm.keyconfigs.addon`. Never modify `default`/`user`. Remove every item in `unregister()`.
-  Add-on items merge ahead of built-ins in REVERSE registration order; never use `head=True`.
+- Keymaps: the Plaza's items live only in `wm.keyconfigs.addon`; remove every one in `unregister()`. Add-on items
+  merge ahead of keyconfig items (and of each other in REVERSE registration order); never use `head=True`.
   Never bind bare Space in 'Text'/'Console'.
-  Exception, explicit consent only: `meso.keymap_choose` may call `bpy.utils.keyconfig_set` on Blender's installed
-  `Industry_Compatible` preset after the user picks "Use Meso Keymap", and the add-on restores the recorded previous
-  keyconfig by assigning `wm.keyconfigs.active` (or `keyconfig_set` on its preset). Never select a keyconfig without
-  that choice, never export a preset, never write items into `default`/`user`.
+- The Meso Keymap is a real keyconfig: the extension ships the preset `src/meso/presets/keyconfig/Meso.py` (a shim;
+  it runs as `__main__`, finds the loaded package by path and calls `meso_keymap.load_keyconfig`), generated at load
+  time from the installed Industry Compatible data plus `core/meso_bindings.py`: Meso items first in their keymap,
+  the native items on the same key kept after them (never removed). `register()` registers the preset path
+  (`bpy.utils.register_preset_path`) and reselects Meso for the MESO choice (Blender picks the keymap before
+  extensions register); `unregister()` restores the recorded keyconfig while Meso is active and removes the Meso
+  keyconfig and the preset path; the package's `unregister()` ends with `keyconfigs.update(keep_properties=True)`.
+  Select a keyconfig only on the user's choice (`meso.keymap_choose`, the MESO choice in `register()`); never export
+  a preset. Product code never adds, removes or edits items of the `default`/`user` keyconfigs, except "Reset to
+  default (Meso)" (`restore_item_to_default` + removing user-added items; add-on items keep their edits). Tests and
+  scenarios emulate keymap-editor edits with `meso_keymap.set_binding_active` and reset them
+  (`meso_keymap.reset_to_default`). Never add a keymap name the default keyconfig lacks (it never reaches the user
+  keyconfig); Meso items never bind the Plaza's keys (add-on items shadow them).
 - Never call `keymaps.new('Transform Modal Map')` (or any modal map) on `wm.keyconfigs.addon`; it raises, and the
   non-modal form leaves a stray keymap.
 - Meso Keymap items never go into 'Text', 'Text Generic', 'Console', 'Font', 'User Interface', 'Window', 'Screen' or
@@ -65,7 +74,8 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - Every draw callback is wrapped in try/except: log once, deactivate the Plaza.
 - GPU: unprefixed builtin shader names; POLYLINE shaders need `viewportSize` + `lineWidth` every draw;
   `gpu.state.blend_set('ALPHA')` then reset; `blf.size(font, px)` (2 args); scale = `preferences.system.ui_scale or 1.0`.
-- Headless caveats: `ui_scale` is 0.0; the keyconfig preset is not loaded (call `bpy.utils.keyconfig_set`);
+- Headless caveats: `ui_scale` is 0.0; the keyconfig preset is not loaded (call `bpy.utils.keyconfig_set`; Meso:
+  `meso_keymap.select_meso()`);
   timers don't fire; NEVER call `popup_menu`/popover/`call_panel` in `-b` (segfaults), nor
   `_bpy._wm_capabilities()` (segfaults; `rna_keymap_ui.draw_kmi` calls it for an expanded item). Never open the
   keymap-choice dialog under `-b`.
@@ -92,4 +102,5 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - IP hygiene: never commit third-party screenshots, icons, docs text or sampled colours; never implement
   multi-touch finger-chord gesture recognition (live third-party patent until 2031). See `docs/roadmap.md`.
 - Never erase native Blender features: Meso adds or relocates, and every displaced action (e.g. the 3D cursor,
-  selection tools, Apply menu) stays reachable and each Meso binding can be switched off. See `docs/roadmap.md`.
+  selection tools, Apply menu) stays reachable and each Meso binding can be switched off (Meso Keymap items in
+  Blender's keymap editor, which gives the key back to the native item). See `docs/roadmap.md`.

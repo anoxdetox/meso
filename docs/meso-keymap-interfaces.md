@@ -10,10 +10,17 @@ truth for Blender behaviour:
 Precedence: `docs/spikes.md` D1–D5 and `docs/phase1-interfaces.md` … `docs/phase4-interfaces.md` still hold for everything this page leaves alone.
 The Space tap/hold behaviour of the Plaza is **unchanged** by everything below.
 
+**Step 4 (user decision 1 of 2026-09-25) replaced the delivery of steps 1–3:** the Meso Keymap is now a real
+keyconfig named "Meso" (`presets/keyconfig/Meso.py`, verified in `docs/spikes/meso-keyconfig-preset.md`), listed in
+Blender's keymap menu and edited in Blender's keymap editor; the per-binding switches and
+`bindings_on_other_keymaps` are gone. The sections "Delivery model", "Preferences", "Operators", "Lifecycle" and
+"Keyconfig choice" below describe step 4; where the step 1–3 notes in "Status" mention add-on items, `sync()` or
+`bind_<id>` preferences, they are history.
+
 Abbreviations: **IC** = Blender's built-in Industry Compatible keyconfig (`wm.keyconfigs.active.name == 'Industry_Compatible'`);
-**BL** = the default Blender keyconfig. "Shadow" = a Meso item in `wm.keyconfigs.addon` merges ahead of the native
-item with the same key in the **same** keymap and hides it (verified again for this contract: after
-`keyconfigs.update()` the add-on `Object Mode` Ctrl+Shift+A item sits at index 0 of the user keymap, ahead of IC's own).
+**BL** = the default Blender keyconfig; **Meso** = the Meso keyconfig (`'Meso'`, step 4). "Shadow" = a Meso item comes
+before the native item with the same key in the **same** keymap and hides it (step 4: the Meso items are the first
+items of their keymap in the Meso keyconfig; IC's items stay after them. Steps 1–3: add-on items merged ahead).
 
 **DEFAULT (user decision pending)** marks a default picked here because the user has not chosen yet. Every one is safe
 and reversible (it can be switched off in the preferences) and is listed in "Decisions for the user" at the end.
@@ -155,19 +162,54 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
       that swallows the drag, the sweep (`shift_rmb_no_meso_item`, `shift_rmb_native_first`) and the headless
       `TestShiftRmbStaysNative` also check the keymaps: no add-on item on Shift RMB, IC's cursor items first.
 
-## Delivery model (user decision 1)
-- **On the first enable** the user chooses: **Use the Meso Keymap** (select IC + register Meso's bindings) or **Keep my
-  current keymap** (nothing changes).
-- "Use" = `bpy.utils.keyconfig_set(bpy.utils.preset_find('Industry_Compatible', 'keyconfig'))`, after recording the
-  previous `wm.keyconfigs.active.name` in the preferences. No custom preset is written or exported; `default`/`user`
-  keyconfigs are never edited. Meso's own bindings are add-on items in `wm.keyconfigs.addon` only.
-- **Keep, or disabling the add-on**, restores the previous keyconfig (rules in "Keyconfig choice").
-- The choice can be revisited any time in the preferences.
-- **DEFAULT: Meso bindings register only while the choice is MESO and IC is the active keyconfig** (C1). On BL they
-  would shadow Alt+D linked duplicate / rip / NLA duplicate / key blending, Ctrl+A Apply / skin resize, Ctrl+1
-  subdivision level and C circle select (printed by the headless BL shadow report), and hold-X would never fire where
-  X is delete. An advanced pref `bindings_on_other_keymaps` (default False) registers them on any
-  keyconfig anyway; its description lists those collisions. With it off, C6 (BL Object Mode Ctrl+1) never arises.
+- **Step 4 implemented** (user decision 1 of 2026-09-25: the Meso keyconfig): `presets/keyconfig/Meso.py` (shim),
+  `meso_keymap.py` (rewritten: preset path, `load_keyconfig`, select / restore, watcher, reset), `core/meso_bindings.py`
+  (`merge_keyconfig_data`, `items_by_keymap`, `item_data`, `table_items`; `active_bindings` / `should_register_bindings`
+  / `pref_name` removed), `core/keyconfig_choice.py` (Meso instead of IC, `watch_plan`), `ops/keymap_choice.py`
+  (`meso.keymap_reset`), `prefs.py` (the `bind_<id>`, `bindings_on_other_keymaps` and `keyconfig_restored` prefs
+  removed), `keymap_prefs.py` (the Meso box: status, choice, Reset to Default (Meso), the binding list with the
+  user's keys; the section tree lists the Meso items of the active Meso keymap), `core/tap.py` (Meso taps like IC),
+  `__init__.py` (`keep_user_edits()` last in `unregister()`). Tests: `tests/unit/test_meso_bindings.py`,
+  `tests/unit/test_keyconfig_choice.py`, `tests/unit/test_tap.py`, `tests/blender/test_meso_keymap.py` (rewritten:
+  preset, IC + table, shadow test on IC and in Meso, user edits, reset, watcher),
+  `tests/blender/test_keyconfig_choice_blender.py` (incl. `keep_properties` across a disable/enable), the Meso part of
+  `tests/blender/test_keymap_prefs.py`, GUI `mk_keyconfig_switch` (the menu lists and selects Meso; the watcher
+  records the pick) and `run_persist_check.sh` (22 checks: edits kept across a real restart, clean preferences).
+- **Deviations of step 4 from the spike's recommended shape** (`docs/spikes/meso-keyconfig-preset.md`):
+  1. **Displaced IC items are kept, not removed**, after the Meso item on the same key. Switching a Meso item off in
+     the keymap editor then gives the key back (never-erase rule), a hold key whose poll fails (e.g. X in Sculpt)
+     still reaches IC's item, and the tap replay (`ops/snap_hold.native_item`) keeps finding the native item in the
+     user keyconfig, so it needs no `Displaced.native` table lookup. The keymap editor shows both items.
+  2. **No `KeyConfigPreferences` class** (spike open question 6): every option stays in Meso/Plaza Settings.
+  3. `follows` is documentation only: a relocation item (Ctrl Alt 1) stays when the user switches its binding's
+     main item off, which is harmless (both keys then run IC's action).
+  4. The keyconfig watcher **records** a keymap picked in Blender's own menu (spike open question 3):
+     `core.keyconfig_choice.watch_plan` (Meso picked → MESO with the replaced keymap recorded; another keymap picked
+     while on Meso → KEEP). A paused state ("choice MESO, Meso not active") is left only in headless runs or after a
+     failed load; the preferences then show "Select Meso" / "Keep <name>".
+  5. `register()` restores `preferences.is_dirty = False` after its reselect when the preferences were clean
+     (spike open question 4): verified by `run_persist_check.sh` `b_restart_clean_prefs`.
+  6. Hold-J snap inversion stays unbound: the Meso keyconfig could carry Transform Modal Map items (spike row 11),
+     but that they work in a real transform is not verified yet.
+
+## Delivery model (user decision 1; step 4)
+- The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
+  `keymap_data/industry_compatible_data.py` at every load, never exported) plus every item of the binding table,
+  first in its keymap. The native IC items on the same key stay after it. The extension ships its preset
+  `presets/keyconfig/Meso.py` and registers the folder with `bpy.utils.register_preset_path`, so Preferences ▸
+  Keymap lists "Meso" next to Blender and Industry Compatible.
+- **On the first enable** the user chooses: **Use the Meso Keymap** (select Meso) or **Keep my current keymap**
+  (nothing changes). Picking "Meso" (or another keymap while on Meso) in Blender's keymap menu counts as the same
+  choice (the watcher records it).
+- "Use" = `bpy.utils.keyconfig_set(<package>/presets/keyconfig/Meso.py)` after recording the previous
+  `wm.keyconfigs.active.name` in the preferences.
+- **Keep, or disabling the add-on**, restores the previous keyconfig while Meso is active (rules in "Keyconfig
+  choice"); the Meso keyconfig is removed with the add-on.
+- **Customizing:** users rebind, switch off and add items in Blender's keymap editor, like in any keymap. "Reset to
+  Default (Meso)" in the add-on preferences undoes their edits of the Meso keyconfig. Blender keeps keymap edits per
+  keymap name, so an edit made under Meso to an item IC or BL also has applies there too (spike section 3).
+- The Plaza's own Space items stay in `wm.keyconfigs.addon` (`keymaps.py`): they work with every keymap, merge ahead
+  of the Meso items, and Meso binds none of their keys. No Meso binding exists on any other keyconfig.
 
 ## Modules and files
 
@@ -181,13 +223,14 @@ values, calls the pure functions and applies the returned writes.
 | `core/snap_hold.py` (new) | pure | Snap/pivot snapshot and overlay (`SNAP_FIELDS`, `Snapshot`, `overlay_values`, `restore_writes`), the multi-key `HoldSession`, the per-operator hold reducer `step`, `foreign_above` |
 | `core/isolate.py` (new) | pure | `ISOLATE_KIND_BY_MODE`, `Flags`, `Record`, `decide` |
 | `core/properties_cycle.py` (new) | pure | `DEFAULT_ORDER`, `KNOWN_TABS`, `parse`, `format_order`, `next_tab`, `pick_area` |
-| `meso_keymap.py` (new, package root) | bpy | Register/unregister the Meso items from the table (`sync()`), keyconfig select/restore, first-enable prompt timer, keyconfig-change subscription |
-| `ops/keymap_choice.py` (new) | bpy | `MESO_OT_keymap_choose`, `MESO_OT_keymap_choice_dialog` |
+| `meso_keymap.py` (new, package root) | bpy | Step 4: the preset path, `load_keyconfig()` (called by the preset), `select_meso()`, restore, `meso_items()` / `user_items()` / `live_ids()`, `set_binding_active()` (tests), `reset_to_default()`, the first-enable prompt timer, the keyconfig watcher, `keep_user_edits()` |
+| `presets/keyconfig/Meso.py` (step 4) | bpy | The preset shim: finds the loaded package by path, calls `meso_keymap.load_keyconfig` |
+| `ops/keymap_choice.py` (new) | bpy | `MESO_OT_keymap_choose`, `MESO_OT_keymap_choice_dialog`, `MESO_OT_keymap_reset` (step 4) |
 | `ops/isolate.py` (new) | bpy | `MESO_OT_isolate_toggle`, per-mode flag readers/writers, the in-memory records |
 | `ops/properties_cycle.py` (new) | bpy | `MESO_OT_properties_cycle`, sidebar fallback timer |
 | `ops/snap_hold.py` (new) | bpy | `MESO_OT_snap_hold`, `MESO_OT_pivot_hold`, `MESO_OT_pivot_toggle`, the module session, watcher timer, handlers, native tap replay |
-| `prefs.py` | bpy | New preferences (below); one generated `bind_<id>` BoolProperty per binding |
-| `keymap_prefs.py` | bpy | The "Meso Keymap" choice box and binding sections; the section tree also lists the Meso keymaps |
+| `prefs.py` | bpy | New preferences (below); step 4 removed the generated `bind_<id>` BoolProperties |
+| `keymap_prefs.py` | bpy | The "Meso Keymap" box (choice, Reset to Default (Meso), binding list); the section tree also lists the Meso keymaps |
 | `keymaps.py` | bpy | Unchanged (the Plaza items); its docstring's "must be LAST" becomes "last before `meso_keymap`" |
 | `record/rows.py` | bpy | Only if the Object Mode Tool Settings row lacks Affect Only Origins (step 3 check) |
 | `__init__.py` | bpy | `_modules`: … `draw_manager`, `keymap_choice`, `isolate`, `properties_cycle`, `snap_hold`, `keymaps`, `meso_keymap` |
@@ -306,46 +349,50 @@ silently erase a native action.
 
 | Pref | Type / default | Notes |
 |---|---|---|
-| `keymap_choice` | Enum `UNDECIDED` / `MESO` / `KEEP`, default `UNDECIDED`, HIDDEN | Set only by `meso.keymap_choose`. `UNDECIDED` behaves like `KEEP` |
+| `keymap_choice` | Enum `UNDECIDED` / `MESO` / `KEEP`, default `UNDECIDED`, HIDDEN | Set by `meso.keymap_choose` and by the keyconfig watcher (a pick in Blender's keymap menu). `UNDECIDED` behaves like `KEEP`. MESO makes `register()` select Meso at every start |
 | `keymap_prompted` | Bool False, HIDDEN | True once the first-enable dialog was opened; the prefs box stays until a choice is made |
-| `previous_keyconfig` | String "", HIDDEN | `wm.keyconfigs.active.name` recorded right before selecting IC |
-| `keyconfig_restored` | Bool False, HIDDEN | Set by `unregister()` when it restored the previous keyconfig; read by the next `register()` of the same session (reload / extension update) |
-| `bindings_on_other_keymaps` | Bool False | Advanced; see Delivery |
-| `bind_<id>` | Bool, `default_on` of the binding | Generated from `BINDINGS` (annotations built at import; pure table). `update=` → `meso_keymap.sync()` |
+| `previous_keyconfig` | String "", HIDDEN | `wm.keyconfigs.active.name` recorded right before selecting Meso |
+| ~~`keyconfig_restored`~~ | removed in step 4 | `register()` reselects Meso for every MESO start, not only after its own restore |
+| ~~`bindings_on_other_keymaps`~~ | removed in step 4 | Meso bindings exist only in the Meso keyconfig |
+| ~~`bind_<id>`~~ | removed in step 4 | Users switch items in Blender's keymap editor; `Binding.default_on` is the item's initial `active` flag |
 | `properties_cycle_order` | String `"OBJECT,DATA,MODIFIER,MATERIAL"` | `core.properties_cycle.parse` keeps known ids in order, drops unknown/duplicates, empty → default. The prefs show the valid ids under the field |
 | `isolate_frame_selected` | Bool False | Passed to `view3d.localview(frame_selected=)` (DEFAULT: no framing, the view does not move) |
 | `hold_tap_threshold` | Float 0.20 s (0.0–1.0) | A hold key released within this time, with no mouse button and no transform in between, is a tap and replays the native action. Separate from the Plaza's `tap_threshold` |
 | `shift_rmb_owner` | **not added now** | Recorded design only (see "Shift+RMB") |
 
 Preferences never keep RNA pointers; the restore data for holds and isolate lives in module memory (below) and is
-never saved.
+never saved. The user's keymap edits live in Blender's own keymap preferences (the diff store in `userpref.blend`).
 
 ### Preferences UI (`keymap_prefs.py`)
 - A **"Meso Keymap" box** is drawn above the existing "Keymap" box:
-  - Status line: "Using the Meso Keymap (Industry Compatible + Meso bindings)" / "Keeping your keymap: <name>" /
+  - Status line: "Using the Meso keymap (Industry Compatible + Meso bindings)" / "Keeping your keymap: <name>" /
     "Not chosen yet". Buttons **Use Meso Keymap** and **Keep My Keymap** (`meso.keymap_choose(choice=...)`); the one
     matching the current choice is depressed.
-  - A mismatch warning when `keymap_choice == 'MESO'` but the active keyconfig is not IC ("Meso bindings are paused"),
-    with **Select Industry Compatible** and **Keep <name>** buttons.
-  - `bindings_on_other_keymaps` (advanced).
-- **Binding sections** reuse the section machinery of `core.keymap_tree`: a root section "Meso Keymap" with one
-  collapsible child per group (Selection, Isolate, Properties, Apply, Snapping, Pivot), paths `Meso Keymap/<Group>`,
-  expansion kept in the same `keymap_expanded` pref. Each binding is one row: `prop(bind_<id>)` + label + key label,
-  and a greyed second line "Replaces <native> — now <new home>" for each `Displaced`. `warnings()` show as alert rows.
-  The Properties group also draws `properties_cycle_order`; Isolate draws `isolate_frame_selected`; Snapping draws
-  `hold_tap_threshold` and the hint "During a drag, hold Ctrl to invert snapping (native)".
-- The existing **section tree** now prunes the hierarchy to the Plaza keymaps **plus** every keymap holding a
-  registered Meso item, so each Meso item appears once under its keymap (editable key, native active checkbox, as in
-  the hotkey editor). "Our items" in a user keymap = the Plaza items (unchanged rule) plus
-  `km_user.keymap_items.find_match(km_addon, kmi_addon)` for each registered Meso item (fact 3). Hand-added user items
-  stay excluded.
-- The "Set all Space items" row shows `plaza_key_conflicts` for the chosen key (C12).
+  - A mismatch warning when `keymap_choice == 'MESO'` but Meso is not active ("The Meso keymap is not active"), with
+    **Select Meso** and **Keep <name>** buttons; otherwise, on Meso, "Keep, or disabling Meso Mode, restores the
+    <previous> keymap".
+  - **Reset to Default (Meso)** (`meso.keymap_reset`; greyed out unless Meso is active), with the number of changes,
+    and the hint "Switch off, rebind or add Meso keys in Preferences > Keymap (the Meso keymap), or in the sections
+    below".
+  - `warnings()` of the live bindings as alert rows.
+- **Binding list** (collapsible, root "Meso Keymap", one child per group, paths `Meso Keymap/<Group>`, expansion in
+  `keymap_expanded`): each binding is one row, its label and its keys as the user has them now (`kmi.to_string()`,
+  "off" for a switched-off item), and a greyed line "Replaces <native> — now <new home>" for each `Displaced`. No
+  switches. The Properties group also draws `properties_cycle_order`; Isolate draws `isolate_frame_selected`;
+  Snapping draws `hold_tap_threshold` and the hint "During a drag, hold Ctrl to invert snapping (native)".
+- The existing **section tree** prunes the hierarchy to the Plaza keymaps **plus**, while Meso is active, every keymap
+  holding a Meso item, so each Meso item appears once under its keymap (editable key, native active checkbox, as in
+  the keymap editor). "Our items" in a user keymap = the Plaza items (unchanged rule) plus
+  `km_user.keymap_items.find_match(km_meso, kmi_meso)` for each table item of the Meso keyconfig (it follows the item
+  id, also after a rebind). Hand-added user items stay excluded.
+- The "Set all Space items" row shows `plaza_key_conflicts` for the chosen key (C12), against the live bindings.
 
 ## Operators (all `meso.*`, classes `MESO_OT_*`)
 
 | idname | Options | Contract |
 |---|---|---|
-| `meso.keymap_choose` | INTERNAL | Prop `choice` ('MESO' / 'KEEP'). Applies `choose_plan`: record `previous_keyconfig`, `keyconfig_set` IC, or restore; sets `keymap_choice`; `meso_keymap.sync()`; marks prefs dirty. The **only** code path that selects IC on user input |
+| `meso.keymap_choose` | INTERNAL | Prop `choice` ('MESO' / 'KEEP'). Applies `choose_plan`: record `previous_keyconfig`, `keyconfig_set` Meso, or restore; sets `keymap_choice`; marks prefs dirty. The code path that selects Meso on user input (besides `register()` for the saved MESO choice) |
+| `meso.keymap_reset` | INTERNAL | Step 4, "Reset to Default (Meso)": `meso_keymap.reset_to_default()`; poll: Meso active. CANCELLED (INFO) when nothing was changed |
 | `meso.keymap_choice_dialog` | INTERNAL | `invoke` → `wm.invoke_props_dialog(self, title="Meso Keymap")`, enum prop `choice` default **'KEEP'** (Enter keeps; DEFAULT). `execute` → `meso.keymap_choose`. `cancel` (Esc) → nothing, stays UNDECIDED. Never runs under `-b` (poll: `not bpy.app.background`) |
 | `meso.isolate_toggle` | REGISTER, UNDO | Ctrl+1; see "Isolate" |
 | `meso.properties_cycle` | REGISTER | Prop `direction` (+1 / −1; the keymap uses +1). See "Properties cycle" |
@@ -358,51 +405,49 @@ Apply, the select trio and the relocations use native operators directly (so men
 ## Lifecycle
 
 `__init__._modules` order: prefs, keymap_prefs, plaza, actions, invoke, panes, draw_manager, keymap_choice, isolate,
-properties_cycle, snap_hold, keymaps, **meso_keymap** (last: its items need the operator classes; it is unregistered
-first).
+properties_cycle, snap_hold, keymaps, **meso_keymap** (last: the Meso keyconfig's items need the operator classes; it
+is unregistered first).
 
 **`meso_keymap.register()`** (RestrictBlend-safe: only `bpy.context.window_manager` and `.preferences`):
-1. Read prefs defensively (`None` under `--addons` without `default_set` → UNDECIDED, no prompt).
-2. `register_plan(choice, active_name, keyconfig_restored)`:
-   - `RESELECT_IC` when `choice == 'MESO'` and `keyconfig_restored` is True (the same session re-registers: reload or
-     extension update after our own `unregister()` restore) → `keyconfig_set(IC)`, clear the flag;
+1. `bpy.utils.register_preset_path(<package dir>)`: "Meso" appears in the keymap menu.
+2. Read prefs defensively (`None` under `--addons` without `default_set` → UNDECIDED, no prompt).
+3. `register_plan(choice, active_name, prompted, background)`:
+   - `SELECT_MESO` when `choice == 'MESO'` and Meso is not active: every start-up (Blender's `keyconfig_init()` runs
+     before extensions register, finds no Meso preset and falls back to 'Blender'), and a reload / extension update
+     → `keyconfig_set(<package>/presets/keyconfig/Meso.py)`; `preferences.is_dirty` is set back to False when it was
+     clean before (the saved preferences already say "Meso");
    - `PROMPT` when UNDECIDED, not prompted, and not `bpy.app.background` → one-shot timer (0.5 s) that re-checks
      `bpy.app.background`, `wm.windows`, the pref, then opens `meso.keymap_choice_dialog` under
-     `temp_override(window=wm.windows[0])` and sets `keymap_prompted`; it never runs under `-b` (timers don't fire,
-     and it checks anyway);
-   - otherwise nothing. IC is never selected at a plain start-up: the saved preference already persists (spike d).
-3. `sync()`.
-4. ~~Subscribe to `(bpy.types.PreferencesKeymap, 'active_keyconfig')` with `bpy.msgbus.subscribe_rna`.~~ Verified in
-   step 1: no notification is sent on a keymap switch. Instead a persistent read-only timer (0.5 s) compares
-   `wm.keyconfigs.active.name` and calls `sync()` on a change (Status, deviation 1).
+     `temp_override(window=wm.windows[0])` and sets `keymap_prompted`; it never runs under `-b`;
+   - otherwise nothing.
+4. Start the keyconfig watcher: a persistent read-only timer (0.5 s; a switch publishes no msgbus notification) that
+   compares `wm.keyconfigs.active.name` and applies `watch_plan` to the choice.
 
-**`sync(context=None)`**: computes `active_bindings(...)` → `items_to_register(...)`; removes every item it created
-before (reverse order, `try/except (ReferenceError, RuntimeError)`), then creates the new set with
-`kc.keymaps.new(name, space_type=, region_type=)` + `keymap_items.new(idname, type, value, repeat=False, ctrl=, …)` and
-the props. Idempotent. Never touches the Plaza items (`keymaps.py`).
+**`load_keyconfig(name)`** (the preset calls it): `execfile` IC's keymap data, `generate_keymaps(Params(...))`,
+`merge_keyconfig_data`, the macOS Ctrl→Cmd conversion, `keyconfigs.new(name)` + `keyconfig_init_from_data`.
 
-**`meso_keymap.unregister()`** (never raises):
-1. Remove every Meso item; stop the keyconfig watcher; remove the prompt timer if pending.
-2. If `keymap_choice == 'MESO'`: `restore_plan(active_name, previous, loaded_names, preset_exists)` and apply it; set
-   `keyconfig_restored = True` when something was restored.
+**`meso_keymap.unregister()`** (never raises): stop the watcher and the prompt timer; while Meso is active, apply
+`restore_plan(active, previous if MESO else '', …)`; remove the Meso keyconfig; `unregister_preset_path`. The
+package's `unregister()` then ends with **`keyconfigs.update(keep_properties=True)`** (`keep_user_edits()`), after
+every operator class is gone, so the user's edits of Meso items keep their operator properties for the next enable
+(spike section 5; a long disabled period with several operator removals by other add-ons can still lose them).
 
 **`ops/snap_hold.unregister()`** restores the hold baseline from module state **before** `unregister_class` (cancel is
 not called for a running modal whose class is unregistered, spike c), removes its handlers and timer.
 
 **Quit**: preferences are saved before the exit-time `unregister()` (spike d), so the in-memory restore at quit is not
-persisted and the choice survives. **User disable** (Preferences checkbox, `default_set=True`): the restore is
-persisted by the preferences auto-save, the add-on prefs are removed, and the next enable asks again.
+persisted and the choice survives; the next start reselects Meso with the user's edits (`run_persist_check.sh`).
+**User disable** (Preferences checkbox, `default_set=True`): the restore is persisted by the preferences auto-save,
+the add-on prefs are removed, and the next enable asks again.
 
 **Handlers** (all `@persistent`, removed in unregister): `load_pre` (end holds, restore into the old scene),
-`save_pre` / `save_post` (hold swap), `load_post` (clear isolate records; `sync()` as the keyconfig-switch fallback).
+`save_pre` / `save_post` (hold swap), `load_post` (clear isolate records). The step 1–3 `load_post` re-sync is gone.
 
 ## Keyconfig choice (`core/keyconfig_choice.py`)
 
 ```python
 CHOICE_UNDECIDED, CHOICE_MESO, CHOICE_KEEP = 'UNDECIDED', 'MESO', 'KEEP'
-
-def should_register_bindings(choice, active_name, allow_other) -> bool
-    # choice == MESO and (active_name == IC_NAME or allow_other)
+MESO_NAME = 'Meso'
 
 @dataclass(frozen=True)
 class RestorePlan:
@@ -410,19 +455,21 @@ class RestorePlan:
     name: str | None # keyconfig name (ASSIGN / PRESET), 'Blender' for FALLBACK
 
 def restore_plan(active_name, previous, loaded_names, preset_exists) -> RestorePlan
-def choose_plan(new_choice, old_choice, active_name, previous) -> ChoosePlan   # record/select/restore steps
-def register_plan(choice, active_name, restored_flag, prompted, background) -> str  # 'NONE'|'RESELECT_IC'|'PROMPT'
+def choose_plan(new_choice, old_choice, active_name, previous, *, loaded_names, preset_exists) -> ChoosePlan
+def register_plan(choice, active_name, prompted, background) -> str   # 'NONE'|'SELECT_MESO'|'PROMPT'
+def watch_plan(old_name, new_name, choice, previous) -> WatchPlan | None
 ```
 
 Restore rules (DEFAULT, open question 4 of the API spikes):
-- **Only while IC is still active.** If the user switched to another keyconfig since, Meso leaves it alone (NONE).
-- `previous` empty or equal to IC → NONE (the user was already on IC; nothing of theirs to give back).
+- **Only while Meso is still active.** If the user switched to another keyconfig since, Meso leaves it alone (NONE).
 - `previous` in `wm.keyconfigs` → ASSIGN (`wm.keyconfigs.active = wm.keyconfigs[previous]`; the saved pref follows).
 - else a preset file exists (`preset_find(previous, 'keyconfig')`) → PRESET (`keyconfig_set(path)`).
-- else FALLBACK to 'Blender' (by assignment; it is always loaded), with an INFO report / log line.
+- else (nothing recorded, the record is Meso itself, or it is gone) FALLBACK to 'Blender' (by assignment; it is
+  always loaded): the Meso keyconfig leaves with the add-on, so something else must be active.
 
-Choosing MESO when IC is already active records `previous = IC` (nothing to restore later). Choosing KEEP from MESO
-restores per the rules, then `sync()` removes the bindings.
+Choosing MESO when Meso is already active keeps the record. Choosing KEEP from MESO (or while Meso is active)
+restores per the rules. Watcher: Meso picked in the menu while the choice is not MESO → MESO with the replaced
+keymap recorded; another keymap picked while on Meso with the choice MESO → KEEP (record cleared).
 
 ## Pre-drag snapping and pivot (`core/snap_hold.py`, `ops/snap_hold.py`)
 
@@ -499,11 +546,12 @@ Known limit: a pie or popup opened by another key during a hold swallows the rel
 the overlay then stays until the next own-key press/release, ESC or window deactivate (GUI case G12, verified in step 3 with IC's Period pivot pie). Autosave may
 write the momentary state (it does not run `save_pre`); the Tool Settings row shows it.
 
-### Hold-J snap inversion during a transform: API blocker
+### Hold-J snap inversion during a transform: not bound (was an API blocker)
 Blender refuses modal keymaps in the add-on keyconfig (`RuntimeError: Modal key-maps not supported for add-on
 key-config`, `rna_wm_api.cc` `rna_keymap_new`), and a running transform consumes J before any add-on code sees it.
-Meso does not bypass this (no writes to `default`/`user`, no mid-transform `tool_settings` writes). J is therefore the
-pre-drag INCREMENT hold only. The native equivalent stays: **hold Ctrl during a transform inverts snapping** (IC
+Step 4 lifts the first part: the Meso keyconfig's data may carry Transform Modal Map items (spike row 11). They are
+not added yet, because their effect in a real transform is unverified (a GUI check on the Xwayland harness). J is
+therefore the pre-drag INCREMENT hold only. The native equivalent stays: **hold Ctrl during a transform inverts snapping** (IC
 Transform Modal Map SNAP_INV_ON/OFF). The prefs Snapping group and the README say so, and mention that users may add
 J to the Transform Modal Map themselves in Blender's own keymap editor.
 
@@ -587,7 +635,7 @@ Meso binds nothing on Shift+RMB or Ctrl+Shift+RMB in this work; IC's `view3d.cur
 menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two cursor items move to Ctrl+Shift+RMB
 (verified unbound in every IC keymap); with CURSOR nothing moves. Both states keep the cursor reachable and are tested.
 
-## CLAUDE.md rule updates needed (apply in step 1, after the user approves them)
+## CLAUDE.md rule updates needed (applied in step 1; rule 1 replaced in step 4 by the keyconfig rule in CLAUDE.md)
 1. Keymaps rule, add: "Exception, explicit consent only: `meso.keymap_choose` may call `bpy.utils.keyconfig_set` on
    Blender's installed `Industry_Compatible` preset after the user picks 'Use Meso Keymap', and the add-on restores the
    recorded previous keyconfig by assigning `wm.keyconfigs.active` (or `keyconfig_set` on its preset). Never select a
@@ -622,7 +670,16 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   active), current outside the order; `pick_area` mouse / largest / tie / none.
 - Keep `test_core_pure.py` passing (no bpy imports in the new core modules).
 
-### Headless Blender (`tests/run_tests.py`, fresh config dirs; IC loaded with `keyconfig_set`)
+### Headless Blender (`tests/run_tests.py`, fresh config dirs; IC loaded with `keyconfig_set`, Meso with `meso_keymap.select_meso()`)
+- Step 4 (`test_meso_keymap.py`, `test_keyconfig_choice_blender.py`): the preset is found through the registered
+  preset path and listed like the keymap menu lists it, and `preferences.keyconfig_activate` selects it; Meso =
+  IC + the table (every IC keymap's items in order after the Meso block, 2845 items); the shadow test on IC and in
+  the Meso keyconfig; Meso items fire first in the user keymap; `set_binding_active` gives the key back; "Reset to
+  Default (Meso)" undoes a rebind with a property, switched-off items, a native-item edit, a user-added item and a
+  modal-map edit, and keeps a Plaza edit; the watcher records menu picks; `register()` under RestrictBlend reselects
+  Meso and keeps clean preferences clean; a disable/enable keeps a rebind with a changed property and a user-added
+  item's property (`keep_properties`). The step 1–3 lines below that mention `sync()`, the gate or `bind_<id>` are
+  history.
 - `test_meso_keymap.py`: MESO + IC → every table item is in `wm.keyconfigs.addon` with the right space/region and
   merges into the user keymap ahead of IC; `unregister()` removes all; KEEP / UNDECIDED / BL → none (and all with
   `bindings_on_other_keymaps`); toggling a `bind_<id>` pref re-syncs only that binding's items; `sync()` idempotent;
@@ -715,6 +772,11 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
   `pivot_hold` (default off).
 - Hold-J inversion is not implemented; the blocker text above goes into the prefs hint and the README.
 
+### Step 4 — the Meso keyconfig (✅ implemented, see Status; user decision 1 of 2026-09-25)
+- Files: `presets/keyconfig/Meso.py`, `meso_keymap.py`, `core/meso_bindings.py`, `core/keyconfig_choice.py`,
+  `core/tap.py`, `ops/keymap_choice.py`, `prefs.py`, `keymap_prefs.py`, `__init__.py`, the tests above, the GUI
+  scenarios (bindings switched with `set_binding_active`, reset with `reset_to_default`), `run_persist_check.sh`.
+
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
 live-transform duplication, D+V pivot-to-vertex, RMB/Shift+RMB Compass menus (Phase 8+), the rest of the parity
@@ -722,17 +784,19 @@ backlog (display cluster, F8–F12 component modes, animation keys, hide/show se
 anything in Phase 5+.
 
 ## Decisions for the user (defaults in force until answered)
-1. **C1** Keep-my-keymap and non-IC keyconfigs: no Meso bindings (opt-in `bindings_on_other_keymaps`, default off).
+1. **C1** Keep-my-keymap and other keyconfigs: no Meso bindings. Step 4: the bindings exist only in the Meso
+   keyconfig (the opt-in `bindings_on_other_keymaps` is removed).
 2. First-enable dialog: Enter = Keep (default button); Esc = undecided, asked once, the prefs box stays.
-3. Disable restore only while IC is still active; previous missing → assign / preset / 'Blender' fallback; an
-   add-on reload or update in the same session re-selects IC.
+3. Disable restore only while Meso is still active; previous missing → assign / preset / 'Blender' fallback; every
+   start and an add-on reload or update re-select Meso for the MESO choice.
 4. One snapped drag per hold (restore when the transform ends); the `key_modifier` "still held" check needs one run
    with a real keyboard before it could keep snapping for a second drag.
 5. J: pre-drag INCREMENT hold only (blocker); J also enables Affect Rotate and Scale while held; X/C/V do not.
 6. Several hold keys at once snap to the union of their elements.
 7. **C2** V hold on; tap V opens the View pie click-style (the drag-release gesture is lost).
 8. C hold on; tap C replays the Cursor tool cycle.
-9. **C3** D hold **off** until the D+LMB annotate interaction is verified; Insert toggle on; both Object Mode only.
+9. **C3** D hold **off** until the D+LMB annotate interaction is verified (an inactive item of the Meso keyconfig,
+   switched on in the keymap editor); Insert toggle on; both Object Mode only.
 10. **C5** Ctrl+1 in Edit Mesh moves IC's vertex expand to Ctrl+Alt+1; Ctrl+2/3 keep IC's expand (the F9–F11 block
     may move all three later).
 11. Ctrl+1 after a topology change while isolated: reveal everything with a warning.
@@ -771,3 +835,16 @@ anything in Phase 5+.
     - (b) Navigation modals (`VIEW3D_OT_rotate`, `_move`, `_zoom`, `_dolly`, ...) keep the hold alive (still no
       writes while they run). Risk: a key released during the orbit is swallowed, so snapping stays on until the
       next tap of the key.
+25. **New in step 4 (DEFAULT in force: a).** A keymap picked in Blender's own keymap menu is the user's choice:
+    Meso → the Meso Keymap choice (reselected at every start); another keymap while on Meso → Keep. Options: (a) in
+    force; (b) only Meso's own buttons change the choice, and a menu pick lasts one session.
+26. **New in step 4 (DEFAULT in force: accept).** Blender keeps keymap edits per keymap name: an edit made under
+    Meso to an item Industry Compatible or Blender also has (e.g. switching off IC's Ctrl D duplicate) applies there
+    too after Meso restores the previous keymap (spike section 3; Blender's Shift D duplicate was replaced in the
+    spike). Options: accept (Blender's normal behaviour, in force), warn in the Keep/disable flow, or offer "Reset
+    Meso edits" there.
+27. **New in step 4 (DEFAULT in force: accept).** While Meso Mode is disabled, two or more operator removals by
+    other add-ons can still drop the operator properties of edited Meso items (`keep_properties` protects one
+    disable/enable). Options: accept, or back up the Meso edits to the extension's user dir on disable.
+28. **New in step 4.** Should the Meso keyconfig carry the hold-J snap inversion (Transform Modal Map J →
+    SNAP_INV_ON/OFF) once a real-transform check passes?
