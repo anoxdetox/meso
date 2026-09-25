@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios of the Meso Keymap, step 1 (docs/meso-keymap-interfaces.md, "Test plan" G1,
-G3, G4, G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
+"""GUI scenarios of the Meso Keymap, steps 1 and 2 (docs/meso-keymap-interfaces.md, "Test plan"
+G1, G3-G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
 
 - G1 ``mk_first_enable_dialog``: a fresh enable opens the choice dialog once; Esc leaves it
   undecided; Enter keeps the keymap; the dialog with "Use" selected switches to Industry
@@ -19,6 +19,14 @@ G3, G4, G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
   ``core.meso_bindings.ALT_D_BLOCKED_KEYMAPS``; a Blender change there fails this scenario).
 - G7 ``mk_apply_menu``: Ctrl Alt A opens Object > Apply and Pose > Apply; the Plaza's Object >
   Apply submenu still opens.
+- G5 ``mk_isolate``: Ctrl 1 local view in and out in Object Mode (selection kept, the light
+  left out); in Edit Mesh with a vertex already hidden, Ctrl 1 isolates and Ctrl 1 again gives
+  back exactly that hidden vertex; Ctrl Alt 1 is the relocated vertex select mode with expand;
+  with the binding off Ctrl 1 is Industry Compatible's again; Pose Mode round trip.
+- G6 ``mk_properties_cycle``: Ctrl A cycles Object > Data > Modifiers > Material for the cube,
+  skips Modifiers and Material for the camera; with the 3D View maximized it shows the sidebar
+  on its Item tab (also from another tab, and stays there); Sculpt Ctrl A still opens the mask
+  pie and leaves the Properties tab alone.
 
 Every scenario starts and ends on the Blender keyconfig with the choice undecided.
 Loaded by ``tests/gui/gui_driver.py`` like every ``scenarios_*.py``.
@@ -704,10 +712,301 @@ def scenarios(drv):
             back_to_blender()
             yield 0.3
 
+    # ------------------------------------------------------------------------------ G5
+
+    def v3d_ctx():
+        area = drv.area_by("VIEW_3D")
+        return bpy.context.temp_override(window=drv.win(), area=area,
+                                         region=drv.region_of(area, 'WINDOW'))
+
+    def mesh_hidden(obj):
+        import bmesh
+        bm = bmesh.from_edit_mesh(obj.data)
+        return tuple(tuple(e.hide for e in seq) for seq in (bm.verts, bm.edges, bm.faces))
+
+    def sc_isolate(rec):
+        """Ctrl 1: local view in Object Mode; exact hide restore in Edit Mesh (with vertices
+        already hidden) and Pose Mode; Ctrl Alt 1 is the relocated vertex select mode with
+        expand; switched off, Ctrl 1 is Industry Compatible's again."""
+        import bmesh
+        scene = bpy.context.scene
+        cube = bpy.data.objects.get("Cube")
+        arm_obj = None
+        saved_select_mode = tuple(scene.tool_settings.mesh_select_mode)
+        try:
+            choose('MESO')
+            yield 0.3
+            v3d = drv.center_of("VIEW_3D")
+            space = drv.area_by("VIEW_3D").spaces.active
+            select_only(cube)
+            drv.sim('MOUSEMOVE', 'NOTHING', v3d)
+            yield 0.1
+            # -- Object Mode: local view in and out ---------------------------------------------
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "obj_local_view_on", space.local_view is not None)
+            drv.check(rec, "obj_cube_in_local_view", cube.local_view_get(space))
+            light = bpy.data.objects.get("Light")
+            if light is not None:
+                drv.check(rec, "obj_light_left_out", not light.local_view_get(space))
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "obj_local_view_off", space.local_view is None)
+            drv.check(rec, "obj_selection_kept", selected_names() == ["Cube"], selected_names())
+            # Industry Compatible's own local view key stays (Shift I)
+            yield from key(v3d, 'I', shift=True)
+            yield 0.3
+            drv.check(rec, "obj_shift_i_native", space.local_view is not None)
+            yield from key(v3d, 'I', shift=True)
+            yield 0.3
+            drv.check(rec, "obj_shift_i_back", space.local_view is None)
+
+            # -- Edit Mesh: exact restore of the user's hidden vertices -------------------------
+            drv.set_mode('EDIT')
+            yield 0.3
+            scene.tool_settings.mesh_select_mode = (True, False, False)
+            bm = bmesh.from_edit_mesh(cube.data)
+            bm.verts.ensure_lookup_table()
+            for v in bm.verts:
+                v.select_set(False)
+            bm.verts[0].select_set(True)
+            bm.select_flush_mode()
+            bmesh.update_edit_mesh(cube.data)
+            with v3d_ctx():
+                bpy.ops.mesh.hide(unselected=False)      # the user's own hidden vertex
+            bm = bmesh.from_edit_mesh(cube.data)
+            bm.verts.ensure_lookup_table()
+            bm.verts[7].select_set(True)
+            bm.verts[6].select_set(True)
+            bm.select_flush_mode()
+            bmesh.update_edit_mesh(cube.data)
+            yield 0.2
+            before = mesh_hidden(cube)
+            drv.check(rec, "mesh_prehidden", before[0][0] and sum(before[0]) == 1, before[0])
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            isolated = mesh_hidden(cube)
+            drv.check(rec, "mesh_isolated", sum(1 for h in isolated[0] if not h) == 2, isolated[0])
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "mesh_exact_restore", mesh_hidden(cube) == before,
+                      [mesh_hidden(cube)[0], before[0]])
+            # Ctrl Alt 1: vertex select mode with expand (from edge mode)
+            scene.tool_settings.mesh_select_mode = (False, True, False)
+            yield 0.2
+            yield from key(v3d, 'ONE', ctrl=True, alt=True)
+            yield 0.2
+            op = bpy.context.window_manager.operators[-1] if len(
+                bpy.context.window_manager.operators) else None
+            drv.check(rec, "ctrl_alt_1_vertex_mode",
+                      tuple(scene.tool_settings.mesh_select_mode) == (True, False, False),
+                      tuple(scene.tool_settings.mesh_select_mode))
+            drv.check(rec, "ctrl_alt_1_expand",
+                      op is not None and op.bl_idname == 'MESH_OT_select_mode'
+                      and op.properties.use_expand and op.properties.type == 'VERT',
+                      op and op.bl_idname)
+            # switched off: Ctrl 1 is Industry Compatible's vertex mode with expand again
+            drv.addon_prefs().bind_isolate = False
+            yield 0.2
+            scene.tool_settings.mesh_select_mode = (False, True, False)
+            hidden_now = mesh_hidden(cube)
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.2
+            drv.check(rec, "off_ctrl_1_native",
+                      tuple(scene.tool_settings.mesh_select_mode) == (True, False, False)
+                      and mesh_hidden(cube) == hidden_now,
+                      tuple(scene.tool_settings.mesh_select_mode))
+            drv.addon_prefs().bind_isolate = True
+            yield 0.2
+            with v3d_ctx():
+                bpy.ops.mesh.reveal(select=False)
+            drv.set_mode('OBJECT')
+            yield 0.3
+
+            # -- Pose Mode -----------------------------------------------------------------
+            with v3d_ctx():
+                bpy.ops.object.armature_add(location=(4.0, 0.0, 0.0))
+            arm_obj = bpy.context.view_layer.objects.active
+            drv.set_mode('EDIT')
+            for i in range(2):
+                b = arm_obj.data.edit_bones.new(f"meso_{i}")
+                b.head = (0.0, i + 1.0, 0.0)
+                b.tail = (0.0, i + 1.0, 1.0)
+            drv.set_mode('POSE')
+            yield 0.3
+            bones = arm_obj.pose.bones
+            bones["meso_0"].hide = True                  # the user's own hidden bone
+            for pb in bones:
+                pb.select = pb.name == "meso_1"
+            before = {pb.name: pb.hide for pb in bones}
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "pose_isolated", [pb.name for pb in bones if not pb.hide] == ["meso_1"],
+                      {pb.name: pb.hide for pb in bones})
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "pose_exact_restore", {pb.name: pb.hide for pb in bones} == before,
+                      {pb.name: pb.hide for pb in bones})
+            drv.set_mode('OBJECT')
+            yield 0.2
+        finally:
+            try:
+                if bpy.context.mode != 'OBJECT':
+                    drv.set_mode('OBJECT')
+            except Exception:
+                pass
+            space = drv.area_by("VIEW_3D").spaces.active
+            if space.local_view is not None:
+                with v3d_ctx():
+                    bpy.ops.view3d.localview()
+            if arm_obj is not None and arm_obj.name in bpy.data.objects:
+                data = arm_obj.data
+                bpy.data.objects.remove(arm_obj)
+                if data is not None and data.users == 0:
+                    bpy.data.armatures.remove(data)
+            scene.tool_settings.mesh_select_mode = saved_select_mode
+            if cube is not None:
+                select_only(cube)
+            back_to_blender()
+            yield 0.3
+
+    # ------------------------------------------------------------------------------ G6
+
+    PIE = {"n": 0}
+
+    def _pie_probe(self, context):
+        if isinstance(getattr(self, "layout", None), bpy.types.UILayout):
+            PIE["n"] += 1
+
+    def sc_properties_cycle(rec):
+        """Ctrl A in the 3D View cycles the Properties tabs, skips the ones a camera lacks; with
+        the 3D View maximized it shows the sidebar Item tab; Sculpt keeps its mask pie."""
+        cube = bpy.data.objects.get("Cube")
+        camera = bpy.data.objects.get("Camera")
+        props_area = drv.area_by("PROPERTIES")
+        pspace = props_area.spaces.active
+        saved_tab = pspace.context
+        maximized = False
+        bpy.types.VIEW3D_MT_sculpt_mask_edit_pie.append(_pie_probe)
+        try:
+            choose('MESO')
+            yield 0.3
+            v3d = drv.center_of("VIEW_3D")
+            select_only(cube)
+            pspace.context = 'OBJECT'
+            props_area.tag_redraw()
+            drv.sim('MOUSEMOVE', 'NOTHING', v3d)
+            yield 0.3
+            seen = []
+            for _ in range(4):
+                yield from key(v3d, 'A', ctrl=True)
+                yield 0.15
+                seen.append(pspace.context)
+            drv.check(rec, "mesh_cycle", seen == ['DATA', 'MODIFIER', 'MATERIAL', 'OBJECT'], seen)
+            drv.check(rec, "selection_untouched", selected_names() == ["Cube"], selected_names())
+            if camera is not None:
+                select_only(camera)
+                props_area.tag_redraw()
+                yield 0.4
+                seen = []
+                for _ in range(3):
+                    yield from key(v3d, 'A', ctrl=True)
+                    yield 0.2
+                    seen.append(pspace.context)
+                drv.check(rec, "camera_skips", seen == ['DATA', 'OBJECT', 'DATA'], seen)
+                select_only(cube)
+                props_area.tag_redraw()
+                yield 0.3
+            # -- maximized 3D View: no Properties editor on the screen -> sidebar Item tab
+            with v3d_ctx():
+                bpy.ops.screen.screen_full_area()
+            maximized = True
+            yield 0.5
+            drv.check(rec, "maximized_no_properties", drv.area_by("PROPERTIES") is None,
+                      [a.type for a in drv.win().screen.areas])
+            area = drv.area_by("VIEW_3D")
+            space = area.spaces.active
+            # The sidebar remembers its tab across hide/show: leave it on Tool, then hide it, so
+            # only the delayed tab write can bring it to Item.
+            space.show_region_ui = True
+            area.tag_redraw()
+            yield 0.4
+            try:
+                drv.region_of(area, 'UI').active_panel_category = 'Tool'
+            except (AttributeError, TypeError) as ex:
+                drv.check(rec, "sidebar_preset_tool", False, repr(ex))
+            yield 0.2
+            space.show_region_ui = False
+            yield 0.3
+            v3d_max = drv.center_of("VIEW_3D")
+            drv.sim('MOUSEMOVE', 'NOTHING', v3d_max)
+            yield 0.1
+            yield from key(v3d_max, 'A', ctrl=True)
+            yield 0.6
+            ui = drv.region_of(area, 'UI')
+            drv.check(rec, "sidebar_shown", space.show_region_ui)
+            drv.check(rec, "sidebar_item_tab", ui is not None and ui.active_panel_category == 'Item',
+                      ui and ui.active_panel_category)
+            if ui is not None:
+                ui.active_panel_category = 'Tool'
+                yield 0.3
+                yield from key(v3d_max, 'A', ctrl=True)
+                yield 0.3
+                drv.check(rec, "sidebar_back_to_item", ui.active_panel_category == 'Item',
+                          ui.active_panel_category)
+                yield from key(v3d_max, 'A', ctrl=True)
+                yield 0.3
+                drv.check(rec, "sidebar_stays_item", ui.active_panel_category == 'Item'
+                          and space.show_region_ui, ui.active_panel_category)
+            space.show_region_ui = False
+            with v3d_ctx():
+                bpy.ops.screen.back_to_previous()
+            maximized = False
+            yield 0.5
+            drv.check(rec, "restored_screen", drv.area_by("PROPERTIES") is not None)
+            # -- Sculpt: Ctrl A stays the mask pie; the Properties tab does not move
+            drv.set_mode('SCULPT')
+            yield 0.3
+            pspace = drv.area_by("PROPERTIES").spaces.active
+            tab = pspace.context
+            PIE["n"] = 0
+            yield from key(v3d, 'A', ctrl=True)
+            yield 0.4
+            drv.check(rec, "sculpt_mask_pie", PIE["n"] > 0, PIE["n"])
+            drv.check(rec, "sculpt_tab_unchanged", pspace.context == tab, [tab, pspace.context])
+            drv.check(rec, "sculpt_pie_closed", (yield from drv.close_popups(v3d)))
+            drv.set_mode('OBJECT')
+            yield 0.2
+        finally:
+            try:
+                bpy.types.VIEW3D_MT_sculpt_mask_edit_pie.remove(_pie_probe)
+            except Exception:
+                pass
+            if maximized:
+                try:
+                    with v3d_ctx():
+                        bpy.ops.screen.back_to_previous()
+                except Exception:
+                    pass
+            try:
+                if bpy.context.mode != 'OBJECT':
+                    drv.set_mode('OBJECT')
+            except Exception:
+                pass
+            area = drv.area_by("PROPERTIES")
+            if area is not None:
+                area.spaces.active.context = saved_tab
+            if cube is not None:
+                select_only(cube)
+            back_to_blender()
+            yield 0.3
+
     return [
         ("mk_first_enable_dialog", sc_first_enable_dialog),
         ("mk_keyconfig_switch", sc_keyconfig_switch),
         ("mk_select_keys", sc_select_keys),
         ("mk_alt_d_reach", sc_alt_d_reach),
         ("mk_apply_menu", sc_apply_menu),
+        ("mk_isolate", sc_isolate),
+        ("mk_properties_cycle", sc_properties_cycle),
     ]
