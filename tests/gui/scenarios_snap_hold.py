@@ -34,7 +34,8 @@ Not simulable (manual checks): key auto-repeat while X is held during a drag (UH
 ``event_simulate`` has no repeat flag), and D + LMB annotate while D is held (UH2: simulated
 events never set the held-key modifier).
 
-Every scenario starts and ends on the Blender keyconfig with the choice undecided.
+Every scenario starts and ends on the Blender keyconfig with the choice undecided and the
+user edits of the Meso keymap reset.
 """
 
 import importlib
@@ -68,16 +69,16 @@ def scenarios(drv):
             return bpy.ops.meso.keymap_choose(choice=choice)
 
     def back_to_blender():
+        """Undo the scenario's Meso keymap edits, leave Meso, choice undecided."""
         p = drv.addon_prefs()
-        if p is not None and p.keymap_choice == 'MESO':
+        if mk().is_meso_active():
+            mk().reset_to_default()
+        if p is not None and (p.keymap_choice == 'MESO' or mk().is_meso_active()):
             choose('KEEP')
         drv.ensure_blender_keyconfig()
         if p is not None:
             p.keymap_choice = 'UNDECIDED'
             p.previous_keyconfig = ""
-            for b in mb().BINDINGS:
-                setattr(p, mb().pref_name(b.id), b.default_on)
-        mk().sync()
 
     def ts():
         return bpy.context.scene.tool_settings
@@ -159,8 +160,7 @@ def scenarios(drv):
 
     def begin(rec, cube):
         choose('MESO')
-        drv.check(rec, "meso_keymap_on", mk().registered_ids() and 'snap_hold_grid'
-                  in mk().registered_ids(), mk().registered_ids())
+        drv.check(rec, "meso_keymap_on", 'snap_hold_grid' in mk().live_ids(), mk().live_ids())
         tool("builtin.select_box")
         set_user()
         select_only(cube)
@@ -391,15 +391,15 @@ def scenarios(drv):
                       and len(bpy.context.window_manager.operators) == ops_before, state())
             drv.check(rec, "j_tap_no_popup", (yield from drv.canary_ok(c)))
             # D tap with the pivot hold on: the Annotate tool (cycle)
-            p.bind_pivot_hold = True
+            mk().set_binding_active('pivot_hold', True)
             yield 0.2
-            drv.check(rec, "pivot_hold_live", 'pivot_hold' in mk().registered_ids())
+            drv.check(rec, "pivot_hold_live", 'pivot_hold' in mk().live_ids())
             yield from key(c, 'D')
             drv.check(rec, "d_tap_annotate_tool", active_tool() == "builtin.annotate",
                       active_tool())
             drv.check(rec, "d_tap_state_untouched", state() == USER, state())
             tool("builtin.select_box")
-            p.bind_pivot_hold = False
+            mk().set_binding_active('pivot_hold', False)
             yield 0.2
             # Insert: Affect Only Origins, sticky
             yield from key(c, 'INSERT')
@@ -407,7 +407,7 @@ def scenarios(drv):
             yield from key(c, 'INSERT')
             drv.check(rec, "insert_off", not ts().use_transform_data_origin)
             # switched off: X is Industry Compatible's snap toggle again, on the press
-            p.bind_snap_hold_grid = False
+            mk().set_binding_active('snap_hold_grid', False)
             yield 0.2
             drv.sim('X', 'PRESS', c)
             yield 0.3
@@ -418,7 +418,7 @@ def scenarios(drv):
             drv.check(rec, "off_x_no_overlay", state()['snap_elements'] == USER['snap_elements'],
                       state())
             ts().use_snap = False
-            p.bind_snap_hold_grid = True
+            mk().set_binding_active('snap_hold_grid', True)
             yield 0.2
         finally:
             try:
@@ -553,9 +553,9 @@ def scenarios(drv):
         original = [tuple(v.co) for v in me.vertices]
         try:
             begin(rec, cube)
-            p.bind_pivot_hold = True
+            mk().set_binding_active('pivot_hold', True)
             yield 0.3
-            drv.check(rec, "pivot_hold_live", 'pivot_hold' in mk().registered_ids())
+            drv.check(rec, "pivot_hold_live", 'pivot_hold' in mk().live_ids())
             tool("builtin.move")
             yield 0.3
             c = to_win(cube.location)
@@ -597,7 +597,7 @@ def scenarios(drv):
             drv.set_mode('OBJECT')
             yield 0.2
         finally:
-            p.bind_pivot_hold = False
+            mk().set_binding_active('pivot_hold', False)
             for v, co in zip(me.vertices, original):
                 v.co = co
             me.update()
@@ -628,11 +628,10 @@ def scenarios(drv):
         text = font = None
         try:
             begin(rec, cube)
-            p.bind_pivot_hold = True               # every binding on
+            mk().set_binding_active('pivot_hold', True)      # every binding on
             yield 0.3
             drv.check(rec, "every_binding_on",
-                      set(mk().registered_ids()) == {b.id for b in mb().BINDINGS},
-                      mk().registered_ids())
+                      set(mk().live_ids()) == {b.id for b in mb().BINDINGS}, mk().live_ids())
             region = drv.region_of(v3d_area(), 'WINDOW')
             corner = (region.x + region.width // 5, region.y + region.height // 5)
             c = drv.center_of("VIEW_3D")
@@ -658,11 +657,11 @@ def scenarios(drv):
                 return started, tuple(round(v, 4) for v in scene.cursor.location)
 
             for b in mb().BINDINGS:
-                setattr(p, mb().pref_name(b.id), False)
+                mk().set_binding_active(b.id, False)
             yield 0.3
             native = yield from cursor_drag()
             for b in mb().BINDINGS:
-                setattr(p, mb().pref_name(b.id), True)
+                mk().set_binding_active(b.id, True)
             yield 0.3
             meso = yield from cursor_drag()
             rec.setdefault("details", {})["shift_rmb_drag_native_vs_meso"] = [native, meso]
@@ -672,9 +671,9 @@ def scenarios(drv):
             # IC's own cursor items fire first on their keys (headless twin:
             # test_meso_keymap.TestShiftRmbStaysNative)
             wm = bpy.context.window_manager
-            ours = [kmi for km in wm.keyconfigs.addon.keymaps for kmi in km.keymap_items
-                    if kmi.idname.startswith('meso.') or kmi.idname in {
-                        n for b in mb().BINDINGS for n in mb().operator_idnames(b)}]
+            ours = [kmi for _km, kmi, _item in mk().user_items()]
+            ours += [kmi for km in wm.keyconfigs.addon.keymaps for kmi in km.keymap_items
+                     if kmi.idname.startswith('meso.')]
             shift_rmb = [(kmi.idname, kmi.value) for kmi in ours
                          if kmi.active and kmi.type == 'RIGHTMOUSE'
                          and (kmi.any or kmi.shift != 0)]
@@ -794,7 +793,7 @@ def scenarios(drv):
                 with v3d_ctx():
                     bpy.ops.view3d.localview()
             scene.cursor.location = cursor_before
-            p.bind_pivot_hold = False
+            mk().set_binding_active('pivot_hold', False)
             end(cube)
             yield 0.3
 

@@ -68,7 +68,8 @@ def scenarios(drv):
             root = kp.MESO_ROOT
             prefs.keymap_expanded = tree.EXPANDED_SEP.join(
                 [root] + [f"{root}{tree.PATH_SEP}{label}" for _g, label in mb.GROUPS])
-            prefs.bind_deselect_all = False          # one warning row too
+            meso_keymap = importlib.import_module(drv.ADDON_MODULE + ".meso_keymap")
+            meso_keymap.set_binding_active('deselect_all', False)    # one warning row too
             n = state["draws"]
             area.tag_redraw()
             yield 0.6
@@ -78,7 +79,7 @@ def scenarios(drv):
         finally:
             p = drv.addon_prefs()
             if p is not None and p.keymap_choice == 'MESO':
-                p.bind_deselect_all = True
+                importlib.import_module(drv.ADDON_MODULE + ".meso_keymap").reset_to_default()
                 with bpy.context.temp_override(window=drv.win()):
                     bpy.ops.meso.keymap_choose(choice='KEEP')
                 p.keymap_choice = 'UNDECIDED'

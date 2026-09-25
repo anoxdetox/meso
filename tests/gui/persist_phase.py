@@ -9,9 +9,12 @@ extension repo. ``MESO_PERSIST_PHASE``:
   save the preferences.
 - ``gui_disable`` (GUI): choose the Meso Keymap, then disable Meso Mode with the Preferences'
   own operator (the add-on checkbox), quit (the preferences auto-save).
-- ``gui_keep`` (GUI): choose the Meso Keymap, quit.
-- ``gui_restart`` (GUI): a restart after ``gui_keep``: the choice and Industry Compatible are
-  back and the bindings are live without a new question; quit.
+- ``gui_keep`` (GUI): choose the Meso Keymap, edit two of its items as the keymap editor does
+  (rebind the Object Mode Ctrl A Properties cycle to F13 with direction -1, switch the Apply
+  menu items off), quit.
+- ``gui_restart`` (GUI): a restart after ``gui_keep``: the choice and the Meso keymap are back
+  (Blender itself starts on 'Blender': Meso Mode selects Meso again in register()), with the
+  user's edits, the bindings live, no new question and clean preferences; quit.
 - ``read`` (headless): what the last quit saved.
 
 Each phase writes ``MESO_PERSIST_OUT`` (JSON) and exits.
@@ -66,19 +69,40 @@ def headless():
         R["previous_keyconfig"] = getattr(p, "previous_keyconfig", None)
 
 
+def _edits(mk):
+    """The two user edits of ``gui_keep``, as found now: (Ctrl A cycle type, direction,
+    active flags of the Apply menu items)."""
+    cycle = [(k.type, k.properties.direction) for _km, k, i in mk.user_items('properties_cycle')
+             if i.keymap == 'Object Mode']
+    apply_ = [k.active for _km, k, _i in mk.user_items('apply_menu')]
+    return {"cycle": cycle, "apply_active": apply_}
+
+
 def gui_tick():
     try:
         wm = bpy.context.window_manager
         mk = _mk()
+        R["start_is_dirty"] = bpy.context.preferences.is_dirty
         R["start_active"] = _active()
+        R["start_pref_active_keyconfig"] = bpy.context.preferences.keymap.active_keyconfig
         R["start_prompt_pending"] = bool(mk and mk.prompt_pending())
-        R["start_registered"] = list(mk.registered_ids()) if mk else None
+        R["start_registered"] = list(mk.live_ids()) if mk else None
+        R["start_edits"] = _edits(mk) if mk else None
         if PHASE in ("gui_disable", "gui_keep"):
             with bpy.context.temp_override(window=wm.windows[0]):
                 R["choose"] = sorted(bpy.ops.meso.keymap_choose(choice='MESO'))
             R["after_choose_active"] = _active()
             R["after_choose_previous"] = _prefs().previous_keyconfig
-            R["after_choose_registered"] = list(mk.registered_ids())
+            R["after_choose_registered"] = list(mk.live_ids())
+        if PHASE == "gui_keep":
+            cycle = next(k for _km, k, i in mk.user_items('properties_cycle')
+                         if i.keymap == 'Object Mode')
+            cycle.type = 'F13'
+            cycle.properties.direction = -1
+            mk.set_binding_active('apply_menu', False)
+            wm.keyconfigs.update()
+            R["after_edit"] = _edits(mk)
+            R["after_edit_registered"] = list(mk.live_ids())
         if PHASE == "gui_disable":
             with bpy.context.temp_override(window=wm.windows[0]):
                 R["disable"] = sorted(bpy.ops.preferences.addon_disable(module=MOD))

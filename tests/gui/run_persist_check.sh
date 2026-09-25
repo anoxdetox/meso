@@ -3,8 +3,10 @@
 # Meso Keymap restart check (docs/meso-keymap-interfaces.md, GUI case G2):
 #   1. disable Meso Mode in the Preferences after choosing the Meso Keymap, quit: the restored
 #      keyconfig ('Blender') is what the next start reads;
-#   2. control: choose the Meso Keymap and quit: the next start is on Industry Compatible with
-#      the bindings live and no new question, and the exit-time restore was not saved.
+#   2. control: choose the Meso Keymap, edit two of its items, quit: the next start is on the
+#      Meso keyconfig (Meso Mode reselects it in register(); Blender alone starts on 'Blender')
+#      with the edits kept, the bindings live, no new question and clean preferences, and the
+#      exit-time restore was not saved.
 #
 #   tests/gui/run_persist_check.sh [--host]
 #
@@ -75,7 +77,8 @@ def load(name):
         return json.loads((out / f"{name}.json").read_text())
     except Exception as ex:
         return {"missing": repr(ex)}
-IC = "Industry_Compatible"
+MESO = "Meso"
+EDITED = {"cycle": [["F13", -1]], "apply_active": [False, False]}
 ae, ag, ar = load("a_enable"), load("a_gui_disable"), load("a_read")
 be, bg, br, bs, bra = (load("b_enable"), load("b_gui_keep"), load("b_read"), load("b_gui_restart"),
                        load("b_read_again"))
@@ -83,20 +86,26 @@ checks = {
     "a_enabled_undecided": ae.get("choice") == "UNDECIDED",
     "a_start_on_blender": ag.get("start_active") == "Blender",
     "a_no_question": ag.get("start_prompt_pending") is False,
-    "a_choose_selects_ic": ag.get("after_choose_active") == IC,
+    "a_choose_selects_meso": ag.get("after_choose_active") == MESO,
     "a_records_previous": ag.get("after_choose_previous") == "Blender",
     "a_bindings_live": bool(ag.get("after_choose_registered")),
     "a_disable_restores": ag.get("after_disable_active") == "Blender",
     "a_disabled": ag.get("after_disable_enabled") is False,
     "a_saved_restore": ar.get("pref_active_keyconfig") == "Blender",
     "a_saved_disabled": ar.get("enabled") is False,
-    "b_choose_selects_ic": bg.get("after_choose_active") == IC,
-    "b_saved_ic": br.get("pref_active_keyconfig") == IC,
+    "b_choose_selects_meso": bg.get("after_choose_active") == MESO,
+    "b_edits_made": bg.get("after_edit") == EDITED,
+    "b_default_before_edit": bg.get("start_edits") == {"cycle": [], "apply_active": []},
+    "b_saved_meso": br.get("pref_active_keyconfig") == MESO,
     "b_saved_choice": br.get("choice") == "MESO" and br.get("previous_keyconfig") == "Blender",
-    "b_restart_on_ic": bs.get("start_active") == IC,
-    "b_restart_bindings_live": bool(bs.get("start_registered")),
+    "b_restart_on_meso": bs.get("start_active") == MESO,
+    "b_restart_pref_meso": bs.get("start_pref_active_keyconfig") == MESO,
+    "b_restart_edits_kept": bs.get("start_edits") == EDITED,
+    "b_restart_bindings_live": bool(bs.get("start_registered"))
+                               and "apply_menu" not in bs.get("start_registered"),
     "b_restart_no_question": bs.get("start_prompt_pending") is False,
-    "b_exit_restore_not_saved": bra.get("pref_active_keyconfig") == IC,
+    "b_restart_clean_prefs": bs.get("start_is_dirty") is False,
+    "b_exit_restore_not_saved": bra.get("pref_active_keyconfig") == MESO,
 }
 errors = [d.get("error") for d in (ae, ag, ar, be, bg, br, bs, bra) if d.get("error") or d.get("missing")]
 for name, ok in checks.items():
