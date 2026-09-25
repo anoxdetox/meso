@@ -10,7 +10,7 @@ Filled in now. Implementers must not change these without updating this page:
 - `core/tables.py`: `FACTORY_WORKSPACE_ORDER`, `TOPBAR_FALLBACK_MENUS`, `MENU_LABEL_FALLBACKS`, `UI_TYPE_LABELS` (23 ids), `RECENT_LABEL`, `CONTROLS_LABEL` and `ordered_workspaces()`.
 - `core/timing.py` (new, pure): `TimingStats`, with `add`, `avg`, `recent_avg`, `recent_max` and `summary()` in ms.
 - `core/geometry.py`: the `BASE_*` constants and `TICK_CORNERS`, `ROLE_*`, `round_px`, and the `Metrics`, `ItemBox`, `Strip`, `Tick` and `Layout` dataclasses (`Layout.item()` and `.strip()` are implemented).
-- `view/theme.py`: `Palette`, `MESO_PALETTE` and `background_alpha`.
+- `view/theme.py`: `Palette`, `MESO_PALETTE` and `background_alpha`. **Superseded 2026-09-25:** the `use_theme_colors` bool became the `palette_style` pref (BLENDER default / TRADITIONAL = `MESO_PALETTE` / CUSTOM); see `docs/phase4-interfaces.md` "Palette styles". Hex values below are the pre-retune ones.
   - As implemented, `MESO_PALETTE.item_checked` is #787878 rather than #6b6b6b. At the default 25 % transparency, #6b6b6b blends to almost the strip grey over a light viewport, so the active-workspace marker could not be seen.
 - `view/renderer.py`: the constants, `BatchCache.__init__` and `.clear`.
 - `record/rows.py`: `InvokeInfo`. `record/topbar.py`: `EDITOR_MENUS` and `MenuLog.__init__`.

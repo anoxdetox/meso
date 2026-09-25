@@ -132,7 +132,8 @@ class PlazaState:
     hover_redraws: int = 0                # redraws requested because hover_id changed
     font_scale: float = 1.0               # prefs snapshots (Phase 2)
     row_spacing: float = 1.0
-    use_theme_colors: bool = False
+    palette_style: str = 'BLENDER'
+    custom_colors: dict | None = None
     debug_timing: bool = False            # draw_manager times callbacks into ``timing``
     timing: TimingStats = field(default_factory=TimingStats)
 
@@ -356,7 +357,8 @@ def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
     bounds = state.bounds or Rect(0, 0, window.width, window.height)
     state.layout = geometry.layout(state.model, state.anchor, bounds, metrics,
                                    renderer.text_width_fn(metrics.font_px))
-    state.palette = theme.from_preferences(context, state.use_theme_colors, state.transparency)
+    state.palette = theme.from_preferences(context, state.palette_style, state.transparency,
+                                           state.custom_colors)
     state.hover_id = geometry.hit_test(state.layout, *state.anchor)
     dropdowns.after_layout(state)
 
@@ -486,7 +488,7 @@ class MESO_OT_plaza(Operator):
           the hit WINDOW region, else the area's first; ``release_key`` =
           :func:`release_key_for`), ``t0 = time.perf_counter()``.
         - Phase 2 content (docs/phase2-interfaces.md "Data flow"): pref snapshots
-          (font_scale, row_spacing, use_theme_colors, debug_timing), ``state.model`` from
+          (font_scale, row_spacing, palette_style + custom colours, debug_timing), ``state.model`` from
           ``record.rows.build_model``, ``state.layout`` from ``core.geometry.layout`` (text
           measured with ``renderer.text_width_fn``: the only measuring of the session),
           ``state.palette`` from ``view.theme.from_preferences`` and the initial
@@ -554,7 +556,9 @@ class MESO_OT_plaza(Operator):
                                                   state.tap_action_view3d)
                 state.font_scale = float(addon_prefs.font_scale)
                 state.row_spacing = float(addon_prefs.row_spacing)
-                state.use_theme_colors = bool(addon_prefs.use_theme_colors)
+                state.palette_style = getattr(addon_prefs, 'palette_style', state.palette_style)
+                if state.palette_style == theme.STYLE_CUSTOM:
+                    state.custom_colors = prefs.custom_colors(addon_prefs)
                 state.debug_timing = bool(addon_prefs.debug_timing)
             state.window, state.area = window, area
             state.region = region if region_type == 'WINDOW' else _window_region(area)

@@ -6,7 +6,8 @@ this module is a direct child of the root, so ``__package__`` is exactly that.
 """
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty
+from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty,
+                       IntProperty, StringProperty)
 from bpy.types import AddonPreferences
 
 
@@ -37,6 +38,19 @@ def space_key_items():
             if e.identifier == 'MEDIA_LAST':
                 break
     return _space_key_items
+
+
+def _theme():
+    from .view import theme  # lazy: keeps prefs importable first in __init__._modules
+    return theme
+
+
+_CUSTOM_ROLES = ('strip', 'item_hover', 'item_checked', 'text', 'text_hover', 'text_disabled',
+                 'ticks')   # == view.theme.CUSTOM_ROLES (checked by tests)
+
+
+def _traditional_rgb(role):
+    return tuple(getattr(_theme().MESO_PALETTE, role)[:3])
 
 
 class MesoAddonPreferences(AddonPreferences):
@@ -174,10 +188,58 @@ class MesoAddonPreferences(AddonPreferences):
         description="Show keyboard shortcuts next to the dropdown items",
         default=True,
     )
-    use_theme_colors: BoolProperty(
-        name="Use Theme Colors",
-        description="Colour the Plaza from the Blender theme instead of Meso grey",
-        default=False,
+    palette_style: EnumProperty(
+        name="Colours",
+        description="Where the Plaza takes its colours from",
+        items=(
+            ('BLENDER', "Blender Theme", "Match the active Blender theme's menu colours "
+                                         "(follows theme changes)"),
+            ('TRADITIONAL', "Traditional", "Neutral grey strips with light text"),
+            ('CUSTOM', "Custom", "Your own colours, set below"),
+        ),
+        default='BLENDER',
+    )
+    color_strip: FloatVectorProperty(
+        name="Strips",
+        description="Background of the Plaza strips, the centre box and the dropdowns",
+        subtype='COLOR_GAMMA', size=3, min=0.0, max=1.0,
+        default=_traditional_rgb('strip'),
+    )
+    color_item_hover: FloatVectorProperty(
+        name="Hover",
+        description="Box behind the hovered label or item",
+        subtype='COLOR_GAMMA', size=3, min=0.0, max=1.0,
+        default=_traditional_rgb('item_hover'),
+    )
+    color_item_checked: FloatVectorProperty(
+        name="Checked Bar",
+        description="Underline of checked items (the active workspace)",
+        subtype='COLOR_GAMMA', size=3, min=0.0, max=1.0,
+        default=_traditional_rgb('item_checked'),
+    )
+    color_text: FloatVectorProperty(
+        name="Text",
+        description="Label text",
+        subtype='COLOR_GAMMA', size=3, min=0.0, max=1.0,
+        default=_traditional_rgb('text'),
+    )
+    color_text_hover: FloatVectorProperty(
+        name="Hover Text",
+        description="Text of the hovered label",
+        subtype='COLOR_GAMMA', size=3, min=0.0, max=1.0,
+        default=_traditional_rgb('text_hover'),
+    )
+    color_text_disabled: FloatVectorProperty(
+        name="Disabled Text",
+        description="Greyed-out items, headers and shortcut hints",
+        subtype='COLOR_GAMMA', size=3, min=0.0, max=1.0,
+        default=_traditional_rgb('text_disabled'),
+    )
+    color_ticks: FloatVectorProperty(
+        name="Zone Ticks",
+        description="The corner ticks that mark the zones",
+        subtype='COLOR_GAMMA', size=3, min=0.0, max=1.0,
+        default=_traditional_rgb('ticks'),
     )
     debug_timing: BoolProperty(
         name="Debug Timing",
@@ -226,10 +288,44 @@ class MesoAddonPreferences(AddonPreferences):
         sub.prop(self, "hover_close_delay")
         col.prop(self, "execute_on_release")
         col.prop(self, "show_shortcuts")
-        col.prop(self, "use_theme_colors")
+        col.prop(self, "palette_style")
+        if self.palette_style == 'CUSTOM':
+            box = col.box()
+            sub = box.column(align=True)
+            for role in _CUSTOM_ROLES:
+                sub.prop(self, f"color_{role}")
+            row = box.row(align=True)
+            row.label(text="Start from:")
+            for source, text in (('BLENDER', "Blender Theme"), ('TRADITIONAL', "Traditional")):
+                row.operator(MESO_OT_palette_to_custom.bl_idname, text=text).source = source
         col.prop(self, "debug_timing")
         from . import keymap_prefs  # lazy: keymap_prefs imports this module
         keymap_prefs.draw(context, layout, self)
+
+
+class MESO_OT_palette_to_custom(bpy.types.Operator):
+    """Copy a palette style's colours into the Custom colours"""
+    bl_idname = "meso.palette_to_custom"
+    bl_label = "Copy Colours to Custom"
+    bl_options = {'INTERNAL'}
+
+    source: EnumProperty(items=(('BLENDER', "Blender Theme", ""),
+                                ('TRADITIONAL', "Traditional", "")),
+                         default='BLENDER', options={'SKIP_SAVE'})
+
+    def execute(self, context):
+        addon_prefs = get_prefs(context)
+        if addon_prefs is None:
+            return {'CANCELLED'}
+        palette = _theme().from_preferences(context, self.source, 0)
+        for role in _CUSTOM_ROLES:
+            setattr(addon_prefs, f"color_{role}", tuple(getattr(palette, role)[:3]))
+        return {'FINISHED'}
+
+
+def custom_colors(addon_prefs):
+    """``{role: (r, g, b)}`` of the Custom colours (for ``view.theme.custom_palette``)."""
+    return {role: tuple(getattr(addon_prefs, f"color_{role}")) for role in _CUSTOM_ROLES}
 
 
 def get_prefs(context):
@@ -244,6 +340,7 @@ def get_prefs(context):
 
 _classes = (
     MesoAddonPreferences,
+    MESO_OT_palette_to_custom,
 )
 
 

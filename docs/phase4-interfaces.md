@@ -357,3 +357,9 @@ A click in the Plaza runs as the same click would on Blender's own button. `core
 - **Mesh select mode** (`mesh.select_mode`, the header V/E/F template): Shift -> `use_extend=True`, Ctrl -> `use_expand=True`; a plain click switches the mode.
 - Independent toggles (checkboxes, mirror X/Y/Z, …) stay independent; radios stay exclusive.
 - New cases: add them to `with_click_modifiers` (pure, unit-tested) after checking the native button's behaviour.
+
+## Palette styles (post-rename, user decision 2026-09-25)
+- Pref `palette_style`: `BLENDER` (default), `TRADITIONAL`, `CUSTOM`. It replaces `use_theme_colors`. The custom colours are the prefs `color_<role>` for `theme.CUSTOM_ROLES` (strip, item_hover, item_checked, text, text_hover, text_disabled, ticks; `COLOR_GAMMA`, RGB). They default to the Traditional values, and `meso.palette_to_custom(source)` seeds them from a style.
+- `theme.from_preferences(context, style, transparency, custom)`: BLENDER → `theme_palette(themes[0].user_interface)`, falling back to Traditional (logged once); TRADITIONAL → `meso_palette`; CUSTOM → `custom_palette(custom)`, where missing or bad roles keep Traditional and the centre box takes the strip/text colours. A bool `style` is read as the old `use_theme_colors`. Never raises.
+- `PlazaState.palette_style` / `custom_colors` are snapshotted at invoke. The transparency pref sets the strip/centre alpha in every style.
+- The Blender theme rounds the strip corners (`wcol_menu_back.roundness`). GUI pixel probes sample mid-edge padding as well as the corners.

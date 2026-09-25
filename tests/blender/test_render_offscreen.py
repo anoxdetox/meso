@@ -249,9 +249,14 @@ def _fake_ui(roundness=0.4):
 
 class TestTheme(unittest.TestCase):
 
-    def test_meso_default(self):
+    def test_default_is_blender_theme(self):
         th = _th()
-        p = th.from_preferences(bpy.context)
+        self.assertEqual(th.from_preferences(bpy.context),
+                         th.theme_palette(bpy.context.preferences.themes[0].user_interface, 25))
+
+    def test_traditional(self):
+        th = _th()
+        p = th.from_preferences(bpy.context, 'TRADITIONAL')
         self.assertEqual(p, th.meso_palette(25))
         self.assertAlmostEqual(p.strip[3], 0.75)
         self.assertAlmostEqual(p.center_back[3], 0.75)
@@ -290,7 +295,7 @@ class TestTheme(unittest.TestCase):
 
     def test_live_theme(self):
         th = _th()
-        p = th.from_preferences(bpy.context, use_theme_colors=True, transparency=25)
+        p = th.from_preferences(bpy.context, style='BLENDER', transparency=25)
         self.assertEqual(p, th.theme_palette(bpy.context.preferences.themes[0].user_interface, 25))
         self.assertTrue(all(len(c) == 4 for c in (p.strip, p.text, p.text_hover, p.center_text)))
         self.assertAlmostEqual(p.roundness, 0.4, places=3)
@@ -303,7 +308,7 @@ class TestTheme(unittest.TestCase):
             def preferences(self):
                 raise RuntimeError("no prefs (test)")
         with redirect_stderr(io.StringIO()):
-            p = th.from_preferences(Boom(), use_theme_colors=True, transparency=10)
+            p = th.from_preferences(Boom(), style='BLENDER', transparency=10)
             self.assertEqual(p, th.meso_palette(10))
             bad = SimpleNamespace(preferences=SimpleNamespace(themes=[SimpleNamespace(
                 user_interface=SimpleNamespace(wcol_menu_back=None))]))

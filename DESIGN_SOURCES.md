@@ -17,10 +17,20 @@ decisions and values come from, so that none of them is copied from another prod
 Never used: screenshots or recordings of other applications as pixel or colour sources, their
 icons or artwork, their documentation text, or their scripts and configuration.
 
-## Palette (`src/meso/view/theme.py` `MESO_PALETTE`)
-Status: **pending approval**. The values in the tree are the development placeholders; they
-are replaced by the approved independently chosen palette, which is recorded below with its
-reasoning.
+## Palette (`src/meso/view/theme.py`, pref "Colours")
+- **Blender Theme (default):** the Plaza reads the active Blender theme's menu colours at every
+  invoke (`theme_palette`: menu back / menu item / tooltip widget colours and roundness), so it
+  looks like Blender's own menus and follows theme changes.
+- **Traditional (`MESO_PALETTE`):** neutral greys chosen for Meso Mode on 2026-09-25, not
+  sampled from any product. Strip #525252 is a mid grey that stays visible over both dark and
+  light editors. Text #e0e0e0 has a 5.9:1 contrast ratio on it, above the WCAG AA 4.5:1 minimum.
+  Hover #787878 is clearly lighter than the strip, the checked bar is #cacaca, disabled text
+  #8a8a8a, and the zone ticks #c2c2c2.
+- **Custom:** the user's own colours per role, which default to the Traditional values. They
+  can be seeded from either style ("Start from").
+- Dropdown borders and separators are our own ratios on the session palette
+  (`renderer.DD_BORDER_FACTOR`, `DD_SEPARATOR_MIX`, `DD_CELL_HOVER_MIX`), so they work with
+  every style.
 
 ## Layout metrics
 Strip heights, paddings and gaps are expressed in Blender UI units and scale with

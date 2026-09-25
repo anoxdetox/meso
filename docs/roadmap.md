@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅ (palette approval pending); next: Meso Keymap.
+Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; next: Meso Keymap.
 
 ## Guiding principle — Plaza menus mirror native behaviour (user rule 2026-09-25)
 Wherever the Plaza redraws a native control, it behaves like the native one: the same click conventions (a plain click on a multi-value button is exclusive, Shift extends), the same grouping and labels. See `docs/phase4-interfaces.md` "Native click conventions".
@@ -60,7 +60,7 @@ Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table 
   - The overlay and radial-menu patents found are expired (US 6,414,700 family, last 2021; US 5,689,667 family, last 2017).
   - **Live patent US 9,405,404 (to 2031) covers multi-touch chord gestures: never implement finger-chord recognition.**
   - UI paradigms are generally not copyrightable (Lotus v. Borland; in the EU, SAS v WPL and BSA C-393/09). Icons, artwork and distinctive styling can be, so none are copied.
-- **Palette:** `MESO_PALETTE` gets independently chosen values, approved by the user from before/after screenshots. Provenance is recorded in `DESIGN_SOURCES.md`.
+- **Palette (user decision 2026-09-25):** the default matches the active Blender theme. "Traditional" (`MESO_PALETTE`, retuned to our own neutral greys) and "Custom" (per-role colours) are overrides. Provenance is in `DESIGN_SOURCES.md`.
 - **Clean room from now on:** design only from public sources (expired patents, published HCI papers, public help pages paraphrased and never pasted, Blender docs). Don't run a third-party DCC as a design reference, and never decompile or extract its scripts or configs. The keymap gap analysis stays in `local/`.
 - **Licensing:** the code is GPL-3.0-or-later; everything inside the extension zip is GPL. Docs and media are CC-BY-SA-4.0 via REUSE/SPDX. Contributions are under the DCO (`git commit -s`, see CONTRIBUTING.md). The project is **free and open source only, never commercial**: GPL can't forbid resale, but it forces redistribution to stay GPL with source. Never switch to an NC licence, since that is not OSS and is GPL-incompatible. Stay non-commercial, with no paid support and no donations beyond costs.
 - **Pre-publish checklist:**

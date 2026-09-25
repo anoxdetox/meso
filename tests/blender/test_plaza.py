@@ -528,7 +528,7 @@ class TestPhase2State(unittest.TestCase):
                           state.pressed_id), (None,) * 5)
         self.assertEqual(state.hover_redraws, 0)
         self.assertEqual((state.font_scale, state.row_spacing), (1.0, 1.0))
-        self.assertFalse(state.use_theme_colors)
+        self.assertEqual((state.palette_style, state.custom_colors), ('BLENDER', None))
         self.assertFalse(state.debug_timing)
         self.assertEqual(state.timing.count, 0)
         other = _hb().PlazaState(window_ptr=1, screen_ptr=2, anchor=(0, 0), t0=0.0)
@@ -540,12 +540,46 @@ class TestPhase2State(unittest.TestCase):
         self.assertIsNotNone(p)
         self.assertAlmostEqual(p.font_scale, 1.0)
         self.assertAlmostEqual(p.row_spacing, 1.0)
-        self.assertFalse(p.use_theme_colors)
+        self.assertEqual(p.palette_style, 'BLENDER', "default: match the Blender theme")
         props = prefs.MesoAddonPreferences.bl_rna.properties
         self.assertEqual((props['font_scale'].hard_min, props['font_scale'].hard_max), (0.5, 3.0))
         self.assertEqual((props['row_spacing'].hard_min, props['row_spacing'].hard_max),
                          (0.0, 3.0))
-        self.assertIn('Blender theme', props['use_theme_colors'].description)
+        self.assertEqual([i.identifier for i in props['palette_style'].enum_items],
+                         ['BLENDER', 'TRADITIONAL', 'CUSTOM'])
+        theme = sys.modules[ADDON_MODULE + ".view.theme"]
+        self.assertEqual(prefs._CUSTOM_ROLES, theme.CUSTOM_ROLES)
+        for role in theme.CUSTOM_ROLES:
+            with self.subTest(role=role):
+                rna = props[f'color_{role}']
+                self.assertEqual((rna.subtype, rna.array_length), ('COLOR_GAMMA', 3))
+                self.assertEqual(tuple(round(v, 4) for v in rna.default_array),
+                                 tuple(round(v, 4) for v in getattr(theme.MESO_PALETTE, role)[:3]))
+
+    def test_palette_styles_reach_the_session_palette(self):
+        prefs = sys.modules[PREFS_MODULE]
+        theme = sys.modules[ADDON_MODULE + ".view.theme"]
+        p = prefs.get_prefs(bpy.context)
+        self.addCleanup(setattr, p, 'palette_style', p.palette_style)
+        ui = bpy.context.preferences.themes[0].user_interface
+        self.assertEqual(theme.from_preferences(bpy.context, 'BLENDER', 25),
+                         theme.theme_palette(ui, 25))
+        self.assertEqual(theme.from_preferences(bpy.context, 'TRADITIONAL', 25),
+                         theme.meso_palette(25))
+        old = tuple(p.color_item_hover)
+        self.addCleanup(setattr, p, 'color_item_hover', old)
+        p.color_item_hover = (0.2, 0.6, 0.5)
+        custom = theme.from_preferences(bpy.context, 'CUSTOM', 40, prefs.custom_colors(p))
+        self.assertEqual(tuple(round(c, 5) for c in custom.item_hover), (0.2, 0.6, 0.5, 1.0))
+        self.assertAlmostEqual(custom.strip[3], 0.6)
+        self.assertEqual(custom.center_back, custom.strip)
+        # "Start from" copies a style's colours into the Custom ones.
+        self.assertEqual(bpy.ops.meso.palette_to_custom(source='TRADITIONAL'), {'FINISHED'})
+        self.assertEqual(tuple(round(c, 4) for c in p.color_item_hover),
+                         tuple(round(c, 4) for c in theme.MESO_PALETTE.item_hover[:3]))
+        bpy.ops.meso.palette_to_custom(source='BLENDER')
+        self.assertEqual(tuple(round(c, 4) for c in p.color_text),
+                         tuple(round(c, 4) for c in theme.theme_palette(ui, 0).text[:3]))
 
 
 class TestBuildContent(_PlazaCase):

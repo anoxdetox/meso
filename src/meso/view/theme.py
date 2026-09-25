@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Plaza colours (Phase 2).
 
-The default look is a grey Plaza (``docs/reference/reference_plaza.png``): flat dark-grey
-translucent strips, light-grey text, a taller centre box in the strip grey, light-grey zone
-ticks and no full-screen dim. ``use_theme_colors`` (pref, default False) maps the Blender theme instead.
+Three styles (pref ``palette_style``): BLENDER (default) maps the active Blender theme's menu
+colours (:func:`theme_palette`); TRADITIONAL is :data:`MESO_PALETTE`: flat mid-grey translucent
+strips, light-grey text, a taller centre box in the strip grey, light-grey zone ticks and no
+full-screen dim; CUSTOM uses the user's colours (:func:`custom_palette`).
 
 Colours are display-space (sRGB) RGBA tuples; the renderer applies the linear-blend alpha
 correction per region (D2), never this module. The ``transparency`` pref (0..100) sets the
@@ -47,22 +48,34 @@ def _grey(v: float, a: float = 1.0) -> RGBA:
     return (v, v, v, a)
 
 
-# Meso grey, sampled from the reference image (hex in comments). Background alphas here are
-# placeholders: meso_palette() replaces them with 1 - transparency / 100.
+# Palette styles (pref ``palette_style``): BLENDER maps the active theme (the default),
+# TRADITIONAL is MESO_PALETTE, CUSTOM takes the user's colours (``custom_palette``).
+STYLE_BLENDER, STYLE_TRADITIONAL, STYLE_CUSTOM = 'BLENDER', 'TRADITIONAL', 'CUSTOM'
+PALETTE_STYLES = (STYLE_BLENDER, STYLE_TRADITIONAL, STYLE_CUSTOM)
+
+# The Traditional look: neutral greys chosen for Meso Mode (DESIGN_SOURCES.md "Palette"):
+# a mid-grey strip that reads over both dark and light editors, label text at >= 5:1 contrast
+# on it, a clearly lighter hover box and a light underline bar for checked items. Background
+# alphas here are placeholders: meso_palette() replaces them with 1 - transparency / 100.
 MESO_PALETTE = Palette(
-    strip=_grey(0x59 / 255, 0.85),          # #595959
-    item_hover=_grey(0x80 / 255, 1.0),      # #808080 (lighter box behind the hovered label)
-    item_checked=_grey(0xc8 / 255, 1.0),    # #c8c8c8 bar (hover keeps the only box fill)
-    text=_grey(0xdc / 255),                 # #dcdcdc
+    strip=_grey(0x52 / 255, 0.85),          # #525252
+    item_hover=_grey(0x78 / 255, 1.0),      # #787878 (lighter box behind the hovered label)
+    item_checked=_grey(0xca / 255, 1.0),    # #cacaca bar (hover keeps the only box fill)
+    text=_grey(0xe0 / 255),                 # #e0e0e0 (5.9:1 on the strip)
     text_hover=_grey(0xff / 255),           # #ffffff
-    text_disabled=_grey(0x8c / 255),        # #8c8c8c
-    center_back=_grey(0x59 / 255, 0.85),    # #595959, the strip fill: the reference box
-                                            # stands out only by its height
-    center_text=_grey(0xdc / 255),          # #dcdcdc
-    ticks=_grey(0xc8 / 255),                # #c8c8c8
+    text_disabled=_grey(0x8a / 255),        # #8a8a8a
+    center_back=_grey(0x52 / 255, 0.85),    # #525252, the strip fill: the centre box stands
+                                            # out by its height only
+    center_text=_grey(0xe0 / 255),          # #e0e0e0
+    ticks=_grey(0xc2 / 255),                # #c2c2c2
     dim=(0.0, 0.0, 0.0, 0.0),
     roundness=None,
 )
+
+# Colours the user can set for the CUSTOM style (``prefs`` ``color_<role>``, RGB); the
+# centre box takes the strip / text colours.
+CUSTOM_ROLES = ('strip', 'item_hover', 'item_checked', 'text', 'text_hover', 'text_disabled',
+                'ticks')
 
 
 def background_alpha(transparency: float) -> float:
@@ -81,6 +94,23 @@ def with_background_alpha(palette: Palette, alpha: float) -> Palette:
 def meso_palette(transparency: float = 25) -> Palette:
     """MESO_PALETTE with the background alpha from ``transparency``."""
     return with_background_alpha(MESO_PALETTE, background_alpha(transparency))
+
+
+def custom_palette(colors: Any, transparency: float = 25) -> Palette:
+    """A Palette from ``{role: (r, g, b[, a])}`` for :data:`CUSTOM_ROLES`; a missing or
+    malformed role keeps its MESO_PALETTE colour. Alphas: strip / centre box from
+    ``transparency``, every other role opaque. Never raises."""
+    base = MESO_PALETTE
+    values = {}
+    for role in CUSTOM_ROLES:
+        try:
+            r, g, b = (min(max(float(c), 0.0), 1.0) for c in tuple(colors[role])[:3])
+            values[role] = (r, g, b, 1.0)
+        except Exception:
+            values[role] = (*getattr(base, role)[:3], 1.0)
+    values['center_back'] = values['strip']
+    values['center_text'] = values['text']
+    return with_background_alpha(replace(base, **values), background_alpha(transparency))
 
 
 def theme_palette(ui: Any, transparency: float = 25) -> Palette:
@@ -134,22 +164,30 @@ def _rgba(color: Any) -> RGBA:
 _fallback_logged = False
 
 
-def from_preferences(context: Any, use_theme_colors: bool = False,
-                     transparency: float = 25) -> Palette:
-    """The session palette: :func:`meso_palette` unless ``use_theme_colors``; then
-    :func:`theme_palette` of ``context.preferences.themes[0].user_interface`` inside
-    try/except, falling back to :func:`meso_palette` (logged once with 'Meso Mode:'). Never
-    raises."""
+def from_preferences(context: Any, style: Any = STYLE_BLENDER, transparency: float = 25,
+                     custom: Any = None) -> Palette:
+    """The session palette for ``style`` (a PALETTE_STYLES id; a bool is read as the former
+    ``use_theme_colors``: True -> BLENDER, False -> TRADITIONAL):
+
+    - BLENDER: :func:`theme_palette` of ``context.preferences.themes[0].user_interface``,
+      falling back to :func:`meso_palette` (logged once with 'Meso Mode:');
+    - TRADITIONAL (and unknown ids): :func:`meso_palette`;
+    - CUSTOM: :func:`custom_palette` of ``custom``.
+    Never raises (a bad ``transparency`` gives MESO_PALETTE)."""
     global _fallback_logged
+    if isinstance(style, bool):
+        style = STYLE_BLENDER if style else STYLE_TRADITIONAL
     try:
-        if not use_theme_colors:
+        if style == STYLE_CUSTOM:
+            return custom_palette(custom or {}, transparency)
+        if style != STYLE_BLENDER:
             return meso_palette(transparency)
         try:
             return theme_palette(context.preferences.themes[0].user_interface, transparency)
         except Exception as ex:
             if not _fallback_logged:
                 _fallback_logged = True
-                print(f"Meso Mode: theme colours unavailable, using Meso grey: "
+                print(f"Meso Mode: theme colours unavailable, using the Traditional palette: "
                       f"{type(ex).__name__}: {ex}", file=sys.stderr)
             return meso_palette(transparency)
     except Exception:

@@ -1169,8 +1169,12 @@ def _shot_at_scale(rec, scale, row_h_1x):
     changed = []
     for strip in lay.strips:
         r = strip.rect
+        # Corners, plus the mid-height left/right padding: the Blender theme rounds the
+        # strip corners (roundness x row_h / 2), which can leave the corner spots outside.
+        mid = int(r.y + r.h // 2)
         spots = [(int(r.x) + 2, int(r.y) + 2), (int(r.x) + 2, int(r.y1) - 3),
-                 (int(r.x1) - 3, int(r.y) + 2), (int(r.x1) - 3, int(r.y1) - 3)]
+                 (int(r.x1) - 3, int(r.y) + 2), (int(r.x1) - 3, int(r.y1) - 3),
+                 (int(r.x) + 2, mid), (int(r.x1) - 3, mid)]
         changed.append(any(max(abs(a - b) for a, b in zip(px(shot, p), px(base, p))) > 8
                            for p in spots))
     check(rec, tag + "strips_drawn", lay.strips and all(changed),

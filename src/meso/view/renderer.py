@@ -546,9 +546,9 @@ def _draw_labels(layout: Layout, palette: Palette, hover_id: str | None, ox: int
 
 # --------------------------------------------------------------------------- Phase 4 dropdowns
 
-# Derived tones (docs/phase4-interfaces.md "Colours"; sampled on the reference list panel of
-# docs/reference/reference_plaza_and_rmb.jpg: a near-black 1 px outline and separator lines a
-# little LIGHTER than the panel grey).
+# Derived tones (docs/phase4-interfaces.md "Colours"): our own ratios on the session palette,
+# a darker 1 px outline and separator lines a little LIGHTER than the panel, so they work for
+# every palette style.
 DD_BORDER_FACTOR = 0.3          # border RGB = strip RGB x this (a darker strip grey)
 DD_SEPARATOR_MIX = 0.2          # separator RGB = strip RGB mixed this far toward palette.text
 DOT_SEGMENTS = 16               # polygon segments of the radio dot
@@ -565,7 +565,7 @@ class DropdownColors:
     1.0), so strip labels under a panel never show through. ``border``: 1-scale-px outline
     inside the panel rect, a darker derived tone of the strip grey (strip RGB x
     DD_BORDER_FACTOR). ``separator``: separator lines, a lighter derived tone (strip RGB mixed
-    DD_SEPARATOR_MIX toward ``palette.text``, opaque; the reference separators are lighter than the
+    DD_SEPARATOR_MIX toward ``palette.text``, opaque; lighter than the
     panel). ``item_hover``: the hover bar across the panel width (``palette.item_hover``).
     ``text`` / ``text_hover`` / ``text_disabled`` (disabled and inactive items, section
     headers) / ``shortcut`` (dimmed hint, ``text_disabled``) / ``glyph`` (check, radio, arrow;
