@@ -88,6 +88,31 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
      keeps no readable selection and is covered headless. The Clip Editor Mask mode (UH4) and the node-socket
      driver (UH3) are answered by `mk_alt_d_reach`: Alt D never reaches either editor keymap. `run_gui_tests.sh
      --only a,b` runs a subset.
+- **Step 2 implemented** (Ctrl 1 isolate, Ctrl A Properties cycle): `core/isolate.py`, `core/properties_cycle.py`,
+  `ops/isolate.py`, `ops/properties_cycle.py`, registered before `keymaps` / `meso_keymap` in `__init__._modules`.
+  Live bindings added: `isolate`, `reloc_mesh_vert_expand`, `properties_cycle`. Tests: `tests/unit/test_isolate.py`,
+  `tests/unit/test_properties_cycle.py`, `tests/blender/test_isolate_blender.py`,
+  `tests/blender/test_properties_cycle_blender.py`, the Meso part of `tests/blender/test_keymap_prefs.py`, and
+  `tests/gui/scenarios_meso_keymap.py` G5 `mk_isolate`, G6 `mk_properties_cycle`.
+- **Deviations from this contract in step 2** (the sections below are updated where marked):
+  1. **Multi-object editing:** `core.isolate.plan(entries)` decides for every object in the mode at once (the native
+     hide acts on all of them): if any object has something to restore, Ctrl 1 toggles back (those objects restore,
+     the rest are skipped); else all isolate. `decide()` stays the per-object rule.
+  2. **Undone restore:** a restored record is kept inactive (`Record.active = False`) instead of being dropped.
+     Ctrl 1 then restores again only when the flags equal the isolated state (the restore was undone with Ctrl Z);
+     any other state isolates afresh, so an old record never overrides a new hidden state.
+  3. **Topology change:** the reveal writes all-visible flags for that object only, not the native reveal (which
+     acts on every object in the mode). Same result for the object: everything shown, selection untouched.
+  4. **Guards:** in the element modes, nothing selected → INFO "Nothing selected", CANCELLED (the native hide would
+     hide everything); a hide that changes nothing (everything visible is selected) → INFO "Nothing to isolate",
+     CANCELLED, no record.
+  5. **Available tabs are found by assignment.** `SpaceProperties.bl_rna.properties['context'].enum_items` is the
+     static list (RNA gives no context to the dynamic item function), so the operator tries the ids of
+     `rotation(order, current, direction)` in turn and skips each `TypeError`. `rotation()` (the try order, ending
+     with the current tab), `next_tab(..., available=None)`, `sidebar_plan()` and `unknown()` are the pure parts.
+  6. The prefs Properties group shows "Cycle: …", the valid tab ids and an alert for unknown ids under the field.
+  7. The sidebar timer gives up quietly after 5 tries (the Item tab needs an active object). Ctrl A over a sidebar
+     already on Item does nothing and returns CANCELLED.
 
 ## Delivery model (user decision 1)
 - **On the first enable** the user chooses: **Use the Meso Keymap** (select IC + register Meso's bindings) or **Keep my
@@ -474,7 +499,8 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
   | no record | ISOLATE: snapshot `before`, run the isolate op, snapshot `after`, store |
   | record, `current.counts != before.counts` (topology changed while isolated) | RESTORE_TOPOLOGY_CHANGED: the native reveal (`select=False`), WARNING "Topology changed while isolated: revealed everything" (DEFAULT), drop the record |
   | record, `current == before` (e.g. the hide was undone) | ISOLATE again (the old record is replaced) |
-  | record, otherwise | RESTORE: write `before` exactly (also when the user hid more while isolated), drop the record |
+  | record, otherwise | RESTORE: write `before` exactly (also when the user hid more while isolated), keep the record inactive (step 2, deviation 2) |
+  | inactive record, `current == after` (the restore was undone) | RESTORE again; any other state → ISOLATE (step 2) |
 
   The restore never uses the native reveal (it is never exact, spike e). Selection is left as it is. Records are
   cleared on `load_post`; they survive mode switches (the hide flags live in the data). Undo safety comes from the
@@ -490,9 +516,9 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
   else the largest, ties → lowest index (DEFAULT). `None` → sidebar fallback.
 - `next_tab(order, current, available)`: `current` in `order` → the next id after it in `order` (wrapping) that is in
   `available`; `current` not in `order` → the first available of `order`; none available → `None` (INFO "No tab of the
-  cycle exists for the active object", nothing changes). The operator reads `available` from
-  `space.bl_rna.properties['context'].enum_items` after the last redraw and still wraps the assignment in
-  `try/except TypeError` (skip to the next candidate): the list can be stale.
+  cycle exists for the active object", nothing changes). ~~The operator reads `available` from
+  `space.bl_rna.properties['context'].enum_items`~~ (that is the static list; step 2, deviation 5): the operator
+  tries the ids of `rotation()` in turn and skips each `TypeError` (the dynamic list can also be stale).
 - **Sidebar fallback** (no Properties area on this screen, e.g. a maximized 3D View): only for the 3D View the key was
   pressed in. If its sidebar is hidden, `show_region_ui = True`, then a one-shot timer (0.05 s, re-resolves the area by
   window index + screen name + area index, no stored pointers) sets `active_panel_category = 'Item'` once the region
@@ -604,7 +630,7 @@ After the GUI run: `git checkout -- docs/screenshots` unless a screenshot is a n
 Each step ends with: unit tests, the Blender tests, `extension validate` (all with fresh config dirs), the GUI suite
 for the scenarios it adds, a docs update (this page's "Status" notes + README key list), and a signed-off commit.
 
-### Step 1 — delivery, select keys, Apply relocation, per-binding toggles
+### Step 1 — delivery, select keys, Apply relocation, per-binding toggles (✅ implemented, see Status)
 - Files: `core/meso_bindings.py` (full table, all groups, so later steps only add operators), `core/keyconfig_choice.py`,
   `meso_keymap.py`, `ops/keymap_choice.py`, `prefs.py` (choice prefs, generated `bind_*`, `bindings_on_other_keymaps`,
   `properties_cycle_order`, `isolate_frame_selected`, `hold_tap_threshold`), `keymap_prefs.py`, `__init__.py`,
@@ -614,7 +640,7 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
   binding whose operator is not registered (`hasattr(bpy.types, 'MESO_OT_...')`), so no dead items are created.
 - Verify first and record here: the msgbus keyconfig subscription (G3).
 
-### Step 2 — Ctrl+1 isolate and Ctrl+A Properties cycle
+### Step 2 — Ctrl+1 isolate and Ctrl+A Properties cycle (✅ implemented, see Status)
 - Files: `core/isolate.py`, `core/properties_cycle.py`, `ops/isolate.py`, `ops/properties_cycle.py`, tests, GUI G5–G6.
 - Bindings live: `isolate`, `reloc_mesh_vert_expand`, `properties_cycle`.
 

@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; Meso Keymap step 1 ✅ (delivery, select keys, Apply on Ctrl+Alt+A, per-binding toggles; open decision C13 on Alt+D); next: Meso Keymap steps 2–3 — implementation contract in `docs/meso-keymap-interfaces.md`, built on `docs/spikes/meso-keymap-api.md` and `docs/spikes/meso-keymap-conflicts.md`.
+Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; Meso Keymap step 1 ✅ (delivery, select keys, Apply on Ctrl+Alt+A, per-binding toggles; open decision C13 on Alt+D); Meso Keymap step 2 ✅ (Ctrl+1 isolate, Ctrl+A Properties cycle); next: Meso Keymap step 3 (pre-drag snapping, D/Insert pivot) — implementation contract in `docs/meso-keymap-interfaces.md`, built on `docs/spikes/meso-keymap-api.md` and `docs/spikes/meso-keymap-conflicts.md`.
 
 ## Guiding principle — Plaza menus mirror native behaviour (user rule 2026-09-25)
 Wherever the Plaza redraws a native control, it behaves like the native one: the same click conventions (a plain click on a multi-value button is exclusive, Shift extends), the same grouping and labels. See `docs/phase4-interfaces.md` "Native click conventions".
@@ -75,17 +75,17 @@ Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table 
 
 ## Queued after the rename (user decisions 2026-09-25)
 **Contract:** items 2–4 and parity backlog items 1, 2 and 9 are specified in `docs/meso-keymap-interfaces.md` (binding table, prefs, lifecycle, tests, steps 1–3, open decisions with safe defaults). Where this list and the contract differ, the contract wins. The "inject a preset" wording of item 2 is superseded by the delivery model under "Meso Keymap and feature parity": select the built-in Industry Compatible preset on explicit consent, Meso bindings as add-on items only.
-2. **Meso Keymap** (replaces "personal keymap export"; deferred analysis). **Step 1 ✅** (2026-09-25): the first-enable choice selects Industry Compatible and records/restores the previous keyconfig; the bindings are add-on items with one switch each in the preferences. Open: decision C13 in the contract (Alt+D cannot reach the Outliner, Node, Clip, File Browser, Info and channel lists).
+2. **Meso Keymap** (replaces "personal keymap export"; deferred analysis). **Step 1 ✅** (2026-09-25): the first-enable choice selects Industry Compatible and records/restores the previous keyconfig; the bindings are add-on items with one switch each in the preferences. **Step 2 ✅** (2026-09-25): Ctrl+1 isolate and the Ctrl+A Properties cycle (items 3 and 4). Open: decision C13 in the contract (Alt+D cannot reach the Outliner, Node, Clip, File Browser, Info and channel lists).
    - Analyse Blender's **Industry Compatible** keymap against the target DCC's conventions. Keep this analysis internal and never name the other DCC in shipped text.
    - Build a **Meso Keymap** keyconfig preset that closes the gaps: Ctrl+1 isolate, Ctrl+A properties cycle, and so on.
    - The add-on **injects the preset and selects it when enabled**, but only after a **first-enable choice** asking the user to use the Meso Keymap or keep their current keymap.
    - The previous keyconfig name is recorded so that disabling, or choosing "keep", restores it. The user can then override bindings normally.
    - This deliberately goes beyond the "addon keyconfig only" rule, with explicit user consent. Update CLAUDE.md rules when implementing.
-3. **Ctrl+1 isolate, everywhere.**
+3. **Ctrl+1 isolate, everywhere.** ✅ Meso Keymap step 2 (2026-09-25): local view in Object Mode (and lattice, Curves, point cloud, Grease Pencil edit); exact hide restore in Edit Mesh/Curve/Surface/Armature, Pose and Metaball; IC's Edit Mesh Ctrl+1 vertex expand moved to Ctrl+Alt+1.
    - Object mode: `view3d.localview` toggle.
    - Edit mode: isolate the selected verts, edges or faces (hide unselected), and toggle back. Toggling back restores exactly the previous hidden state.
    - The same for curves, armatures and other edit modes where possible.
-4. **Ctrl+A cycles the Properties editor tabs.** Default cycle: Object (transforms) → Object Data → Modifiers → Material, configurable.
+4. **Ctrl+A cycles the Properties editor tabs.** Default cycle: Object (transforms) → Object Data → Modifiers → Material, configurable. ✅ Meso Keymap step 2 (2026-09-25): 3D View only (C8), current screen only, sidebar Item tab fallback; Sculpt keeps its mask pie.
    - If no Properties editor is visible, fall back to the N-sidebar Item tab.
    - Blender's Apply menu (normally Ctrl+A) moves to the Plaza or another key in the Meso Keymap. ✅ Step 1: Ctrl+Alt+A in Object and Pose Mode, plus the Plaza Object ▸ Apply / Pose ▸ Apply submenus.
 
@@ -141,7 +141,7 @@ The full research lives locally in `local/research/keymap_gap_analysis.md`. That
    - **DEFERRED (user decision 2026-09-25):** mid-drag snap-type switching, the transform adapter and timer writes to tool_settings during a C transform. See "Deferred hard problems" below.
    - **Pivot edit** on D-hold / Insert: Move tool plus `use_transform_data_origin`. D+V snaps it to a vertex (Closest). Shift-click a component sets the pivot via the cursor/origin.
    - Snap Base, and sticky snap-type toggles, as Plaza Tool Settings fallbacks.
-2. **Ctrl+1 isolate** (already queued): `view3d.localview` in object mode, component isolate in edit mode.
+2. **Ctrl+1 isolate** (already queued): `view3d.localview` in object mode, component isolate in edit mode. ✅ Meso Keymap step 2; the nested isolate below stays queued.
    - Watch the IC edit-mode Ctrl+1/2/3 select-mode-expand conflict.
    - Better: a nested isolate that keeps lights and cameras visible.
 3. **Display cluster:**

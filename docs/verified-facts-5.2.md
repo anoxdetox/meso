@@ -198,6 +198,22 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   Keymap in use keeps Industry Compatible and the choice (the exit-time restore is not saved), and the next start
   has the bindings live without asking again (`run_persist_check.sh`, 17 checks).
 
+**Meso Keymap, step 2 (headless `test_isolate_blender.py`, `test_properties_cycle_blender.py`; GUI `mk_isolate`,
+`mk_properties_cycle`, 5.2.2):**
+- IC binds Ctrl 1 only in 'Mesh' and 'UV Editor' (`mesh.select_mode(VERT, use_expand)`) and 'Sculpt'
+  (subdivision level), and Ctrl A only in editor/mode maps (select all; Sculpt: `VIEW3D_MT_sculpt_mask_edit_pie`;
+  'Font', 'Text', 'Console': select all). Nothing in '3D View', '3D View Generic', 'Object Non-modal', 'Screen' or
+  'Window', so the Meso '3D View' Ctrl A catch-all shadows nothing, and every mode map with its own Ctrl A (Sculpt,
+  Font) still wins over it (GUI: Sculpt Ctrl A opens the mask pie with the Meso bindings on).
+- `SpaceProperties.bl_rna.properties['context'].enum_items` is the **static** id list (the dynamic item function
+  gets no context through `bl_rna`); the ids available for the active object only show as the `TypeError` of an
+  assignment. After the Properties area redraws for a new active object (camera), assigning MODIFIER or MATERIAL
+  raises and the tab stays.
+- The 3D View sidebar keeps its tab across hide/show; after `show_region_ui = True` the Item tab can be set a tick
+  later (GUI: from a sidebar left on Tool). `screen.screen_full_area` gives a screen with only the VIEW_3D area.
+- `view3d.localview` enters and leaves local view from Edit Lattice too; `PoseBone.select` and `PoseBone.hide` are
+  the pose-mode flags `pose.hide(unselected=True)` uses (there is no `Bone.select` in 5.2).
+
 ---
 
 ## 4. Recorder

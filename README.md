@@ -38,9 +38,13 @@ its bindings are add-on items, each with its own switch in the preferences.
 | Ctrl Shift I | Invert Selection (Ctrl I stays too) | every editor with select keys |
 | Ctrl Alt A | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) | Object Mode, Pose Mode |
 | Ctrl Alt D | Show Disabled tracks | Clip Editor |
+| Ctrl 1 | Isolate the selection, again to go back: local view in Object Mode; hide the unselected elements in Edit Mesh, Curve, Armature, Pose and Metaball, and give back exactly what was hidden before | 3D View |
+| Ctrl Alt 1 | Vertex select mode with expand (Industry Compatible's Ctrl 1; Ctrl click on the vertex select button does the same) | Edit Mesh |
+| Ctrl A | Next Properties tab (Object ▸ Object Data ▸ Modifiers ▸ Material, set in the preferences); with no Properties editor on the screen, the sidebar Item tab | 3D View (not Sculpt or text editing) |
 
-Ctrl A still selects all. In the Outliner, Node Editor, Clip Editor, Info and the channel lists,
-Ctrl Shift A stays Industry Compatible's Deselect All: Alt D cannot reach those editors, because
+In the other editors Ctrl A still selects all; in the 3D View select all is Ctrl Shift A. Shift I
+stays local view and Ctrl H / Shift H / Alt H keep hiding and revealing. In the Outliner, Node
+Editor, Clip Editor, Info and the channel lists, Ctrl Shift A stays Industry Compatible's Deselect All: Alt D cannot reach those editors, because
 Blender uses it there to remove the driver of the property under the mouse. Alt D over a driven
 property still removes its driver everywhere.
 
