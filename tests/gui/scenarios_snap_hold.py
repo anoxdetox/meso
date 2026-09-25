@@ -31,8 +31,9 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
   edit types the letters.
 
 Not simulable: key auto-repeat while X is held during a drag (UH1: ``event_simulate`` has no
-repeat flag), and D + LMB annotate while D is held (UH2: simulated events never set the held-key
-modifier). Both were measured with real X11 input in the nested XTEST spikes
+repeat flag; the long-hold regression runs with real input in ``tests/gui/realinput_driver.py``,
+the ``realinput`` session of the runner), and D + LMB annotate while D is held (UH2: simulated
+events never set the held-key modifier). Both were measured with real X11 input in the nested XTEST spikes
 (``docs/spikes/meso-hold-long-press.md``, ``docs/spikes/meso-pivot-hold.md``: D + drag on the
 gizmo edits the origin, D + drag elsewhere still annotates).
 

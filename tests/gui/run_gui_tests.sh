@@ -4,16 +4,21 @@
 #
 #   tests/gui/run_gui_tests.sh [--host] [--xwayland] [--backend vulkan|opengl] [--out FILE] [--only a,b]
 #
-# Default: two Blender sessions, each inside a nested, virtual-framebuffer KWin (kwin_wayland
+# Default: three Blender sessions, each inside a nested, virtual-framebuffer KWin (kwin_wayland
 # --virtual), so the suite works while the desktop session is locked (a locked KWin never maps
 # new windows and GUI Blender then blocks forever):
 #   1. the Wayland backend, every scenario except the ones that start a transform (cursor grab);
 #   2. KWin with --xwayland and Blender without WAYLAND_DISPLAY (the X11 backend), only the
 #      scenarios that start a transform (modules with NEEDS_GRAB = True, e.g. the snap holds):
 #      in a --virtual KWin there is no pointer device and GUI Blender on the Wayland backend
-#      segfaults as soon as a transform grabs the cursor.
-# --xwayland runs one session on Xwayland with every scenario. --host runs one session with
-# every scenario on the current WAYLAND_DISPLAY/DISPLAY instead.
+#      segfaults as soon as a transform grabs the cursor;
+#   3. "realinput": Xwayland again, Blender WITHOUT --enable-event-simulate, real X11 input
+#      through XTEST (tests/gui/realinput_driver.py): key auto-repeat during the pre-drag holds,
+#      which event_simulate cannot send. The private kwinrc allows the XTEST input Xwayland
+#      forwards through libei ([Xwayland] XwaylandEisNoPrompt=true). Nested only.
+# --xwayland runs one session on Xwayland with every scenario, plus the realinput session.
+# --host runs one session with every simulated scenario on the current WAYLAND_DISPLAY/DISPLAY
+# instead (never the realinput session: XTEST input must never reach the desktop).
 # --only runs just the scenarios whose name contains one of the comma-separated parts (for
 # iterating; the full suite is the gate).
 # Isolation: BLENDER_USER_CONFIG / BLENDER_USER_EXTENSIONS / XDG_CONFIG_HOME point at a throw-away
@@ -40,7 +45,7 @@ while [ $# -gt 0 ]; do
         --backend) BACKEND="${2:?--backend needs vulkan|opengl}"; shift ;;
         --out) OUT="${2:?--out needs a path}"; shift ;;
         --only) export MESO_GUI_ONLY="${2:?--only needs a,b}"; shift ;;
-        -h|--help) sed -n '3,26p' "$0"; exit 0 ;;
+        -h|--help) sed -n '3,32p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
     shift
@@ -53,10 +58,16 @@ mkdir -p "$T/cfg" "$T/ext" "$T/xdg" "$T/tmp"
 rm -f "$OUT"
 REPORTS=()
 
-# run_session NAME DISPLAY(wayland|xwayland|host) GRAB(skip|only|"") TIMEOUT
+# run_session NAME DISPLAY(wayland|xwayland|host) GRAB(skip|only|"") TIMEOUT [realinput]
 run_session() {
-    local name=$1 display=$2 grab=$3 limit=$4
+    local name=$1 display=$2 grab=$3 limit=$4 kind=${5:-simulate}
     local out="$T/$name.json" log="$T/$name.log" unset_wl=""
+    local driver="$HERE/gui_driver.py" flags="--enable-event-simulate" extra="--shots \"$T/shots\""
+    if [ "$kind" = realinput ]; then
+        [ "$display" = xwayland ] || { echo "realinput: nested Xwayland only" >&2; return; }
+        driver="$HERE/realinput_driver.py" flags="" extra=""
+        printf '[Xwayland]\nXwaylandEisNoPrompt=true\n' > "$T/xdg/kwinrc"
+    fi
     [ "$display" = xwayland ] && unset_wl="unset WAYLAND_DISPLAY;"
     local nested=1
     [ "$display" = host ] && nested=0      # --host is on the desktop on purpose
@@ -64,6 +75,8 @@ run_session() {
 #!/bin/sh
 MESO_PRIVATE_RUN="$T"
 MESO_NESTED=$nested
+export MESO_PRIVATE_RUN
+[ "$kind" = realinput ] && [ "\$MESO_NESTED" = 1 ] && export MESO_REALINPUT_NESTED=1
 EOF
     # Never reach the user's desktop: a nested session's runtime dir must be this run's private
     # one (the nested compositor's socket and nothing else: no default wayland-0 to fall back to).
@@ -78,8 +91,8 @@ EOF
     cat >> "$T/$name.sh" <<EOF
 $unset_wl
 MESO_GUI_GRAB="$grab" vblank_mode=0 TMPDIR="$T/tmp" BLENDER_USER_CONFIG="$T/cfg" BLENDER_USER_EXTENSIONS="$T/ext" \\
-    timeout $limit "$B" --factory-startup --enable-event-simulate --gpu-backend "$BACKEND" \\
-    --python "$HERE/gui_driver.py" -- --out "$out" --shots "$T/shots" > "$log" 2>&1
+    timeout $limit "$B" --factory-startup $flags --gpu-backend "$BACKEND" \\
+    --python "$driver" -- --out "$out" $extra > "$log" 2>&1
 echo "blender_exit=\$?" >> "$log"
 EOF
     chmod +x "$T/$name.sh"
@@ -107,10 +120,14 @@ EOF
 
 case "$MODE" in
     host) run_session main host "" 640 ;;
-    xwayland) run_session main xwayland "" 640 ;;
+    xwayland)
+        run_session main xwayland "" 640
+        run_session realinput xwayland "" 170 realinput
+        ;;
     nested)
         run_session main wayland skip 600
         run_session grab xwayland only 300
+        run_session realinput xwayland "" 170 realinput
         ;;
 esac
 
