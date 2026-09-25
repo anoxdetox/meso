@@ -60,6 +60,25 @@ class MesoAddonPreferences(AddonPreferences):
         max=100,
         subtype='PERCENTAGE',
     )
+    font_scale: FloatProperty(
+        name="Font Scale",
+        description="Size of the plaza labels relative to the interface font",
+        default=1.0,
+        min=0.5,
+        max=3.0,
+    )
+    row_spacing: FloatProperty(
+        name="Row Spacing",
+        description="Vertical gap between the plaza rows, relative to the default gap",
+        default=1.0,
+        min=0.0,
+        max=3.0,
+    )
+    use_theme_colors: BoolProperty(
+        name="Use Theme Colors",
+        description="Colour the plaza from the Blender theme instead of Plaza grey",
+        default=False,
+    )
     debug_timing: BoolProperty(
         name="Debug Timing",
         description="Print plaza redraw timings to the console",
@@ -75,6 +94,9 @@ class MesoAddonPreferences(AddonPreferences):
         col.prop(self, "tap_action")
         col.prop(self, "text_chord")
         col.prop(self, "transparency")
+        col.prop(self, "font_scale")
+        col.prop(self, "row_spacing")
+        col.prop(self, "use_theme_colors")
         col.prop(self, "debug_timing")
         _draw_keymap_items(context, layout)
 

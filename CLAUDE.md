@@ -20,6 +20,8 @@ tests/gui/run_gui_tests.sh [--host] [--backend vulkan|opengl] [--out F]  # GUI e
 $B --command extension build --source-dir src/meso --output-dir dist
 tools/dev_link.sh                                                     # symlink into user_default for GUI testing
 ```
+Offscreen render test on each GPU backend (add `--gpu-backend vulkan` / `--gpu-backend opengl` right after `-b`,
+`-- -k test_render_offscreen`); headless default is OpenGL. Run both after renderer changes.
 After each phase: unit tests + blender tests + validate must pass, then commit.
 
 ## Rules

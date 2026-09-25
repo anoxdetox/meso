@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phase 1).
+"""The plaza modal operator: open on key PRESS, close on its RELEASE (Phases 1-2).
 
 Lifecycle (notes/spikes.md D1/D2/D3/D5):
 
@@ -7,13 +7,17 @@ Lifecycle (notes/spikes.md D1/D2/D3/D5):
    built-in Space action runs; never ``PASS_THROUGH`` from invoke (spike 2).
 2. ``invoke()`` locates window/area/region under ``event.mouse_x/y`` (not
    ``context.region``: over an empty 3D header the Frames item runs with region WINDOW),
-   builds a :class:`PlazaState`, starts the draw handlers, adds a 0.05 s watchdog timer and
-   the modal handler.
+   builds a :class:`PlazaState` plus the session's model, layout and palette (the only
+   text measuring of the session), starts the draw handlers, adds a 0.05 s watchdog timer
+   and the modal handler.
 3. ``modal()`` swallows everything (repeat presses included) except timers; it finishes on
    the RELEASE of the invoking key (so user rebinds work; ``release_key`` is only the fallback)
-   and cancels on ESC / WINDOW_DEACTIVATE / watchdog failure.
+   and cancels on ESC / WINDOW_DEACTIVATE / watchdog failure. Mouse moves hit-test the
+   layout and redraw only when the hovered item changes.
 4. On RELEASE: a tap (``core.tap.is_tap``) runs the ``tap_action`` command right before
    ``return {'FINISHED'}``, after teardown (D3/D5: in-modal, handlers already removed).
+5. An LMB PRESS + RELEASE over the same enabled menu label hands off to the native menu
+   (``wm.call_menu``) on the RELEASE, after teardown, right before FINISHED (D3).
 
 Only pointer ints and type strings outlive the modal. The live ``Window``/``Area``/``Region``
 objects sit in the state only while the modal runs and are dropped by ``_end()``.
@@ -23,17 +27,27 @@ No 'UNDO' in ``bl_options`` (D5).
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import bpy
 from bpy.props import StringProperty
 from bpy.types import Operator
 
 from .. import prefs
+from ..core import geometry
+from ..core.model import KIND_MENU
 from ..core.rects import Rect, bounding_box
 from ..core.tap import TapCommand, is_tap, paint_mode_keymap, resolve_tap_action
+from ..core.timing import TimingStats
+from ..record import rows
+from ..view import renderer, theme
 from ..view.draw_manager import HandlerSet
+
+if TYPE_CHECKING:
+    from ..core.geometry import Layout
+    from ..core.model import PlazaModel
+    from ..view.theme import Palette
 
 WATCHDOG_INTERVAL = 0.05   # seconds, wm.event_timer_add on the invoking window
 
@@ -43,6 +57,9 @@ MODAL_IDNAME = 'MESO_OT_plaza'
 # Mouse buttons whose PRESS marks the session as interacted (not a tap).
 INTERACTION_BUTTONS = frozenset({'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE',
                                  'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE'})
+
+# Event values that count as a button press (a modal gets a fast second press as DOUBLE_CLICK).
+PRESS_VALUES = frozenset({'PRESS', 'DOUBLE_CLICK'})
 
 # Invoking event types that are not a held key/button (no RELEASE will follow).
 _NON_KEY_EVENTS = frozenset({'NONE', 'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'WINDOW_DEACTIVATE'})
@@ -54,7 +71,8 @@ class PlazaState:
 
     Identity-compared (``eq=False``). Created in invoke, dropped by ``_end()``. Fields read by
     the draw callbacks: ``active``, ``failed``, ``window_ptr``, ``anchor``, ``bounds``,
-    ``transparency``, ``draw_calls``, ``draw_filtered``, ``fail()``.
+    ``transparency``, ``draw_calls``, ``draw_filtered``, ``fail()``; from Phase 2 also
+    ``layout``, ``palette``, ``hover_id``, ``debug_timing`` and ``timing``.
     """
 
     # --- identity of the target (plain data; safe to keep) ---
@@ -84,6 +102,19 @@ class PlazaState:
     # --- debug counters (draw_manager increments; GUI tests read via current_state()) ---
     draw_calls: int = 0
     draw_filtered: int = 0
+
+    # --- Phase 2 content (plain data, built once in invoke; see notes/phase2-interfaces.md) ---
+    model: PlazaModel | None = None      # record.rows.build_model(...)
+    layout: Layout | None = None          # core.geometry.layout(...); GUI tests read item rects
+    palette: Palette | None = None        # view.theme.from_preferences(...)
+    hover_id: str | None = None           # item under the mouse (core.geometry.hit_test)
+    pressed_id: str | None = None         # enabled menu item under the last LMB PRESS
+    hover_redraws: int = 0                # redraws requested because hover_id changed
+    font_scale: float = 1.0               # prefs snapshots (Phase 2)
+    row_spacing: float = 1.0
+    use_theme_colors: bool = False
+    debug_timing: bool = False            # draw_manager times callbacks into ``timing``
+    timing: TimingStats = field(default_factory=TimingStats)
 
     # --- live objects: modal lifetime only, dropped by drop_live() ---
     window: Any = None                    # bpy.types.Window
@@ -135,7 +166,9 @@ def last_session() -> dict[str, Any] | None:
     'external' | 'watchdog' | 'failed' | 'unregister'), ``tapped``, ``elapsed``,
     ``tap_cmd`` (``(op_idname, kwargs)`` or None), ``tap_result`` (sorted list or None),
     ``area_type``, ``region_type``, ``handler_region_type``, ``mode_keymap``,
-    ``release_key``, ``draw_calls``, ``error``.
+    ``release_key``, ``draw_calls``, ``error``; Phase 2: ``hover_redraws``, ``handoff``
+    (``('wm.call_menu', {'name': idname})`` or None), ``handoff_result`` (sorted list or
+    None) and ``timing`` (``core.timing.TimingStats.summary()``, filled with debug_timing).
     """
     return dict(_last) if _last else None
 
@@ -254,6 +287,36 @@ def run_tap(cmd: TapCommand, window, area, region) -> set[str] | None:
         return None
 
 
+def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
+    """Fill ``state.model``, ``layout``, ``palette`` and ``hover_id`` (invoke only).
+
+    ``region`` is the live hit-tested region (None over the bars). Text is measured here with
+    ``renderer.text_width_fn`` at the metrics font size and never again this session.
+    Exceptions propagate (invoke cancels the session).
+    """
+    window, area = state.window, state.area
+    state.model = rows.build_model(
+        context, rows.InvokeInfo(window, area, region, state.area_type, state.area_ui_type,
+                                 state.context_mode), addon_prefs)
+    preferences = context.preferences
+    metrics = geometry.metrics_for(preferences.system.ui_scale,
+                                   preferences.ui_styles[0].widget.points,
+                                   state.font_scale, state.row_spacing,
+                                   cap_height_fn=renderer.cap_height)
+    bounds = state.bounds or Rect(0, 0, window.width, window.height)
+    state.layout = geometry.layout(state.model, state.anchor, bounds, metrics,
+                                   renderer.text_width_fn(metrics.font_px))
+    state.palette = theme.from_preferences(context, state.use_theme_colors, state.transparency)
+    state.hover_id = geometry.hit_test(state.layout, *state.anchor)
+
+
+def _hover_rect(layout, item_id: str | None) -> Rect | None:
+    """Window rect repainted when ``item_id`` gains or loses the hover (its whole hit rect:
+    the highlight and the label colour change), or None."""
+    box = layout.item(item_id) if layout is not None else None
+    return box.rect if box is not None else None
+
+
 def _tag_window(window_ptr: int) -> None:
     """Fallback redraw when no HandlerSet was started (it tags on stop otherwise)."""
     window = _find_window(bpy.context, window_ptr)
@@ -268,7 +331,9 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
     Removes the watchdog timer (``wm.event_timer_remove``, try/except), stops the draw
     handlers (``HandlerSet.stop()`` tags the final redraw), sets ``active = False``, clears
     ``_running`` if it is ``state``, and ``drop_live()``. Never raises. ``reason`` is only
-    recorded in :func:`last_session`.
+    recorded in :func:`last_session` (with ``hover_redraws``, ``handoff`` and ``timing``;
+    ``debug_timing`` also logs the timing summary). ``model``/``layout``/``palette`` are plain
+    data and stay on the state.
     """
     global _running
     if state is None:
@@ -296,6 +361,14 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
             _last['draw_calls'] = state.draw_calls
             _last['draw_filtered'] = state.draw_filtered
             _last['error'] = state.error
+            _last['hover_redraws'] = state.hover_redraws
+            _last.setdefault('handoff', None)
+            _last['timing'] = state.timing.summary()
+            if state.debug_timing:
+                t = _last['timing']
+                _log(f"draw timing ({reason}): {t['count']} callbacks, avg {t['avg_ms']:.3f} ms, "
+                     f"max {t['max_ms']:.3f} ms, recent avg {t['recent_avg_ms']:.3f} ms, "
+                     f"recent max {t['recent_max_ms']:.3f} ms")
     except Exception:
         _log_exc("teardown failed")
     finally:
@@ -356,6 +429,12 @@ class MESO_OT_plaza(Operator):
           empty transparent-header space, as natively), else the hit-tested type; ``region`` =
           the hit WINDOW region, else the area's first; ``release_key`` =
           :func:`release_key_for`), ``t0 = time.perf_counter()``.
+        - Phase 2 content (notes/phase2-interfaces.md "Data flow"): pref snapshots
+          (font_scale, row_spacing, use_theme_colors, debug_timing), ``state.model`` from
+          ``record.rows.build_model``, ``state.layout`` from ``core.geometry.layout`` (text
+          measured with ``renderer.text_width_fn``: the only measuring of the session),
+          ``state.palette`` from ``view.theme.from_preferences`` and the initial
+          ``hover_id`` (hit test at the mouse).
         - ``HandlerSet().start(state)``, ``wm.event_timer_add(WATCHDOG_INTERVAL,
           window=window)``, ``wm.modal_handler_add(self)``, set ``_running``;
           return ``{'RUNNING_MODAL'}``. Any exception -> ``_end`` + log + ``{'CANCELLED'}``.
@@ -413,8 +492,13 @@ class MESO_OT_plaza(Operator):
                 state.transparency = int(addon_prefs.transparency)
                 state.tap_threshold = float(addon_prefs.tap_threshold)
                 state.tap_action = addon_prefs.tap_action
+                state.font_scale = float(addon_prefs.font_scale)
+                state.row_spacing = float(addon_prefs.row_spacing)
+                state.use_theme_colors = bool(addon_prefs.use_theme_colors)
+                state.debug_timing = bool(addon_prefs.debug_timing)
             state.window, state.area = window, area
             state.region = region if region_type == 'WINDOW' else _window_region(area)
+            _build_content(state, context, region, addon_prefs)
 
             _serial += 1
             state._serial = _serial
@@ -422,7 +506,8 @@ class MESO_OT_plaza(Operator):
             _last.update(serial=_serial, tapped=False, elapsed=None, tap_cmd=None, tap_result=None,
                          area_type=area_type, area_ui_type=area_ui_type, region_type=region_type,
                          handler_region_type=handler_region_type,
-                         mode_keymap=state.mode_keymap, release_key=state.release_key)
+                         mode_keymap=state.mode_keymap, release_key=state.release_key,
+                         hover_redraws=0, handoff=None, handoff_result=None)
 
             _running = state
             self._state = state
@@ -431,7 +516,7 @@ class MESO_OT_plaza(Operator):
             wm = context.window_manager
             state.timer = wm.event_timer_add(WATCHDOG_INTERVAL, window=window)
             wm.modal_handler_add(self)
-            if addon_prefs is not None and addon_prefs.debug_timing:
+            if state.debug_timing:
                 _log(f"plaza open in {(time.perf_counter() - t0) * 1000.0:.2f} ms "
                      f"({area_type}/{region_type})")
             return {'RUNNING_MODAL'}
@@ -456,7 +541,10 @@ class MESO_OT_plaza(Operator):
           ``wm.windows`` or ``window.screen.as_pointer() != screen_ptr`` -> ``_end`` ->
           ``{'CANCELLED'}``; else ``{'PASS_THROUGH'}`` (timers are not ours to eat; Blender does
           not tell us which timer fired).
-        - ``event.type in INTERACTION_BUTTONS`` and PRESS -> ``interacted = True``.
+        - MOUSEMOVE / INBETWEEN_MOUSEMOVE -> :meth:`_hover` (redraw only on a hover change).
+        - LEFTMOUSE PRESS or DOUBLE_CLICK / RELEASE -> :meth:`_press` / :meth:`_release`
+          (native menu handoff on the RELEASE over the pressed menu label, D3).
+        - ``event.type in INTERACTION_BUTTONS`` and PRESS or DOUBLE_CLICK -> ``interacted = True``.
         - Everything else -> ``{'RUNNING_MODAL'}`` (swallowed).
         """
         state = getattr(self, '_state', None)
@@ -484,13 +572,64 @@ class MESO_OT_plaza(Operator):
             if (etype == 'ESC' and value == 'PRESS') or etype == 'WINDOW_DEACTIVATE':
                 _end(state, 'cancel')
                 return {'CANCELLED'}
-            if etype in INTERACTION_BUTTONS and value == 'PRESS':
+            if etype in ('MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'):
+                return self._hover(state, event)
+            # A fast second press arrives raw as DOUBLE_CLICK; Blender only re-sends it as
+            # PRESS when no handler took it, and this modal takes everything.
+            if etype == 'LEFTMOUSE':
+                if value in PRESS_VALUES:
+                    return self._press(state, event)
+                if value == 'RELEASE':
+                    return self._release(state, event)
+            if etype in INTERACTION_BUTTONS and value in PRESS_VALUES:
                 state.interacted = True
             return {'RUNNING_MODAL'}
         except Exception:
             _log_exc("plaza modal failed")
             _end(state, 'error')
             return {'CANCELLED'}
+
+    def _hover(self, state: PlazaState, event) -> set[str]:
+        """Mouse move: hit-test; on a hover change redraw the areas under the old and new
+        highlight (exactly one ``redraw`` per change, none otherwise: performance rule)."""
+        old = state.hover_id
+        new = geometry.hit_test(state.layout, event.mouse_x, event.mouse_y)
+        if new != old:
+            state.hover_id = new
+            state.hover_redraws += 1
+            if state.handlers is not None:
+                state.handlers.redraw(rects=[_hover_rect(state.layout, old),
+                                             _hover_rect(state.layout, new)])
+        return {'RUNNING_MODAL'}
+
+    def _press(self, state: PlazaState, event) -> set[str]:
+        """LMB PRESS: the session is interacted (never a tap); remember an enabled menu
+        label under the mouse. Nothing opens on a PRESS (D3)."""
+        state.interacted = True
+        pid = geometry.hit_test(state.layout, event.mouse_x, event.mouse_y)
+        item = state.model.find(pid) if state.model is not None else None
+        ok = item is not None and item.enabled and item.kind == KIND_MENU
+        state.pressed_id = pid if ok else None
+        return {'RUNNING_MODAL'}
+
+    def _release(self, state: PlazaState, event) -> set[str]:
+        """LMB RELEASE over the pressed menu label: tear down, then ``wm.call_menu`` under the
+        invoking window/area/WINDOW region right before FINISHED (D3). Elsewhere: forget
+        the press and keep running."""
+        rid = geometry.hit_test(state.layout, event.mouse_x, event.mouse_y)
+        pid, state.pressed_id = state.pressed_id, None
+        item = state.model.find(pid) if (pid is not None and state.model is not None) else None
+        if item is None or rid != pid or 'menu' not in item.payload:
+            return {'RUNNING_MODAL'}
+        cmd = TapCommand('wm.call_menu', {'name': item.payload['menu']})
+        window, area, region = state.window, state.area, state.region
+        _last.update(handoff=(cmd.op_idname, dict(cmd.kwargs)), tapped=False,
+                     elapsed=time.perf_counter() - state.t0)
+        _end(state, 'handoff')
+        self._state = None
+        result = run_tap(cmd, window, area, region)
+        _last['handoff_result'] = sorted(result) if result is not None else None
+        return {'FINISHED'}
 
     def _finish(self, context, state: PlazaState) -> set[str]:
         """Release: tear down, then run the tap command (if any) right before FINISHED (D3)."""

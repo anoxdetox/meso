@@ -2,7 +2,8 @@
 
 Runs inside Blender via tests/run_tests.py (which enables the add-on first). Headless:
 handlers install but never fire, so the callback is also called directly, and the drawing
-primitive runs into a GPUOffScreen after ``gpu.init()`` (skipped when no GPU is available).
+Phase 2 content (``renderer.draw_plaza`` per visible piece) runs into a GPUOffScreen after
+``gpu.init()`` (skipped when no GPU is available).
 """
 
 import io
@@ -17,6 +18,11 @@ from mathutils import Matrix
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 DRAW_MODULE = ADDON_MODULE + ".view.draw_manager"
 RECTS_MODULE = ADDON_MODULE + ".core.rects"
+GEOMETRY_MODULE = ADDON_MODULE + ".core.geometry"
+MODEL_MODULE = ADDON_MODULE + ".core.model"
+TIMING_MODULE = ADDON_MODULE + ".core.timing"
+THEME_MODULE = ADDON_MODULE + ".view.theme"
+RENDERER_MODULE = ADDON_MODULE + ".view.renderer"
 
 
 def _dm():
@@ -30,7 +36,8 @@ def _rect(*args):
 class FakeState:
     """Minimal DrawState: plain attributes plus a fail() call counter."""
 
-    def __init__(self, window_ptr=0, active=True, transparency=25, anchor=(0, 0), bounds=None):
+    def __init__(self, window_ptr=0, active=True, transparency=25, anchor=(0, 0), bounds=None,
+                 layout=None, palette=None, hover_id=None, debug_timing=False):
         self.active = active
         self.failed = False
         self.window_ptr = window_ptr
@@ -40,6 +47,11 @@ class FakeState:
         self.draw_calls = 0
         self.draw_filtered = 0
         self.fail_calls = []
+        self.layout = layout
+        self.palette = palette
+        self.hover_id = hover_id
+        self.debug_timing = debug_timing
+        self.timing = sys.modules[TIMING_MODULE].TimingStats()
 
     def fail(self, reason):
         self.fail_calls.append(reason)
@@ -141,23 +153,18 @@ class TestTables(unittest.TestCase):
         self.assertAlmostEqual(dm.fill_alpha(25, 'VIEW_3D', 'HEADER'), 0.75)
         self.assertAlmostEqual(dm.fill_alpha(25, 'VIEW_3D', 'WINDOW'), lin(0.75))
         self.assertAlmostEqual(dm.fill_alpha(25, 'IMAGE_EDITOR', 'WINDOW'), lin(0.75))
+        self.assertAlmostEqual(dm.fill_alpha(25, 'VIEW_3D', 'WINDOW', 0.35), lin(0.75, 0.35))
+        self.assertAlmostEqual(dm.fill_alpha(25, 'OUTLINER', 'WINDOW', 0.35), 0.75)
         self.assertEqual(dm.fill_alpha(150, 'OUTLINER', 'WINDOW'), 0.0)
         self.assertEqual(dm.fill_alpha(-10, 'OUTLINER', 'WINDOW'), 1.0)
         self.assertEqual(dm.fill_alpha(100, 'VIEW_3D', 'WINDOW'), 0.0)
         self.assertEqual(dm.fill_alpha(0, 'VIEW_3D', 'WINDOW'), 1.0)
 
-    def test_snapshot_style(self):
+    def test_placeholder_removed(self):
         dm = _dm()
-        style = dm.snapshot_style()
-        wcol = bpy.context.preferences.themes[0].user_interface.wcol_menu_back
-        self.assertEqual(len(style.fill_rgb), 3)
-        self.assertEqual(len(style.text_rgb), 3)
-        for got, want in zip(style.fill_rgb, wcol.inner[:3]):
-            self.assertAlmostEqual(got, want, places=5)
-        points = bpy.context.preferences.ui_styles[0].widget.points
-        scale = bpy.context.preferences.system.ui_scale or 1.0     # 0.0 headless
-        self.assertEqual(style.font_px, round(points * scale))
-        self.assertIsInstance(style.font_px, int)
+        for name in ('Style', 'DEFAULT_STYLE', 'snapshot_style', '_style_for', 'LABEL_TEXT',
+                     'LABEL_FONT'):
+            self.assertFalse(hasattr(dm, name), name)
 
 
 class TestHandlerSet(unittest.TestCase):
@@ -237,6 +244,28 @@ class TestHandlerSet(unittest.TestCase):
         hs.stop()
         self.assertEqual(hs.redraw(), 0)
 
+    def test_redraw_rects(self):
+        dm = _dm()
+        window = _window()
+        areas = list(window.screen.areas)
+        hs = dm.HandlerSet()
+        hs.start(FakeState(window_ptr=window.as_pointer()))
+        self.assertEqual(hs.redraw(None), len(areas))
+        self.assertEqual(hs.redraw([]), 0, "nothing given -> nothing tagged")
+        self.assertEqual(hs.redraw([None, None]), 0)
+        self.assertEqual(hs.redraw([_rect(10, 10, 0, 5)]), 0, "empty rects are ignored")
+        area = _area(window, 'VIEW_3D')
+        inner = _rect(area.x + area.width // 2, area.y + area.height // 2, 4, 4)
+        self.assertEqual(hs.redraw([inner]), 1)
+        self.assertEqual(hs.redraw([None, inner, inner]), 1, "an area is tagged once")
+        other = next(a for a in areas if a.as_pointer() != area.as_pointer())
+        inner2 = _rect(other.x + 1, other.y + 1, 2, 2)
+        self.assertEqual(hs.redraw((inner, inner2)), 2)
+        self.assertEqual(hs.redraw([_rect(-5000, -5000, 10, 10)]), 0)
+        self.assertEqual(hs.redraw([_rect(-10, -10, 100000, 100000)]), len(areas))
+        hs.stop()
+        self.assertEqual(hs.redraw([inner]), 0)
+
     def test_stop_tags_invoking_window(self):
         # Invariant 2: stop() tags every area of the invoking window while the state is known.
         dm = _dm()
@@ -262,18 +291,47 @@ class TestHandlerSet(unittest.TestCase):
         self.assertIsNone(dm.find_window(0))
         self.assertIsNone(dm.find_window(1))
 
-    def test_start_resets_error_flag_and_snapshots_style(self):
+    def test_start_resets_error_flag_and_owns_a_cache(self):
         dm = _dm()
+        renderer = sys.modules[RENDERER_MODULE]
         dm._error_logged = True
         hs = dm.HandlerSet()
+        self.assertIsNone(hs.cache)
         state = FakeState()
         hs.start(state)
         self.assertFalse(dm._error_logged)
-        self.assertIsNotNone(hs._style)
-        self.assertEqual(dm._style_for(state), hs._style)
-        self.assertEqual(dm._style_for(FakeState()), dm.DEFAULT_STYLE)
+        cache = hs.cache
+        self.assertIsInstance(cache, renderer.BatchCache)
+        self.assertIs(dm._cache_for(state), cache)
+        self.assertIsNone(dm._cache_for(FakeState()))
+        cleared = []
+        original = cache.clear
+
+        def spy():
+            cleared.append(1)
+            original()
+
+        cache.clear = spy
         hs.stop()
-        self.assertIsNone(hs._style)
+        self.assertEqual(cleared, [1], "stop() clears the batches (invariant 4)")
+        self.assertIsNone(hs.cache)
+        # A restart gets a fresh cache.
+        hs.start(state)
+        self.assertIsNot(hs.cache, cache)
+        hs.stop()
+
+    def test_unregister_clears_renderer_caches(self):
+        dm = _dm()
+        renderer = sys.modules[RENDERER_MODULE]
+        calls = []
+        original = renderer.clear_caches
+        renderer.clear_caches = lambda: calls.append(1)
+        try:
+            dm.unregister()
+        finally:
+            renderer.clear_caches = original
+            dm.register()
+        self.assertEqual(calls, [1])
 
 
 class TestCallbackFilters(unittest.TestCase):
@@ -375,10 +433,41 @@ class TestRegionPieces(unittest.TestCase):
                          [_rect(region.x, region.y, region.width, region.height)])
 
 
-class TestOffscreenDraw(unittest.TestCase):
-    """The drawing primitive and the full callback render into a GPUOffScreen headless."""
+def _fake_width(s):
+    return len(s) * 6.0
 
-    W = H = 64
+
+def _model():
+    md = sys.modules[MODEL_MODULE]
+
+    def menu(idname, label):
+        return md.Item(idname, label, md.KIND_MENU, {'menu': idname})
+
+    root = md.Row(md.ROW_ROOT, [menu('TOPBAR_MT_file', 'File'), menu('TOPBAR_MT_edit', 'Edit'),
+                                menu('TOPBAR_MT_help', 'Help')])
+    return md.make_model([root], md.Item(md.CENTER_ID, 'Centre', md.KIND_CENTER))
+
+
+def _layout(anchor, bounds=None, model=None):
+    geo = sys.modules[GEOMETRY_MODULE]
+    return geo.layout(model or _model(), anchor, bounds, geo.metrics_for(1.0, 11), _fake_width)
+
+
+def _palette():
+    """Opaque, saturated test colours (easy to tell apart from a transparent background)."""
+    theme = sys.modules[THEME_MODULE]
+    return theme.Palette(
+        strip=(1.0, 0.0, 0.0, 1.0), item_hover=(0.0, 1.0, 0.0, 1.0),
+        item_checked=(0.0, 0.0, 1.0, 1.0), text=(1.0, 1.0, 1.0, 1.0),
+        text_hover=(1.0, 1.0, 1.0, 1.0), text_disabled=(0.5, 0.5, 0.5, 1.0),
+        center_back=(0.0, 0.0, 1.0, 1.0), center_text=(1.0, 1.0, 1.0, 1.0),
+        ticks=(1.0, 1.0, 0.0, 1.0), dim=(0.0, 0.0, 0.0, 0.0))
+
+
+class TestOffscreenDraw(unittest.TestCase):
+    """draw_region and the full callback render the Phase 2 layout into a GPUOffScreen."""
+
+    W, H = 400, 200
 
     def setUp(self):
         reason = _gpu_ready()
@@ -392,14 +481,15 @@ class TestOffscreenDraw(unittest.TestCase):
         self.addCleanup(off.free)
         return off
 
-    def test_draw_region_scissor_and_translation(self):
+    def _draw(self, region, pieces, layout, hover_id=None, cache=None):
+        """draw_region into a cleared offscreen of the region's size; returns (n, pixel).
+        Always with an explicit cache, cleared at cleanup (no batch outlives the test)."""
         dm = _dm()
-        w, h = self.W, self.H
+        if cache is None:
+            cache = sys.modules[RENDERER_MODULE].BatchCache()
+            self.addCleanup(cache.clear)
+        w, h = int(region.w), int(region.h)
         off = self._offscreen(w, h)
-        # Region at window (100, 200); left half visible (the right half is "occluded").
-        region = _rect(100, 200, w, h)
-        pieces = [_rect(100, 200, w // 2, h)]
-        style = dm.Style((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), 11)
         with off.bind():
             fb = gpu.state.active_framebuffer_get()
             fb.clear(color=(0.0, 0.0, 0.0, 0.0))
@@ -407,76 +497,68 @@ class TestOffscreenDraw(unittest.TestCase):
             with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
                 gpu.matrix.load_identity()
                 gpu.matrix.load_projection_matrix(_ortho(w, h))
-                # Anchor far away (label off-region) so only the fill lands here.
-                drawn = dm.draw_region(region, pieces, (1920, 1080), (1.0, 0.0, 0.0, 1.0),
-                                       style, (1500, 900), None)
+                drawn = dm.draw_region(region, pieces, layout, _palette(), hover_id, False,
+                                       cache)
             self.assertEqual(tuple(gpu.state.scissor_get()), before, "scissor box restored")
             self.assertEqual(gpu.state.blend_get(), 'NONE')
             pixel, _ = _read_rgba(off, w, h)
+        return drawn, pixel
+
+    def _local(self, region, x, y):
+        return int(x - region.x), int(y - region.y)
+
+    def test_draw_region_translation_and_scissor(self):
+        # Region at window (100, 200); only its left half is a visible piece.
+        region = _rect(100, 200, self.W, self.H)
+        layout = _layout((100 + self.W // 2, 200 + self.H // 2))
+        pieces = [_rect(100, 200, self.W // 2, self.H)]
+        drawn, pixel = self._draw(region, pieces, layout)
         self.assertEqual(drawn, 1)
-        self.assertGreater(pixel(5, 5)[0], 0.9)
-        self.assertGreater(pixel(w // 2 - 1, h - 1)[3], 0.9)
-        self.assertEqual(pixel(w // 2 + 1, 5), (0.0, 0.0, 0.0, 0.0))
-        self.assertEqual(pixel(w - 1, h - 1), (0.0, 0.0, 0.0, 0.0))
+        root = layout.strip('root').rect
+        # Left end of the root strip (in the piece): strip colour; right end: scissored.
+        lx, ly = self._local(region, root.x + 2, root.y + root.h // 2)
+        rx, ry = self._local(region, root.x1 - 2, root.y + root.h // 2)
+        self.assertLess(lx, self.W // 2)
+        self.assertGreater(rx, self.W // 2)
+        self.assertGreater(pixel(lx, ly)[0], 0.9)
+        self.assertEqual(pixel(rx, ry), (0.0, 0.0, 0.0, 0.0))
+        # Centre box (blue) at the anchor, which sits on the piece edge: its left part drawn.
+        c = layout.center.rect
+        cx, cy = self._local(region, c.x + 2, c.y + c.h // 2)
+        self.assertGreater(pixel(cx, cy)[2], 0.9)
+        # Outside the plaza: untouched (no dim by default).
+        self.assertEqual(pixel(2, 2), (0.0, 0.0, 0.0, 0.0))
 
-    def test_draw_region_label_at_anchor(self):
-        dm = _dm()
-        w, h = self.W, self.H
-        off = self._offscreen(w, h)
-        region = _rect(100, 200, w, h)
-        style = dm.Style((0.0, 0.0, 0.0), (1.0, 1.0, 1.0), 11)
-        with off.bind():
-            fb = gpu.state.active_framebuffer_get()
-            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
-            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
-                gpu.matrix.load_identity()
-                gpu.matrix.load_projection_matrix(_ortho(w, h))
-                # Transparent fill; anchor at the region centre (window coords).
-                dm.draw_region(region, [region], (1920, 1080), (0.0, 0.0, 0.0, 0.0),
-                               style, (132, 232), None)
-            pixel, _ = _read_rgba(off, w, h)
-        lit = [(x, y) for y in range(h) for x in range(w) if pixel(x, y)[3] > 0.2]
-        self.assertTrue(lit, "label pixels expected")
-        cx = sum(x for x, _ in lit) / len(lit)
-        cy = sum(y for _, y in lit) / len(lit)
-        self.assertLess(abs(cx - w / 2), 8, (cx, cy))
-        self.assertLess(abs(cy - h / 2), 8, (cx, cy))
+    def test_hover_and_cache_reuse(self):
+        renderer = sys.modules[RENDERER_MODULE]
+        region = _rect(0, 0, self.W, self.H)
+        layout = _layout((self.W // 2, self.H // 2))
+        cache = renderer.BatchCache()
+        self.addCleanup(cache.clear)
+        box = layout.item('TOPBAR_MT_edit')
+        _n, pixel = self._draw(region, [region], layout, 'TOPBAR_MT_edit', cache)
+        hx, hy = int(box.highlight.x + 1), int(box.highlight.y + box.highlight.h // 2)
+        self.assertGreater(pixel(hx, hy)[1], 0.9, "hover highlight drawn behind the label")
+        other = layout.item('TOPBAR_MT_file')
+        ox, oy = int(other.highlight.x + 1), int(other.highlight.y + other.highlight.h // 2)
+        self.assertGreater(pixel(ox, oy)[0], 0.9, "non-hovered item keeps the strip colour")
+        self.assertEqual((cache.static_builds, cache.hover_builds), (1, 1))
+        self._draw(region, [region], layout, 'TOPBAR_MT_file', cache)
+        self._draw(region, [region], layout, 'TOPBAR_MT_edit', cache)
+        self.assertEqual((cache.static_builds, cache.hover_builds), (1, 2),
+                         "hover changes never rebuild the static batches")
 
-    def test_draw_region_label_clamped_to_bounds(self):
-        dm = _dm()
-        w, h = self.W, self.H
-        off = self._offscreen(w, h)
-        region = _rect(0, 0, w, h)
-        style = dm.Style((0.0, 0.0, 0.0), (1.0, 1.0, 1.0), 11)
-        with off.bind():
-            fb = gpu.state.active_framebuffer_get()
-            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
-            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
-                gpu.matrix.load_identity()
-                gpu.matrix.load_projection_matrix(_ortho(w, h))
-                # Anchor at the window origin: clamped into bounds it lands fully inside.
-                dm.draw_region(region, [region], (w, h), (0.0, 0.0, 0.0, 0.0),
-                               style, (0, 0), _rect(0, 0, w, h))
-            pixel, _ = _read_rgba(off, w, h)
-        lit = [(x, y) for y in range(h) for x in range(w) if pixel(x, y)[3] > 0.2]
-        self.assertTrue(lit)
-        self.assertGreaterEqual(min(x for x, _ in lit), 0)
-        self.assertLess(max(y for _, y in lit), 24)
+    def test_culled_piece_draws_nothing(self):
+        region = _rect(0, 0, self.W, self.H)
+        layout = _layout((5000, 5000))          # far outside this region
+        drawn, pixel = self._draw(region, [region], layout)
+        self.assertEqual(drawn, 0)
+        self.assertEqual(pixel(self.W // 2, self.H // 2), (0.0, 0.0, 0.0, 0.0))
 
-    def test_callback_draws_view3d_window(self):
-        """Full callback path: temp_override to the headless 3D view + offscreen of its size."""
+    def _callback(self, state, window, area, region):
         dm = _dm()
-        window = _window()
-        area = _area(window, 'VIEW_3D')
-        region = _region(area, 'WINDOW')
         w, h = region.width, region.height
-        tools = _region(area, 'TOOLS')
         off = self._offscreen(w, h)
-        hs = dm.HandlerSet()
-        state = FakeState(window_ptr=window.as_pointer(), transparency=25,
-                          anchor=(region.x + w // 2, region.y + h // 2),
-                          bounds=_rect(0, 0, 4000, 4000))
-        hs.start(state)
         with off.bind():
             fb = gpu.state.active_framebuffer_get()
             fb.clear(color=(0.0, 0.0, 0.0, 0.0))
@@ -486,16 +568,67 @@ class TestOffscreenDraw(unittest.TestCase):
                 with bpy.context.temp_override(window=window, area=area, region=region):
                     dm.draw_callback(state, 'SpaceView3D', 'WINDOW')
             pixel, _ = _read_rgba(off, w, h)
+        return pixel
+
+    def test_callback_draws_view3d_window(self):
+        """Full callback path: temp_override to the headless 3D view + offscreen of its size."""
+        dm = _dm()
+        window = _window()
+        area = _area(window, 'VIEW_3D')
+        region = _region(area, 'WINDOW')
+        w, h = region.width, region.height
+        rrect = _rect(region.x, region.y, w, h)
+        # Anchored at the region's left edge: the clamp shifts the plaza right, so the
+        # left side box lands under the toolbar (drawn on top by Blender -> scissored out).
+        layout = _layout((region.x, region.y + h // 2), bounds=rrect)
+        state = FakeState(window_ptr=window.as_pointer(), layout=layout, palette=_palette(),
+                          debug_timing=True)
+        hs = dm.HandlerSet()
+        hs.start(state)
+        pixel = self._callback(state, window, area, region)
+        cache = hs.cache
         hs.stop()
         self.assertEqual(state.fail_calls, [])
         self.assertEqual((state.draw_calls, state.draw_filtered), (1, 0))
-        # A visible spot (right of the toolbar, below the headers) is filled...
-        self.assertGreater(pixel(w - 20, 20)[3], 0.5)
-        # ...the toolbar (drawn on top by Blender) is scissored out.
+        self.assertEqual(state.timing.count, 1, "debug_timing times the callback")
+        self.assertIsNotNone(cache)
+        self.assertEqual(cache.static_builds, 1, "the session's cache was used")
+        pieces = dm.region_pieces(area, region, 'WINDOW')
+        occluded = [_rect(o.x, o.y, o.width, o.height) for o in area.regions
+                    if o.type in dm.WINDOW_OCCLUDERS and o.width > 1 and o.height > 1]
+        seen_visible = seen_hidden = False
+        for strip in layout.strips:
+            r = strip.rect
+            for fx in (0.1, 0.3, 0.5, 0.7, 0.9):
+                x, y = int(r.x + r.w * fx), int(r.y + r.h // 2)
+                lx, ly = x - region.x, y - region.y
+                if not (0 <= lx < w and 0 <= ly < h):
+                    continue
+                if any(p.contains(x, y) for p in pieces):
+                    self.assertGreater(pixel(lx, ly)[3], 0.5, (strip.key, x, y))
+                    seen_visible = True
+                elif any(o.contains(x, y) for o in occluded):
+                    self.assertEqual(pixel(lx, ly)[3], 0.0, (strip.key, x, y))
+                    seen_hidden = True
+        self.assertTrue(seen_visible)
+        tools = _region(area, 'TOOLS')
         if tools is not None and tools.width > 1:
-            tx, ty = tools.x - region.x + tools.width // 2, tools.y - region.y + 10
-            self.assertEqual(pixel(tx, ty)[3], 0.0)
+            self.assertTrue(seen_hidden, "a strip crosses the toolbar")
 
+    def test_callback_counts_culled_and_layout_less_regions(self):
+        dm = _dm()
+        window = _window()
+        area = _area(window, 'VIEW_3D')
+        region = _region(area, 'WINDOW')
+        far = FakeState(window_ptr=window.as_pointer(), layout=_layout((-9000, -9000)))
+        none = FakeState(window_ptr=window.as_pointer(), layout=None)
+        for state in (far, none):
+            pixel = self._callback(state, window, area, region)
+            self.assertEqual(state.fail_calls, [])
+            self.assertEqual((state.draw_calls, state.draw_filtered), (1, 0),
+                             "counted even when nothing is drawn")
+            self.assertEqual(state.timing.count, 0, "no timing without debug_timing")
+            self.assertEqual(pixel(region.width // 2, region.height // 2), (0.0, 0.0, 0.0, 0.0))
 
 if __name__ == "__main__":
     unittest.main()

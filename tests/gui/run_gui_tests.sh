@@ -11,7 +11,8 @@
 # dir (a GUI quit rewrites config/recent-searches.txt even with --factory-startup), TMPDIR too
 # (quit.blend); vblank_mode=0
 # (Mesa EGL on Wayland blocks in eglSwapBuffers otherwise). Exit 0 only if every scenario passed.
-# The temp dir (logs, report) is removed on success and kept (path printed) on failure.
+# The temp dir (logs, report, full-size screenshots in shots/) is removed on success and kept
+# (path printed) on failure; the downscaled Phase 2 screenshots stay in notes/screenshots/.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 B="${B:-$HOME/.local/share/blender/blender}"
@@ -24,7 +25,7 @@ while [ $# -gt 0 ]; do
         --host) MODE=host ;;
         --backend) BACKEND="${2:?--backend needs vulkan|opengl}"; shift ;;
         --out) OUT="${2:?--out needs a path}"; shift ;;
-        -h|--help) sed -n '3,14p' "$0"; exit 0 ;;
+        -h|--help) sed -n '3,15p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
     shift
@@ -41,7 +42,7 @@ cat > "$T/session.sh" <<EOF
 #!/bin/sh
 vblank_mode=0 TMPDIR="$T/tmp" BLENDER_USER_CONFIG="$T/cfg" BLENDER_USER_EXTENSIONS="$T/ext" \\
     timeout 170 "$B" --factory-startup --enable-event-simulate --gpu-backend "$BACKEND" \\
-    --python "$HERE/gui_driver.py" -- --out "$OUT" > "$LOG" 2>&1
+    --python "$HERE/gui_driver.py" -- --out "$OUT" --shots "$T/shots" > "$LOG" 2>&1
 echo "blender_exit=\$?" >> "$LOG"
 EOF
 chmod +x "$T/session.sh"

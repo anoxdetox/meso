@@ -1,9 +1,11 @@
-"""Plaza operator tests (notes/spikes.md D1/D3/D5; notes/phase1-interfaces.md, ops/plaza.py).
+"""Plaza operator tests (notes/spikes.md D1/D3/D5; notes/phase1-interfaces.md,
+notes/phase2-interfaces.md, ops/plaza.py).
 
 Runs inside Blender via tests/run_tests.py (which enables the add-on and loads the Blender
 keyconfig preset first). Headless, ``bpy.ops.meso.plaza('INVOKE_DEFAULT')`` is refused
 and ``modal_handler_add`` needs a real Operator, so the operator's functions are called on a
-plain stub with fake events. Never opens popups (they segfault in ``-b``).
+plain stub with fake events. Never opens popups (they segfault in ``-b``): the Phase 2
+handoff tests replace ``run_tap`` with a recorder.
 """
 
 import io
@@ -19,6 +21,10 @@ ADDON_MODULE = "bl_ext.meso_dev.meso"
 PLAZA_MODULE = ADDON_MODULE + ".ops.plaza"
 DRAW_MODULE = ADDON_MODULE + ".view.draw_manager"
 TAP_MODULE = ADDON_MODULE + ".core.tap"
+GEOMETRY_MODULE = ADDON_MODULE + ".core.geometry"
+MODEL_MODULE = ADDON_MODULE + ".core.model"
+RECTS_MODULE = ADDON_MODULE + ".core.rects"
+PREFS_MODULE = ADDON_MODULE + ".prefs"
 
 
 def _hb():
@@ -60,6 +66,9 @@ def _stub(release_key='SPACE'):
     class Stub:
         modal = op.modal
         _finish = op._finish
+        _hover = op._hover
+        _press = op._press
+        _release = op._release
         invoke = op.invoke
         cancel = op.cancel
 
@@ -418,6 +427,342 @@ class TestRunTapOverride(unittest.TestCase):
         self.assertEqual(seen[0], (window.as_pointer(), area.as_pointer(), region.as_pointer()))
         self.assertEqual(seen[1][0], window.as_pointer())
         self.assertIsNone(seen[1][2], "no region override when None is passed")
+
+
+# ----------------------------------------------------------------------------- Phase 2
+
+
+def _mods():
+    return (sys.modules[GEOMETRY_MODULE], sys.modules[MODEL_MODULE], sys.modules[RECTS_MODULE])
+
+
+def _fake_width(s):
+    return len(s) * 6.0
+
+
+def _model():
+    """Root row (two menus + a disabled one), a workspace row and the centre line."""
+    _geo, md, _r = _mods()
+
+    def menu(idname, label, enabled=True):
+        return md.Item(idname, label, md.KIND_MENU, {'menu': idname}, enabled=enabled)
+
+    root = md.Row(md.ROW_ROOT, [menu('TOPBAR_MT_file', 'File'), menu('TOPBAR_MT_edit', 'Edit'),
+                                menu('TOPBAR_MT_nope', 'Greyed', enabled=False)])
+    ws = md.Row(md.ROW_WORKSPACE, [
+        md.Item(md.workspace_item_id(n), n, md.KIND_WORKSPACE, {'workspace': n},
+                checked=(n == 'Layout')) for n in ('Layout', 'Modeling')])
+    return md.make_model(
+        [root, md.Row(md.ROW_CONTEXTUAL), md.Row(md.ROW_TOOL_SETTINGS), ws],
+        md.Item(md.CENTER_ID, '3D Viewport', md.KIND_CENTER),
+        md.Item(md.RECENT_ID, 'Recent Commands', md.KIND_RECENT),
+        md.Item(md.CONTROLS_ID, 'Plaza Controls', md.KIND_CONTROLS))
+
+
+def _layout(model, anchor=(1000, 500)):
+    geo, _md, r = _mods()
+    return geo.layout(model, anchor, r.Rect(0, 0, 2000, 1000), geo.metrics_for(1.0, 11),
+                      _fake_width)
+
+
+def _mid(rect):
+    return int(rect.x + rect.w // 2), int(rect.y + rect.h // 2)
+
+
+class FakeHandlers:
+    """Stands in for HandlerSet on the state: records redraw(rects) and stop()."""
+
+    def __init__(self):
+        self.redraws = []
+        self.stopped = 0
+
+    def redraw(self, rects=None):
+        self.redraws.append(None if rects is None else list(rects))
+        return 1
+
+    def stop(self):
+        self.stopped += 1
+
+
+class TestPhase2State(unittest.TestCase):
+
+    def test_new_fields_and_defaults(self):
+        state = _hb().PlazaState(window_ptr=1, screen_ptr=2, anchor=(0, 0), t0=0.0)
+        self.assertEqual((state.model, state.layout, state.palette, state.hover_id,
+                          state.pressed_id), (None,) * 5)
+        self.assertEqual(state.hover_redraws, 0)
+        self.assertEqual((state.font_scale, state.row_spacing), (1.0, 1.0))
+        self.assertFalse(state.use_theme_colors)
+        self.assertFalse(state.debug_timing)
+        self.assertEqual(state.timing.count, 0)
+        other = _hb().PlazaState(window_ptr=1, screen_ptr=2, anchor=(0, 0), t0=0.0)
+        self.assertIsNot(state.timing, other.timing, "default_factory, not shared")
+
+    def test_prefs_properties(self):
+        prefs = sys.modules[PREFS_MODULE]
+        p = prefs.get_prefs(bpy.context)
+        self.assertIsNotNone(p)
+        self.assertAlmostEqual(p.font_scale, 1.0)
+        self.assertAlmostEqual(p.row_spacing, 1.0)
+        self.assertFalse(p.use_theme_colors)
+        props = prefs.MesoAddonPreferences.bl_rna.properties
+        self.assertEqual((props['font_scale'].hard_min, props['font_scale'].hard_max), (0.5, 3.0))
+        self.assertEqual((props['row_spacing'].hard_min, props['row_spacing'].hard_max),
+                         (0.0, 3.0))
+        self.assertIn('Blender theme', props['use_theme_colors'].description)
+
+
+class TestBuildContent(_PlazaCase):
+    """``_build_content`` (the Phase 2 part of invoke) against the live headless screen."""
+
+    def _state(self, area_type='VIEW_3D'):
+        hb = _hb()
+        area = _area(self.window, area_type)
+        region = _visible(area, 'WINDOW')
+        x, y = _center(region)
+        screen = self.window.screen
+        state = hb.PlazaState(
+            window_ptr=self.window.as_pointer(), screen_ptr=screen.as_pointer(), anchor=(x, y),
+            t0=time.perf_counter(),
+            bounds=sys.modules[RECTS_MODULE].bounding_box(
+                hb._region_rect(a) for a in screen.areas),
+            area_type=area.type, area_ui_type=area.ui_type, region_type='WINDOW',
+            context_mode=bpy.context.mode)
+        state.window, state.area, state.region = self.window, area, region
+        return state, region
+
+    def test_model_layout_palette_hover(self):
+        hb = _hb()
+        geo, md, _r = _mods()
+        state, region = self._state()
+        with bpy.context.temp_override(window=self.window):
+            hb._build_content(state, bpy.context, region, None)
+        self.assertIsNotNone(state.model)
+        self.assertIsNotNone(state.palette)
+        layout = state.layout
+        self.assertIsNotNone(layout)
+        self.assertEqual(layout.anchor, state.anchor)
+        self.assertEqual(state.model.center.label, '3D Viewport')
+        file_box = layout.item('TOPBAR_MT_file')
+        self.assertIsNotNone(file_box)
+        self.assertEqual(file_box.label, 'File')
+        self.assertGreater(file_box.text_w, 0, "measured with blf")
+        # Headless ui_scale is 0.0 -> scale 1.0.
+        self.assertEqual(layout.metrics.scale, 1.0)
+        self.assertEqual(state.hover_id, geo.hit_test(layout, *state.anchor))
+        if layout.shift == (0, 0):
+            self.assertEqual(state.hover_id, md.CENTER_ID)
+        # The layout lies inside the bounds (the global bars stay uncovered).
+        self.assertEqual(layout.plaza_rect.intersect(state.bounds), layout.plaza_rect)
+
+    def test_prefs_feed_metrics_and_palette(self):
+        hb = _hb()
+        state, region = self._state()
+        state.font_scale, state.row_spacing, state.transparency = 2.0, 0.0, 0
+        with bpy.context.temp_override(window=self.window):
+            hb._build_content(state, bpy.context, region, None)
+        m = state.layout.metrics
+        self.assertEqual(m.gap_y, 0)
+        base = sys.modules[GEOMETRY_MODULE].metrics_for(1.0, 11)
+        self.assertGreater(m.row_h, base.row_h)
+        self.assertEqual(state.palette.strip[3], 1.0, "transparency 0 -> opaque strips")
+
+    def test_area_less_centre_is_workspace(self):
+        hb = _hb()
+        state, _region = self._state()
+        state.area = state.region = None
+        state.area_type = state.area_ui_type = 'TOPBAR'
+        with bpy.context.temp_override(window=self.window):
+            hb._build_content(state, bpy.context, None, None)
+        self.assertEqual(state.model.center.label, self.window.workspace.name)
+
+
+class TestModalPhase2(_PlazaCase):
+    """Hover / press / release against a hand-built layout (fake text widths)."""
+
+    def setUp(self):
+        super().setUp()
+        hb = _hb()
+        self.calls = []
+        original = hb.run_tap
+
+        def fake_run_tap(cmd, window, area, region):
+            self.calls.append({'cmd': (cmd.op_idname, dict(cmd.kwargs)), 'window': window,
+                               'area': area, 'region': region,
+                               'running': hb.is_running(),
+                               'stopped': self.handlers.stopped})
+            return {'INTERFACE'}
+
+        hb.run_tap = fake_run_tap
+        self.addCleanup(setattr, hb, 'run_tap', original)
+        self.stub = _stub()
+        self.state = _open_state(self.window)
+        self.stub._state = self.state
+        self.state.model = _model()
+        self.state.layout = _layout(self.state.model)
+        self.handlers = self.state.handlers = FakeHandlers()
+        self.area = _area(self.window, 'VIEW_3D')
+        self.region = _visible(self.area, 'WINDOW')
+        self.state.area, self.state.region = self.area, self.region
+
+    def _ev(self, etype, value, xy):
+        with bpy.context.temp_override(window=self.window):
+            return self.stub.modal(bpy.context, Ev(etype, value, *xy))
+
+    def _at(self, item_id):
+        return _mid(self.state.layout.item(item_id).rect)
+
+    def _gap(self):
+        """A point between the Root strip and the centre box (no item)."""
+        lay = self.state.layout
+        root = lay.strip('root').rect
+        x = int(lay.center.rect.x + lay.center.rect.w // 2)
+        y = int(root.y) - 1
+        geo = _mods()[0]
+        self.assertIsNone(geo.hit_test(lay, x, y))
+        return x, y
+
+    def test_hover_redraws_only_on_change(self):
+        hb = _hb()
+        state = self.state
+        fx, fy = self._at('TOPBAR_MT_file')
+        self.assertEqual(self._ev('MOUSEMOVE', 'NOTHING', (fx, fy)), {'RUNNING_MODAL'})
+        self.assertEqual(state.hover_id, 'TOPBAR_MT_file')
+        self.assertEqual(state.hover_redraws, 1)
+        self.assertEqual(len(self.handlers.redraws), 1)
+        rects = self.handlers.redraws[0]
+        self.assertIn(state.layout.item('TOPBAR_MT_file').rect, rects)
+        # Same item: no redraw.
+        self._ev('MOUSEMOVE', 'NOTHING', (fx + 1, fy))
+        self._ev('INBETWEEN_MOUSEMOVE', 'NOTHING', (fx - 1, fy + 1))
+        self.assertEqual((state.hover_redraws, len(self.handlers.redraws)), (1, 1))
+        # Into a gap: hover None, one redraw of the old highlight (the None is ignored).
+        self._ev('MOUSEMOVE', 'NOTHING', self._gap())
+        self.assertIsNone(state.hover_id)
+        self.assertEqual((state.hover_redraws, len(self.handlers.redraws)), (2, 2))
+        self.assertIn(state.layout.item('TOPBAR_MT_file').rect, self.handlers.redraws[1],
+                      "leaving an item repaints its old highlight")
+        self._ev('MOUSEMOVE', 'NOTHING', self._gap())
+        self.assertEqual(state.hover_redraws, 2)
+        # Every item hovers, the disabled one included (it just never triggers).
+        for box in state.layout.items:
+            self._ev('MOUSEMOVE', 'NOTHING', _mid(box.rect))
+            self.assertEqual(state.hover_id, box.item_id)
+        self.assertFalse(state.interacted, "motion is not interaction")
+        self.assertTrue(hb.is_running())
+        hb._end(state, 'test')
+        self.assertEqual(hb.last_session()['hover_redraws'], state.hover_redraws)
+
+    def test_click_menu_hands_off_on_release(self):
+        hb = _hb()
+        xy = self._at('TOPBAR_MT_file')
+        self.assertEqual(self._ev('LEFTMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
+        self.assertTrue(self.state.interacted)
+        self.assertEqual(self.state.pressed_id, 'TOPBAR_MT_file')
+        self.assertEqual(self.calls, [], "never on PRESS (D3)")
+        self.assertTrue(hb.is_running())
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', (xy[0] + 2, xy[1])), {'FINISHED'})
+        self.assertEqual(len(self.calls), 1)
+        call = self.calls[0]
+        self.assertEqual(call['cmd'], ('wm.call_menu', {'name': 'TOPBAR_MT_file'}))
+        self.assertEqual((call['window'], call['area'], call['region']),
+                         (self.window, self.area, self.region))
+        self.assertFalse(call['running'], "teardown before the handoff")
+        self.assertEqual(call['stopped'], 1, "draw handlers stopped before the handoff")
+        self.assertFalse(hb.is_running())
+        self.assertIsNone(self.stub._state)
+        last = hb.last_session()
+        self.assertEqual(last['end'], 'handoff')
+        self.assertEqual(last['handoff'], ('wm.call_menu', {'name': 'TOPBAR_MT_file'}))
+        self.assertEqual(last['handoff_result'], ['INTERFACE'])
+        self.assertFalse(last['tapped'])
+        self.assertIsNone(self.state.window, "live refs dropped")
+        self.assertIsNotNone(self.state.layout, "plain data stays")
+
+    def test_double_click_press_hands_off(self):
+        # A missed click (press+release in a gap) then a fast click on File: Blender delivers
+        # the second press as DOUBLE_CLICK; it must still arm the handoff.
+        hb = _hb()
+        gap, xy = self._gap(), self._at('TOPBAR_MT_file')
+        self._ev('LEFTMOUSE', 'PRESS', gap)
+        self._ev('LEFTMOUSE', 'RELEASE', gap)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self._ev('LEFTMOUSE', 'DOUBLE_CLICK', xy), {'RUNNING_MODAL'})
+        self.assertEqual(self.state.pressed_id, 'TOPBAR_MT_file')
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual([c['cmd'] for c in self.calls],
+                         [('wm.call_menu', {'name': 'TOPBAR_MT_file'})])
+        self.assertEqual(hb.last_session()['end'], 'handoff')
+
+    def test_other_button_double_click_interacts(self):
+        self.assertFalse(self.state.interacted)
+        self._ev('RIGHTMOUSE', 'DOUBLE_CLICK', self._gap())
+        self.assertTrue(self.state.interacted)
+
+    def test_release_elsewhere_does_nothing(self):
+        hb = _hb()
+        state = self.state
+        self._ev('LEFTMOUSE', 'PRESS', self._at('TOPBAR_MT_file'))
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', self._gap()), {'RUNNING_MODAL'})
+        self.assertIsNone(state.pressed_id)
+        # Released on a different menu: nothing either.
+        self._ev('LEFTMOUSE', 'PRESS', self._at('TOPBAR_MT_file'))
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', self._at('TOPBAR_MT_edit')),
+                         {'RUNNING_MODAL'})
+        # Pressed elsewhere, released on a menu: nothing.
+        self._ev('LEFTMOUSE', 'PRESS', self._gap())
+        self.assertIsNone(state.pressed_id)
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', self._at('TOPBAR_MT_file')),
+                         {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
+        self.assertTrue(hb.is_running())
+        # The Space release after clicks is not a tap.
+        self.assertEqual(self._ev('SPACE', 'RELEASE', (0, 0)), {'FINISHED'})
+        last = hb.last_session()
+        self.assertEqual((last['end'], last['tapped'], last['handoff']),
+                         ('finish', False, None))
+
+    def test_non_menu_and_disabled_items_never_hand_off(self):
+        hb = _hb()
+        md = _mods()[1]
+        for item_id in ('TOPBAR_MT_nope', md.CENTER_ID, md.RECENT_ID, md.CONTROLS_ID,
+                        md.workspace_item_id('Layout')):
+            with self.subTest(item=item_id):
+                xy = self._at(item_id)
+                self._ev('LEFTMOUSE', 'PRESS', xy)
+                self.assertIsNone(self.state.pressed_id)
+                self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', xy), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
+        self.assertTrue(hb.is_running())
+
+    def test_other_buttons_only_interact(self):
+        xy = self._at('TOPBAR_MT_file')
+        self.assertEqual(self._ev('RIGHTMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
+        self.assertTrue(self.state.interacted)
+        self.assertIsNone(self.state.pressed_id)
+        self.assertEqual(self._ev('RIGHTMOUSE', 'RELEASE', xy), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
+
+    def test_no_layout_is_harmless(self):
+        self.state.layout = None
+        self.state.model = None
+        self.assertEqual(self._ev('MOUSEMOVE', 'NOTHING', (5, 5)), {'RUNNING_MODAL'})
+        self.assertEqual(self._ev('LEFTMOUSE', 'PRESS', (5, 5)), {'RUNNING_MODAL'})
+        self.assertEqual(self._ev('LEFTMOUSE', 'RELEASE', (5, 5)), {'RUNNING_MODAL'})
+        self.assertEqual(self.state.hover_redraws, 0)
+
+    def test_end_records_timing_and_logs_with_debug_timing(self):
+        hb = _hb()
+        state = self.state
+        state.debug_timing = True
+        state.timing.add(0.002)
+        with _quiet() as (out, _err):
+            hb._end(state, 'finish')
+        last = hb.last_session()
+        self.assertEqual(last['timing']['count'], 1)
+        self.assertAlmostEqual(last['timing']['max_ms'], 2.0)
+        self.assertIsNone(last['handoff'])
+        self.assertIn('Meso Mode: draw timing', out.getvalue())
 
 
 if __name__ == "__main__":

@@ -120,14 +120,30 @@ def visible_pieces(region_rect: Rect, overlapping_rects: Iterable[Rect]) -> list
     return subtract(region_rect, overlapping_rects)
 
 
-def linear_blend_alpha(a: float) -> float:
+# Display-space grey of the background a translucent fill is assumed to cover in a
+# linear-blend region (factory 3D View background #3d..#40), for linear_blend_alpha.
+LINEAR_BLEND_REF_BG = 0.25
+
+
+def linear_blend_alpha(a: float, fill: float = 0.0, bg: float = LINEAR_BLEND_REF_BG) -> float:
     """Pre-compensate a translucent fill's alpha for linear-space blending regions (D2).
 
-    ``1 - (1 - a) ** 2.2`` with ``a`` clamped to [0, 1] first (so 0 -> 0, 1 -> 1, monotonic,
-    and 0.30 -> ~0.544). Only for fills in ``LINEAR_BLEND_REGIONS``; text/opaque fills unchanged.
+    Returns the alpha ``a'`` for which a linear-space blend of ``fill`` over ``bg`` gives the
+    same display value as the sRGB blend at ``a`` (``lin(v) = v ** 2.2``); ``fill``/``bg`` are
+    display-space grey levels (the renderer passes the fill's luminance). ``a`` is clamped to
+    [0, 1] first, and the result too. ``fill = 0`` (black, the spike-4 case) reduces to
+    ``1 - (1 - a) ** 2.2`` (0.30 -> ~0.544); a mid-grey fill needs almost no correction
+    (#595959 at 0.75 -> ~0.71), and ``fill == bg`` returns ``a``. Only for fills in
+    ``LINEAR_BLEND_REGIONS``; text/opaque fills unchanged.
     """
     a = min(max(a, 0.0), 1.0)
-    return 1.0 - (1.0 - a) ** 2.2
+    if fill <= 0.0:
+        return 1.0 - (1.0 - a) ** 2.2
+    fl, bl = fill ** 2.2, bg ** 2.2
+    if abs(fl - bl) < 1e-6:
+        return a
+    target = (a * fill + (1.0 - a) * bg) ** 2.2
+    return min(max((target - bl) / (fl - bl), 0.0), 1.0)
 
 
 def clamp_to_bounds(rect: Rect, bounds: Rect) -> Rect:

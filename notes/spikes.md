@@ -75,6 +75,7 @@ GUI harness facts that every future spike needs:
   - Never "draw only in WINDOW", because the header and toolbar buttons would then paint over the Plaza.
 - **Linear-blend regions:** `LINEAR_BLEND_REGIONS = {('VIEW_3D','WINDOW'), ('IMAGE_EDITOR','WINDOW')}`.
   - Translucent fills there use `a' = 1 - (1 - a) ** 2.2`.
+    - Phase 2 refinement: that formula is exact only for a black fill. `core.rects.linear_blend_alpha(a, fill, bg=0.25)` solves for the alpha whose linear blend of the fill's grey over a #40 background matches the sRGB blend (black -> the formula above; #595959 at 0.75 -> ~0.71). Applying the black-fill curve to grey strips made them ~95% opaque in the 3D View and left a brightness seam where a strip crossed from TOOLS/UI into WINDOW.
   - Text and opaque fills are unchanged.
 - **TOPBAR/STATUSBAR are uncovered:**
   - Clamp the layout to the bounding box of `context.window.screen.areas`.

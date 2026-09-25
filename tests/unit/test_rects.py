@@ -247,6 +247,22 @@ class TestLinearBlendAlpha(unittest.TestCase):
         self.assertAlmostEqual(linear_blend_alpha(0.30), 0.5438, places=3)
         self.assertAlmostEqual(linear_blend_alpha(0.75), 1 - 0.25 ** 2.2)
 
+    def test_colour_aware(self):
+        # Plaza strip grey over the factory 3D View background: almost no correction.
+        fill, bg = 0x59 / 255, 0x3f / 255
+        a = linear_blend_alpha(0.75, fill, bg)
+        self.assertAlmostEqual(a, 0.715, delta=0.01)
+        # The linear blend at a' reproduces the sRGB blend at 0.75.
+        want = 0.75 * fill + 0.25 * bg
+        got = (a * fill ** 2.2 + (1 - a) * bg ** 2.2) ** (1 / 2.2)
+        self.assertAlmostEqual(got, want, places=6)
+        self.assertAlmostEqual(linear_blend_alpha(0.75, 0.0), 1 - 0.25 ** 2.2)
+        self.assertEqual(linear_blend_alpha(0.4, 0.25, 0.25), 0.4)
+        for f in (0.1, 0.35, 0.47, 0.8):
+            self.assertEqual(linear_blend_alpha(0.0, f), 0.0)
+            self.assertAlmostEqual(linear_blend_alpha(1.0, f), 1.0)
+            self.assertLessEqual(linear_blend_alpha(0.75, f), linear_blend_alpha(0.75, 0.0))
+
     def test_clamped(self):
         self.assertEqual(linear_blend_alpha(-0.5), 0.0)
         self.assertEqual(linear_blend_alpha(1.7), 1.0)

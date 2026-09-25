@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI event-simulate suite for the Phase 1 plaza (hold / release / tap / cancel).
+"""GUI event-simulate suite for the plaza: Phase 1 (hold / release / tap / cancel) and
+Phase 2 (screenshots at ui_scale 1.0 / 2.0, hover, click -> native File menu handoff).
 
 Run through ``tests/gui/run_gui_tests.sh`` (nested ``kwin_wayland --virtual`` by default), or
 directly:
@@ -13,6 +14,10 @@ approach as ``tests/run_tests.py``), then drives every scenario from a ``bpy.app
 generator state machine with ``Window.event_simulate`` (which also makes Blender ignore real
 input). Each generator step yields the number of seconds to wait. The script writes a JSON
 report and always quits Blender itself (hard deadline); preferences are never saved.
+
+Arguments after ``--``: ``--out FILE`` (JSON report), ``--shots DIR`` (full-size screenshots;
+default ``<dir of --out>/shots``). Screenshots are also copied, downscaled to <= 1200 px wide,
+to ``notes/screenshots/phase2_<backend>_<ui scale>.png``.
 """
 
 import importlib
@@ -466,16 +471,30 @@ def sc_click_is_not_tap(rec):
     xy = center_of("VIEW_3D")
     sim('MOUSEMOVE', 'NOTHING', xy)
     yield 0.1
+    serial0 = last().get("serial")
     sim('SPACE', 'PRESS', xy)
     sim('LEFTMOUSE', 'PRESS', xy)
     sim('LEFTMOUSE', 'RELEASE', xy)
     sim('SPACE', 'RELEASE', xy)
     yield SETTLE
     ls = last()
+    check_click_session(rec, ls, serial0)
     check(rec, "not_tapped", ls.get("tapped") is False, [ls.get("tapped"), ls.get("elapsed")])
     check(rec, "not_playing", not playing())
     check_ended(rec)
     cancel_play()
+
+
+def check_click_session(rec, ls, serial0):
+    """A one-tick Space+click session really ran (not a stale ``last()``), ended by the Space
+    release, inside the tap threshold: so "not a tap" comes from the click, not the timing."""
+    check(rec, "new_session", ls.get("serial") is not None and ls.get("serial") != serial0,
+          [serial0, ls.get("serial")])
+    check(rec, "ended_by_release", ls.get("end") == "finish", ls.get("end"))
+    p = addon_prefs()
+    thr = float(p.tap_threshold) if p is not None else None
+    check(rec, "inside_tap_threshold", thr is not None and ls.get("elapsed") is not None
+          and ls["elapsed"] < thr, [ls.get("elapsed"), thr])
 
 
 def sc_esc_cancel(rec):
@@ -516,11 +535,24 @@ def sc_topbar(rec):
     st = yield from hold(xy, rec, "TOPBAR")
     if st is not None:
         check(rec, "bar_area_index_none", st.area_index is None, st.area_index)
+        top = max(a.y + a.height for a in win().screen.areas)
+        check_bar_layout(rec, st, lambda r: r.y1 <= top, "below_topbar")
     yield from tap(xy)
     ls = last()
     check(rec, "tap_no_cmd", ls.get("tap_cmd") is None, ls.get("tap_cmd"))
     check(rec, "tap_not_playing", not playing())
     cancel_play()
+
+
+def check_bar_layout(rec, st, edge_ok, edge_name):
+    """Invoked over a global bar: the layout was shifted into the screen-area bounds (D2),
+    clear of the bar."""
+    lay = st.layout
+    hb = lay.plaza_rect if lay is not None else None
+    check(rec, "layout_inside_bounds", hb is not None and st.bounds is not None
+          and hb.intersect(st.bounds) == hb, [repr(hb), repr(st.bounds)])
+    check(rec, "layout_" + edge_name, hb is not None and edge_ok(hb), repr(hb))
+    check(rec, "layout_shifted", lay is not None and lay.shift != (0, 0), lay and lay.shift)
 
 
 def _swap(ui_type):
@@ -741,6 +773,7 @@ def sc_statusbar(rec):
     st = yield from hold(xy, rec, "STATUSBAR")
     if st is not None:
         check(rec, "bar_area_index_none", st.area_index is None, st.area_index)
+        check_bar_layout(rec, st, lambda r: r.y >= bottom, "above_statusbar")
     yield from tap(xy)
     ls = last()
     check(rec, "tap_no_cmd", ls.get("tap_cmd") is None, ls.get("tap_cmd"))
@@ -958,6 +991,382 @@ def sc_disable_addon(rec):
     yield 0.1
 
 
+# ----------------------------------------------------------------------------- Phase 2 helpers
+
+FILE_MENU = "TOPBAR_MT_file"
+SHOT_MAX_W = 1200     # notes/screenshots copies are downscaled to at most this width
+
+# Draws of the native File menu (TOPBAR_MT_file.append probe, as in tools/spikes/menus).
+MENU_PROBE = {"file": 0}
+
+
+def _file_probe(self, context):
+    MENU_PROBE["file"] += 1
+
+
+def add_menu_probe():
+    bpy.types.TOPBAR_MT_file.append(_file_probe)
+
+
+def remove_menu_probe():
+    try:
+        bpy.types.TOPBAR_MT_file.remove(_file_probe)
+    except Exception:
+        pass
+
+
+def geometry():
+    return importlib.import_module(ADDON_MODULE + ".core.geometry")
+
+
+def grab():
+    """The invoking window's pixels as an int16 numpy array (h, w, 3), rows bottom->top."""
+    import numpy as np
+    return np.asarray(win().screenshot())[:, :, :3].astype(np.int16)
+
+
+def px(shot, xy):
+    x, y = int(xy[0]), int(xy[1])
+    return [int(v) for v in shot[y, x]]
+
+
+def rect_mid(rect):
+    return (int(rect.x + rect.w // 2), int(rect.y + rect.h // 2))
+
+
+def backend_name():
+    return gpu.platform.backend_type_get().lower()
+
+
+def save_screenshot(name):
+    """Save the window as <shots>/<name>.png (full size) and notes/screenshots/<name>.png
+    (downscaled to <= SHOT_MAX_W wide). Returns both paths."""
+    import imbuf
+    pixels = win().screenshot()
+    h, w = pixels.shape[0], pixels.shape[1]
+    ibuf = imbuf.new((w, h))
+    ibuf.file_type = 'PNG'
+    with ibuf.with_buffer(write=True) as buf:
+        buf.cast('B')[:] = pixels.cast('B')
+    shots = pathlib.Path(ARGS.get("shots") or os.path.join(os.path.dirname(ARGS["out"]), "shots"))
+    shots.mkdir(parents=True, exist_ok=True)
+    full = shots / f"{name}.png"
+    imbuf.write(ibuf, filepath=str(full))
+    if w > SHOT_MAX_W:
+        ibuf.resize((SHOT_MAX_W, max(1, round(h * SHOT_MAX_W / w))), method='BILINEAR')
+    ibuf.compress = 100
+    notes = ROOT / "notes" / "screenshots"
+    notes.mkdir(parents=True, exist_ok=True)
+    small = notes / f"{name}.png"
+    imbuf.write(ibuf, filepath=str(small))
+    META.setdefault("screenshots", []).extend([str(full), str(small)])
+    print(f"GUITEST SHOT {full} -> {small}", flush=True)
+    return full, small
+
+
+def empty_point(layout):
+    """A point in the 3D View WINDOW region that hits no plaza item (below/above/beside)."""
+    a = area_by("VIEW_3D")
+    r = region_of(a, "WINDOW")
+    hb_rect = layout.plaza_rect
+    cx = int(hb_rect.x + hb_rect.w // 2)
+    for xy in ((cx, int(hb_rect.y) - 40), (cx, int(hb_rect.y1) + 40),
+               (int(hb_rect.x1) + 40, int(hb_rect.y + hb_rect.h // 2)),
+               (int(hb_rect.x) - 40, int(hb_rect.y + hb_rect.h // 2))):
+        inside = r.x <= xy[0] < r.x + r.width and r.y <= xy[1] < r.y + r.height
+        if inside and geometry().hit_test(layout, *xy) is None:
+            return xy
+    raise RuntimeError("no empty point next to the plaza")
+
+
+def open_plaza(xy):
+    """MOUSEMOVE + Space PRESS at ``xy`` and wait HOLD; returns the running state or None."""
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    yield 0.1
+    DRAWN.clear()
+    sim('SPACE', 'PRESS', xy, unicode=' ')
+    yield HOLD
+    return plaza().current_state()
+
+
+def close_plaza(xy, rec, prefix="after"):
+    sim('SPACE', 'RELEASE', xy)
+    yield SETTLE
+    check_ended(rec, prefix)
+
+# ----------------------------------------------------------------------------- Phase 2 scenarios
+
+
+def _shot_at_scale(rec, scale, row_h_1x):
+    prefs = bpy.context.preferences
+    if abs(prefs.view.ui_scale - scale) > 1e-6:
+        prefs.view.ui_scale = scale              # runtime only: factory startup never saves
+        yield 0.6
+    xy = center_of("VIEW_3D")
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    yield 0.2
+    base = grab()
+    st = yield from open_plaza(xy)
+    tag = f"s{scale:g}_"
+    check(rec, tag + "running", st is not None and plaza().is_running())
+    if st is None or st.layout is None:
+        check(rec, tag + "layout", False)
+        return None
+    lay = st.layout
+    system_scale = prefs.system.ui_scale
+    check(rec, tag + "metrics_scale", abs(lay.metrics.scale - system_scale) < 1e-6,
+          [lay.metrics.scale, system_scale])
+    check(rec, tag + "initial_hover_center", st.hover_id == "center" or lay.shift != (0, 0),
+          [st.hover_id, lay.shift])
+    check(rec, tag + "inside_bounds", st.bounds is not None
+          and lay.plaza_rect.intersect(st.bounds) == lay.plaza_rect, repr(lay.plaza_rect))
+    # Hover nothing (as in the reference image), then capture.
+    far = empty_point(lay)
+    sim('MOUSEMOVE', 'NOTHING', far)
+    yield 0.2
+    check(rec, tag + "hover_cleared", st.hover_id is None, st.hover_id)
+    shot = grab()
+    save_screenshot(f"phase2_{backend_name()}_{scale:.1f}")
+    # Structural pixels: every strip changed the image at one of a few padding spots (inside
+    # the strip, off the labels); the viewport away from the plaza is untouched (no dim).
+    changed = []
+    for strip in lay.strips:
+        r = strip.rect
+        spots = [(int(r.x) + 2, int(r.y) + 2), (int(r.x) + 2, int(r.y1) - 3),
+                 (int(r.x1) - 3, int(r.y) + 2), (int(r.x1) - 3, int(r.y1) - 3)]
+        changed.append(any(max(abs(a - b) for a, b in zip(px(shot, p), px(base, p))) > 8
+                           for p in spots))
+    check(rec, tag + "strips_drawn", lay.strips and all(changed),
+          [[s.key for s in lay.strips], changed])
+    diff = max(abs(a - b) for a, b in zip(px(shot, far), px(base, far)))
+    check(rec, tag + "no_dim_outside", diff <= 3, [far, diff])
+    yield from close_plaza(xy, rec, tag + "after")
+    return lay.metrics.row_h
+
+
+def sc_screenshot(rec):
+    """(a) Hold Space in the 3D View at ui_scale 1.0 and 2.0: screenshots + structural pixels."""
+    prefs = bpy.context.preferences
+    old = prefs.view.ui_scale
+    try:
+        row_h_1 = yield from _shot_at_scale(rec, 1.0, None)
+        row_h_2 = yield from _shot_at_scale(rec, 2.0, row_h_1)
+        if row_h_1 and row_h_2:
+            ratio = row_h_2 / row_h_1
+            check(rec, "row_h_scales", abs(row_h_2 - 2 * row_h_1) <= 2, [row_h_1, row_h_2, ratio])
+    finally:
+        prefs.view.ui_scale = old
+        yield 0.6
+
+
+def sc_hover_file(rec):
+    """(b) Hover 'File': hover_id follows the mouse; one redraw per hover change, none else."""
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    if st is None or st.layout is None:
+        check(rec, "layout", False)
+        return
+    lay = st.layout
+    box = lay.item(FILE_MENU)
+    check(rec, "file_placed", box is not None)
+    if box is None:
+        yield from close_plaza(xy, rec)
+        return
+    calls = []
+    handlers = st.handlers
+    orig = handlers.redraw
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs.get("rects", args[0] if args else None))
+        return orig(*args, **kwargs)
+
+    handlers.redraw = spy                 # instance attribute shadows the method
+    probe = (int(box.highlight.x) + 2, int(box.highlight.y + box.highlight.h // 2))
+    before_px = px(grab(), probe)
+    h0, d0 = st.hover_redraws, st.draw_calls
+    fxy = rect_mid(box.rect)
+    sim('MOUSEMOVE', 'NOTHING', fxy)
+    yield 0.2
+    check(rec, "hover_file", st.hover_id == FILE_MENU, st.hover_id)
+    check(rec, "one_hover_redraw", st.hover_redraws == h0 + 1 and len(calls) == 1,
+          [st.hover_redraws - h0, len(calls)])
+    check(rec, "redraw_has_rects", bool(calls) and calls[0] is not None, repr(calls[:1]))
+    check(rec, "redrew", st.draw_calls > d0, [d0, st.draw_calls])
+    after_px = px(grab(), probe)
+    check(rec, "highlight_lighter", sum(after_px) > sum(before_px) + 15, [before_px, after_px])
+    # Moving inside the same label: no hover change, no redraw.
+    sim('MOUSEMOVE', 'NOTHING', (fxy[0] + 2, fxy[1] + 1))
+    yield 0.1
+    sim('MOUSEMOVE', 'NOTHING', (fxy[0] - 2, fxy[1] - 1))
+    yield 0.1
+    check(rec, "same_item_no_redraw", st.hover_redraws == h0 + 1 and len(calls) == 1,
+          [st.hover_redraws - h0, len(calls)])
+    # Off every item: hover None (+1), then more motion there: nothing.
+    empty = empty_point(lay)
+    sim('MOUSEMOVE', 'NOTHING', empty)
+    yield 0.1
+    sim('MOUSEMOVE', 'NOTHING', (empty[0] + 3, empty[1]))
+    yield 0.1
+    check(rec, "hover_none", st.hover_id is None, st.hover_id)
+    check(rec, "empty_one_redraw", st.hover_redraws == h0 + 2 and len(calls) == 2,
+          [st.hover_redraws - h0, len(calls)])
+    check(rec, "unhover_repaints_old", len(calls) > 1 and calls[1] is not None
+          and box.rect in calls[1], repr(calls[1:2]))
+    yield 0.1
+    gone_px = px(grab(), probe)
+    check(rec, "highlight_gone", abs(sum(gone_px) - sum(before_px)) <= 15, [before_px, gone_px])
+    sim('MOUSEMOVE', 'NOTHING', rect_mid(lay.center.rect))
+    yield 0.1
+    check(rec, "hover_center", st.hover_id == "center", st.hover_id)
+    check(rec, "running", plaza().is_running())
+    check(rec, "not_interacted", not st.interacted)
+    yield from close_plaza(xy, rec)
+    ls = last()
+    check(rec, "last_hover_redraws", ls.get("hover_redraws") == st.hover_redraws,
+          [ls.get("hover_redraws"), st.hover_redraws])
+
+
+def sc_click_file(rec):
+    """(c) Click 'File' (press + release): the plaza ends, the native File menu opens (D3:
+    on the RELEASE), ESC closes it."""
+    yield from _click_file(rec, center_of("VIEW_3D"))
+
+
+def sc_click_file_header(rec):
+    """(c) from the 3D View HEADER (empty header space): the handoff runs under the area's
+    WINDOW region chosen at invoke, and the File menu opens."""
+    r = region_of(area_by("VIEW_3D"), 'HEADER')
+    if r is None or r.width <= 2 or r.height <= 2:
+        rec["skipped"] = "no visible VIEW_3D/HEADER"
+        return
+    xy = (r.x + int(r.width * 0.55), r.y + r.height // 2)
+
+    def at_invoke(st):
+        check(rec, "hit_region_header", st.region_type == 'HEADER', st.region_type)
+        check(rec, "handoff_region_window", st.region is not None
+              and st.region.type == 'WINDOW', st.region and st.region.type)
+    yield from _click_file(rec, xy, at_invoke)
+
+
+def _click_file(rec, xy, at_invoke=None):
+    st = yield from open_plaza(xy)
+    if st is None or st.layout is None or st.layout.item(FILE_MENU) is None:
+        check(rec, "layout", False)
+        return
+    if at_invoke is not None:
+        at_invoke(st)
+    serial = last().get("serial")
+    fxy = rect_mid(st.layout.item(FILE_MENU).rect)
+    sim('MOUSEMOVE', 'NOTHING', fxy)
+    yield 0.1
+    MENU_PROBE["file"] = 0
+    sim('LEFTMOUSE', 'PRESS', fxy)
+    yield 0.2
+    check(rec, "press_keeps_running", plaza().is_running())
+    check(rec, "pressed_id", st.pressed_id == FILE_MENU, st.pressed_id)
+    check(rec, "nothing_on_press", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
+    sim('LEFTMOUSE', 'RELEASE', fxy)
+    yield 0.5
+    check_ended(rec)
+    ls = last()
+    check(rec, "ended_by_handoff", ls.get("end") == "handoff", ls.get("end"))
+    check(rec, "handoff_cmd", ls.get("handoff") == ("wm.call_menu", {"name": FILE_MENU}),
+          ls.get("handoff"))
+    check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
+          ls.get("handoff_result"))
+    check(rec, "file_menu_drawn", MENU_PROBE["file"] > 0, MENU_PROBE["file"])
+    still_open = not (yield from canary_ok(fxy))     # an open menu swallows the canary key
+    check(rec, "menu_stays_open", still_open)
+    sim('ESC', 'PRESS', fxy)
+    yield 0.05
+    sim('ESC', 'RELEASE', fxy)
+    yield 0.3
+    check(rec, "esc_closed_menu", (yield from canary_ok(fxy)))
+    sim('SPACE', 'RELEASE', xy)
+    yield SETTLE
+    check(rec, "late_release_no_session", last().get("serial") == serial, last().get("serial"))
+    check(rec, "no_play", not playing())
+    check_ended(rec, "final")
+
+
+def sc_press_release_elsewhere(rec):
+    """(d) Press on 'File', release on empty space: nothing opens, the plaza stays open until
+    the Space release (not a tap)."""
+    xy = center_of("VIEW_3D")
+    st = yield from open_plaza(xy)
+    if st is None or st.layout is None or st.layout.item(FILE_MENU) is None:
+        check(rec, "layout", False)
+        return
+    fxy = rect_mid(st.layout.item(FILE_MENU).rect)
+    empty = empty_point(st.layout)
+    MENU_PROBE["file"] = 0
+    sim('MOUSEMOVE', 'NOTHING', fxy)
+    yield 0.1
+    sim('LEFTMOUSE', 'PRESS', fxy)
+    yield 0.1
+    sim('MOUSEMOVE', 'NOTHING', empty)
+    yield 0.1
+    sim('LEFTMOUSE', 'RELEASE', empty)
+    yield 0.4
+    check(rec, "still_running", plaza().is_running())
+    check(rec, "one_modal", modal_ops().count(MODAL_IDNAME) == 1, modal_ops())
+    check(rec, "pressed_cleared", st.pressed_id is None, st.pressed_id)
+    check(rec, "no_menu", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
+    check(rec, "no_handoff", last().get("handoff") is None, last().get("handoff"))
+    yield from close_plaza(empty, rec)
+    ls = last()
+    check(rec, "ended_by_release", ls.get("end") == "finish", ls.get("end"))
+    check(rec, "not_tapped", ls.get("tapped") is False, ls.get("elapsed"))
+    check(rec, "no_play", not playing())
+    check(rec, "still_no_menu", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
+
+
+def sc_click_space_not_tap(rec):
+    """(e) Space released right after a mouse click (inside the tap threshold): not a tap.
+    Also: Space released while LMB is still down on 'File' just closes (no handoff)."""
+    xy = center_of("VIEW_3D")
+    sim('MOUSEMOVE', 'NOTHING', xy)
+    yield 0.1
+    # Everything in one tick: elapsed ~0 would be a tap without the click.
+    serial0 = last().get("serial")
+    sim('SPACE', 'PRESS', xy, unicode=' ')
+    sim('LEFTMOUSE', 'PRESS', xy)
+    sim('LEFTMOUSE', 'RELEASE', xy)
+    sim('SPACE', 'RELEASE', xy)
+    yield SETTLE
+    ls = last()
+    check_click_session(rec, ls, serial0)
+    check(rec, "not_tapped", ls.get("tapped") is False, [ls.get("tapped"), ls.get("elapsed")])
+    check(rec, "no_tap_cmd", ls.get("tap_cmd") is None, ls.get("tap_cmd"))
+    check(rec, "no_handoff", ls.get("handoff") is None, ls.get("handoff"))
+    check(rec, "not_playing", not playing())
+    check_ended(rec)
+    # Space released during a press on File: closes, nothing opens.
+    st = yield from open_plaza(xy)
+    if st is None or st.layout is None or st.layout.item(FILE_MENU) is None:
+        check(rec, "layout", False)
+        return
+    fxy = rect_mid(st.layout.item(FILE_MENU).rect)
+    MENU_PROBE["file"] = 0
+    sim('MOUSEMOVE', 'NOTHING', fxy)
+    yield 0.1
+    sim('LEFTMOUSE', 'PRESS', fxy)
+    yield 0.1
+    sim('SPACE', 'RELEASE', fxy)
+    yield 0.1
+    sim('LEFTMOUSE', 'RELEASE', fxy)
+    yield SETTLE
+    ls = last()
+    check(rec, "held_press_ended_by_release", ls.get("end") == "finish", ls.get("end"))
+    check(rec, "held_press_not_tapped", ls.get("tapped") is False, ls.get("elapsed"))
+    check(rec, "held_press_no_handoff", ls.get("handoff") is None, ls.get("handoff"))
+    check(rec, "held_press_no_menu", MENU_PROBE["file"] == 0, MENU_PROBE["file"])
+    check(rec, "held_press_no_play", not playing())
+    check_ended(rec, "final")
+    cancel_play()
+
+
+
 SCENARIOS = [
     ("hold_view3d", sc_hold_view3d),
     ("tap_play", sc_tap_play),
@@ -966,6 +1375,12 @@ SCENARIOS = [
     ("tap_maximize", sc_tap_maximize),
     ("click_is_not_tap", sc_click_is_not_tap),
     ("esc_cancel", sc_esc_cancel),
+    ("p2_screenshot", sc_screenshot),
+    ("p2_hover_file", sc_hover_file),
+    ("p2_click_file", sc_click_file),
+    ("p2_click_file_header", sc_click_file_header),
+    ("p2_press_release_elsewhere", sc_press_release_elsewhere),
+    ("p2_click_space_not_tap", sc_click_space_not_tap),
     ("outliner_window", sc_outliner),
     ("topbar", sc_topbar),
     ("text_editor", sc_text_editor),
@@ -1010,6 +1425,7 @@ def setup():
     bpy.utils.register_class(MESO_GUITEST_OT_canary)
     ensure_blender_keyconfig()
     add_canary()
+    add_menu_probe()
     enable_addon()
     w = win()
     META.update({"blender": bpy.app.version_string, "window": [w.width, w.height],
@@ -1084,6 +1500,7 @@ def finish(status):
         pass
     try:
         remove_canary()
+        remove_menu_probe()
     except Exception:
         traceback.print_exc()
     try:

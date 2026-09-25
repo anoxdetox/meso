@@ -8,9 +8,10 @@ skips hidden (1x1) regions, draws only its region's *visible* part (the parts no
 by overlapping regions of the same area, which are drawn on top) and draws in window
 coordinates translated by ``(-region.x, -region.y)``.
 
-Phase 1 content: a full-window translucent rect (theme ``wcol_menu_back.inner`` RGB, alpha
-``1 - transparency / 100``, linear-blend corrected in LINEAR_BLEND_REGIONS) plus a small
-'Meso Mode' label centred on the anchor. Phase 2 replaces the content, not the lifecycle.
+Content (Phase 2): the session's ``core.geometry.Layout`` drawn by
+``view.renderer.draw_plaza`` once per visible piece, scissored to that piece, with the
+batches of this HandlerSet's ``renderer.BatchCache``. The layout, palette and hover id are
+plain data built once in invoke: callbacks never measure text or build layouts.
 
 Failure policy (CLAUDE.md): every callback body is wrapped in try/except; the first
 exception of a session prints its traceback and calls ``state.fail(reason)``. Handlers are
@@ -21,16 +22,16 @@ next event/timer tick and tears down (which calls :meth:`HandlerSet.stop`).
 from __future__ import annotations
 
 import sys
+import time
 import traceback
-from dataclasses import dataclass
+from collections.abc import Iterable
 from typing import Any, Protocol
 
-import blf
 import bpy
 import gpu
-from gpu_extras.batch import batch_for_shader
 
-from ..core.rects import Rect, clamp_to_bounds, linear_blend_alpha, visible_pieces
+from ..core.rects import Rect, linear_blend_alpha, visible_pieces
+from . import renderer, theme
 
 # verified-facts §5 "Valid draw_handler_add spaces and regions" (tested add+remove, 5.2.2).
 DRAW_HANDLER_TABLE: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -89,40 +90,15 @@ WINDOW_OCCLUDERS = frozenset({
 # from another region: WINDOW spans the whole area and is drawn *below* them.
 NON_WINDOW_OCCLUDERS = frozenset({'HUD', 'ASSET_SHELF_HEADER'})
 
-LABEL_TEXT = 'Meso Mode'
-LABEL_FONT = 0                      # blf default font id
 
-
-@dataclass(frozen=True, slots=True)
-class Style:
-    """Theme/font snapshot taken at session start (the callbacks never read prefs)."""
-
-    fill_rgb: tuple[float, float, float]    # theme wcol_menu_back.inner RGB
-    text_rgb: tuple[float, float, float]    # theme wcol_menu_back.text RGB
-    font_px: int                            # round(widget.points * (ui_scale or 1.0))
-
-
-# Factory theme values (5.2.2); used when no snapshot is available (direct test calls).
-DEFAULT_STYLE = Style((0.094, 0.094, 0.094), (0.6, 0.6, 0.6), 11)
-
-
-def snapshot_style(context: Any = None) -> Style:
-    """Read the theme/font style from ``context.preferences``; DEFAULT_STYLE on any error."""
-    try:
-        prefs = (context or bpy.context).preferences
-        wcol = prefs.themes[0].user_interface.wcol_menu_back
-        points = prefs.ui_styles[0].widget.points
-        scale = prefs.system.ui_scale or 1.0     # 0.0 headless
-        return Style(tuple(wcol.inner)[:3], tuple(wcol.text)[:3], max(1, round(points * scale)))
-    except Exception:
-        return DEFAULT_STYLE
-
-
-def fill_alpha(transparency: float, area_type: str | None, region_type: str) -> float:
-    """Overlay fill alpha: ``clamp(1 - transparency / 100)``, linear-corrected where needed."""
+def fill_alpha(transparency: float, area_type: str | None, region_type: str,
+               fill: float = 0.0) -> float:
+    """Background alpha ``clamp(1 - transparency / 100)``, linear-corrected for a fill of grey
+    level ``fill`` (0 = black) where needed (the renderer applies the same correction per
+    fill via ``renderer.corrected``)."""
     alpha = min(max(1.0 - transparency / 100.0, 0.0), 1.0)
     if (area_type, region_type) in LINEAR_BLEND_REGIONS:
-        alpha = linear_blend_alpha(alpha)
+        alpha = linear_blend_alpha(alpha, fill)
     return alpha
 
 
@@ -138,9 +114,15 @@ class DrawState(Protocol):
     window_ptr: int                 # ``Window.as_pointer()`` of the invoking window
     anchor: tuple[int, int]         # window coords (event.mouse_x, event.mouse_y) at invoke
     bounds: Rect | None             # bbox of window.screen.areas (window coords), clamp target
-    transparency: int               # pref 0..100; overlay alpha = 1 - transparency / 100
-    draw_calls: int                 # debug: callbacks that passed the filters and drew
+    transparency: int               # pref 0..100 (already folded into ``palette``)
+    draw_calls: int                 # debug: callbacks that passed the filters (drawn or culled)
     draw_filtered: int              # debug: callbacks rejected (other window / inactive / 1x1)
+    # Phase 2 (notes/phase2-interfaces.md); read with getattr(state, name, default).
+    layout: Any                     # core.geometry.Layout | None (None -> nothing to draw)
+    palette: Any                    # view.theme.Palette | None (None -> theme.MESO_PALETTE)
+    hover_id: str | None            # hovered item id (renderer highlight)
+    debug_timing: bool              # time each drawing callback into ``timing``
+    timing: Any                     # core.timing.TimingStats
 
     def fail(self, reason: str) -> None:
         """Deactivate (``active = False``, ``failed = True``); idempotent, never raises."""
@@ -158,12 +140,17 @@ class HandlerSet:
         self.state: DrawState | None = None
         # (Space subclass, handle, region type) for every successful draw_handler_add.
         self._handles: list[tuple[type, Any, str]] = []
-        self._style: Style | None = None    # snapshot taken by start()
+        self._cache: renderer.BatchCache | None = None    # created by start()
 
     @property
     def installed(self) -> int:
         """Number of handlers currently installed by this set (0 after stop)."""
         return len(self._handles)
+
+    @property
+    def cache(self) -> renderer.BatchCache | None:
+        """This session's batch cache (None when not started)."""
+        return self._cache
 
     def start(self, state: DrawState) -> int:
         """Install one POST_PIXEL handler per HANDLER_PAIRS entry and tag a redraw.
@@ -173,9 +160,8 @@ class HandlerSet:
           ``cls.draw_handler_add(draw_callback, (state, space_name, region_type),
           region_type, 'POST_PIXEL')`` is wrapped in ``try/except (ValueError, TypeError)``.
         - Resets the once-per-session error log flag, registers ``self`` in the module
-          registry, snapshots the theme/font style from ``bpy.context.preferences``
-          (``wcol_menu_back.inner`` RGB, ``wcol_menu_back.text`` RGB,
-          ``round(ui_styles[0].widget.points * (system.ui_scale or 1.0))``) for the callbacks.
+          registry and creates the session's ``renderer.BatchCache`` (batches are built
+          lazily by the first draw; nothing GPU happens here).
         - Calls :meth:`redraw` (areas keep stale buffers otherwise). Works headless (handlers
           install; they simply never fire).
         Returns the number installed (86 on 5.2.2).
@@ -185,7 +171,7 @@ class HandlerSet:
             self.stop()
         _error_logged = False
         self.state = state
-        self._style = snapshot_style()
+        self._cache = renderer.BatchCache()
         # Registered before installing, so a failure mid-loop is still cleaned up by stop_all().
         _live.append(self)
         for space_name, region_type in HANDLER_PAIRS:
@@ -203,8 +189,9 @@ class HandlerSet:
 
     def stop(self) -> None:
         """Remove every handler (each ``draw_handler_remove`` in try/except), tag a final redraw
-        of the invoking window while ``state`` is still known, then drop ``state`` and the
-        style snapshot and unregister from the module registry. Idempotent; never raises.
+        of the invoking window while ``state`` is still known, clear and drop the batch cache
+        (invariant 4: no GPU batch outlives the session), then drop ``state`` and unregister
+        from the module registry. Idempotent; never raises.
         """
         try:
             handles, self._handles = self._handles, []
@@ -217,14 +204,22 @@ class HandlerSet:
         except Exception:
             traceback.print_exc()
         finally:
+            cache, self._cache = self._cache, None
+            if cache is not None:
+                try:
+                    cache.clear()
+                except Exception:
+                    pass
             self.state = None
-            self._style = None
             # Identity removal (HandlerSet has default eq); never raises.
             _live[:] = [hs for hs in _live if hs is not self]
 
-    def redraw(self) -> int:
-        """``tag_redraw()`` every area of the invoking window; return how many were tagged.
+    def redraw(self, rects: Iterable[Rect | None] | None = None) -> int:
+        """``tag_redraw()`` areas of the invoking window; return how many were tagged.
 
+        ``rects`` None: every area (open / close / layout change). Otherwise only the areas
+        whose rect intersects one of ``rects`` (window coords; None and empty entries are
+        ignored, so an empty or all-None iterable tags nothing) — the hover-change path (D2).
         The window is resolved on every call from ``bpy.context.window_manager.windows`` by
         ``as_pointer() == state.window_ptr`` (never cached). Returns 0 when there is no state
         or the window is gone. Never raises.
@@ -233,12 +228,21 @@ class HandlerSet:
             state = self.state
             if state is None:
                 return 0
+            targets = None
+            if rects is not None:
+                targets = [r for r in rects if r is not None and not r.is_empty()]
+                if not targets:
+                    return 0
             window = find_window(state.window_ptr)
             screen = window.screen if window is not None else None
             if screen is None:
                 return 0
             count = 0
             for area in screen.areas:
+                if targets is not None:
+                    area_rect = Rect(area.x, area.y, area.width, area.height)
+                    if not any(area_rect.intersects(r) for r in targets):
+                        continue
                 area.tag_redraw()
                 count += 1
             return count
@@ -279,57 +283,35 @@ def region_pieces(area: Any, region: Any, region_type: str) -> list[Rect]:
     return visible_pieces(region_rect, occluders)
 
 
-def draw_region(region_rect: Rect, pieces: list[Rect], window_size: tuple[int, int],
-                fill_rgba: tuple[float, float, float, float], style: Style,
-                anchor: tuple[float, float], bounds: Rect | None) -> int:
-    """Draw the Phase-1 content into the bound region framebuffer, once per visible piece.
+def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any,
+                hover_id: str | None, linear_blend: bool,
+                cache: renderer.BatchCache | None) -> int:
+    """Draw ``layout`` into the bound region framebuffer, once per visible piece.
 
-    ``region_rect``, ``pieces``, ``anchor`` and ``bounds`` are window coords; the framebuffer
-    is region-local with a pixel projection (as in a POST_PIXEL callback), so everything is
-    shifted by ``(-region_rect.x, -region_rect.y)``. Draws the window rect (``window_size``;
-    the region rect when that is 0x0, as headless) filled with ``fill_rgba`` and the LABEL_TEXT
-    label centred on ``anchor`` (clamped into ``bounds``). Restores the scissor box, disables
-    the scissor test when the previous box was the full viewport (gpu.state has no getter for
-    the test; with a full box both states clip identically) and resets the blend mode.
-    Returns the number of pieces drawn.
+    ``region_rect`` and ``pieces`` are window coords; the framebuffer is region-local with a
+    pixel projection (as in a POST_PIXEL callback). For each non-empty piece: scissor to the
+    piece translated by ``(-region_rect.x, -region_rect.y)`` (ints), then
+    ``renderer.draw_plaza(layout, palette, hover_id, (region_rect.x, region_rect.y),
+    linear_blend, cache=cache, clip=piece)`` (which culls pieces away from the plaza).
+    Restores the scissor box, disables the scissor test when the previous box was the full
+    viewport (gpu.state has no getter for the test; with a full box both states clip
+    identically) and resets the blend mode. Returns the number of pieces actually drawn.
     """
-    dx, dy = -region_rect.x, -region_rect.y
-    win_w, win_h = window_size
-    fill = Rect(0, 0, win_w, win_h) if win_w > 0 and win_h > 0 else region_rect
-    fill = fill.translated(dx, dy)
-    shader = gpu.shader.from_builtin('UNIFORM_COLOR')
-    batch = batch_for_shader(
-        shader, 'TRIS',
-        {'pos': ((fill.x, fill.y), (fill.x1, fill.y), (fill.x1, fill.y1), (fill.x, fill.y1))},
-        indices=((0, 1, 2), (0, 2, 3)))
-
-    blf.size(LABEL_FONT, style.font_px)
-    text_w, text_h = blf.dimensions(LABEL_FONT, LABEL_TEXT)
-    label = Rect(anchor[0] - text_w / 2, anchor[1] - text_h / 2, text_w, text_h)
-    if bounds is not None and not bounds.is_empty():
-        label = clamp_to_bounds(label, bounds)
-    label = label.translated(dx, dy)
-
+    ox, oy = int(region_rect.x), int(region_rect.y)
     prev_box = tuple(gpu.state.scissor_get())
     prev_viewport = tuple(gpu.state.viewport_get())
     drawn = 0
     try:
-        gpu.state.blend_set('ALPHA')
         gpu.state.scissor_test_set(True)
         for piece in pieces:
-            local = piece.translated(dx, dy)
-            x0, y0 = int(local.x), int(local.y)
-            w, h = int(local.x1) - x0, int(local.y1) - y0
+            x0, y0 = int(piece.x) - ox, int(piece.y) - oy
+            w, h = int(piece.x1) - ox - x0, int(piece.y1) - oy - y0
             if w <= 0 or h <= 0:
                 continue
             gpu.state.scissor_set(x0, y0, w, h)
-            shader.bind()
-            shader.uniform_float('color', fill_rgba)
-            batch.draw(shader)
-            blf.color(LABEL_FONT, *style.text_rgb, 1.0)
-            blf.position(LABEL_FONT, round(label.x), round(label.y), 0)
-            blf.draw(LABEL_FONT, LABEL_TEXT)
-            drawn += 1
+            if renderer.draw_plaza(layout, palette, hover_id, (ox, oy), linear_blend,
+                                    cache=cache, clip=piece):
+                drawn += 1
     finally:
         gpu.state.scissor_set(*prev_box)
         if prev_box == prev_viewport:
@@ -338,11 +320,12 @@ def draw_region(region_rect: Rect, pieces: list[Rect], window_size: tuple[int, i
     return drawn
 
 
-def _style_for(state: DrawState) -> Style:
+def _cache_for(state: DrawState) -> renderer.BatchCache | None:
+    """The BatchCache of the live HandlerSet drawing ``state`` (None -> renderer's own)."""
     for handler_set in _live:
         if handler_set.state is state:
-            return handler_set._style or DEFAULT_STYLE
-    return DEFAULT_STYLE
+            return handler_set._cache
+    return None
 
 
 def _report_failure(state: DrawState, reason: str) -> None:
@@ -369,20 +352,16 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
        ``bpy.context.window.as_pointer() == state.window_ptr``.
     2. ``region = bpy.context.region``; return if None or ``width <= 1 or height <= 1``.
        Every early return of steps 1-2 does ``state.draw_filtered += 1``.
-    3. Visible pieces (window coords, ``core.rects.visible_pieces``): the region rect minus the
-       rects of the other regions of ``bpy.context.area`` (compared by ``as_pointer()``) with
-       ``w, h > 1`` whose type is in WINDOW_OCCLUDERS (for WINDOW) or NON_WINDOW_OCCLUDERS
-       (for any other region). Empty -> return.
-    4. For each piece: ``gpu.state.scissor_test_set(True)`` + ``scissor_set`` with the piece
-       translated to region-local ints; draw the Phase-1 content in window coords shifted by
-       ``(-region.x, -region.y)``: the window rect filled with (theme rgb, alpha), alpha =
-       ``clamp(1 - transparency / 100, 0, 1)``, passed through ``linear_blend_alpha`` when
-       ``(bpy.context.area.type, region_type) in LINEAR_BLEND_REGIONS``; then the LABEL_TEXT
-       label (blf, font 0, snapshot size, theme text rgb + alpha 1) centred on ``state.anchor``
-       and clamped into ``state.bounds`` (``core.rects.clamp_to_bounds``) when set.
-       UNIFORM_COLOR shader, ``blend_set('ALPHA')``.
-    5. ``finally``: restore the previous scissor box and scissor-test state, ``blend_set('NONE')``.
-    6. ``state.draw_calls += 1``.
+    3. Visible pieces (window coords, :func:`region_pieces`). Empty -> return.
+    4. ``layout = state.layout``; None -> draw nothing (still counted in step 6). Otherwise
+       ``linear = (area type, region_type) in LINEAR_BLEND_REGIONS``, and
+       :func:`draw_region` with ``state.palette or theme.MESO_PALETTE``, ``state.hover_id``
+       and this HandlerSet's BatchCache (scissor per piece; ``draw_plaza`` culls pieces
+       away from the plaza). With ``state.debug_timing`` the step is timed with
+       ``time.perf_counter`` into ``state.timing``.
+    5. (in draw_region) restore the previous scissor box / test state, ``blend_set('NONE')``.
+    6. ``state.draw_calls += 1`` — also when everything was culled (every region that passed
+       the filters counts; the GUI check ``held_all_regions_drew`` relies on it).
     Any exception: on the first of the session print the traceback (prefix 'Meso Mode:') and
     call ``state.fail(reason)`` (itself guarded); never propagate.
     """
@@ -400,11 +379,17 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
         pieces = region_pieces(area, region, region_type)
         if not pieces:
             return
-        area_type = area.type if area is not None else SPACE_AREA_TYPES.get(space_name)
-        style = _style_for(state)
-        rgba = (*style.fill_rgb, fill_alpha(state.transparency, area_type, region_type))
-        draw_region(Rect(region.x, region.y, region.width, region.height), pieces,
-                    (window.width, window.height), rgba, style, state.anchor, state.bounds)
+        layout = getattr(state, 'layout', None)
+        if layout is not None:
+            timing = getattr(state, 'debug_timing', False)
+            t0 = time.perf_counter() if timing else 0.0
+            area_type = area.type if area is not None else SPACE_AREA_TYPES.get(space_name)
+            draw_region(Rect(region.x, region.y, region.width, region.height), pieces, layout,
+                        getattr(state, 'palette', None) or theme.MESO_PALETTE,
+                        getattr(state, 'hover_id', None),
+                        (area_type, region_type) in LINEAR_BLEND_REGIONS, _cache_for(state))
+            if timing:
+                state.timing.add(time.perf_counter() - t0)
         state.draw_calls += 1
     except Exception as ex:
         _report_failure(state, f"{space_name}/{region_type}: {type(ex).__name__}: {ex}")
@@ -428,7 +413,6 @@ def stop_all() -> None:
         try:
             handler_set.stop()
         except Exception:
-            import traceback
             traceback.print_exc()
     _live.clear()
 
@@ -438,5 +422,10 @@ def register() -> None:
 
 
 def unregister() -> None:
-    """Remove any leftover handlers (e.g. disabled while a plaza was open)."""
+    """Remove any leftover handlers (e.g. disabled while a plaza was open) and drop the
+    renderer's cached shaders."""
     stop_all()
+    try:
+        renderer.clear_caches()
+    except Exception:
+        traceback.print_exc()
