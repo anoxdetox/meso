@@ -1,28 +1,38 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Meso Keymap: the switchable add-on bindings and the Industry Compatible choice.
+"""Meso Keymap: the "Meso" keyconfig, the first-enable choice and "Reset to default (Meso)".
 
 Contract: docs/meso-keymap-interfaces.md ("Delivery model", "Lifecycle", "Keyconfig choice").
 
-- Items live in ``wm.keyconfigs.addon`` only, built from ``core.meso_bindings``; never
-  ``head=True``, ``repeat=False``; nothing in typing contexts or modal maps (the table is
-  checked by tests). ``sync()`` adds and removes only the difference, so a binding toggle leaves
-  the other items (and the user's edits of them) alone.
-- They register only while the user chose the Meso Keymap and Industry Compatible is active
-  (or with ``bindings_on_other_keymaps``). A keyconfig switch re-syncs through a read-only
-  watcher timer (a switch publishes no msgbus notification), and ``load_post`` re-syncs too.
-- ``choose()`` (the ``meso.keymap_choose`` operator) is the only code that selects Industry
-  Compatible on user input; ``unregister()`` gives the recorded keyconfig back.
+- The Meso Keymap is a real keyconfig named "Meso", listed in Preferences > Keymap next to
+  Blender and Industry Compatible. The extension ships its preset
+  (``presets/keyconfig/Meso.py``, a thin shim that calls ``load_keyconfig``) and registers the
+  preset folder with ``bpy.utils.register_preset_path``. ``load_keyconfig`` builds it from
+  Industry Compatible's keymap data plus ``core.meso_bindings`` (``merge_keyconfig_data``).
+  Users switch, rebind and reset its items in Blender's keymap editor like any keymap's.
+- ``choose()`` (the ``meso.keymap_choose`` operator: the first-enable dialog and the buttons of
+  the preferences) records the active keyconfig and selects Meso, or gives the recorded one
+  back. Blender does not reselect an extension's keyconfig at start-up (its preset path is not
+  registered yet when Blender picks the keymap), so ``register()`` selects Meso again for the
+  MESO choice. A read-only watcher timer records keymap switches made in Blender's own menu
+  (``core.keyconfig_choice.watch_plan``).
+- ``unregister()`` gives the recorded keyconfig back while Meso is active and removes the Meso
+  keyconfig; the package's ``unregister()`` ends with
+  ``keyconfigs.update(keep_properties=True)`` so the user's edits of Meso items keep their
+  operator properties while the operators are gone.
+- The Plaza's own Space items stay in ``wm.keyconfigs.addon`` (``keymaps.py``): they work with
+  every keymap. Nothing here edits the ``default``/``user`` keyconfig items, except
+  ``reset_to_default()`` (the user's button), which restores or removes the user's edits.
 
-This module is LAST in ``__init__._modules``: its items need the operator classes, and it is
-unregistered first.
+This module is LAST in ``__init__._modules``: the keyconfig's items need the operator classes,
+and it is unregistered first.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 
 import bpy
-from bpy.app.handlers import persistent
 
 from . import prefs
 from .core import keyconfig_choice as kc_choice
@@ -30,10 +40,10 @@ from .core import meso_bindings as mb
 
 LOG_PREFIX = "Meso Mode:"
 PROMPT_DELAY = 0.5
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+PRESET_PATH = os.path.join(PACKAGE_DIR, "presets", "keyconfig", mb.MESO_NAME + ".py")
 
-# binding id -> [(KeyMap, KeyMapItem, Item)] created by sync(), in creation order.
-_items: dict[str, list] = {}
-_state = {'watched_name': None}
+_state = {'watched_name': None, 'preset_path_registered': False}
 
 
 # ------------------------------------------------------------------------------ reading state
@@ -50,33 +60,23 @@ def _wm(context=None):
     return getattr(context or bpy.context, 'window_manager', None)
 
 
+def _keyconfigs(context=None):
+    return getattr(_wm(context), 'keyconfigs', None)
+
+
 def active_keyconfig_name(context=None) -> str | None:
-    keyconfigs = getattr(_wm(context), 'keyconfigs', None)
-    active = getattr(keyconfigs, 'active', None)
+    active = getattr(_keyconfigs(context), 'active', None)
     return getattr(active, 'name', None)
 
 
-def _addon_keyconfig(context=None):
-    keyconfigs = getattr(_wm(context), 'keyconfigs', None)
-    return getattr(keyconfigs, 'addon', None)
+def is_meso_active(context=None) -> bool:
+    return active_keyconfig_name(context) == mb.MESO_NAME
 
 
 def choice(context=None) -> str:
     p = _prefs(context)
     value = getattr(p, 'keymap_choice', None)
     return value if value in (mb.CHOICE_MESO, mb.CHOICE_KEEP) else mb.CHOICE_UNDECIDED
-
-
-def enabled_map(addon_prefs) -> dict[str, bool]:
-    """``{binding id: bind_<id> pref}``; empty when prefs are unavailable (defaults apply)."""
-    if addon_prefs is None:
-        return {}
-    out = {}
-    for b in mb.BINDINGS:
-        value = getattr(addon_prefs, mb.pref_name(b.id), None)
-        if value is not None:
-            out[b.id] = bool(value)
-    return out
 
 
 def operator_exists(idname: str) -> bool:
@@ -88,114 +88,173 @@ def operator_exists(idname: str) -> bool:
     return True
 
 
-def available_ids() -> set[str]:
-    """Bindings whose operators are all registered (later steps' bindings are skipped), and
-    relocations whose target binding is available too."""
-    ids = {b.id for b in mb.BINDINGS if all(operator_exists(i) for i in mb.operator_idnames(b))}
-    return {b.id for b in mb.BINDINGS if b.id in ids and (b.follows is None or b.follows in ids)}
+def meso_keyconfig(context=None):
+    """The loaded "Meso" keyconfig (active or not), or None."""
+    keyconfigs = _keyconfigs(context)
+    return keyconfigs.get(mb.MESO_NAME) if keyconfigs is not None else None
 
 
-def active(context=None) -> tuple[mb.Binding, ...]:
-    """The bindings that should be registered now."""
-    p = _prefs(context)
-    return mb.active_bindings(
-        enabled_map(p), choice=choice(context), keyconfig_name=active_keyconfig_name(context),
-        allow_other=bool(getattr(p, 'bindings_on_other_keymaps', False)),
-        available=available_ids())
+def _find(kc, name):
+    space, region = mb.KEYMAP_SPACES[name]
+    return kc.keymaps.find(name, space_type=space, region_type=region)
 
 
-def registered_items() -> list:
-    """``[(km, kmi, Item)]`` of every live Meso Keymap item, in table order."""
-    order = {b.id: i for i, b in enumerate(mb.BINDINGS)}
+# id(table Item) -> (table index, binding id); the table is immutable.
+_TABLE = {id(item): (n, bid) for n, (bid, item) in enumerate(mb.table_items())}
+
+
+def meso_items(context=None) -> list:
+    """``[(km, kmi, Item)]`` of the table items in the loaded Meso keyconfig, in table order.
+
+    ``merge_keyconfig_data`` put each keymap's items first, in table order, so the n-th item of
+    a keymap's block is its n-th table item (checked by idname and key type).
+    """
+    kc = meso_keyconfig(context)
+    if kc is None:
+        return []
     out = []
-    for bid in sorted(_items, key=order.get):
-        out.extend(_items[bid])
+    for name, pairs in mb.items_by_keymap().items():
+        km = _find(kc, name)
+        if km is None:
+            continue
+        kmis = km.keymap_items
+        for i, (_bid, item) in enumerate(pairs):
+            if i < len(kmis) and kmis[i].idname == item.idname and kmis[i].type == item.key.type:
+                out.append((_TABLE[id(item)][0], km, kmis[i], item))
+    out.sort(key=lambda t: t[0])
+    return [t[1:] for t in out]
+
+
+def binding_of(item: mb.Item) -> str:
+    """The binding id of a table item."""
+    return _TABLE[id(item)][1]
+
+
+def user_items(binding_id: str | None = None, context=None) -> list:
+    """``[(user km, user kmi, Item)]``: the user-keyconfig copies of the Meso items (what the
+    keymap editor edits), found with ``find_match`` (it follows the item id, also after a
+    rebind). Empty unless Meso is the active keyconfig."""
+    if not is_meso_active(context):
+        return []
+    user = _keyconfigs(context).user
+    out = []
+    for km, kmi, item in meso_items(context):
+        if binding_id is not None and binding_of(item) != binding_id:
+            continue
+        ukm = user.keymaps.find(km.name, space_type=km.space_type, region_type=km.region_type)
+        if ukm is None:
+            continue
+        found = ukm.keymap_items.find_match(km, kmi)
+        if found is not None:
+            out.append((ukm, found, item))
     return out
 
 
-def registered_ids() -> tuple[str, ...]:
-    order = {b.id: i for i, b in enumerate(mb.BINDINGS)}
-    return tuple(sorted(_items, key=order.get))
+def live_ids(context=None) -> tuple[str, ...]:
+    """The bindings with at least one item switched on in the user keymap, in table order
+    (empty unless Meso is the active keyconfig)."""
+    on = {binding_of(item) for _km, kmi, item in user_items(context=context) if kmi.active}
+    return tuple(b.id for b in mb.BINDINGS if b.id in on)
 
 
-# ------------------------------------------------------------------------------ items
+def live_bindings(context=None) -> tuple[mb.Binding, ...]:
+    ids = set(live_ids(context))
+    return tuple(b for b in mb.BINDINGS if b.id in ids)
 
 
-def _new_item(kc, item: mb.Item):
-    if mb.is_forbidden_keymap(item.keymap):   # the table test forbids this; belt and braces
-        raise ValueError(f"Meso Keymap item in forbidden keymap {item.keymap!r}")
-    space_type, region_type = mb.KEYMAP_SPACES[item.keymap]
-    km = kc.keymaps.new(item.keymap, space_type=space_type, region_type=region_type)
-    k = item.key
-    kmi = km.keymap_items.new(item.idname, k.type, k.value, repeat=False, ctrl=k.ctrl,
-                              shift=k.shift, alt=k.alt, oskey=k.oskey)
-    for name, value in item.props:
-        setattr(kmi.properties, name, value)
-    return km, kmi
+def set_binding_active(binding_id: str, on: bool, context=None) -> int:
+    """Switch every item of a binding on or off in the user keymap (what the keymap editor's
+    checkbox does; used by tests). Returns the number of items changed."""
+    changed = 0
+    for _km, kmi, _item in user_items(binding_id, context):
+        if kmi.active != bool(on):
+            kmi.active = bool(on)
+            changed += 1
+    if changed:
+        _keyconfigs(context).update()
+    return changed
 
 
-def _remove_binding(binding_id: str) -> None:
-    for km, kmi, _item in reversed(_items.pop(binding_id, [])):
-        try:
-            km.keymap_items.remove(kmi)
-        except (ReferenceError, RuntimeError):
-            pass
+# ------------------------------------------------------------------------------ the keyconfig
 
 
-def remove_all() -> None:
-    for bid in reversed(registered_ids()):
-        _remove_binding(bid)
-    _items.clear()
+def ic_data_path() -> str | None:
+    """Blender's installed Industry Compatible keymap data (the bundled scripts first)."""
+    path = os.path.join(bpy.utils.system_resource('SCRIPTS'), "presets", "keyconfig",
+                        "keymap_data", "industry_compatible_data.py")
+    if os.path.isfile(path):
+        return path
+    preset = bpy.utils.preset_find(mb.IC_NAME, 'keyconfig')
+    if preset:
+        path = os.path.join(os.path.dirname(preset), "keymap_data", "industry_compatible_data.py")
+        if os.path.isfile(path):
+            return path
+    return None
 
 
-def sync(context=None) -> tuple[str, ...]:
-    """Make the add-on items match ``active()``; return the registered binding ids.
-
-    Removes the items of bindings that are no longer active (reverse order), then adds the
-    newly active ones in table order. Idempotent; never touches the Plaza items.
-    """
-    kc = _addon_keyconfig(context)
-    if kc is None:
-        remove_all()
-        return ()
-    wanted = active(context)
-    mb.items_to_register(wanted)          # raises on a duplicate (keymap, key)
-    wanted_ids = {b.id for b in wanted}
-    for bid in reversed(registered_ids()):
-        if bid not in wanted_ids:
-            _remove_binding(bid)
-    for b in wanted:
-        if b.id in _items:
-            continue
-        created = []
-        try:
-            for item in b.items:
-                km, kmi = _new_item(kc, item)
-                created.append((km, kmi, item))
-        except Exception:
-            for km, kmi, _item in reversed(created):
-                try:
-                    km.keymap_items.remove(kmi)
-                except (ReferenceError, RuntimeError):
-                    pass
-            raise
-        _items[b.id] = created
-    return registered_ids()
+def keyconfig_data(context=None) -> list:
+    """Industry Compatible's keymap data (as its preset generates it) with the Meso items."""
+    path = ic_data_path()
+    if path is None:
+        raise RuntimeError("Industry Compatible's keymap data was not found")
+    ic = bpy.utils.execfile(path)
+    inputs = (context or bpy.context).preferences.inputs
+    params = ic.Params(use_mouse_emulate_3_button=inputs.use_mouse_emulate_3_button)
+    data = mb.merge_keyconfig_data(ic.generate_keymaps(params))
+    if sys.platform == "darwin":
+        from bl_keymap_utils.platform_helpers import keyconfig_data_oskey_from_ctrl_for_macos
+        data = keyconfig_data_oskey_from_ctrl_for_macos(data)
+    return data
 
 
-def safe_sync(context=None) -> None:
-    """``sync()`` for callbacks (pref updates, the watcher, handlers): log, never raise."""
-    try:
-        sync(context)
-    except Exception as ex:
-        print(LOG_PREFIX, f"Meso Keymap sync failed: {ex!r}")
+def load_keyconfig(name: str = mb.MESO_NAME, context=None):
+    """Build the Meso keyconfig (called by ``presets/keyconfig/Meso.py``); returns it."""
+    from bl_keymap_utils.io import keyconfig_init_from_data
+    data = keyconfig_data(context)
+    kc = _keyconfigs(context).new(name)
+    keyconfig_init_from_data(kc, data)
+    return kc
 
 
-# ------------------------------------------------------------------------------ keyconfigs
+def select_meso(context=None) -> bool:
+    """``keyconfig_set`` on the shipped Meso preset (never on a same-named user preset)."""
+    if not os.path.isfile(PRESET_PATH):
+        print(LOG_PREFIX, "the Meso keyconfig preset is missing:", PRESET_PATH)
+        return False
+    ok = bool(bpy.utils.keyconfig_set(PRESET_PATH))
+    if ok:
+        _keyconfigs(context).update()
+    return ok and is_meso_active(context)
 
 
-def ic_preset_path() -> str | None:
-    return bpy.utils.preset_find(mb.IC_NAME, 'keyconfig')
+def _preset_exists(name) -> bool:
+    return bool(name) and bpy.utils.preset_find(name, 'keyconfig') is not None
+
+
+def compute_restore_plan(context, previous) -> kc_choice.RestorePlan:
+    keyconfigs = _keyconfigs(context)
+    loaded = [k.name for k in keyconfigs]
+    return kc_choice.restore_plan(active_keyconfig_name(context), previous, loaded,
+                                  _preset_exists(previous))
+
+
+def apply_restore(context, plan: kc_choice.RestorePlan) -> bool:
+    """Apply a RestorePlan; True when the active keyconfig changed."""
+    if plan.kind == kc_choice.RESTORE_NONE:
+        return False
+    keyconfigs = _keyconfigs(context)
+    if plan.kind == kc_choice.RESTORE_PRESET:
+        path = bpy.utils.preset_find(plan.name, 'keyconfig')
+        if path and bpy.utils.keyconfig_set(path):
+            return True
+        plan = kc_choice.RestorePlan(kc_choice.RESTORE_FALLBACK, kc_choice.FALLBACK_NAME)
+    target = keyconfigs.get(plan.name) if plan.kind != kc_choice.RESTORE_FALLBACK else None
+    if target is None:
+        target = keyconfigs.get(kc_choice.FALLBACK_NAME) or keyconfigs.default
+        if plan.kind != kc_choice.RESTORE_FALLBACK:
+            print(LOG_PREFIX, f"the previous keyconfig is gone; restored {target.name!r}")
+    keyconfigs.active = target
+    return True
 
 
 def _mark_dirty(context=None):
@@ -205,59 +264,24 @@ def _mark_dirty(context=None):
         pass
 
 
-def select_ic(context=None) -> bool:
-    """``keyconfig_set`` on Blender's installed Industry Compatible preset."""
-    path = ic_preset_path()
-    if not path or not os.path.isfile(path):
-        print(LOG_PREFIX, "the Industry Compatible keyconfig preset was not found")
-        return False
-    ok = bool(bpy.utils.keyconfig_set(path))
-    return ok and active_keyconfig_name(context) == mb.IC_NAME
-
-
-def compute_restore_plan(context, previous) -> kc_choice.RestorePlan:
-    keyconfigs = _wm(context).keyconfigs
-    loaded = [k.name for k in keyconfigs]
-    preset = bool(previous) and bpy.utils.preset_find(previous, 'keyconfig') is not None
-    return kc_choice.restore_plan(active_keyconfig_name(context), previous, loaded, preset)
-
-
-def apply_restore(context, plan: kc_choice.RestorePlan) -> bool:
-    """Apply a RestorePlan; True when the active keyconfig changed."""
-    if plan.kind == kc_choice.RESTORE_NONE:
-        return False
-    keyconfigs = _wm(context).keyconfigs
-    if plan.kind == kc_choice.RESTORE_PRESET:
-        path = bpy.utils.preset_find(plan.name, 'keyconfig')
-        if path and bpy.utils.keyconfig_set(path):
-            return True
-        plan = kc_choice.RestorePlan(kc_choice.RESTORE_FALLBACK, kc_choice.FALLBACK_NAME)
-    target = keyconfigs.get(plan.name) if plan.kind != kc_choice.RESTORE_FALLBACK else None
-    if target is None:
-        target = keyconfigs.get(kc_choice.FALLBACK_NAME) or keyconfigs.default
-        print(LOG_PREFIX, f"the previous keyconfig is gone; restored {target.name!r}")
-    keyconfigs.active = target
-    return True
-
-
 def choose(context, new_choice: str) -> tuple[bool, str]:
     """Apply the user's keymap choice (``meso.keymap_choose``). Returns (ok, message)."""
     p = _prefs(context)
     if p is None:
         return False, "Meso Mode preferences are unavailable"
+    previous = p.previous_keyconfig
     plan = kc_choice.choose_plan(
-        new_choice, choice(context), active_keyconfig_name(context), p.previous_keyconfig,
-        loaded_names=[k.name for k in _wm(context).keyconfigs],
-        preset_exists=bool(p.previous_keyconfig)
-        and bpy.utils.preset_find(p.previous_keyconfig, 'keyconfig') is not None)
+        new_choice, choice(context), active_keyconfig_name(context), previous,
+        loaded_names=[k.name for k in _keyconfigs(context)],
+        preset_exists=_preset_exists(previous))
     message = ""
-    if plan.select_ic:
-        recorded = p.previous_keyconfig
+    if plan.select_meso:
         p.previous_keyconfig = plan.previous
-        if not select_ic(context):
-            p.previous_keyconfig = recorded
-            return False, "Could not select the Industry Compatible keymap"
-        message = f"Using the Meso Keymap; {plan.previous or 'your keymap'} is restored on Keep or disable"
+        if not select_meso(context):
+            p.previous_keyconfig = previous
+            return False, "Could not select the Meso keymap"
+        message = (f"Using the Meso Keymap; {plan.previous or 'your keymap'} comes back on Keep "
+                   "or disable")
     elif plan.previous is not None:
         p.previous_keyconfig = plan.previous
     if plan.restore.kind != kc_choice.RESTORE_NONE:
@@ -265,13 +289,77 @@ def choose(context, new_choice: str) -> tuple[bool, str]:
         message = f"Restored the {active_keyconfig_name(context)} keymap"
     p.keymap_choice = plan.choice
     p.keymap_prompted = True
-    p.keyconfig_restored = False
-    sync(context)
+    _state['watched_name'] = active_keyconfig_name(context)
     _mark_dirty(context)
     if not message:
         message = ("Using the Meso Keymap" if plan.choice == mb.CHOICE_MESO
                    else "Keeping your keymap")
     return True, message
+
+
+# ------------------------------------------------------------------------------ reset
+
+
+def _addon_item_ptrs(km, addon_kc) -> set[int]:
+    """Pointers of the user-keymap copies of add-on items (the Plaza's and other add-ons')."""
+    km_addon = addon_kc.keymaps.find(km.name, space_type=km.space_type,
+                                     region_type=km.region_type) if addon_kc else None
+    if km_addon is None:
+        return set()
+    out = set()
+    for akmi in km_addon.keymap_items:
+        found = km.keymap_items.find_match(km_addon, akmi)
+        if found is not None:
+            out.add(found.as_pointer())
+    return out
+
+
+def modified_count(context=None) -> int:
+    """How many user edits of the Meso keyconfig ``reset_to_default`` would undo."""
+    if not is_meso_active(context):
+        return 0
+    keyconfigs = _keyconfigs(context)
+    n = 0
+    for km in keyconfigs.user.keymaps:
+        if not km.is_user_modified:
+            continue
+        skip = _addon_item_ptrs(km, keyconfigs.addon)
+        n += sum(1 for kmi in km.keymap_items if kmi.as_pointer() not in skip
+                 and (kmi.is_user_defined or kmi.is_user_modified))
+    return n
+
+
+def reset_to_default(context=None) -> tuple[int, int]:
+    """"Reset to default (Meso)": undo every user edit of the Meso keyconfig.
+
+    Each modified item is restored (``restore_item_to_default``) and each user-added item is
+    removed, in every keymap, modal maps included. Add-on items (the Plaza's Space items and
+    other add-ons') keep the user's edits. Only while Meso is active: the user keymap edits are
+    stored per keymap name, so a reset under another keymap would reset that keymap's edits.
+    Returns (restored, removed).
+    """
+    if not is_meso_active(context):
+        return 0, 0
+    keyconfigs = _keyconfigs(context)
+    keyconfigs.update()
+    restored = removed = 0
+    for km in keyconfigs.user.keymaps:
+        if not km.is_user_modified:
+            continue
+        skip = _addon_item_ptrs(km, keyconfigs.addon)
+        for kmi in list(km.keymap_items):
+            if kmi.as_pointer() in skip:
+                continue
+            if kmi.is_user_defined:
+                km.keymap_items.remove(kmi)
+                removed += 1
+            elif kmi.is_user_modified:
+                km.restore_item_to_default(kmi)
+                restored += 1
+    keyconfigs.update()
+    if restored or removed:
+        _mark_dirty(context)
+    return restored, removed
 
 
 # ------------------------------------------------------------------------------ prompt
@@ -313,16 +401,23 @@ def prompt_pending() -> bool:
 # A switch in the Preferences keymap menu (``preferences.keyconfig_activate`` ->
 # ``bpy.utils.keyconfig_set`` -> ``keyconfigs.active = ...``) publishes no msgbus notification
 # (verified in the GUI suite, mk_keyconfig_switch), so a persistent timer compares the active
-# keyconfig name and re-syncs when it changes. It only reads; timers never run under -b.
+# keyconfig name and records the user's pick (``watch_plan``). Timers never run under -b.
 WATCH_INTERVAL = 0.5
 
 
 def _watch_keyconfig():
     try:
         name = active_keyconfig_name()
-        if name != _state.get('watched_name'):
+        old = _state.get('watched_name')
+        if name != old:
             _state['watched_name'] = name
-            safe_sync()
+            p = _prefs()
+            plan = kc_choice.watch_plan(old, name, choice(), getattr(p, 'previous_keyconfig', ''))
+            if plan is not None and p is not None:
+                p.keymap_choice = plan.choice
+                p.previous_keyconfig = plan.previous
+                p.keymap_prompted = True
+                _mark_dirty()
     except Exception as ex:
         print(LOG_PREFIX, f"keyconfig watch failed: {ex!r}")
     return WATCH_INTERVAL
@@ -342,55 +437,78 @@ def _stop_watch():
             pass
 
 
-@persistent
-def _load_post(*_args):
-    safe_sync()
+# ------------------------------------------------------------------------------ register
+
+
+def _register_preset_path():
+    if not _state['preset_path_registered']:
+        bpy.utils.register_preset_path(PACKAGE_DIR)
+        _state['preset_path_registered'] = True
+
+
+def _unregister_preset_path():
+    if _state['preset_path_registered']:
+        bpy.utils.unregister_preset_path(PACKAGE_DIR)
+        _state['preset_path_registered'] = False
 
 
 def register() -> None:
     """RestrictBlend-safe: only ``window_manager`` and ``preferences`` are used."""
     context = bpy.context
+    _register_preset_path()
     p = _prefs(context)
-    plan = kc_choice.register_plan(
-        choice(context), active_keyconfig_name(context),
-        bool(getattr(p, 'keyconfig_restored', False)),
-        bool(getattr(p, 'keymap_prompted', False)), bpy.app.background)
-    if p is not None and p.keyconfig_restored:
-        p.keyconfig_restored = False
-    if plan == kc_choice.REGISTER_RESELECT_IC:
-        select_ic(context)
-    try:
-        sync(context)
-    except Exception:
-        remove_all()        # a failed enable leaks no items (unregister() is not called then)
-        raise
+    plan = kc_choice.register_plan(choice(context), active_keyconfig_name(context),
+                                   bool(getattr(p, 'keymap_prompted', False)), bpy.app.background)
+    if plan == kc_choice.REGISTER_SELECT_MESO:
+        preferences = context.preferences
+        was_dirty = bool(getattr(preferences, 'is_dirty', True))
+        try:
+            if not select_meso(context):
+                print(LOG_PREFIX, "could not select the Meso keymap")
+        except Exception as ex:
+            print(LOG_PREFIX, f"selecting the Meso keymap failed: {ex!r}")
+        if not was_dirty:
+            # The saved preferences already name "Meso": nothing new to save.
+            try:
+                preferences.is_dirty = False
+            except (AttributeError, TypeError):
+                pass
     if plan == kc_choice.REGISTER_PROMPT and p is not None:
         _cancel_prompt()
         bpy.app.timers.register(_prompt_tick, first_interval=PROMPT_DELAY)
     _start_watch(context)
-    if _load_post not in bpy.app.handlers.load_post:
-        bpy.app.handlers.load_post.append(_load_post)
 
 
 def unregister() -> None:
-    """Remove every item, the watcher and the prompt; restore the previous keyconfig
-    when the Meso Keymap was in use and Industry Compatible is still active. Never raises."""
-    try:
-        remove_all()
-    except Exception as ex:
-        print(LOG_PREFIX, f"removing the Meso Keymap items failed: {ex!r}")
+    """Stop the watcher and the prompt; while Meso is active, give the recorded keyconfig back
+    (or 'Blender'); remove the Meso keyconfig and the preset path. Never raises.
+
+    The user's edits of Meso items stay in the preferences (Blender keeps them per keymap name)
+    and apply again when Meso is selected later."""
     _stop_watch()
     _cancel_prompt()
     try:
-        bpy.app.handlers.load_post.remove(_load_post)
-    except ValueError:
-        pass
-    try:
         context = bpy.context
-        p = _prefs(context)
-        if p is not None and choice(context) == mb.CHOICE_MESO:
-            plan = compute_restore_plan(context, p.previous_keyconfig)
-            if apply_restore(context, plan):
-                p.keyconfig_restored = True
+        if is_meso_active(context):
+            p = _prefs(context)
+            previous = p.previous_keyconfig if p is not None and choice(context) == mb.CHOICE_MESO else ''
+            apply_restore(context, compute_restore_plan(context, previous))
+        kc = meso_keyconfig(context)
+        if kc is not None and not is_meso_active(context):
+            _keyconfigs(context).remove(kc)
     except Exception as ex:
-        print(LOG_PREFIX, f"restoring the previous keyconfig failed: {ex!r}")
+        print(LOG_PREFIX, f"leaving the Meso keymap failed: {ex!r}")
+    try:
+        _unregister_preset_path()
+    except Exception as ex:
+        print(LOG_PREFIX, f"unregistering the keymap preset path failed: {ex!r}")
+
+
+def keep_user_edits() -> None:
+    """After the operators are unregistered (end of the package's ``unregister()``): the next
+    keyconfig update would free the operator properties of the user's edits of Meso items;
+    ``keep_properties`` keeps them for the next enable."""
+    try:
+        bpy.context.window_manager.keyconfigs.update(keep_properties=True)
+    except Exception as ex:
+        print(LOG_PREFIX, f"keeping the keymap edits failed: {ex!r}")

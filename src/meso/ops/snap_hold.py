@@ -7,8 +7,9 @@
   passing every other event through, so the next G/R/S, tool drag or gizmo drag uses it. The
   release of the key writes the user's own values back exactly. A quick tap (released within
   ``hold_tap_threshold`` with no click, drag or transform in between) replays the native item
-  of that key from the user keyconfig instead (Industry Compatible: X toggles snapping, C the
-  Cursor tool, V opens the View pie, D the Annotate tool; J has none).
+  of that key from the user keyconfig instead: the Meso keymap keeps Industry Compatible's item
+  on the key after the Meso item (X toggles snapping, C the Cursor tool, V opens the View pie,
+  D the Annotate tool; J has none), and the user's edit of it is honoured.
 - A native transform swallows every event while it runs, the key release too, so a read-only
   watcher timer reads ``Window.modal_operators`` and ends the hold once the transform is gone
   (one snapped drag per hold). **Nothing is ever written to tool_settings while a foreign modal
@@ -21,8 +22,8 @@
   hold it changes the value the release restores.
 
 Module state holds plain values only (scene name, snapshots, per-key states); no RNA pointer is
-kept. Hold-J snap inversion *during* a transform is an API blocker (add-ons cannot add
-Transform Modal Map items): during a drag, hold Ctrl to invert snapping (native).
+kept. Hold-J snap inversion *during* a transform is not bound (not verified in a real
+transform yet): during a drag, hold Ctrl to invert snapping (native).
 """
 
 from __future__ import annotations

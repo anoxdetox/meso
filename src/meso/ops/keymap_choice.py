@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The Meso Keymap choice operators (docs/meso-keymap-interfaces.md, "Operators").
+"""The Meso Keymap operators (docs/meso-keymap-interfaces.md, "Operators").
 
-- ``meso.keymap_choose(choice='MESO'|'KEEP')``: the only path that selects Industry Compatible
-  on user input (``meso_keymap.choose``). Used by the preferences box and the dialog.
+- ``meso.keymap_choose(choice='MESO'|'KEEP')``: selects the Meso keyconfig on user input, or
+  gives the recorded keymap back (``meso_keymap.choose``). Used by the preferences box and the
+  dialog.
 - ``meso.keymap_choice_dialog``: the first-enable question, a props dialog whose default
   button keeps the current keymap. Esc leaves the choice undecided (the preferences box stays).
   Never runs in background mode.
+- ``meso.keymap_reset``: "Reset to default (Meso)", undoes every user edit of the Meso
+  keyconfig (``meso_keymap.reset_to_default``); the Plaza's items keep theirs.
 """
 
 from __future__ import annotations
@@ -17,14 +20,15 @@ from .. import meso_keymap
 
 _CHOICES = (
     ('MESO', "Use the Meso Keymap",
-     "Switch to Blender's built-in Industry Compatible keymap and add Meso's bindings; your "
-     "current keymap comes back when you choose Keep or disable Meso Mode"),
+     "Switch to the Meso keymap (Industry Compatible plus Meso's bindings, listed in "
+     "Preferences > Keymap); your current keymap comes back when you choose Keep or disable "
+     "Meso Mode"),
     ('KEEP', "Keep My Keymap", "Change nothing; you can choose later in the add-on preferences"),
 )
 
 
 class MESO_OT_keymap_choose(bpy.types.Operator):
-    """Use the Meso Keymap (Industry Compatible plus Meso's bindings), or keep your keymap"""
+    """Use the Meso keymap (Industry Compatible plus Meso's bindings), or keep your keymap"""
     bl_idname = "meso.keymap_choose"
     bl_label = "Meso Keymap Choice"
     bl_options = {'INTERNAL'}
@@ -62,11 +66,11 @@ class MESO_OT_keymap_choice_dialog(bpy.types.Operator):
         layout = self.layout
         col = layout.column(align=True)
         name = meso_keymap.active_keyconfig_name(context) or "your keymap"
-        for line in ("Meso Mode can switch Blender to its built-in Industry Compatible",
-                     "keymap and add Meso's bindings (Ctrl Shift A select all, Alt D",
-                     "deselect, Ctrl Shift I invert, Ctrl Alt A Apply menu, ...).",
+        for line in ("Meso Mode can switch Blender to the Meso keymap: Industry Compatible",
+                     "plus Meso's bindings (Ctrl Shift A select all, Alt D deselect,",
+                     "Ctrl 1 isolate, hold X/C/V/J to snap, Ctrl Alt A Apply menu, ...).",
                      f"Keep, or disabling Meso Mode, gives you back the {name} keymap.",
-                     "Every binding can be switched off in the add-on preferences."):
+                     "Edit or switch off any key in Preferences > Keymap, like any keymap."):
             col.label(text=line)
         layout.separator()
         layout.prop(self, "choice", expand=True)
@@ -78,7 +82,30 @@ class MESO_OT_keymap_choice_dialog(bpy.types.Operator):
         pass   # Esc: stays undecided; the preferences box keeps asking
 
 
-_classes = (MESO_OT_keymap_choose, MESO_OT_keymap_choice_dialog)
+class MESO_OT_keymap_reset(bpy.types.Operator):
+    """Undo every change you made to the Meso keymap in the keymap editor (changed keys, \
+switched-off and added items); the Plaza's Space items keep your changes"""
+    bl_idname = "meso.keymap_reset"
+    bl_label = "Reset to Default (Meso)"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        if not meso_keymap.is_meso_active(context):
+            cls.poll_message_set("The Meso keymap is not the active keymap")
+            return False
+        return True
+
+    def execute(self, context):
+        restored, removed = meso_keymap.reset_to_default(context)
+        if not (restored or removed):
+            self.report({'INFO'}, "The Meso keymap has no changes")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Meso keymap reset: {restored} restored, {removed} removed")
+        return {'FINISHED'}
+
+
+_classes = (MESO_OT_keymap_choose, MESO_OT_keymap_choice_dialog, MESO_OT_keymap_reset)
 
 
 def register():

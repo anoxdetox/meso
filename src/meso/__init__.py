@@ -12,8 +12,8 @@ from .view import draw_manager
 
 # Ordered list of submodules exposing register()/unregister().
 # Registered in order, unregistered in reverse. keymaps and meso_keymap stay last: their
-# items need the operator classes, and are removed first on unregister (meso_keymap also
-# gives the previous keyconfig back first).
+# items need the operator classes (meso_keymap selects the Meso keyconfig), and they go first on
+# unregister (meso_keymap gives the previous keyconfig back and removes the Meso keyconfig).
 _modules = (
     prefs,
     keymap_prefs,
@@ -45,9 +45,13 @@ def register():
             except Exception:
                 import traceback
                 traceback.print_exc()
+        meso_keymap.keep_user_edits()
         raise
 
 
 def unregister():
     for mod in reversed(_modules):
         mod.unregister()
+    # Last, with the operators gone: keep the operator properties of the user's keymap edits
+    # of Meso items (docs/spikes/meso-keyconfig-preset.md, section 5).
+    meso_keymap.keep_user_edits()

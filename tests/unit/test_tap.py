@@ -48,7 +48,7 @@ FRAMES_AREAS = ('VIEW_3D', 'IMAGE_EDITOR', 'NODE_EDITOR', 'SEQUENCE_EDITOR', 'CL
                 'DOPESHEET_EDITOR', 'GRAPH_EDITOR', 'NLA_EDITOR', 'PROPERTIES', 'INFO',
                 'SPREADSHEET')
 REGIONS = ('WINDOW', 'HEADER', 'TOOL_HEADER', 'TOOLS', 'UI', 'CHANNELS', 'FOOTER', None)
-KEYCONFIGS = (tap.KC_BLENDER, tap.KC_BLENDER_27X, tap.KC_INDUSTRY, 'MyCustom', None)
+KEYCONFIGS = (tap.KC_BLENDER, tap.KC_BLENDER_27X, tap.KC_INDUSTRY, tap.KC_MESO, 'MyCustom', None)
 ALL_AREAS = FRAMES_AREAS + tuple(sorted(tap.NO_FRAMES_AREAS)) + (None,)
 ALL_HITS = (None,) + tap.PAINT_MODE_KEYMAP_NAMES
 
@@ -247,6 +247,18 @@ class TestResolveTapAction(unittest.TestCase):
             with self.subTest(km=km):
                 self.assertEqual(self.r('ORIGINAL', tap.KC_INDUSTRY, 'TOOL', 'VIEW_3D', 'WINDOW', km),
                                  PLAY)
+
+    def test_meso_taps_like_industry_compatible(self):
+        """The Meso keymap is Industry Compatible's data plus Meso items (none on Space)."""
+        for area in ALL_AREAS:
+            for region in REGIONS:
+                for sba in tap.SPACEBAR_ACTIONS + (None,):
+                    for hit in ALL_HITS:
+                        with self.subTest(area=area, region=region, sba=sba, hit=hit):
+                            self.assertEqual(
+                                self.r('ORIGINAL', tap.KC_MESO, sba, area, region, hit),
+                                self.r('ORIGINAL', tap.KC_INDUSTRY, sba, area, region, hit))
+        self.assertEqual(tap.KC_MESO, 'Meso')
 
     # -- ORIGINAL: Blender / custom / None -------------------------------------------------
 

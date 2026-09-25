@@ -1,4 +1,4 @@
-"""core.meso_bindings: the Meso Keymap binding table and its selection rules (pure)."""
+"""core.meso_bindings: the Meso Keymap binding table and the Meso keyconfig data (pure)."""
 
 import importlib
 import unittest
@@ -7,22 +7,35 @@ from tests.unit.test_keymap_tree import _load_core
 
 mb = importlib.import_module(_load_core() + ".meso_bindings")
 
-ALL_ON = {b.id: True for b in mb.BINDINGS}
 ALL_IDS = [b.id for b in mb.BINDINGS]
 
 
-def active(enabled=None, **kw):
-    kw.setdefault('choice', mb.CHOICE_MESO)
-    kw.setdefault('keyconfig_name', mb.IC_NAME)
-    return mb.active_bindings({} if enabled is None else enabled, **kw)
+def live(off=(), on=()):
+    """The bindings switched on in the keymap editor: the defaults, minus ``off``, plus ``on``."""
+    return tuple(b for b in mb.BINDINGS
+                 if b.id not in off and (b.default_on or b.id in on))
+
+
+def ic_like_data():
+    """A small stand-in for Industry Compatible's ``generate_keymaps()`` result: every keymap of
+    the table with one native item on a Meso key (plus an unrelated one) and a modal map."""
+    data = []
+    for name, (space, region) in mb.KEYMAP_SPACES.items():
+        items = [("native.a", {"type": 'A', "value": 'PRESS', "ctrl": True, "shift": True},
+                  {"properties": [("action", 'DESELECT')]}),
+                 ("native.other", {"type": 'F5', "value": 'PRESS'}, None)]
+        data.append((name, {"space_type": space, "region_type": region}, {"items": items}))
+    data.append(("Transform Modal Map", {"space_type": 'EMPTY', "region_type": 'WINDOW',
+                                         "modal": True},
+                 {"items": [("CONFIRM", {"type": 'RET', "value": 'PRESS', "any": True}, None)]}))
+    return data
 
 
 class TestTable(unittest.TestCase):
-    def test_ids_unique_and_pref_safe(self):
+    def test_ids_unique(self):
         self.assertEqual(len(ALL_IDS), len(set(ALL_IDS)))
         for bid in ALL_IDS:
             self.assertRegex(bid, r'^[a-z][a-z0-9_]*$')
-            self.assertLessEqual(len(mb.pref_name(bid)), 63)
         self.assertEqual(mb.binding('select_all').id, 'select_all')
 
     def test_groups_and_labels(self):
@@ -55,10 +68,11 @@ class TestTable(unittest.TestCase):
                 self.assertEqual(item.key.value, 'PRESS', b.id)
 
     def test_no_duplicate_keymap_key_over_the_whole_table(self):
-        pairs = mb.items_to_register(mb.BINDINGS)
+        pairs = mb.table_items(mb.BINDINGS)
         self.assertEqual(len(pairs), sum(len(b.items) for b in mb.BINDINGS))
+        self.assertEqual(len(pairs), 111)
         with self.assertRaises(ValueError):
-            mb.items_to_register((mb.binding('select_all'), mb.binding('select_all')))
+            mb.table_items((mb.binding('select_all'), mb.binding('select_all')))
 
     def test_follows_targets_exist(self):
         for b in mb.BINDINGS:
@@ -158,51 +172,72 @@ class TestTable(unittest.TestCase):
         self.assertEqual(mb.native_call('file.select_all'), "file.select_all()")
 
 
-class TestActive(unittest.TestCase):
-    def test_gate(self):
-        for choice in (mb.CHOICE_UNDECIDED, mb.CHOICE_KEEP):
-            for kc in (mb.IC_NAME, 'Blender'):
-                for allow in (False, True):
-                    self.assertEqual(active(ALL_ON, choice=choice, keyconfig_name=kc,
-                                            allow_other=allow), ())
-        self.assertEqual(active(ALL_ON, keyconfig_name='Blender'), ())
-        self.assertEqual(len(active(ALL_ON, keyconfig_name='Blender', allow_other=True)),
-                         len(mb.BINDINGS))
-        self.assertEqual([b.id for b in active(ALL_ON)], ALL_IDS)
-        self.assertTrue(mb.should_register_bindings('MESO', mb.IC_NAME, False))
-        self.assertFalse(mb.should_register_bindings('MESO', None, False))
+class TestKeyconfigData(unittest.TestCase):
+    def test_item_data(self):
+        item = mb.binding('select_all').items[0]
+        self.assertEqual(mb.item_data(item),
+                         ('object.select_all', {"type": 'A', "value": 'PRESS', "ctrl": True,
+                                                "shift": True},
+                          {"properties": [('action', 'SELECT')]}))
+        pivot = mb.binding('pivot_toggle').items[0]
+        self.assertEqual(mb.item_data(pivot), ('meso.pivot_toggle',
+                                               {"type": 'INSERT', "value": 'PRESS'}, None))
+        self.assertEqual(mb.item_data(pivot, active=False)[2], {"active": False})
 
-    def test_defaults_apply_to_missing_ids(self):
-        ids = [b.id for b in active({})]
-        self.assertNotIn('pivot_hold', ids)
-        self.assertIn('select_all', ids)
-        self.assertIn('pivot_hold', [b.id for b in active({'pivot_hold': True})])
+    def test_items_by_keymap_keeps_table_order(self):
+        groups = mb.items_by_keymap()
+        self.assertEqual(sum(len(v) for v in groups.values()), 111)
+        flat = [pair for pairs in groups.values() for pair in pairs]
+        order = {id(item): n for n, (_bid, item) in enumerate(mb.table_items())}
+        for pairs in groups.values():
+            ns = [order[id(item)] for _bid, item in pairs]
+            self.assertEqual(ns, sorted(ns))
+        self.assertEqual(len(flat), len({id(item) for _b, item in flat}))
+        self.assertEqual([bid for bid, _i in groups['Mesh']][:3],
+                         ['select_all', 'deselect_all', 'select_invert'])
 
-    def test_available_filter_keeps_table_order(self):
-        avail = {'apply_menu', 'select_all', 'isolate'}
-        self.assertEqual([b.id for b in active(available=avail)],
-                         ['select_all', 'isolate', 'apply_menu'])
+    def test_merge_puts_meso_items_first_and_keeps_the_native_ones(self):
+        data = mb.merge_keyconfig_data(ic_like_data())
+        by_name = {name: content["items"] for name, _a, content in data}
+        groups = mb.items_by_keymap()
+        active = {b.id: b.default_on for b in mb.BINDINGS}
+        for name, items in by_name.items():
+            with self.subTest(keymap=name):
+                pairs = groups.get(name, [])
+                self.assertEqual(items[:len(pairs)],
+                                 [mb.item_data(item, active[bid]) for bid, item in pairs])
+                # the native items stay, in their order, after the Meso block (shadowed)
+                natives = [i[0] for i in items[len(pairs):]]
+                expected = ['CONFIRM'] if name == 'Transform Modal Map' else ['native.a',
+                                                                             'native.other']
+                self.assertEqual(natives, expected)
+        pivot = [i for i in by_name['Object Mode'] if i[0] == 'meso.pivot_hold']
+        self.assertEqual(pivot[0][2]["active"], False)       # default off (C3)
 
-    def test_relocations_drop_with_their_target(self):
-        ids = [b.id for b in active({'isolate': False})]
-        self.assertNotIn('reloc_mesh_vert_expand', ids)
-        ids = [b.id for b in active(available={'reloc_mesh_vert_expand', 'select_all'})]
-        self.assertEqual(ids, ['select_all'])
+    def test_merge_refuses_a_missing_keymap(self):
+        data = [d for d in ic_like_data() if d[0] != 'Clip Graph Editor']
+        with self.assertRaises(KeyError):
+            mb.merge_keyconfig_data(data)
 
-    def test_items_to_register_order(self):
-        bs = active(available={'select_all', 'apply_menu'})
-        pairs = mb.items_to_register(bs)
-        self.assertEqual([bid for bid, _i in pairs], ['select_all'] * 18 + ['apply_menu'] * 2)
-        self.assertEqual(pairs[0][1].keymap, 'Object Mode')
+    def test_merge_of_a_subset(self):
+        data = mb.merge_keyconfig_data(ic_like_data(), (mb.binding('apply_menu'),))
+        by_name = {name: content["items"] for name, _a, content in data}
+        self.assertEqual(by_name['Object Mode'][0][0], 'wm.call_menu')
+        self.assertEqual(by_name['Pose'][0][0], 'wm.call_menu')
+        self.assertEqual(by_name['Mesh'][0][0], 'native.a')
+
+    def test_names(self):
+        self.assertEqual(mb.MESO_NAME, 'Meso')
+        self.assertEqual(mb.IC_NAME, 'Industry_Compatible')
 
 
 class TestWarnings(unittest.TestCase):
     def test_none_with_everything_on(self):
-        self.assertEqual(mb.warnings(active(ALL_ON)), ())
-        self.assertEqual(mb.warnings(active()), ())    # defaults: pivot_hold off displaces only a tap
+        self.assertEqual(mb.warnings(mb.BINDINGS), ())
+        self.assertEqual(mb.warnings(live()), ())    # defaults: pivot_hold off displaces only a tap
 
     def test_select_all_without_deselect(self):
-        w = mb.warnings(active({'deselect_all': False}))
+        w = mb.warnings(live(off={'deselect_all'}))
         self.assertEqual(len(w), 1, w)
         self.assertIn("Select All takes Ctrl Shift A", w[0])
         self.assertIn("17 more keymaps", w[0])
@@ -216,7 +251,7 @@ class TestWarnings(unittest.TestCase):
         }
         for off, (displacer, text) in cases.items():
             with self.subTest(off=off):
-                w = mb.warnings(active({off: False}))
+                w = mb.warnings(live(off={off}))
                 self.assertTrue(any(m.startswith(mb.binding(displacer).label) and text in m
                                     for m in w), w)
 
@@ -229,14 +264,14 @@ class TestWarnings(unittest.TestCase):
 
 class TestPlazaConflicts(unittest.TestCase):
     def test_conflicts(self):
-        on = active(ALL_ON)
+        on = mb.BINDINGS
         self.assertEqual(mb.plaza_key_conflicts(mb.Key('SPACE'), on), ())
         self.assertEqual([b.id for b in mb.plaza_key_conflicts(mb.Key('X'), on)], ['snap_hold_grid'])
         self.assertEqual([b.id for b in mb.plaza_key_conflicts(mb.Key('C'), on)], ['snap_hold_edge'])
         self.assertEqual([b.id for b in mb.plaza_key_conflicts(mb.KEY_DESELECT_ALL, on)],
                          ['deselect_all', 'select_keys_extra'])
         self.assertEqual(mb.plaza_key_conflicts(mb.Key('A', alt=True), on), ())
-        self.assertEqual(mb.plaza_key_conflicts(mb.Key('X'), active(ALL_ON, choice='KEEP')), ())
+        self.assertEqual(mb.plaza_key_conflicts(mb.Key('X'), ()), ())     # Meso not active
 
 
 if __name__ == '__main__':

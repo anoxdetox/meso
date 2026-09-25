@@ -599,14 +599,14 @@ class TestLocalView(IsolateCase):
 
 
 class TestIsolateKeys(MesoKeymapCase):
-    """Ctrl 1 isolates in the edit/object mode maps; IC's Mesh Ctrl 1 moves to Ctrl Alt 1."""
+    """Ctrl 1 isolates in the edit/object mode maps; IC's Mesh Ctrl 1 moves to Ctrl Alt 1
+    (both Meso keymap items; IC's own item stays after Meso's, shadowed)."""
 
     def _first(self, km, key):
         return next((k for k in km.keymap_items if k.active and key_matches(k, key)), None)
 
     def test_ctrl_1_and_the_relocated_vertex_expand(self):
-        self.meso_on_ic()
-        wm().keyconfigs.update()
+        self.meso_on()
         user = wm().keyconfigs.user
         mesh = find_builtin(user, 'Mesh')
         self.assertEqual(self._first(mesh, mb().KEY_ISOLATE).idname, 'meso.isolate_toggle')
@@ -627,21 +627,23 @@ class TestIsolateKeys(MesoKeymapCase):
             km = user.keymaps.find(name, space_type='EMPTY', region_type='WINDOW')
             self.assertEqual(self._first(km, mb().KEY_ISOLATE).idname, idname)
 
-    def test_isolate_off_gives_ctrl_1_back_and_drops_the_relocation(self):
-        self.meso_on_ic()
-        self.p.bind_isolate = False
-        ids = mk_ids()
+    def test_isolate_off_gives_ctrl_1_back(self):
+        """Switched off in the keymap editor, Ctrl 1 is IC's vertex mode with expand again; the
+        relocated Ctrl Alt 1 item stays (both keys then do the same)."""
+        self.meso_on()
+        mk_mod().set_binding_active('isolate', False)
+        ids = mk_mod().live_ids()
         self.assertNotIn('isolate', ids)
-        self.assertNotIn('reloc_mesh_vert_expand', ids)
-        wm().keyconfigs.update()
+        self.assertIn('reloc_mesh_vert_expand', ids)
         mesh = find_builtin(wm().keyconfigs.user, 'Mesh')
         self.assertEqual(native_of(self._first(mesh, mb().KEY_ISOLATE)),
                          "mesh.select_mode(type='VERT', use_expand=True)")
-        self.assertIsNone(self._first(mesh, mb().KEY_VERT_EXPAND))
+        self.assertEqual(native_of(self._first(mesh, mb().KEY_VERT_EXPAND)),
+                         "mesh.select_mode(type='VERT', use_expand=True)")
 
 
-def mk_ids():
-    return importlib.import_module(f"{ADDON_MODULE}.meso_keymap").registered_ids()
+def mk_mod():
+    return importlib.import_module(f"{ADDON_MODULE}.meso_keymap")
 
 
 if __name__ == '__main__':

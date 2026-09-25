@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The Meso Keymap binding table (pure; no bpy). Contract: docs/meso-keymap-interfaces.md.
 
-Every Meso Keymap binding is a set of add-on keymap items (``wm.keyconfigs.addon`` only) that
-the user can switch off one binding at a time (the generated ``bind_<id>`` preferences). Each
-binding lists what it displaces in Blender's Industry Compatible keyconfig (IC) and where that
-native action lives now; a headless test compares every ``displaces`` list with the real IC
-keymap (the "shadow test"), so a future keymap change cannot silently hide a native action.
-
-``meso_keymap.sync()`` turns ``items_to_register(active_bindings(...))`` into keymap items.
-A binding whose operator is not registered yet (a later implementation step) is skipped there.
+The Meso Keymap is a real keyconfig named "Meso" (``presets/keyconfig/Meso.py``): Blender's
+Industry Compatible keymap data (IC) with every item of this table put first in its keymap
+(``merge_keyconfig_data``). Users switch items off, rebind them and reset them in Blender's own
+keymap editor; ``Binding.default_on`` is the item's initial ``active`` flag. The IC items on the
+same key stay in the keyconfig after the Meso item (shadowed, so switching the Meso item off
+gives the key back). Each binding lists what it displaces in IC and where that native action
+lives now; a headless test compares every ``displaces`` list with the real IC keymap (the
+"shadow test"), so a future keymap change cannot silently hide a native action.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 IC_NAME = 'Industry_Compatible'
+MESO_NAME = 'Meso'         # the keyconfig name (= the preset file name)
 
 CHOICE_UNDECIDED, CHOICE_MESO, CHOICE_KEEP = 'UNDECIDED', 'MESO', 'KEEP'
 
@@ -29,7 +30,7 @@ _KEY_NAMES = {
 
 @dataclass(frozen=True)
 class Key:
-    """``KeyMapItems.new`` arguments; ``repeat`` is always False."""
+    """Keymap item arguments; ``repeat`` is always False."""
     type: str
     value: str = 'PRESS'
     ctrl: bool = False
@@ -66,14 +67,14 @@ class Displaced:
 
 @dataclass(frozen=True)
 class Binding:
-    id: str                               # stable: persisted as the pref bind_<id>; never rename
+    id: str                               # stable (tests, docs); never rename
     group: str                            # a GROUPS id
     label: str
-    description: str                      # pref tooltip; names the displaced action and its new home
-    default_on: bool
+    description: str                      # names the displaced action and its new home
+    default_on: bool                      # the items' initial ``active`` flag in the keyconfig
     items: tuple[Item, ...]
     displaces: tuple[Displaced, ...] = ()
-    follows: str | None = None            # a relocation registered only while this binding is on
+    follows: str | None = None            # the binding this one relocates a displaced action for
 
 
 def native_call(idname: str, props=()) -> str:
@@ -123,8 +124,8 @@ KEYMAP_SPACES: dict[str, tuple[str, str]] = {
 }
 
 # Typing contexts, UI-hover handlers, window-level maps and the Plaza's own maps: no Meso
-# Keymap item may go there. Modal maps are refused by Blender for add-ons anyway, and Meso never
-# calls keymaps.new() with a modal map name (the non-modal call leaves a stray keymap).
+# Keymap item may go there. No modal map either: a keyconfig can carry modal items, but none of
+# the table's items is one (hold-J snap inversion during a transform is not verified yet).
 FORBIDDEN_KEYMAPS = frozenset({
     'Text', 'Text Generic', 'Console', 'Font', 'User Interface', 'Window', 'Screen', 'Preview',
     'Frames', 'Transform Modal Map',
@@ -318,7 +319,7 @@ BINDINGS: tuple[Binding, ...] = (
         'reloc_mesh_vert_expand', 'ISOLATE', "Vertex Select Mode with Expand",
         "Ctrl Alt 1 switches Edit Mesh to vertex select mode with expand, the new home of "
         "Industry Compatible's Ctrl 1 (Ctrl click on the vertex select button of the header or "
-        "the Plaza does the same). Registered only while Ctrl 1 isolates",
+        "the Plaza does the same)",
         True,
         (Item('Mesh', KEY_VERT_EXPAND, 'mesh.select_mode',
               (('type', 'VERT'), ('use_expand', True))),),
@@ -407,43 +408,14 @@ def group_label(group_id: str) -> str:
     return dict(GROUPS)[group_id]
 
 
-def pref_name(binding_id: str) -> str:
-    return f"bind_{binding_id}"
-
-
 def operator_idnames(b: Binding) -> tuple[str, ...]:
     return tuple(dict.fromkeys(item.idname for item in b.items))
 
 
-# ------------------------------------------------------------------------------ selection
+# ------------------------------------------------------------------------------ keyconfig data
 
 
-def should_register_bindings(choice: str, active_name: str | None, allow_other: bool) -> bool:
-    """Meso bindings are live only for the MESO choice on IC (or anywhere with ``allow_other``)."""
-    return choice == CHOICE_MESO and (active_name == IC_NAME or bool(allow_other))
-
-
-def _is_on(enabled, b: Binding) -> bool:
-    value = enabled.get(b.id) if enabled is not None else None
-    return b.default_on if value is None else bool(value)
-
-
-def active_bindings(enabled, *, choice, keyconfig_name, allow_other=False,
-                    available=None) -> tuple[Binding, ...]:
-    """The bindings to register, in table order.
-
-    Empty unless ``should_register_bindings``. Else the bindings switched on (``enabled[id]``;
-    missing -> ``default_on``) whose operators are ``available`` (a set of binding ids, None =
-    all), and a ``follows`` binding only while its target is active too.
-    """
-    if not should_register_bindings(choice, keyconfig_name, allow_other):
-        return ()
-    on = [b for b in BINDINGS if _is_on(enabled, b) and (available is None or b.id in available)]
-    ids = {b.id for b in on}
-    return tuple(b for b in on if b.follows is None or b.follows in ids)
-
-
-def items_to_register(bindings) -> tuple[tuple[str, Item], ...]:
+def table_items(bindings=BINDINGS) -> tuple[tuple[str, Item], ...]:
     """``(binding id, item)`` pairs in table order; ``ValueError`` on a duplicate (keymap, key)."""
     seen: dict[tuple, str] = {}
     out = []
@@ -456,6 +428,58 @@ def items_to_register(bindings) -> tuple[tuple[str, Item], ...]:
             seen[slot] = b.id
             out.append((b.id, item))
     return tuple(out)
+
+
+def items_by_keymap(bindings=BINDINGS) -> dict[str, list[tuple[str, Item]]]:
+    """``{keymap name: [(binding id, item), ...]}`` in table order (the order of the block that
+    ``merge_keyconfig_data`` puts first in each keymap)."""
+    out: dict[str, list[tuple[str, Item]]] = {}
+    for bid, item in table_items(bindings):
+        if is_forbidden_keymap(item.keymap):
+            raise ValueError(f"{bid}: Meso Keymap item in forbidden keymap {item.keymap!r}")
+        out.setdefault(item.keymap, []).append((bid, item))
+    return out
+
+
+def item_data(item: Item, active: bool = True) -> tuple:
+    """One item in ``bl_keymap_utils.io.keyconfig_init_from_data`` format:
+    ``(idname, {"type", "value", modifiers set}, {"properties": [...], "active": False} | None)``."""
+    k = item.key
+    args = {"type": k.type, "value": k.value}
+    for name in ('ctrl', 'shift', 'alt', 'oskey'):
+        if getattr(k, name):
+            args[name] = True
+    data = {}
+    if item.props:
+        data["properties"] = [(name, value) for name, value in item.props]
+    if not active:
+        data["active"] = False
+    return (item.idname, args, data or None)
+
+
+def merge_keyconfig_data(data, bindings=BINDINGS):
+    """Industry Compatible keyconfig data -> the Meso keyconfig data (in place; returned).
+
+    ``data`` is ``generate_keymaps()``'s list of ``(keymap name, keymap args, {"items": [...]})``.
+    Each keymap's Meso items go first, in table order, so they fire before the IC items on the
+    same key; those IC items stay after them (shadowed, never removed: switching a Meso item off
+    in the keymap editor gives the key back, and a hold key's tap replays the IC item). A keymap
+    the data lacks is a ``KeyError`` (Blender never merges a keymap name that its default
+    keyconfig lacks into the user keyconfig).
+    """
+    by_name = {}
+    for name, _args, content in data:
+        by_name.setdefault(name, content)
+    active = {b.id: b.default_on for b in bindings}
+    for keymap, pairs in items_by_keymap(bindings).items():
+        if keymap not in by_name:
+            raise KeyError(f"keymap {keymap!r} is not in the Industry Compatible data")
+        items = by_name[keymap]["items"]
+        items[0:0] = [item_data(item, active[bid]) for bid, item in pairs]
+    return data
+
+
+# ------------------------------------------------------------------------------ live bindings
 
 
 def home_label(now: str) -> str:
@@ -472,7 +496,8 @@ def home_label(now: str) -> str:
 def warnings(active) -> tuple[str, ...]:
     """One message per active binding whose displaced action has no active new home.
 
-    ``active`` is the result of ``active_bindings``. E.g. select_all on and deselect_all off:
+    ``active`` is the live bindings (an item switched on in the user keymap). E.g. select_all
+    on and deselect_all off:
     "Industry Compatible's Deselect All (Ctrl Shift A) has no key now; ..."
     """
     ids = {b.id for b in active}

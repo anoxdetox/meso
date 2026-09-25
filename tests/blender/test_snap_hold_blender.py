@@ -294,19 +294,20 @@ class TestKeymapItems(MesoKeymapCase):
         for bid in self.HOLD_IDS:
             for item in mb().binding(bid).items:
                 self.assertEqual(dict(item.props)['keymap'], item.keymap, bid)
-        self.p.bind_pivot_hold = True
-        ids = self.meso_on_ic()
+        self.meso_on()
+        mk_mod().set_binding_active('pivot_hold', True)
+        ids = mk_mod().live_ids()
         for bid in self.HOLD_IDS + ('pivot_toggle',):
             self.assertIn(bid, ids)
-        for km, kmi, item in mk_items():
+        for km, kmi, item in mk_mod().user_items():
             if kmi.idname in ('meso.snap_hold', 'meso.pivot_hold'):
                 self.assertEqual(kmi.properties.keymap, item.keymap)
                 self.assertFalse(kmi.repeat)
                 self.assertEqual(kmi.value, 'PRESS')
 
     def test_native_tap_items_in_industry_compatible(self):
-        self.p.bind_pivot_hold = True
-        self.meso_on_ic()                       # our items are merged ahead: never picked
+        self.meso_on()                          # our items come first: never picked
+        mk_mod().set_binding_active('pivot_hold', True)
         mod = hold()
         cases = {
             ('3D View', 'X'): "wm.context_toggle(data_path='tool_settings.use_snap')",
@@ -326,7 +327,7 @@ class TestKeymapItems(MesoKeymapCase):
         self.assertIsNone(mod.native_item('3D View', 'C'))     # Pose etc.: no C in IC
 
     def test_tap_replays_the_snap_toggle(self):
-        self.meso_on_ic()
+        self.meso_on()
         before = ts().use_snap
         with ctx():
             self.assertEqual(hold().replay_native(bpy.context, '3D View', 'X'),
@@ -342,8 +343,8 @@ class TestKeymapItems(MesoKeymapCase):
         self.assertEqual(insert, [])
 
 
-def mk_items():
-    return importlib.import_module(f"{ADDON_MODULE}.meso_keymap").registered_items()
+def mk_mod():
+    return importlib.import_module(f"{ADDON_MODULE}.meso_keymap")
 
 
 def _walk(items):

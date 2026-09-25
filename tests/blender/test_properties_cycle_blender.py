@@ -173,8 +173,7 @@ class TestCtrlAKeys(MesoKeymapCase):
         return next((k for k in km.keymap_items if k.active and key_matches(k, key)), None)
 
     def test_ctrl_a_items(self):
-        self.meso_on_ic()
-        wm().keyconfigs.update()
+        self.meso_on()
         user = wm().keyconfigs.user
         key = mb().KEY_IC_SELECT_ALL
         for item in mb().binding('properties_cycle').items:

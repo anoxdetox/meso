@@ -10,7 +10,8 @@ Pure Python: every input is a plain string / number, so the table is unit-tested
 with the bundled interpreter. The operator gathers the strings from Blender:
 
 - ``keyconfig_name``: ``wm.keyconfigs.active.name`` ('Blender', 'Blender_27x',
-  'Industry_Compatible', or any custom name).
+  'Industry_Compatible', 'Meso', or any custom name). 'Meso' (the Meso Keymap) is built from
+  Industry Compatible's data and has its Space items, so it taps like Industry Compatible.
 - ``spacebar_action``: ``getattr(getattr(kc, 'preferences', None), 'spacebar_action', None)``
   read lazily at tap time ('PLAY' | 'TOOL' | 'SEARCH' | None).
 - ``area_type`` / ``region_type``: the area/region under ``event.mouse_x/y`` at invoke
@@ -45,6 +46,8 @@ SPACEBAR_ACTIONS = ('PLAY', 'TOOL', 'SEARCH')
 KC_BLENDER = 'Blender'
 KC_BLENDER_27X = 'Blender_27x'
 KC_INDUSTRY = 'Industry_Compatible'
+KC_MESO = 'Meso'                  # Industry Compatible's data + the Meso bindings (no Space item)
+KC_INDUSTRY_LIKE = frozenset({KC_INDUSTRY, KC_MESO})
 
 # context.mode -> the paint/sculpt mode keymap that handles Space in the 3D View WINDOW
 # (blender_default.py km_* functions; D1 item 3). keymaps.py registers one item in each.
@@ -161,7 +164,7 @@ def resolve_tap_action(tap_action: str, keyconfig_name: str | None, spacebar_act
       - 'ORIGINAL' -> what native Space would have done here, evaluated in this order:
         1. ``area_type in NO_ACTION_AREAS`` -> None.
         2. ``keyconfig_name == KC_BLENDER_27X`` -> 'wm.search_menu' (27x Window Space = search).
-        3. ``keyconfig_name == KC_INDUSTRY``:
+        3. ``keyconfig_name in KC_INDUSTRY_LIKE`` (Industry Compatible or Meso):
            ``mode_keymap_hit in GREASE_PENCIL_MODE_KEYMAPS`` -> asset shelf popover (below);
            else ``area_type is None or in NO_FRAMES_AREAS`` -> None; else 'screen.animation_play'.
         4. Otherwise (Blender or a custom keyconfig): ``action = spacebar_action`` if it is in
@@ -189,7 +192,7 @@ def resolve_tap_action(tap_action: str, keyconfig_name: str | None, spacebar_act
         return None
     if keyconfig_name == KC_BLENDER_27X:
         return TapCommand('wm.search_menu')
-    if keyconfig_name == KC_INDUSTRY:
+    if keyconfig_name in KC_INDUSTRY_LIKE:
         if mode_keymap_hit in GREASE_PENCIL_MODE_KEYMAPS:
             shelf = ASSET_SHELVES.get((mode_keymap_hit, area_type))
             if shelf is not None:
