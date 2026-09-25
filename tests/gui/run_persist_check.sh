@@ -6,7 +6,9 @@
 #   2. control: choose the Meso Keymap, edit two of its items, quit: the next start is on the
 #      Meso keyconfig (Meso Mode reselects it in register(); Blender alone starts on 'Blender')
 #      with the edits kept, the bindings live, no new question and clean preferences, and the
-#      exit-time restore was not saved.
+#      exit-time restore was not saved;
+#   3. Reset to Default (Meso) after that restart, quit, restart: the reset was saved (the Meso
+#      items are the defaults again, the Plaza item keeps the user's key, clean preferences).
 #
 #   tests/gui/run_persist_check.sh [--host]
 #
@@ -68,6 +70,9 @@ gui gui_keep "$T/cfg2" b_gui_keep
 headless read "$T/cfg2" b_read
 gui gui_restart "$T/cfg2" b_gui_restart
 headless read "$T/cfg2" b_read_again
+# 3. Reset to Default (Meso), quit, restart: the reset was saved
+gui gui_reset "$T/cfg2" c_gui_reset
+gui gui_after_reset "$T/cfg2" c_gui_after_reset
 
 "$PY" - "$T/out" <<'PY'
 import json, pathlib, sys
@@ -78,10 +83,15 @@ def load(name):
     except Exception as ex:
         return {"missing": repr(ex)}
 MESO = "Meso"
-EDITED = {"cycle": [["F13", -1]], "apply_active": [False, False]}
+EDITED = {"cycle": [["F13", -1]], "apply_active": [False, False], "isolate": [],
+          "sc_first_active": False, "sc_plaza": ["F16"]}
+DEFAULTS = {"cycle": [["A", 1]], "apply_active": [True, True], "isolate": ["ONE"],
+            "sc_first_active": True, "sc_plaza": ["SPACE"]}
+AFTER_RESET = dict(DEFAULTS, sc_plaza=["F16"])     # the Plaza's item keeps the user's key
 ae, ag, ar = load("a_enable"), load("a_gui_disable"), load("a_read")
 be, bg, br, bs, bra = (load("b_enable"), load("b_gui_keep"), load("b_read"), load("b_gui_restart"),
                        load("b_read_again"))
+cr, ca = load("c_gui_reset"), load("c_gui_after_reset")
 checks = {
     "a_enabled_undecided": ae.get("choice") == "UNDECIDED",
     "a_start_on_blender": ag.get("start_active") == "Blender",
@@ -95,7 +105,7 @@ checks = {
     "a_saved_disabled": ar.get("enabled") is False,
     "b_choose_selects_meso": bg.get("after_choose_active") == MESO,
     "b_edits_made": bg.get("after_edit") == EDITED,
-    "b_default_before_edit": bg.get("start_edits") == {"cycle": [], "apply_active": []},
+    "b_default_before_edit": bg.get("before_edit") == DEFAULTS,
     "b_saved_meso": br.get("pref_active_keyconfig") == MESO,
     "b_saved_choice": br.get("choice") == "MESO" and br.get("previous_keyconfig") == "Blender",
     "b_restart_on_meso": bs.get("start_active") == MESO,
@@ -106,8 +116,20 @@ checks = {
     "b_restart_no_question": bs.get("start_prompt_pending") is False,
     "b_restart_clean_prefs": bs.get("start_is_dirty") is False,
     "b_exit_restore_not_saved": bra.get("pref_active_keyconfig") == MESO,
+    "c_reset_starts_edited": cr.get("start_active") == MESO and cr.get("start_edits") == EDITED
+                             and (cr.get("start_modified_count") or 0) >= 5,
+    "c_reset_finished": cr.get("reset") == ["FINISHED"],
+    "c_reset_defaults": cr.get("after_reset") == AFTER_RESET
+                        and cr.get("after_reset_modified_count") == 0,
+    "c_reset_marks_dirty": cr.get("is_dirty") is True,
+    "c_restart_on_meso": ca.get("start_active") == MESO,
+    "c_restart_reset_kept": ca.get("start_edits") == AFTER_RESET
+                            and ca.get("start_modified_count") == 0,
+    "c_restart_bindings_live": "apply_menu" in (ca.get("start_registered") or []),
+    "c_restart_clean_prefs": ca.get("start_is_dirty") is False,
 }
-errors = [d.get("error") for d in (ae, ag, ar, be, bg, br, bs, bra) if d.get("error") or d.get("missing")]
+errors = [d.get("error") for d in (ae, ag, ar, be, bg, br, bs, bra, cr, ca)
+          if d.get("error") or d.get("missing")]
 for name, ok in checks.items():
     print(("PASS " if ok else "FAIL ") + name)
 for e in errors:
