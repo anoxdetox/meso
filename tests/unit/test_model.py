@@ -149,6 +149,7 @@ class TestPlazaModel(unittest.TestCase):
         self.assertEqual(model.ROWS_ABOVE, ('root', 'contextual'))
         self.assertNotIn(model.ROW_TOOL_SETTINGS, model.ROWS_ABOVE)
         self.assertNotIn(model.ROW_WORKSPACE, model.ROWS_ABOVE)
+        self.assertEqual(model.ROWS_LAST, ('workspace',))
 
 
 class TestOrderedWorkspaces(unittest.TestCase):

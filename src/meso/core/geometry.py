@@ -35,7 +35,7 @@ import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from .model import (CENTER_ID, CONTROLS_ID, KIND_SEPARATOR, KIND_TOGGLE, RECENT_ID, ROWS_ABOVE,
+from .model import (CENTER_ID, CONTROLS_ID, KIND_SEPARATOR, KIND_TOGGLE, RECENT_ID, ROWS_ABOVE, ROWS_LAST,
                     PlazaModel, Item)
 from .rects import Rect, bounding_box
 
@@ -361,7 +361,7 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
        centred on the anchor (``round_px`` of the low corner); its text is centred in it.
     5. Vertical: lines above (ROWS_ABOVE order, each row's lines in reading order) stack
        upward from ``center.y1 + gap_y`` (lowest line first); lines below stack downward from
-       ``center.y - gap_y`` in model order; line pitch ``row_h + gap_y``.
+       ``center.y - gap_y`` in model order, ROWS_LAST rows last; line pitch ``row_h + gap_y``.
     6. Side boxes (``model.recent`` left, ``model.controls`` right): ``w = ceil(text_w +
        2*pad_x)``, ``h = row_h``, vertically centred on the centre box.
        ``recent.x = min(nx0, center.x - side_gap - w)`` where ``nx0`` = left edge of the
@@ -389,7 +389,9 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     # Rows -> lines (reading order). Placement before the shift: build rects at dy = 0 first.
     above_rows = [model.row(key) for key in ROWS_ABOVE]
     above = [r for r in above_rows if r is not None and not r.is_empty()]
-    below = [r for r in model.rows if r.key not in ROWS_ABOVE and not r.is_empty()]
+    below = [r for r in model.rows if r.key not in ROWS_ABOVE and r.key not in ROWS_LAST
+             and not r.is_empty()]
+    below += [r for key in ROWS_LAST for r in [model.row(key)] if r is not None and not r.is_empty()]
     above_lines = [(r, i, items) for r in above
                    for i, items in enumerate(_wrap(r.items, extents, m, wrap_at))]
     below_lines = [(r, i, items) for r in below

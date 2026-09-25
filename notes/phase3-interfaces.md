@@ -298,7 +298,7 @@ core.actions       -> core.model;  core.tap -> core.views;  core.{views,tables,m
   - `KIND_SEPARATOR` is `2*separator_gap` wide with no text.
 - **Hit testing and placement:**
   - `hit_test` skips `KIND_SEPARATOR`;
-  - the contextual row is the 2nd strip above the centre (`ROWS_ABOVE = ('root', 'contextual')`). The Tool Settings row, which wraps to 1-3 lines, sits below the centre after the workspace tabs (`build_model` row order root, contextual, workspace, tool_settings), so the root / contextual / workspace strips keep a fixed offset from the centre across modes and editors (post-review UX fix; muscle memory).
+  - the contextual row is the 2nd strip above the centre (`ROWS_ABOVE = ('root', 'contextual')`). The Tool Settings row, which wraps to 1-3 lines, sits directly below the centre and the workspace tabs close the Plaza at the very bottom (`ROWS_LAST = ('workspace',)`; `build_model` row order root, contextual, tool_settings, workspace — user request after v0.3), so the root / contextual strips keep a fixed offset from the centre across modes and editors.
 
 **Renderer:**
 - a checkbox (`renderer.checkbox`) and an arrow (`renderer.triangle`, 'RIGHT');

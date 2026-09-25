@@ -116,7 +116,7 @@ class TestBuildModel(unittest.TestCase):
         model = self._build()
         self.assertIsInstance(model, m.PlazaModel)
         self.assertEqual([r.key for r in model.rows],
-                         [m.ROW_ROOT, m.ROW_CONTEXTUAL, m.ROW_WORKSPACE, m.ROW_TOOL_SETTINGS])
+                         [m.ROW_ROOT, m.ROW_CONTEXTUAL, m.ROW_TOOL_SETTINGS, m.ROW_WORKSPACE])
         self.assertEqual([i.id for i in model.row(m.ROW_ROOT).items], ROOT_IDS)
         ctx = model.row(m.ROW_CONTEXTUAL).items
         self.assertEqual([i.id for i in ctx], VIEW3D_OBJECT_CTX)

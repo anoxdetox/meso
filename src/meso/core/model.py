@@ -50,10 +50,11 @@ PASSIVE_KINDS = frozenset({KIND_SEPARATOR, KIND_LABEL})
 ROW_ROOT = 'root'                       # TOPBAR_MT_editor_menus (File Edit Render ...)
 ROW_CONTEXTUAL = 'contextual'           # hovered editor's header menus (Phase 3)
 ROW_TOOL_SETTINGS = 'tool_settings'     # header centre/right controls (Phase 3)
-ROW_WORKSPACE = 'workspace'             # workspace tabs (below the centre line)
-# Rows above the centre line, top -> bottom. Any other key goes below, in model order
-# (record.rows.build_model: workspace tabs, then the variable-height Tool Settings row).
+ROW_WORKSPACE = 'workspace'             # workspace tabs (bottom-most strip)
+# Rows above the centre line, top -> bottom. Any other key goes below, in model order,
+# except ROWS_LAST, which always close the plaza at the bottom (in ROWS_LAST order).
 ROWS_ABOVE = (ROW_ROOT, ROW_CONTEXTUAL)
+ROWS_LAST = (ROW_WORKSPACE,)
 
 # --- fixed item ids ---
 CENTER_ID = 'center'
@@ -197,7 +198,8 @@ class PlazaModel:
     """Everything the plaza shows for one session.
 
     ``rows``: any order; the layout places :data:`ROWS_ABOVE` keys above the centre line (in
-    ROWS_ABOVE order, whatever their order here) and the rest below (in this order).
+    ROWS_ABOVE order, whatever their order here) and the rest below (in this order, then the
+    :data:`ROWS_LAST` keys at the very bottom).
     ``center``: the centre box item (kind :data:`KIND_CENTER`). ``recent`` / ``controls``:
     the centre-line side boxes (left / right), None = not shown.
 

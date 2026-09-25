@@ -264,8 +264,8 @@ def _record_area(context: Any, info: InvokeInfo) -> Any | None:
 
 def build_model(context: Any, info: InvokeInfo, prefs: Any = None) -> PlazaModel:
     """The session model: rows ``(root_row(context), Row(ROW_CONTEXTUAL),
-    workspace_row(...), Row(ROW_TOOL_SETTINGS))`` (root + contextual above the centre;
-    workspace tabs right below it, then the wrapping Tool Settings row), ``center_item(...)``
+    Row(ROW_TOOL_SETTINGS), workspace_row(...))`` (root + contextual above the centre;
+    the wrapping Tool Settings row below it, workspace tabs at the very bottom), ``center_item(...)``
     and :func:`side_items`.
 
     ``prefs`` (the add-on preferences or None -> defaults) feeds the Tool Settings row
@@ -285,6 +285,6 @@ def build_model(context: Any, info: InvokeInfo, prefs: Any = None) -> PlazaModel
     finally:
         del recordings
     recent, controls = side_items()
-    rows = (root_row(context), contextual, workspace_row(context, info), tools)
+    rows = (root_row(context), contextual, tools, workspace_row(context, info))
     return PlazaModel(rows, center_item(context, info), recent, controls)
 

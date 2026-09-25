@@ -206,8 +206,8 @@ class TestPacking(unittest.TestCase):
                 menu_row('contextual', ('View', 'Select'))]
         lay = do_layout(full_model(rows=rows))
         keys = [s.key for s in row_strips(lay)]
-        self.assertEqual(keys, ['root', 'contextual', 'extra2', 'workspace', 'tool_settings',
-                                'extra1'])
+        self.assertEqual(keys, ['root', 'contextual', 'extra2', 'tool_settings', 'extra1',
+                                'workspace'])
         center = lay.center.rect
         for s in row_strips(lay):
             if s.key in model_mod.ROWS_ABOVE:
@@ -951,17 +951,19 @@ class TestGlyphLayout(unittest.TestCase):
         self.assertEqual(g.hit_test(lay, *[v + 1 for v in (a.rect.x, a.rect.y)]), 'ts:snap:a',
                          "disabled items still hover-test (callers check enabled)")
 
-    def test_rows_order_contextual_above_tool_settings_below(self):
+    def test_rows_order_contextual_above_tool_settings_below_workspace_last(self):
         rows = [ts_row([toggle('a', 'Alpha')]), menu_row('contextual', ('View', 'Select')),
                 menu_row('root', ROOT_LABELS), ws_row()]
-        rows = [rows[2], rows[1], rows[3], rows[0]]      # build_model order
-        lay = do_layout(full_model(rows=rows))
-        ys = {k: lay.strip(k).rect.y for k in ('root', 'contextual', 'workspace', 'tool_settings')}
-        m = lay.metrics
-        self.assertGreater(ys['root'], ys['contextual'])
-        self.assertEqual(ys['contextual'], lay.center.rect.y1 + m.gap_y)
-        self.assertEqual(ys['workspace'], lay.center.rect.y - m.gap_y - m.row_h)
-        self.assertLess(ys['tool_settings'], ys['workspace'])
+        for order in ([2, 1, 0, 3], [2, 1, 3, 0]):       # build_model order; workspace anywhere
+            lay = do_layout(full_model(rows=[rows[i] for i in order]))
+            ys = {k: lay.strip(k).rect.y for k in ('root', 'contextual', 'workspace', 'tool_settings')}
+            m = lay.metrics
+            self.assertGreater(ys['root'], ys['contextual'])
+            self.assertEqual(ys['contextual'], lay.center.rect.y1 + m.gap_y)
+            self.assertEqual(ys['tool_settings'], lay.center.rect.y - m.gap_y - m.row_h)
+            self.assertLess(ys['workspace'], ys['tool_settings'])
+            self.assertEqual(min(s.rect.y for s in row_strips(lay)), ys['workspace'],
+                             "workspace tabs are the bottom-most strip")
 
     def test_menu_strips_fixed_when_tool_settings_wraps(self):
         """The root / contextual strips keep their offset from the centre whether the Tool
@@ -973,7 +975,7 @@ class TestGlyphLayout(unittest.TestCase):
             lay = do_layout(full_model(rows=rows))
             lines = [s for s in row_strips(lay) if s.key == 'tool_settings']
             return len(lines), {k: lay.strip(k).rect.y - lay.center.rect.y
-                                for k in ('root', 'contextual', 'workspace')}
+                                for k in ('root', 'contextual')}
         n1, one = offsets(2)
         n3, three = offsets(40)
         self.assertEqual(n1, 1)
