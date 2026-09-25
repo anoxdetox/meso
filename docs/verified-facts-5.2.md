@@ -286,6 +286,20 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
 - User keymap edits are stored per keymap name, not per keyconfig: an edit made under Meso to an item Industry
   Compatible or Blender also has applies under those too (standard Blender behaviour, spike section 3).
 
+**Meso Keymap, step 5: local view in edit modes, D + LMB (headless `test_isolate_blender.py`
+`TestEditIsolatesObjects`; nested XTEST spike `docs/spikes/meso-pivot-hold.md`, 5.2.2):**
+- `view3d.localview` in an edit mode puts exactly the objects in the mode into the local view (other selected
+  objects, lights and cameras stay out) and keeps the edit mode; in Pose Mode it takes the **selected** objects (a
+  selected mesh joins the posed armature), and with no object selected it returns CANCELLED. Leaving it keeps the
+  selection and the view (`frame_selected=False` never moves the view).
+- `Object.local_view_set(space, state)` changes nothing until the bases are synced: call `view_layer.update()` first
+  (right after `view3d.localview`), then `local_view_get` reads the new state.
+- A memfile undo (Object / Pose Mode) past the step that entered a local view leaves the local view cleanly
+  (`space.local_view` is None again); an edit-mode undo restores the mesh only, so the local view stays.
+- In the 3D View the gizmo handler runs before the 'Grease Pencil' default keymap: with D held (real events carry
+  `keymodifier` D; simulated ones never do), LMB on the Move gizmo drags the gizmo, LMB elsewhere starts
+  `gpencil.annotate` (IC includes Blender's 'Grease Pencil' keymap with the `key_modifier: 'D'` annotate items).
+
 ## 4. Recorder
 
 **Coverage.** Headless, over 685 registered Menu subclasses:

@@ -47,12 +47,12 @@ that Industry Compatible or Blender also has applies there too.
 | Ctrl Shift I | Invert Selection (Ctrl I stays too) | every editor with select keys |
 | Ctrl Alt A | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) | Object Mode, Pose Mode |
 | Ctrl Alt D | Show Disabled tracks | Clip Editor |
-| Ctrl 1 | Isolate the selection, again to go back: local view in Object Mode; hide the unselected elements in Edit Mesh, Curve, Armature, Pose and Metaball, and give back exactly what was hidden before | 3D View |
+| Ctrl 1 | Isolate the selection, again to go back: local view in Object Mode; in Edit Mesh, Curve, Armature, Pose and Metaball hide the unselected elements and every other object (local view of the objects you edit), then give back exactly what was hidden before and leave the local view | 3D View |
 | Ctrl Alt 1 | Vertex select mode with expand (Industry Compatible's Ctrl 1; Ctrl click on the vertex select button does the same) | Edit Mesh |
 | Ctrl A | Next Properties tab (Object ▸ Object Data ▸ Modifiers ▸ Material, set in the preferences); with no Properties editor on the screen, the sidebar Item tab | 3D View (not Sculpt or text editing) |
 | Hold X / C / V / J | Hold before a drag (G-style transform, tool drag or gizmo drag) to snap to the grid / edges / vertices / in increments (J also for rotate and scale); several keys together snap to all of them. Your snap settings come back when the drag ends. A quick tap still does what the key does in Industry Compatible: X toggles snapping, C picks the Cursor tool, V opens the View pie (click style); J has nothing | 3D View: Object, Edit, Pose and Particle modes |
 | Insert | Toggle Affect Only Origins (move origins, not the shapes) | Object Mode |
-| Hold D | Affect Only Origins while held; a tap still picks the Annotate tool. **Off by default** (switch it on in Preferences ▸ Keymap ▸ Meso ▸ 3D View ▸ Object Mode) | Object Mode |
+| Hold D | Edit origins while held (Affect Only Origins): drag the Move gizmo to move the origin, not the shape. A tap still picks the Annotate tool, and D + drag away from the gizmo still draws an annotation | Object Mode |
 
 In the other editors Ctrl A still selects all; in the 3D View select all is Ctrl Shift A. Shift I
 stays local view and Ctrl H / Shift H / Alt H keep hiding and revealing. In the Outliner, Node

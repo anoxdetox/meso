@@ -134,14 +134,14 @@ The full research lives locally in `local/research/keymap_gap_analysis.md`. That
 **Already covered:** Space tap = single/quad pane toggle, and Space hold = Plaza (IC keeps Space free).
 
 **Parity backlog, in priority order:**
-1. **Hold-key momentary snapping and pivot editing** (highest value, and no native equivalent). ✅ Meso Keymap step 3 (2026-09-25): X/C/V/J pre-drag holds (grid, edge, vertex, increment; a tap keeps the native key), Insert toggles Affect Only Origins, the D hold ships off (C3); one snapped drag per hold; the Plaza Tool Settings row keeps every snap option. Hold-J inversion during a drag: API blocker (below). D+V pivot-to-vertex and Shift-click pivot stay queued.
+1. **Hold-key momentary snapping and pivot editing** (highest value, and no native equivalent). ✅ Meso Keymap step 3 (2026-09-25): X/C/V/J pre-drag holds (grid, edge, vertex, increment; a tap keeps the native key), Insert toggles Affect Only Origins, the D hold (Affect Only Origins while held) ships on since 2026-09-25 (user decision; a tap keeps Annotate, D + drag off the gizmo still annotates, `docs/spikes/meso-pivot-hold.md`); one snapped drag per hold; the Plaza Tool Settings row keeps every snap option. Hold-J inversion during a drag: API blocker (below). D+V pivot-to-vertex and Shift-click pivot stay queued.
    - Pre-drag hold modal on X/C/V/J (PRESS): save `use_snap`, `snap_elements` and `snap_target`, set grid / edge / vertex / relative-increment, and restore on RELEASE. Restoring needs a watcher, because the C transform swallows events: a `bpy.app.timers` poll, or restore on the next event we see.
    - Transform Modal Map: bind hold-J to SNAP_INV_ON/OFF, which gives true mid-drag hold-to-snap for the active element set. **Was an API blocker (spike a):** add-on keyconfigs cannot hold modal keymaps. The Meso keyconfig (step 4) can: its data may carry Transform Modal Map items (`docs/spikes/meso-keyconfig-preset.md` row 11). Not bound yet: whether they invert snapping in a real transform needs a GUI check; the native hold-Ctrl inversion stays the way meanwhile.
    - **In scope now:** the pre-drag hold, pivot edit, and the Plaza fallbacks (the modal-map hold-to-invert is blocked, see above).
    - **DEFERRED (user decision 2026-09-25):** mid-drag snap-type switching, the transform adapter and timer writes to tool_settings during a C transform. See "Deferred hard problems" below.
    - **Pivot edit** on D-hold / Insert: Move tool plus `use_transform_data_origin`. D+V snaps it to a vertex (Closest). Shift-click a component sets the pivot via the cursor/origin.
    - Snap Base, and sticky snap-type toggles, as Plaza Tool Settings fallbacks.
-2. **Ctrl+1 isolate** (already queued): `view3d.localview` in object mode, component isolate in edit mode. ✅ Meso Keymap step 2; the nested isolate below stays queued.
+2. **Ctrl+1 isolate** (already queued): `view3d.localview` in object mode, component isolate in edit mode. ✅ Meso Keymap step 2; since 2026-09-25 (user decision) the edit-mode isolate also isolates the objects (local view of the objects in the mode, left again by the restore). The nested isolate below stays queued.
    - Watch the IC edit-mode Ctrl+1/2/3 select-mode-expand conflict.
    - Better: a nested isolate that keeps lights and cameras visible.
 3. **Display cluster:**

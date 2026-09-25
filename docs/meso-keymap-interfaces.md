@@ -123,7 +123,7 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
 - **Step 3 implemented** (pre-drag snapping, D/Insert pivot, Plaza snap fallbacks; hold-J inversion stays an API
   blocker): `core/snap_hold.py`, `ops/snap_hold.py`, registered after `properties_cycle` in `__init__._modules`.
   Live bindings added: `snap_hold_grid`, `snap_hold_edge`, `snap_hold_vertex`, `snap_hold_increment`, `pivot_toggle`
-  (`pivot_hold` ships off, C3). Tests: `tests/unit/test_snap_hold.py`, `tests/blender/test_snap_hold_blender.py`
+  (`pivot_hold` shipped off, C3; on since step 5). Tests: `tests/unit/test_snap_hold.py`, `tests/blender/test_snap_hold_blender.py`
   (incl. the Plaza Tool Settings fallback test), the Snapping/Pivot part of `tests/blender/test_keymap_prefs.py`,
   and `tests/gui/scenarios_snap_hold.py` (G8 `mk_snap_drag`, G9 `mk_snap_taps`, G11 `mk_snap_teardown`, G12
   `mk_snap_pie_limit`, G13 `mk_pivot`, `mk_protected_features`). `record/rows.py` is unchanged: the Object Mode
@@ -151,7 +151,9 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
      on the host display.
   9. **Not simulable** (manual checks): key auto-repeat of a held X during a drag (G10/UH1: `event_simulate` has no
      repeat flag; a second simulated X press while held is swallowed, checked in G9), and D + LMB annotate while D
-     is held (UH2: simulated events never set the held-key modifier). File load during a hold (G11) is covered
+     is held (UH2: simulated events never set the held-key modifier). Both were later measured with real X11 input
+     in the nested XTEST spikes: `docs/spikes/meso-hold-long-press.md` and `docs/spikes/meso-pivot-hold.md` (UH2:
+     no conflict, step 5). File load during a hold (G11) is covered
      headless (`load_pre`) and by the API spike: the GUI driver's timer does not survive a file load.
   10. **G12 result:** a pie opened by another key during a hold (IC's Period pivot pie) swallows the hold key's
       release; the overlay stays until the next press and release of that key (or Esc, or a window deactivate),
@@ -191,6 +193,28 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
      (spike open question 4): verified by `run_persist_check.sh` `b_restart_clean_prefs`.
   6. Hold-J snap inversion stays unbound: the Meso keyconfig could carry Transform Modal Map items (spike row 11),
      but that they work in a real transform is not verified yet.
+
+- **Step 5 implemented** (user decisions 2 and 5 of 2026-09-25):
+  - **Edit-mode Ctrl 1 isolates the objects too.** In the element modes (Edit Mesh, Curve, Surface, Armature,
+    Pose, Metaball) the isolate also enters the native local view of the objects in the mode, so every other
+    object is hidden as in Object Mode; the Ctrl 1 that restores the elements leaves that local view (exact
+    restore of both). `core.isolate.edit_plan` (pure) decides; `ops/isolate.py` keeps the local views it entered as
+    `(screen name, area index)` keys (`local_views()`), pruned when the area is no longer in a local view and
+    cleared on `load_post`. See "Isolate" below for the rules. Object Mode and the local-view-only edit modes are
+    unchanged.
+  - **Hold D ships on** (`pivot_hold.default_on = True`; C3 answered). The D + LMB question (UH2) was measured
+    with real X11 input in the nested XTEST harness (`docs/spikes/meso-pivot-hold.md`): with D held, a drag on
+    the Move gizmo edits the origin (the gizmo handler runs before the 'Grease Pencil' keymap's D + LMB
+    annotate), and D + drag anywhere else is still the native annotate; a D tap still picks the Annotate tool.
+    Insert stays the sticky toggle; both stay Object Mode only.
+  - Tests: `tests/unit/test_isolate.py` (`TestEditPlan`), `tests/unit/test_meso_bindings.py` (every binding on;
+    the pivot item and its tap displacement), `tests/blender/test_isolate_blender.py` (`TestEditIsolatesObjects`
+    and the updated mesh rows), `tests/blender/test_meso_keymap.py` (D off gives Annotate back), GUI `mk_isolate`
+    (local view with real keys, Ctrl Z), `mk_snap_taps` (D tap, D switched off) and `mk_pivot` (the default).
+  - Known limit: the D hold shares the long-hold key-repeat bug of the X hold
+    (`docs/spikes/meso-hold-long-press.md`; a D held longer than the repeat delay before the drag moves nothing
+    until own-key repeats pass through the hold). The fix of that bug covers D (`_HoldMixin`; the patched case in
+    `docs/spikes/meso-pivot-hold.md`).
 
 ## Delivery model (user decision 1; step 4)
 - The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
@@ -332,7 +356,7 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 | `snap_hold_edge` | Snapping | 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves', and '3D View' (Pose, Lattice, Point Cloud, Particle: no mode-map C in IC) | C (hold) | `meso.snap_hold(element='EDGE')` | **on** | IC C `wm.tool_set_by_id(builtin.cursor, cycle)` → **tap C** (replayed) + toolbar / Tools popup; Shift+RMB cursor stays native |
 | `snap_hold_vertex` | Snapping | '3D View' | V (hold) | `meso.snap_hold(element='VERTEX')` | **on** (C2) | IC V View pie → **tap V** opens it click-style on release + the Plaza View ▸ Viewpoint menu + numpad views; the press-drag-release pie gesture is lost |
 | `snap_hold_increment` | Snapping | '3D View' | J (hold) | `meso.snap_hold(element='INCREMENT')` | **on** | nothing (J unbound in IC) |
-| `pivot_hold` | Pivot | 'Object Mode' | D (hold) | `meso.pivot_hold` | **off** (C3) | IC D annotate tool cycle → **tap D** (replayed) + toolbar; D+LMB annotate interaction unverified (UH2) |
+| `pivot_hold` | Pivot | 'Object Mode' | D (hold) | `meso.pivot_hold` | **on** (step 5; was off, C3) | IC D annotate tool cycle → **tap D** (replayed) + toolbar; D + LMB annotate stays native off the gizmo (UH2, verified with real input: `docs/spikes/meso-pivot-hold.md`) |
 | `pivot_toggle` | Pivot | 'Object Mode' | Insert | `meso.pivot_toggle` | **on** | nothing (Insert only bound in 'Text') |
 
 Not bound, by design: hold-J snap inversion during a transform (API blocker, below); anything on Shift+RMB or
@@ -573,6 +597,26 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
 - **LOCAL_VIEW**: if `space_data.local_view` is set → `view3d.localview()` (exit, selection kept). Else with a
   selection → `view3d.localview(frame_selected=pref)`; with nothing selected → INFO "Nothing selected" and CANCELLED.
   Lights and cameras that are not selected are left out, as natively (a nested isolate that keeps them is backlog).
+- **Element kinds, objects (step 5, user decision 2 of 2026-09-25)**: Ctrl 1 also isolates the objects, like the
+  Object Mode local view. `edit_plan(entries, in_local_view=, ours=, ours_elsewhere=)` returns `EditPlan(action,
+  decisions, enter_local_view, exit_local_view)`:
+
+  | Situation | Result |
+  |---|---|
+  | `plan()` says ISOLATE, the 3D View not in a local view | hide the unselected elements, then enter the native local view of `context.objects_in_mode` (frame per `isolate_frame_selected`); the area key is recorded as ours |
+  | `plan()` says ISOLATE, the 3D View already in a local view (Shift I, Object Mode Ctrl 1: not ours) | hide the elements only; the local view is kept (no nested local view) and is not left by the restore |
+  | `plan()` says RESTORE, or the 3D View is in our local view | RESTORE: the elements with a record restore (the others are skipped) and every local view of this screen that an element isolate entered is left |
+  | nothing selected | INFO "Nothing selected", CANCELLED (neither part) |
+  | every visible element selected | the objects still isolate (FINISHED, no element record); only when the view is in a local view already: INFO "Nothing to isolate", CANCELLED |
+
+  Pose Mode: the native local view takes the selected objects there (edit modes take the objects in the mode), so
+  unselected posed armatures are selected for the call and deselected after it, then `local_view_set` makes the
+  set exactly the objects in the mode (after `view_layer.update()`; before it, `local_view_set` does nothing).
+  Undo: an edit-mode undo gives the hide flags back but not the local view (screen data), so the next Ctrl 1 leaves
+  the local view (our-local-view row); a memfile undo (Object / Pose Mode) past the step leaves the local view by
+  itself (verified headless). An area key whose area left the local view by other means (Shift I, Object Mode Ctrl
+  1, which also forgets the key) is pruned; a local view left and entered again by hand before the next Ctrl 1 is
+  taken as ours (known limit).
 - **Element kinds** — flags read into `Flags(counts, bits)` (plain tuples/bytes; no RNA kept):
 
   | Kind | Flags (order) | Isolate op | Restore write |
@@ -665,7 +709,7 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   restores exactly; mid release writes the remaining overlay; `restore_writes` writes `snap_elements` first and once
   and only changed fields; `step` table rows (tap, long hold, used by mouse, FOREIGN defer, deactivate, ESC, cancel,
   own-key repeat consumed); `foreign_above` with `None` entries, own ids, Plaza.
-- `test_isolate.py`: `ISOLATE_KIND_BY_MODE`; `decide` rows; Flags equality.
+- `test_isolate.py`: `ISOLATE_KIND_BY_MODE`; `decide` rows; Flags equality; `edit_plan` rows (step 5).
 - `test_properties_cycle.py`: `parse` (unknown, duplicate, empty); `next_tab` wrap, skip missing (camera, empty, none
   active), current outside the order; `pick_area` mouse / largest / tie / none.
 - Keep `test_core_pure.py` passing (no bpy imports in the new core modules).
@@ -724,7 +768,9 @@ Selection, isolate, Properties, Apply:
 - G4 Ctrl+Shift+A / Alt+D / Ctrl+Shift+I / Ctrl+I in 3D View Object and Edit Mesh, UV, Graph, Dope Sheet, NLA, Node,
   Sequencer, Outliner, File Browser, Clip (and Clip Mask mode, UH4), Clip Graph; Ctrl+Alt+D toggles Show Disabled;
   Alt+D over a driven property (incl. a node socket, UH3) still removes the driver.
-- G5 Ctrl+1 object (local view in/out), edit mesh with pre-hidden elements (exact restore), pose; Ctrl+Alt+1 expands.
+- G5 Ctrl+1 object (local view in/out), edit mesh with pre-hidden elements (exact restore; step 5: local view of the
+  cube only, left by the restore; Ctrl Z then Ctrl 1 leaves it), pose (local view of the armature only); Ctrl+Alt+1
+  expands.
 - G6 Ctrl+A cycles Object → Data → Modifiers → Material with a mesh; skips for a camera; maximized 3D View → sidebar
   Item; Sculpt Ctrl+A still opens the mask pie. The previews are rendered first (`previews_ready`), and no preview job
   runs during the cycle (`no_preview_job`), see "Preview render race" in `docs/verified-facts-5.2.md`.
@@ -738,8 +784,9 @@ Snapping and pivot (Xwayland):
 - G11 window deactivate during a hold; file load during a hold; Space during a hold (Plaza opens, restore after it
   closes); X then V together (union), release order both ways.
 - G12 a pie opened by another key during a hold (the known limit; documents the behaviour).
-- G13 Insert toggles Affect Only Origins; with `pivot_hold` switched on: D held + gizmo drag moves the origin only,
-  D+LMB off the gizmo still annotates (UH2); tap D cycles Annotate.
+- G13 Insert toggles Affect Only Origins; `pivot_hold` on by default (step 5): D held + gizmo drag moves the origin
+  only; tap D cycles Annotate; switched off, D is IC's Annotate on the press. D+LMB off the gizmo still annotates
+  (UH2): real input only, `tools/spikes/meso_keymap/run.sh pivothold` (`docs/spikes/meso-pivot-hold.md`).
 
 Protected features (every Meso keymap PR, roadmap rule): Shift+I local view, Shift+RMB cursor place and drag, the
 Cursor and Annotate tools in the toolbar, box/lasso/circle select, context menus, search, Quick Favorites, playback,
@@ -777,6 +824,11 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
   `core/tap.py`, `ops/keymap_choice.py`, `prefs.py`, `keymap_prefs.py`, `__init__.py`, the tests above, the GUI
   scenarios (bindings switched with `set_binding_active`, reset with `reset_to_default`), `run_persist_check.sh`.
 
+### Step 5 — edit-mode object isolate, D hold on (✅ implemented, see Status; user decisions 2 and 5 of 2026-09-25)
+- Files: `core/isolate.py` (`EditPlan`, `edit_plan`), `ops/isolate.py` (local view enter/exit, area keys),
+  `core/meso_bindings.py` (`pivot_hold` on), `prefs.py` (the framing description), the tests above,
+  `tools/spikes/meso_keymap/longhold.py` + `run.sh pivothold` (UH2), README, roadmap.
+
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
 live-transform duplication, D+V pivot-to-vertex, RMB/Shift+RMB Compass menus (Phase 8+), the rest of the parity
@@ -795,13 +847,15 @@ anything in Phase 5+.
 6. Several hold keys at once snap to the union of their elements.
 7. **C2** V hold on; tap V opens the View pie click-style (the drag-release gesture is lost).
 8. C hold on; tap C replays the Cursor tool cycle.
-9. **C3** D hold **off** until the D+LMB annotate interaction is verified (an inactive item of the Meso keyconfig,
-   switched on in the keymap editor); Insert toggle on; both Object Mode only.
+9. **C3 (answered, user decision 5 of 2026-09-25)** D hold **on**: Affect Only Origins while held, the tap keeps
+   Annotate, D + LMB off the gizmo still annotates (verified, `docs/spikes/meso-pivot-hold.md`); Insert toggle on;
+   both Object Mode only.
 10. **C5** Ctrl+1 in Edit Mesh moves IC's vertex expand to Ctrl+Alt+1; Ctrl+2/3 keep IC's expand (the F9–F11 block
     may move all three later).
 11. Ctrl+1 after a topology change while isolated: reveal everything with a warning.
 12. Ctrl+1 in Lattice / Curves / Point Cloud / Grease Pencil edit: local view of the object.
-13. Isolate does not frame the selection (`isolate_frame_selected` off).
+13. Isolate does not frame the selection (`isolate_frame_selected` off; it also applies to the local view an
+    edit-mode isolate enters, step 5).
 14. Ctrl+A with several Properties editors: the one under the mouse, else the largest; the sidebar fallback only in
     the invoking 3D View, and a no-op when it already shows Item.
 15. **C8** Ctrl+A cycle only in the 3D View (mode maps + catch-all), not in Sculpt, Font, the Properties editor or
@@ -848,3 +902,9 @@ anything in Phase 5+.
     disable/enable). Options: accept, or back up the Meso edits to the extension's user dir on disable.
 28. **New in step 4.** Should the Meso keyconfig carry the hold-J snap inversion (Transform Modal Map J →
     SNAP_INV_ON/OFF) once a real-transform check passes?
+29. **New in step 5 (DEFAULT in force: a).** Edit-mode Ctrl 1 in a 3D View that is already in a local view (Shift I,
+    or Ctrl 1 in Object Mode before Tab): (a) **in force:** the elements isolate and that local view is kept (there is
+    no nested local view), and the restore does not leave it; (b) leave it and enter a new local view of the edited
+    objects (the restore would then not give the old local view back).
+30. **New in step 5 (DEFAULT in force: a).** Edit-mode Ctrl 1 with every visible element selected: (a) **in force:**
+    the objects still isolate (local view), Ctrl 1 again leaves it; (b) "Nothing to isolate" as before step 5.
