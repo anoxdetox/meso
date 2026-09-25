@@ -1,6 +1,6 @@
 # Meso Mode roadmap
 
-Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; next: Meso Keymap.
+Phases 0–7 are in the approved plan (plaza on Space). Status: 0–4 ✅, notes→docs merge ✅, hover-open ✅, prefs keymap sections ✅, rename ✅, palette styles ✅; next: Meso Keymap — implementation contract in `docs/meso-keymap-interfaces.md` (3 steps), built on `docs/spikes/meso-keymap-api.md` and `docs/spikes/meso-keymap-conflicts.md`.
 
 ## Guiding principle — Plaza menus mirror native behaviour (user rule 2026-09-25)
 Wherever the Plaza redraws a native control, it behaves like the native one: the same click conventions (a plain click on a multi-value button is exclusive, Shift extends), the same grouping and labels. See `docs/phase4-interfaces.md` "Native click conventions".
@@ -74,6 +74,7 @@ Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table 
 - **Upgrade note:** the id change makes Blender treat Meso Mode as a new add-on, so preferences reset once. Re-create the dev link as `user_default/meso` with `tools/dev_link.sh`, and delete the old pre-rename link in `user_default/` (it now points nowhere).
 
 ## Queued after the rename (user decisions 2026-09-25)
+**Contract:** items 2–4 and parity backlog items 1, 2 and 9 are specified in `docs/meso-keymap-interfaces.md` (binding table, prefs, lifecycle, tests, steps 1–3, open decisions with safe defaults). Where this list and the contract differ, the contract wins. The "inject a preset" wording of item 2 is superseded by the delivery model under "Meso Keymap and feature parity": select the built-in Industry Compatible preset on explicit consent, Meso bindings as add-on items only.
 2. **Meso Keymap** (replaces "personal keymap export"; deferred analysis).
    - Analyse Blender's **Industry Compatible** keymap against the target DCC's conventions. Keep this analysis internal and never name the other DCC in shipped text.
    - Build a **Meso Keymap** keyconfig preset that closes the gaps: Ctrl+1 isolate, Ctrl+A properties cycle, and so on.
@@ -135,8 +136,8 @@ The full research lives locally in `local/research/keymap_gap_analysis.md`. That
 **Parity backlog, in priority order:**
 1. **Hold-key momentary snapping and pivot editing** (highest value, and no native equivalent).
    - Pre-drag hold modal on X/C/V/J (PRESS): save `use_snap`, `snap_elements` and `snap_target`, set grid / edge / vertex / relative-increment, and restore on RELEASE. Restoring needs a watcher, because the C transform swallows events: a `bpy.app.timers` poll, or restore on the next event we see.
-   - Transform Modal Map: bind hold-J to SNAP_INV_ON/OFF, which gives true mid-drag hold-to-snap for the active element set.
-   - **In scope now:** the pre-drag hold, the modal-map hold-to-invert, pivot edit, and the Plaza fallbacks.
+   - Transform Modal Map: bind hold-J to SNAP_INV_ON/OFF, which gives true mid-drag hold-to-snap for the active element set. **API blocker (spike a):** add-on keyconfigs cannot hold modal keymaps, and a running transform consumes J. Not implemented; the native hold-Ctrl inversion stays the way (`docs/meso-keymap-interfaces.md`).
+   - **In scope now:** the pre-drag hold, pivot edit, and the Plaza fallbacks (the modal-map hold-to-invert is blocked, see above).
    - **DEFERRED (user decision 2026-09-25):** mid-drag snap-type switching, the transform adapter and timer writes to tool_settings during a C transform. See "Deferred hard problems" below.
    - **Pivot edit** on D-hold / Insert: Move tool plus `use_transform_data_origin`. D+V snaps it to a vertex (Closest). Shift-click a component sets the pivot via the cursor/origin.
    - Snap Base, and sticky snap-type toggles, as Plaza Tool Settings fallbacks.
