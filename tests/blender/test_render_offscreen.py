@@ -1660,3 +1660,75 @@ class TestOffscreenCompass(unittest.TestCase):
         drawn, px, blend, _c = self.draw(cs, clip=_Rect(0, 0, 10, 10))
         self.assertFalse(drawn)
         self.assertEqual(blend, 'NONE')
+
+    def scrolled(self, scroll=3):
+        """A fixed Compass whose 40-item list is capped in a 1000 px high window."""
+        cp = _mod("core.compass")
+        dm_mod, geo = _mod("core.dropdown_model"), _mod("core.geometry")
+        dg, model = _mod("core.dropdown_geometry"), _mod("core.model")
+        A, I = model.Action, dm_mod.DropdownItem
+        slots = tuple(I(dm_mod.DD_OP, d, action=A(model.ACTION_OPERATOR, target='x.y'))
+                      for d in cp.DIRECTIONS)
+        items = tuple(I(dm_mod.DD_OP, f'Listed {i}',
+                        action=A(model.ACTION_OPERATOR, target='x.y')) for i in range(40))
+        dm = dg.dropdown_metrics(geo.metrics_for(1.0, 11))
+        lay = cp.place_compass(cp.CompassModel('k', 'T', slots, items), (500, 700), dm,
+                               _Rect(0, 0, DW, DH), _rd().text_width_fn(dm.font_px),
+                               fixed=True)
+        lay = cp.scroll_by(lay, scroll)
+        gesture = cp.CompassState('LEFTMOUSE', 0.0)
+        return SimpleNamespace(layout=lay, gesture=gesture, pointer=(500, 700))
+
+    def test_scrolled_list(self):
+        """Phase 5c: a scrolled list draws its visible rows only, inside its capped rect, and
+        a '▲' / '▼' triangle in each arrow row; the scissor box is put back."""
+        cs = self.scrolled()
+        lay = cs.layout
+        self.assertTrue(lay.arrow_up is not None and lay.arrow_down is not None)
+        rd = _rd()
+        palette = _th().meso_palette(25)
+        off = gpu.types.GPUOffScreen(DW, DH)
+        try:
+            with off.bind():
+                gpu.state.active_framebuffer_get().clear(color=BACKGROUND)
+                with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                    gpu.matrix.load_identity()
+                    gpu.matrix.load_projection_matrix(_ortho(DW, DH))
+                    box = tuple(gpu.state.scissor_get())
+                    drawn = rd.draw_compass(cs, palette, (0, 0), False)
+                    after = tuple(gpu.state.scissor_get())
+                    blend = gpu.state.blend_get()
+                    # Nothing clips later drawing: a fill far from the panel still lands.
+                    probe = _Rect(5, DH - 15, 10, 10)
+                    gpu.state.blend_set('ALPHA')
+                    rd.rect_fill(probe, (1.0, 0.0, 0.0, 1.0))
+                    gpu.state.blend_set('NONE')
+                px = _Pixels(DW, DH)
+        finally:
+            off.free()
+        colors = rd.dropdown_colors(palette)
+        grey = lambda c: sum(c[:3]) / 3
+        self.assertTrue(drawn)
+        self.assertEqual(blend, 'NONE')
+        if box[2] > 0 and box[3] > 0:
+            self.assertEqual(after, box, "the scissor box is restored")
+        self.assertGreater(px.px(10, DH - 10)[0], 0.9, "no scissor left behind")
+        panel = lay.panel.rect
+        self.assertGreaterEqual(panel.y, 0)
+        self.assertAlmostEqual(px.grey(panel.x + 3, panel.y + 2), grey(colors.panel),
+                               delta=0.03)
+        below = panel.y - 4
+        self.assertAlmostEqual(px.grey(panel.x + panel.w // 2, below), grey(BACKGROUND),
+                               delta=0.01, msg="nothing drawn under the capped panel")
+        for row in (lay.arrow_up, lay.arrow_down):
+            glyph = rd.scroll_arrow_glyph(row, lay.metrics)
+            gx, gy = glyph.x + glyph.w // 2, glyph.y + glyph.h // 2
+            self.assertAlmostEqual(px.grey(gx, gy), grey(colors.glyph), delta=0.08,
+                                   msg=f"the arrow triangle in {row}")
+            self.assertAlmostEqual(px.grey(row.x + 3, gy), grey(colors.panel), delta=0.03,
+                                   msg="the arrow row is no item: panel grey beside it")
+        # Visible rows only: text inside each visible row, none in the arrow rows' margins.
+        first = lay.panel.items[0]
+        self.assertGreater(px.region_max(_Rect(first.text_x, first.rect.y, 30, first.rect.h)),
+                           grey(colors.panel) + 0.1, "the first visible label is drawn")
+        self.assertEqual(first.label, 'Listed 3')

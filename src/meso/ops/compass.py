@@ -10,11 +10,13 @@
   window warps the pointer to its centre, as a Blender pie does). Any other event, or
   a zone with nothing to offer, is not ours (:data:`NOT_OURS`): the press does exactly what it
   did before Phase 5.
-- **open**: moves feed ``core.compass.compass_step`` (hover by direction / on the list); the
-  opening button's release (or the click of a click-opened Compass) picks or cancels; Esc
-  cancels; the Space release cancels and goes on to the reducer (the Plaza finishes);
-  TIMERs go on to the modal (:data:`PASS_ON`, watchdog) without reaching the reducer;
-  everything else is swallowed.
+- **open**: moves feed ``core.compass.compass_step`` (hover by direction / on the list,
+  :func:`gesture_move`); the opening button's release (or the click of a click-opened
+  Compass) picks or cancels; Esc cancels; the Space release cancels and goes on to the
+  reducer (the Plaza finishes); TIMERs tick the gesture (the list dwell, an arrow row's
+  scroll repeat: :func:`gesture_tick`) and go on to the modal (:data:`PASS_ON`, watchdog)
+  without reaching the reducer; the mouse wheel over the list scrolls it
+  (:func:`wheel_scroll`, Phase 5c); everything else is swallowed. A scroll never picks.
 
 A pick runs the item with its Phase 4 role (``core.dropdown_model.item_role``): ROLE_RUN /
 ROLE_HANDOFF end the Plaza through ``ops.dropdowns._run_terminal`` (D3: teardown, then the
@@ -47,13 +49,16 @@ from ..core.rects import Rect
 from ..record import compass as rec_compass
 from . import invoke
 
-__all__ = ('CompassSession', 'NOT_OURS', 'PASS_ON', 'handle', 'close')
+__all__ = ('CompassSession', 'NOT_OURS', 'PASS_ON', 'WHEEL_STEPS', 'close', 'gesture_move',
+           'gesture_tick', 'handle', 'hover_at', 'scroll_list', 'wheel_scroll')
 
 NOT_OURS = object()     # the event goes on to the stroke / reducer as before
 PASS_ON = object()      # ours, but the modal keeps its own handling (TIMER watchdog)
 
 PRESS_VALUES = frozenset({'PRESS', 'DOUBLE_CLICK'})
 MOUSE_MOVES = frozenset({'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'})
+# The wheel over the list scrolls it by one item (up: towards the first item).
+WHEEL_STEPS = {'WHEELUPMOUSE': -1, 'WHEELDOWNMOUSE': 1}
 
 
 @dataclass(eq=False)
@@ -162,13 +167,71 @@ def warp_cursor(window: Any, xy: tuple[float, float]) -> None:
         pass
 
 
-def _hover(cs: CompassSession, x: float, y: float) -> tuple[int | None, Any, bool]:
+def hover_at(cs: CompassSession, x: float, y: float) -> dict[str, Any]:
+    """The ``core.compass.compass_step`` 'move' keywords for the pointer at ``(x, y)``:
+    ``slot`` (the direction, through the list), ``path`` (the visible list item),
+    ``in_dead``, ``on_list`` and ``arrow`` (the scroll arrow row: -1 / 0 / 1)."""
     lay = cs.layout
     cx, cy = lay.centre
-    in_dead = math.hypot(x - cx, y - cy) < lay.dead_r
-    slot = cp.pick_slot(lay, x, y, through_list=True)
-    path = cp.list_path_at(lay, x, y)
-    return slot, path, in_dead
+    return {'slot': cp.pick_slot(lay, x, y, through_list=True),
+            'path': cp.list_path_at(lay, x, y),
+            'in_dead': math.hypot(x - cx, y - cy) < lay.dead_r,
+            'on_list': cp.on_list(lay, x, y), 'arrow': cp.scroll_arrow_at(lay, x, y)}
+
+
+def _hover(cs: CompassSession, x: float, y: float) -> tuple[int | None, Any, bool]:
+    """``(slot, path, in_dead)`` of :func:`hover_at` (the Phase 5b callers)."""
+    h = hover_at(cs, x, y)
+    return h['slot'], h['path'], h['in_dead']
+
+
+def scroll_list(cs: CompassSession, n: int, now: float) -> bool:
+    """Scroll the open Compass's list by ``n`` items (``core.compass.scroll_by``), arm the
+    list (the gesture's 'scrolled') and hover again at ``cs.pointer`` (the item under it
+    changed; the gesture is fed a 'move', so a release never picks a hidden item). False when
+    nothing moved. Never picks."""
+    layout = cp.scroll_by(cs.layout, n)
+    if layout is cs.layout:
+        return False
+    cs.layout = layout
+    cs.gesture, _fx = cp.compass_step(cs.gesture, 'scrolled', now=now)
+    cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', now=now, **hover_at(cs, *cs.pointer))
+    return True
+
+
+def _scrolls(cs: CompassSession, effects: tuple, now: float) -> None:
+    for fx in effects:
+        if isinstance(fx, cp.Scroll):
+            scroll_list(cs, fx.n, now)
+
+
+def gesture_move(cs: CompassSession, x: float, y: float, now: float) -> None:
+    """Feed a pointer move to ``(x, y)`` to the gesture (``cs.pointer`` follows) and run the
+    scroll it asks for (a rest on an arrow row)."""
+    cs.gesture, effects = cp.compass_step(cs.gesture, 'move', now=now, **hover_at(cs, x, y))
+    cs.pointer = (x, y)
+    _scrolls(cs, effects, now)
+
+
+def gesture_tick(cs: CompassSession, now: float) -> bool:
+    """A TIMER: arm the list after a rest, repeat an arrow row's scroll. True when the
+    Compass needs a redraw."""
+    cs.gesture, effects = cp.compass_step(cs.gesture, 'tick', now=now)
+    _scrolls(cs, effects, now)
+    return bool(effects)
+
+
+def wheel_scroll(cs: CompassSession, event: Any, now: float) -> bool:
+    """A :data:`WHEEL_STEPS` press over the list scrolls it one item (callers swallow every
+    wheel event while a Compass is open). True when the list moved (redraw)."""
+    n = WHEEL_STEPS.get(getattr(event, 'type', ''))
+    if n is None or getattr(event, 'value', '') != 'PRESS':
+        return False
+    x, y = float(event.mouse_x), float(event.mouse_y)
+    if not cp.on_list(cs.layout, x, y):
+        return False
+    cs.pointer = (x, y)
+    return scroll_list(cs, n, now)
 
 
 def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
@@ -184,8 +247,7 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
             return NOT_OURS
         if etype.startswith('TIMER'):
             before = _extent(cs)
-            cs.gesture, effects = cp.compass_step(cs.gesture, 'tick', now=time.perf_counter())
-            if effects:
+            if gesture_tick(cs, time.perf_counter()):
                 _redraw(state, before)
             return PASS_ON
         if etype == state.release_key:
@@ -196,12 +258,12 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
         now = time.perf_counter()
         before = _extent(cs)
         if etype in MOUSE_MOVES:
-            x, y = float(event.mouse_x), float(event.mouse_y)
-            slot, path, in_dead = _hover(cs, x, y)
-            cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                              in_dead=in_dead, now=now)
-            cs.pointer = (x, y)
+            gesture_move(cs, float(event.mouse_x), float(event.mouse_y), now)
             _redraw(state, before)
+            return {'RUNNING_MODAL'}
+        if etype in WHEEL_STEPS:
+            if wheel_scroll(cs, event, now):
+                _redraw(state, before)
             return {'RUNNING_MODAL'}
         if etype == 'ESC':
             if value == 'PRESS':
@@ -211,11 +273,10 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
             session.shift = bool(getattr(event, 'shift', False))
             session.ctrl = bool(getattr(event, 'ctrl', False))
             x, y = float(event.mouse_x), float(event.mouse_y)
-            slot, path, in_dead = _hover(cs, x, y)
             if value == 'RELEASE':
                 # The mark's end decides (a flick may release before its last move arrives).
-                cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                                  in_dead=in_dead, now=now)
+                gesture_move(cs, x, y, now)
+            in_dead = hover_at(cs, x, y)['in_dead']
             kind = 'release' if value == 'RELEASE' else 'press'
             gesture, effects = cp.compass_step(cs.gesture, kind, now=now, button=etype,
                                                in_dead=in_dead)

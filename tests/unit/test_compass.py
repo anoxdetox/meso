@@ -343,6 +343,320 @@ class TestGesture(unittest.TestCase):
         for kind in ('esc', 'space'):
             self.assertEqual(cp.compass_step(s, kind), (None, (cp.CancelCompass(),)))
 
+    def test_a_separator_on_the_list_keeps_the_rest(self):
+        """The dwell counts the whole list panel: crossing a separator (no item, on the list)
+        does not restart it."""
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(1,), on_list=True, now=1.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=None, on_list=True, now=1.2)
+        self.assertEqual((s.hover_slot, s.hover_path, s.list_since), (4, None, 1.0))
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), on_list=True,
+                               now=1.0 + cp.LIST_DWELL)
+        self.assertEqual((s.hover_slot, s.hover_path), (None, (2,)))
+
+    def test_a_rest_on_an_arrow_row_picks_nothing(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=1, now=1.0)
+        self.assertEqual(s.hover_slot, 4, "a flick through the arrow row still picks S")
+        s, _ = cp.compass_step(s, 'tick', now=1.0 + cp.LIST_DWELL)
+        self.assertEqual((s.hover_slot, s.hover_path), (None, None))
+        self.assertEqual(cp.compass_step(s, 'release', button='RIGHTMOUSE', now=2.0)[1],
+                         (cp.CancelCompass(),))
+
+
+def scrolled(n_list=30, centre=(800, 600), bounds=BOUNDS, n_slots=8, items=None, **kw):
+    """A fixed Compass whose list (``n_list`` ops, or ``items``) is capped."""
+    model = compass(n_slots, n_list)
+    if items is not None:
+        model = cp.CompassModel('k', 'T', model.slots, tuple(items))
+    return cp.place_compass(model, centre, metrics(), bounds, width_fn, fixed=True, **kw)
+
+
+def inside(inner, outer):
+    return (outer.x <= inner.x and outer.y <= inner.y and inner.x1 <= outer.x1
+            and inner.y1 <= outer.y1)
+
+
+class TestFixedPlacement(unittest.TestCase):
+    """place_compass(fixed=True) (local/docs/phase5c-interfaces.md "A"): the radial stays at the
+    press point; only the list moves, and a long one is capped."""
+
+    def setUp(self):
+        self.m = metrics()
+        self.inner = Rect(self.m.margin, self.m.margin, 1600 - 2 * self.m.margin,
+                          900 - 2 * self.m.margin)
+
+    def test_the_radial_never_moves(self):
+        lay = cp.place_compass(compass(8, 6), (5, 5), self.m, BOUNDS, width_fn, fixed=True)
+        free = cp.place_compass(compass(8, 6), (5, 5), self.m, None, width_fn)
+        self.assertEqual((lay.shift, lay.centre, lay.fixed), ((0, 0), (5.0, 5.0), True))
+        self.assertEqual([b.rect for b in lay.boxes], [b.rect for b in free.boxes])
+        self.assertLess(lay.box(cp.direction_index('S')).rect.y, 0, "boxes past the edge")
+        self.assertTrue(inside(lay.panel.rect, self.inner), "the list is placed to fit")
+
+    def test_below_with_a_capped_height(self):
+        lay = scrolled(30)
+        s = lay.box(cp.direction_index('S')).rect
+        p = lay.panel.rect
+        self.assertEqual(p.y1, s.y - round(cp.LIST_GAP_ROWS * self.m.item_h),
+                         "LIST_GAP_ROWS under the S box")
+        self.assertAlmostEqual(p.x + p.w / 2, 800, delta=1)
+        self.assertGreaterEqual(p.y, self.inner.y)
+        self.assertLess(p.y - self.inner.y, self.m.item_h, "capped to the room below")
+        self.assertEqual((p.h - 2 * self.m.pad_y) % self.m.item_h, 0, "whole rows")
+        self.assertTrue(lay.scrolls and lay.panel.clipped)
+
+    def test_a_list_that_fits_below_is_whole(self):
+        lay = scrolled(5)
+        self.assertFalse(lay.scrolls)
+        self.assertEqual(lay.visible, range(0, 5))
+        self.assertEqual(lay.panel.rect.h, 2 * self.m.pad_y + 5 * self.m.item_h)
+
+    def test_above_when_the_room_below_is_short(self):
+        s_bottom = lambda cy: cy + (cp.slot_offsets('S')[1] - 0.5 - cp.LIST_GAP_ROWS) * 22
+        cy = 150                     # under 4 rows below the S box, the whole height above
+        self.assertLess(s_bottom(cy) - self.inner.y, 2 * self.m.pad_y + 4 * self.m.item_h)
+        lay = scrolled(60, centre=(800, cy))
+        n = lay.box(cp.direction_index('N')).rect
+        p = lay.panel.rect
+        self.assertEqual(p.y, n.y1 + round(cp.LIST_GAP_ROWS * self.m.item_h), "mirrored gap")
+        self.assertLessEqual(p.y1, self.inner.y1)
+        self.assertLess(self.inner.y1 - p.y1, self.m.item_h)
+        self.assertTrue(lay.scrolls)
+        self.assertEqual(lay.centre, (800.0, 150.0))
+
+    def test_a_short_list_fits_a_short_room_below(self):
+        """Two items go below when two rows fit there, although four rows would not."""
+        cy = 200
+        room = round(cy + (cp.slot_offsets('S')[1] - 0.5 - cp.LIST_GAP_ROWS) * 22) - self.inner.y
+        self.assertLess(room, 2 * self.m.pad_y + 4 * self.m.item_h)
+        self.assertGreaterEqual(room, 2 * self.m.pad_y + 2 * self.m.item_h)
+        lay = scrolled(2, centre=(800, cy))
+        self.assertLess(lay.panel.rect.y1, cy, "below")
+        self.assertFalse(lay.scrolls)
+
+    def test_beside_on_the_side_with_more_room(self):
+        short = Rect(0, 0, 1600, 240)
+        inner = Rect(8, 8, 1584, 224)
+        right = scrolled(40, centre=(400, 120), bounds=short)
+        radial = max(b.rect.x1 for b in right.boxes)
+        p = right.panel.rect
+        self.assertGreaterEqual(p.x, radial, "right of the radial")
+        self.assertTrue(inside(p, inner))
+        self.assertLess(inner.h - p.h, self.m.item_h, "capped to the bounds height")
+        self.assertTrue(right.scrolls)
+        left = scrolled(40, centre=(1200, 120), bounds=short)
+        self.assertLessEqual(left.panel.rect.x1, min(b.rect.x for b in left.boxes))
+        self.assertTrue(inside(left.panel.rect, inner))
+
+    def test_the_plaza_compass_still_shifts_and_caps(self):
+        lay = cp.place_compass(compass(8, 60), (800, 450), self.m, BOUNDS, width_fn)
+        self.assertFalse(lay.fixed)
+        self.assertTrue(inside(lay.extent, self.inner), "radial + capped list fit the window")
+        self.assertTrue(lay.scrolls)
+        self.assertNotEqual(lay.shift, (0, 0))
+        self.assertEqual(lay.centre, (800 + lay.shift[0], 450 + lay.shift[1]))
+
+    def test_no_bounds(self):
+        lay = cp.place_compass(compass(8, 60), (800, 450), self.m, None, width_fn, fixed=True)
+        self.assertFalse(lay.scrolls)
+        self.assertEqual(len(lay.panel.items), 60)
+
+
+class TestScrolling(unittest.TestCase):
+
+    def setUp(self):
+        self.m = metrics()
+        self.lay = scrolled(30)
+
+    def assertWindow(self, lay):
+        """The visible items tile the panel between its arrow rows, in model order."""
+        p = lay.panel
+        self.assertEqual([it.path for it in p.items], [(i,) for i in lay.visible])
+        top = (lay.arrow_up.y if lay.arrow_up else p.rect.y1 - self.m.pad_y)
+        bottom = (lay.arrow_down.y1 if lay.arrow_down else p.rect.y + self.m.pad_y)
+        self.assertEqual(p.items[0].rect.y1, top)
+        for a, b in zip(p.items, p.items[1:]):
+            self.assertEqual(a.rect.y, b.rect.y1)
+        self.assertGreaterEqual(p.items[-1].rect.y, bottom)
+        for it in p.items:
+            self.assertTrue(inside(it.rect, p.rect))
+            self.assertEqual(it.label, f'Item {it.path[0]}')
+
+    def test_the_first_window(self):
+        lay = self.lay
+        self.assertEqual(lay.scroll, 0)
+        self.assertIsNone(lay.arrow_up)
+        self.assertIsNotNone(lay.arrow_down)
+        self.assertEqual(lay.arrow_down.h, self.m.item_h)
+        self.assertEqual(len(lay.rows), 30)
+        self.assertLess(len(lay.visible), 30)
+        self.assertWindow(lay)
+
+    def test_scroll_by_and_clamp(self):
+        one = cp.scroll_by(self.lay, 1)
+        self.assertEqual(one.scroll, 1)
+        self.assertIsNotNone(one.arrow_up, "an item above: the up arrow")
+        self.assertEqual(one.visible.start, 1)
+        self.assertWindow(one)
+        self.assertEqual(one.panel.rect, self.lay.panel.rect, "the panel stays put")
+        self.assertEqual(one.rows, self.lay.rows)
+        self.assertNotEqual(one.signature, self.lay.signature)
+        self.assertIs(cp.scroll_by(self.lay, -3), self.lay, "clamped at the top")
+        self.assertIs(cp.scroll_by(self.lay, 0), self.lay)
+        end = cp.scroll_by(self.lay, 1000)
+        self.assertEqual(end.scroll, cp.max_scroll(self.lay))
+        self.assertIsNone(end.arrow_down, "the last item shows: no down arrow")
+        self.assertEqual(end.visible.stop, 30)
+        self.assertWindow(end)
+        self.assertIs(cp.scroll_by(end, 1), end, "clamped at the end")
+        back = cp.scroll_by(end, -1000)
+        self.assertEqual((back.scroll, back.arrow_up, back.panel), (0, None, self.lay.panel))
+
+    def test_every_scroll_in_between_shows_both_arrows(self):
+        last = cp.max_scroll(self.lay)
+        for s in range(1, last):
+            lay = cp.scroll_by(self.lay, s)
+            self.assertEqual(lay.scroll, s)
+            self.assertIsNotNone(lay.arrow_up)
+            self.assertIsNotNone(lay.arrow_down)
+            self.assertWindow(lay)
+
+    def test_placed_at_a_scroll(self):
+        lay = scrolled(30, scroll=4)
+        self.assertEqual(lay.scroll, 4)
+        self.assertEqual(lay.panel, cp.scroll_by(self.lay, 4).panel)
+        self.assertEqual(scrolled(30, scroll=999).scroll, cp.max_scroll(self.lay))
+
+    def test_a_list_that_fits_never_scrolls(self):
+        lay = scrolled(3)
+        self.assertEqual((lay.arrow_up, lay.arrow_down, cp.max_scroll(lay)), (None, None, 0))
+        self.assertIs(cp.scroll_by(lay, 1), lay)
+        empty = cp.place_compass(compass(8), (800, 600), self.m, BOUNDS, width_fn, fixed=True)
+        self.assertIsNone(empty.panel)
+        self.assertIs(cp.scroll_by(empty, 1), empty)
+        self.assertEqual(empty.visible, range(0))
+
+    def test_separators_count_as_items(self):
+        items = []
+        for i in range(40):
+            items.append(I(dm.DD_SEPARATOR) if i % 5 == 4 else op(f'Item {i}'))
+        lay = scrolled(items=items)
+        self.assertTrue(lay.scrolls)
+        lay = cp.scroll_by(lay, 4)          # the separator at index 4 comes first
+        self.assertEqual(lay.panel.items[0].kind, dm.DD_SEPARATOR)
+        self.assertEqual([it.path for it in lay.panel.items], [(i,) for i in lay.visible])
+        for a, b in zip(lay.panel.items, lay.panel.items[1:]):
+            self.assertEqual(a.rect.y, b.rect.y1)
+        end = cp.scroll_by(lay, 1000)
+        self.assertEqual(end.visible.stop, 40)
+        self.assertIsNone(end.arrow_down)
+
+
+class TestScrollHits(unittest.TestCase):
+
+    def setUp(self):
+        self.lay = cp.scroll_by(scrolled(30), 3)
+
+    def test_visible_items_hit(self):
+        for it in self.lay.panel.items:
+            x, y = it.rect.x + 5, it.rect.y + it.rect.h // 2
+            self.assertEqual(cp.list_path_at(self.lay, x, y), it.path)
+            self.assertEqual(cp.scroll_arrow_at(self.lay, x, y), 0)
+            self.assertTrue(cp.on_list(self.lay, x, y))
+
+    def test_arrow_rows(self):
+        for rect, sign in ((self.lay.arrow_up, -1), (self.lay.arrow_down, 1)):
+            x, y = rect.x + rect.w // 2, rect.y + rect.h // 2
+            self.assertEqual(cp.scroll_arrow_at(self.lay, x, y), sign)
+            self.assertIsNone(cp.list_path_at(self.lay, x, y), "an arrow row is no item")
+            self.assertTrue(cp.on_list(self.lay, x, y))
+            self.assertIsNone(cp.pick_slot(self.lay, x, y), "on the list: no slot")
+            self.assertIsNotNone(cp.pick_slot(self.lay, x, y, through_list=True))
+        self.assertEqual(cp.scroll_arrow_at(self.lay, *self.lay.centre), 0)
+        self.assertEqual(cp.scroll_arrow_at(None, 0, 0), 0)
+
+    def test_hidden_rows_never_hit(self):
+        """The rows scrolled away (above: where the unscrolled list put them) hit nothing
+        but the visible item now there."""
+        visible = set(self.lay.visible)
+        for i, row in enumerate(self.lay.rows):
+            if i in visible:
+                continue
+            x, y = row.rect.x + 5, row.rect.y + row.rect.h // 2
+            self.assertNotEqual(cp.list_path_at(self.lay, x, y), row.path, i)
+        below = self.lay.panel.rect.y - 5
+        self.assertIsNone(cp.list_path_at(self.lay, self.lay.panel.rect.x + 5, below))
+        self.assertFalse(cp.on_list(self.lay, self.lay.panel.rect.x + 5, below))
+
+
+class TestScrollGesture(unittest.TestCase):
+    """A rest on an arrow row scrolls one item per SCROLL_REPEAT (the Scroll effect)."""
+
+    def scrolls(self, fx):
+        return sum(f.n for f in fx if isinstance(f, cp.Scroll))
+
+    def test_arrow_repeat_on_moves_and_ticks(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=1, now=1.0)
+        self.assertEqual((s.arrow, self.scrolls(fx)), (1, 0), "entering does not scroll yet")
+        s, fx = cp.compass_step(s, 'tick', now=1.05)
+        self.assertEqual(fx, ())
+        s, fx = cp.compass_step(s, 'tick', now=1.0 + cp.SCROLL_REPEAT)
+        self.assertEqual(self.scrolls(fx), 1)
+        self.assertIn('redraw', fx)
+        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=1,
+                                now=1.0 + 3.5 * cp.SCROLL_REPEAT)
+        self.assertEqual(self.scrolls(fx), 2, "a move on the row keeps the count")
+        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=-1, now=2.0)
+        self.assertEqual(self.scrolls(fx), 0, "the other arrow starts again")
+        s, fx = cp.compass_step(s, 'tick', now=2.0 + 2 * cp.SCROLL_REPEAT)
+        self.assertEqual(self.scrolls(fx), -2)
+        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=0, now=3.0)
+        s, fx = cp.compass_step(s, 'tick', now=4.0)
+        self.assertEqual(self.scrolls(fx), 0, "off the arrow rows")
+
+    def test_a_stall_scrolls_a_few_items_only(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=1, now=1.0)
+        s, fx = cp.compass_step(s, 'tick', now=10.0)
+        self.assertEqual(self.scrolls(fx), cp.MAX_SCROLL_STEPS)
+        s, fx = cp.compass_step(s, 'tick', now=10.0 + cp.SCROLL_REPEAT / 2)
+        self.assertEqual(self.scrolls(fx), 0, "the count restarts after a stall")
+
+    def test_the_click_opened_compass_scrolls_too(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'release', button='RIGHTMOUSE', now=0.1, in_dead=True)
+        s, _ = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=-1, now=1.0)
+        self.assertEqual((s.hover_slot, s.hover_path), (None, None), "sticky: no slot on it")
+        s, fx = cp.compass_step(s, 'tick', now=1.0 + cp.SCROLL_REPEAT)
+        self.assertEqual(self.scrolls(fx), -1)
+        self.assertIsNotNone(s, "a scroll never picks")
+        s, _ = cp.compass_step(s, 'press', button='LEFTMOUSE')
+        s, fx = cp.compass_step(s, 'release', button='LEFTMOUSE')
+        self.assertEqual(fx, (), "a click on an arrow row keeps the Compass open")
+        self.assertFalse(s.pressed)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(3,), on_list=True, now=1.5)
+        s, _ = cp.compass_step(s, 'press', button='LEFTMOUSE')
+        self.assertEqual(cp.compass_step(s, 'release', button='LEFTMOUSE')[1],
+                         (cp.Pick(path=(3,)),))
+
+    def test_a_scroll_arms_the_list(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(3,), on_list=True, now=1.0)
+        self.assertEqual(s.hover_slot, 4)
+        s, fx = cp.compass_step(s, 'scrolled', now=1.05)
+        self.assertEqual(fx, ())
+        self.assertTrue(s.list_armed)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(4,), on_list=True, now=1.05)
+        self.assertEqual((s.hover_slot, s.hover_path), (None, (4,)), "picks from the list now")
+        s, _ = cp.compass_step(s, 'move', slot=4, path=None, on_list=False, now=1.1)
+        self.assertFalse(s.list_armed, "leaving the list disarms it")
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), on_list=True, now=1.2)
+        self.assertEqual(s.hover_slot, 4, "back on it: the rest counts again")
+        off = cp.compass_step(cp.open_state('RIGHTMOUSE', 0.0), 'scrolled', now=1.0)[0]
+        self.assertFalse(off.list_armed, "off the list a scroll arms nothing")
+
 
 if __name__ == "__main__":
     unittest.main()
