@@ -59,13 +59,31 @@ modifier):
 
 - ``ri_d_tap_gizmo``: a D tap, a Move-gizmo drag moves only the origin, the user's value is back
   after it, and a second drag moves the object normally.
-- ``ri_d_long_tap``: D held 1.5 s (repeats running, all passed through) with no other input is
-  still a tap; the drag after it moves only the origin.
-- ``ri_d_annotate_drag``: D held + LMB drag in empty space with the Tweak tool draws an
-  annotation stroke natively and arms nothing.
 - ``ri_d_tap_twice``: two taps cancel.
 - ``ri_d_cancel_keeps``: a gizmo drag cancelled with Esc keeps it armed; the next drag moves the
   origin and restores.
+
+G18 (the D hold of 2026-09-26: "as long as your finger is holding the key down, you can move the
+pivot ... the exact moment you release the D key, Pivot Edit Mode turns off"):
+
+- ``ri_d_hold_gizmo_multi``: D held 1.5 s (repeats, all passed through), two Move-gizmo drags
+  while it is down move only the origin (Affect Only Origins on during each, nothing written
+  while they run), the release gives the user's value back, and a drag after it moves the
+  object; nothing is armed.
+- ``ri_d_hold_short_drag``: D down and a gizmo drag right after it (before the first repeat),
+  the release after the drag: the origin moved, the value is back.
+- ``ri_d_hold_up_during_drag``: D released during the gizmo drag (the transform swallows the
+  release): the still-held check restores after it; the next drag moves the object.
+- ``ri_d_long_still_hold``: D held 1.5 s with no other input is a hold now, not a tap: on while
+  held, the user's value after the release, nothing armed.
+- ``ri_d_hold_while_armed``: a D tap arms the one-shot, then a D hold with a gizmo drag: the drag
+  moves the origin, the release ends both (the next drag moves the object).
+- ``ri_d_hold_insert_on``: with Insert's persistent mode on, a D hold and a drag change nothing
+  at the release (still on); Insert switches it off.
+- ``ri_d_annotate_drag`` / ``ri_d_hold_annotate_object``: D held + LMB drag with the Tweak tool
+  in empty space and starting on the cube: Blender's D + LMB annotate draws a stroke in both
+  (the 'Grease Pencil' keymap runs before the tool keymap), no transform; Affect Only Origins is
+  on while D is down and the user's value after the release, nothing armed.
 
 Every drag also checks it was a free move (``check_free_move``): the translate it ran finished
 with no axis constraint, and the cube moved off a single world axis. A key repeat that reached
@@ -336,25 +354,9 @@ def wrap_hold_modal():
             return res
         modal._realinput = True
         mixin.modal = modal
-    # The D key modal is a registered class (patching its ``modal`` crashed Blender): trace its
-    # own-key events at the pure reducer instead (a module attribute, looked up at each call).
-    mod = hold_mod()
-    po = mod.po
-    if not getattr(po.tap_step, "_realinput", False):
-        orig_step = po.tap_step
-        sh = mod.sh
-        names = {sh.EV_OWN_REPEAT: ('PRESS', True), sh.EV_OWN_PRESS: ('PRESS', False),
-                 sh.EV_OWN_RELEASE: ('RELEASE', False)}
-
-        def tap_step(event):
-            eff = orig_step(event)
-            if event in names:
-                value, rep = names[event]
-                TRACE.append({"t": now(), "key": 'D', "type": 'D', "value": value,
-                              "is_repeat": rep, "result": sorted(mod._result(eff))})
-            return eff
-        tap_step._realinput = True
-        po.tap_step = tap_step
+    # The D key modal (``meso.pivot_once``) runs the same mixin ``modal`` since the D hold, so
+    # this traces it too. (Patching a registered class's own ``modal`` crashed Blender; the
+    # mixin is no registered class.)
 
 
 # ------------------------------------------------------------------------------ setup
@@ -621,14 +623,17 @@ def d_press(case, seconds=0.08):
     yield from track(case, 0.3)
 
 
-def p_drag(case, label, where="gizmo", cancel=False):
-    """An LMB drag on the Move gizmo at the cube (``where`` 'gizmo') or in empty space
-    ('empty'); ``cancel``: Esc before the button goes up. Records what moved."""
+def p_drag(case, label, where="gizmo", cancel=False, key_up_at=None):
+    """An LMB drag on the Move gizmo at the cube (``where`` 'gizmo'), in empty space ('empty')
+    or from the cube's centre with whatever tool is active ('object'); ``cancel``: Esc before
+    the button goes up; ``key_up_at``: release D at that move. Records what moved."""
     cube = bpy.data.objects["Cube"]
     if where == "gizmo":
         c = to_win(cube.location)
         XT.move_win((c[0] - 3, c[1] - 3))
         yield from track(case, 0.12)
+    elif where == "object":
+        c = to_win(cube.location)
     else:
         r = region(area3d())
         c = (r.x + r.width // 6, r.y + r.height // 6)
@@ -642,6 +647,8 @@ def p_drag(case, label, where="gizmo", cancel=False):
     yield from track(case, 0.12)
     for i in range(1, 7):
         XT.move_win((c[0] + 17 * i, c[1] - 7 * i))
+        if key_up_at == i:
+            XT.key("d", False)
         yield from track(case, 0.05)
     if cancel:
         XT.key("Escape", True)
@@ -710,6 +717,26 @@ def d_case(body, tool_id="builtin.move"):
     return run
 
 
+def held_origins_drag(rec, d, name):
+    """``d``, made while D is held, moved only the origin with the option on; still on after it."""
+    check(rec, f"{name}_transformed", d["transformed"] and d["moved"], d)
+    check(rec, f"{name}_shape_in_place", d["shape_in_place"], d)
+    check(rec, f"{name}_origins_during",
+          [s["use_transform_data_origin"] for s in d["states"]] == [True], d["states"])
+    check(rec, f"{name}_still_on", d["value_after"] is True and not d["armed_after"], d)
+
+
+def released(rec, case, name):
+    """The D release gave the user's value back and armed nothing."""
+    check(rec, f"{name}_released", snap_state() == user_state() and not armed(), debug_state())
+
+
+def debug_state():
+    mod = hold_mod()
+    return {"state": snap_state(), "once": repr(mod.once_state()),
+            "session": mod.session().keys(), "ops": list(mod.running_keys())}
+
+
 def origins_drag(rec, d, name):
     """``d`` moved only the origin, with the option on during it and back after it."""
     check(rec, f"{name}_transformed", d["transformed"] and d["moved"], d)
@@ -734,25 +761,116 @@ def _d_tap_gizmo(rec, case):
     normal_drag(rec, d, "drag2")
 
 
-def _d_long_tap(rec, case):
-    yield from d_press(case, LONG)
-    n = sum(1 for e in TRACE[case["t0"]:] if e["type"] == 'D' and e["is_repeat"])
-    check(rec, "repeats_seen", n >= 10, n)
-    check(rec, "long_press_is_a_tap", armed() and ts().use_transform_data_origin)
-    d = yield from p_drag(case, "drag1")
-    origins_drag(rec, d, "drag1")
+def n_repeats(case):
+    return sum(1 for e in TRACE[case["t0"]:] if e["type"] == 'D' and e["is_repeat"])
 
 
-def _d_annotate_drag(rec, case):
+def _d_annotate(where):
+    def body(rec, case):
+        XT.key("d", True)
+        yield from track(case, 0.2)
+        check(rec, "on_while_held", ts().use_transform_data_origin and not armed())
+        d = yield from p_drag(case, "annotate", where=where)
+        case["annotate_drag"] = d
+        XT.key("d", False)
+        yield from track(case, 0.4)
+        check(rec, "annotated", d["strokes_added"] > 0, d["strokes_added"])
+        check(rec, "no_transform", not d["transformed"] and not d["moved"], d)
+        check(rec, "annotate_ran", 'GPENCIL_OT_annotate' in case["modals_seen"],
+              case["modals_seen"])
+        released(rec, case, "d")
+    return body
+
+
+def _d_hold_gizmo_multi(rec, case):
     XT.key("d", True)
-    yield from track(case, 0.2)
-    d = yield from p_drag(case, "annotate", where="empty")
-    XT.key("d", False)
+    yield from track(case, LONG)
+    check(rec, "repeats_seen", n_repeats(case) >= 10, n_repeats(case))
+    check(rec, "on_while_held", ts().use_transform_data_origin and not armed())
+    d = yield from p_drag(case, "drag1")
+    held_origins_drag(rec, d, "drag1")
+    yield from track(case, 0.5)
+    d = yield from p_drag(case, "drag2")
+    held_origins_drag(rec, d, "drag2")
     yield from track(case, 0.3)
-    check(rec, "annotated", d["strokes_added"] > 0, d["strokes_added"])
-    check(rec, "no_transform", not d["transformed"] and not d["moved"], d)
-    check(rec, "arms_nothing", not armed() and not ts().use_transform_data_origin, d)
-    check(rec, "annotate_ran", 'GPENCIL_OT_annotate' in case["modals_seen"], case["modals_seen"])
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    released(rec, case, "d")
+    d = yield from p_drag(case, "after")
+    normal_drag(rec, d, "after")
+
+
+def _d_hold_short_drag(rec, case):
+    XT.key("d", True)
+    yield from track(case, 0.03)
+    d = yield from p_drag(case, "drag1")        # its press comes ~0.3 s after D's
+    held_origins_drag(rec, d, "drag1")
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    released(rec, case, "d")
+
+
+def _d_hold_up_during_drag(rec, case):
+    XT.key("d", True)
+    yield from track(case, LONG)
+    d = yield from p_drag(case, "drag1", key_up_at=3)
+    check(rec, "drag1_transformed", d["transformed"] and d["moved"], d)
+    check(rec, "drag1_shape_in_place", d["shape_in_place"], d)
+    check(rec, "drag1_origins_during",
+          [s["use_transform_data_origin"] for s in d["states"]] == [True], d["states"])
+    yield from track(case, 0.6)                 # the still-held check: no repeat, released
+    released(rec, case, "d")
+    d = yield from p_drag(case, "after")
+    normal_drag(rec, d, "after")
+
+
+def _d_long_still_hold(rec, case):
+    XT.key("d", True)
+    yield from track(case, LONG)
+    check(rec, "repeats_seen", n_repeats(case) >= 10, n_repeats(case))
+    check(rec, "on_while_held", ts().use_transform_data_origin and not armed())
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    check(rec, "long_still_press_is_no_tap", not armed(), debug_state())
+    released(rec, case, "d")
+
+
+def _d_hold_while_armed(rec, case):
+    yield from d_press(case)
+    check(rec, "tap_armed", armed() and ts().use_transform_data_origin)
+    XT.key("d", True)
+    yield from track(case, 0.4)
+    d = yield from p_drag(case, "drag1")
+    check(rec, "drag1_origins", d["transformed"] and d["moved"] and d["shape_in_place"], d)
+    check(rec, "drag1_origins_during",
+          [s["use_transform_data_origin"] for s in d["states"]] == [True], d["states"])
+    check(rec, "drag1_still_on_while_held", d["value_after"] is True, d)
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    released(rec, case, "d")
+    d = yield from p_drag(case, "after")
+    normal_drag(rec, d, "after")
+
+
+def _d_hold_insert_on(rec, case):
+    XT.key("Insert", True)
+    yield from track(case, 0.06)
+    XT.key("Insert", False)
+    yield from track(case, 0.2)
+    check(rec, "insert_on", ts().use_transform_data_origin and not armed())
+    XT.key("d", True)
+    yield from track(case, 0.4)
+    d = yield from p_drag(case, "drag1")
+    check(rec, "drag1_origins", d["transformed"] and d["moved"] and d["shape_in_place"], d)
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    check(rec, "still_on_after_the_release", ts().use_transform_data_origin and not armed(),
+          debug_state())
+    XT.key("Insert", True)
+    yield from track(case, 0.06)
+    XT.key("Insert", False)
+    yield from track(case, 0.2)
+    check(rec, "insert_off", not ts().use_transform_data_origin)
 
 
 def _d_tap_twice(rec, case):
@@ -777,10 +895,16 @@ def _d_cancel_keeps(rec, case):
 
 D_SCENARIOS = [
     ("ri_d_tap_gizmo", d_case(_d_tap_gizmo)),
-    ("ri_d_long_tap", d_case(_d_long_tap)),
-    ("ri_d_annotate_drag", d_case(_d_annotate_drag, tool_id="builtin.select")),
     ("ri_d_tap_twice", d_case(_d_tap_twice)),
     ("ri_d_cancel_keeps", d_case(_d_cancel_keeps)),
+    ("ri_d_hold_gizmo_multi", d_case(_d_hold_gizmo_multi)),
+    ("ri_d_hold_short_drag", d_case(_d_hold_short_drag)),
+    ("ri_d_hold_up_during_drag", d_case(_d_hold_up_during_drag)),
+    ("ri_d_long_still_hold", d_case(_d_long_still_hold)),
+    ("ri_d_hold_while_armed", d_case(_d_hold_while_armed)),
+    ("ri_d_hold_insert_on", d_case(_d_hold_insert_on)),
+    ("ri_d_annotate_drag", d_case(_d_annotate("empty"), tool_id="builtin.select")),
+    ("ri_d_hold_annotate_object", d_case(_d_annotate("object"), tool_id="builtin.select")),
 ]
 
 

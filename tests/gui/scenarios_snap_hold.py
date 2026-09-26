@@ -30,7 +30,10 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
   and the next drag moves the object normally; a cancelled drag (Esc) keeps it armed for the
   next one; two taps cancel; Insert toggles the persistent mode, and Insert while armed makes
   it persistent; Ctrl Alt D picks the Annotate tool; in Edit Mode D stays IC's Annotate tool
-  and Insert does nothing.
+  and Insert does nothing. The D hold (2026-09-26): D down writes the option at once, a drag
+  while it is down edits the origin, the release restores, Adjust Last Operation on that move
+  still edits only the origin, a long still press arms nothing, and a hold while the one-shot
+  is armed ends both.
 - ``mk_protected_features``: with every binding on, Shift RMB places and drags the 3D cursor
   (and no add-on item uses Shift RMB, IC's cursor items fire first),
   RMB opens the context menu, Tab the search, Shift Tab (Quick Favorites) reaches no hold, a box
@@ -42,8 +45,9 @@ Not simulable: key auto-repeat while X is held during a drag (UH1: ``event_simul
 repeat flag; the long-hold regression runs with real input in ``tests/gui/realinput_driver.py``,
 the ``realinput`` session of the runner), and D + LMB annotate while D is held (UH2: simulated
 events never set the held-key modifier). Both run with real X11 input in the ``realinput``
-session (``tests/gui/realinput_driver.py``: a long D press counts as a tap, D + drag in empty
-space still annotates and arms nothing).
+session (``tests/gui/realinput_driver.py``: G17 the D tap, G18 the D hold with repeats, several
+drags and the release during a drag; D + drag in empty space or on the cube with the Tweak tool
+still annotates and arms nothing).
 
 Every scenario starts and ends on the Blender keyconfig with the choice undecided and the
 user edits of the Meso keymap reset.
@@ -772,6 +776,64 @@ def scenarios(drv):
                       any(abs(v) > 1e-3 for v in cube.location) and world_verts(cube) == before,
                       rounded(cube.location))
             drv.check(rec, "after_cancel_restored", state() == USER, [state(), debug()])
+            # hold D (the hold of 2026-09-26): D down writes the option at once, a drag while it
+            # is down edits the origin, the release gives the user's value back (simulated: no
+            # key repeats, so after the drag the still-held check ends it at its deadline if the
+            # release does not come first; the real hold is the realinput session's, G18)
+            reset_cube()
+            yield 0.2
+            c = to_win(cube.location)
+            drv.sim('MOUSEMOVE', 'NOTHING', c)
+            yield 0.2
+            with v3d_ctx():
+                bpy.ops.ed.undo_push(message="Meso pivot hold test")
+            before = world_verts(cube)
+            drv.sim('D', 'PRESS', c)
+            yield 0.1
+            drv.check(rec, "d_hold_on_at_once", ts().use_transform_data_origin
+                      and holds_running() == [PIVOT_OP] and not hold_mod().once_armed(),
+                      [state(), debug()])
+            yield from gizmo_drag(c)
+            drv.check(rec, "d_hold_drag_edits_the_origin", LAST_DRAG["transformed"]
+                      and any(abs(v) > 1e-3 for v in cube.location)
+                      and world_verts(cube) == before, rounded(cube.location))
+            drv.sim('D', 'RELEASE', c)
+            yield 0.3
+            drv.check(rec, "d_hold_release_restores", state() == USER
+                      and not hold_mod().once_armed() and holds_running() == [],
+                      [state(), debug()])
+            # Adjust Last Operation on the move made while D was held: still only the origin
+            op = bpy.context.window_manager.operators[-1]
+            value = tuple(op.properties.value)
+            op.properties.value = tuple(2.0 * v for v in value)
+            with v3d_ctx():
+                redo = bpy.ops.ed.undo_redo()
+            yield 0.2
+            yield from wait_until(lambda: not hold_mod().redo_pending())
+            cube = bpy.data.objects["Cube"]
+            me = cube.data
+            drv.check(rec, "d_hold_redo_edits_only_origins", redo == {'FINISHED'}
+                      and op.bl_idname == 'TRANSFORM_OT_translate'
+                      and world_verts(cube) == before, [redo, rounded(cube.location)])
+            drv.check(rec, "d_hold_redo_restored", state() == USER, state())
+            # a long still press is a hold too, not a tap: nothing armed after it
+            yield from key(c, 'D', dt=0.5)
+            drv.check(rec, "d_long_press_arms_nothing", state() == USER
+                      and not hold_mod().once_armed(), [state(), debug()])
+            # a hold while the one-shot is armed replaces it: the value is back at the release
+            reset_cube()
+            yield 0.2
+            yield from key(c, 'D')
+            drv.sim('D', 'PRESS', c)
+            yield 0.1
+            before = world_verts(cube)
+            yield from gizmo_drag(c)
+            drv.sim('D', 'RELEASE', c)
+            yield 0.3
+            drv.check(rec, "d_hold_while_armed_edits_the_origin", LAST_DRAG["transformed"]
+                      and world_verts(cube) == before, rounded(cube.location))
+            drv.check(rec, "d_hold_while_armed_ends_both", state() == USER
+                      and not hold_mod().once_armed(), [state(), debug()])
             # two taps: cancelled
             reset_cube()
             yield from key(c, 'D')
