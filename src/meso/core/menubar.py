@@ -33,19 +33,26 @@ Closed (depth 0):
 - SpaceRelease -> Finish. Esc -> Cancel. Changed / Opened / Nav -> nothing.
 
 Open (depth >= 1):
-- HoverLabel(x, ROLE_DROPDOWN), x != open_label, not ``aiming``: CloseChain(0),
-  OpenDropdown(x), Redraw (menu-bar switch, no click needed; the new chain keeps
-  ``opened_by``). With ``aiming`` (the move heads toward a panel of the open chain: the
-  pointer crosses x on its way to the open dropdown or one of its submenus) the switch is
-  deferred (aim guard): hover := x as for other labels, switch_wait := x, switch_since :=
-  now (every aimed move over x refreshes it). A later non-aimed HoverLabel(x) switches at
-  once; Timer switches once the pointer rests on x (``now - switch_since >=``
-  :func:`switch_rest`, the hover-open delay with a one-tick floor). Other labels / None:
-  hover := x, chain unchanged, pending submenu and switch_wait cancelled; Redraw when the
-  hover changed. A transient chain (opened_by 'hover', never entered): x == open_label clears
-  the leave timer; anything else starts it (leave_since := now unless set) and ``aiming`` (the
-  pointer moves toward a panel of the chain) marks leave_aim := now. An entered chain
-  (``entered``) is sticky: HoverLabel never starts its leave timer.
+- HoverLabel(x, ROLE_DROPDOWN), x != open_label: switches at once (CloseChain(0),
+  OpenDropdown(x), Redraw: menu-bar switch, no click needed; the new chain keeps
+  ``opened_by``, and a switch out of a :attr:`MenuBarState.sticky` chain is sticky too:
+  ``entered`` := True) when ``along`` (a slide along the open label's own row: native
+  menu-bar sliding stays instant), or when the chain is transient and the move is not
+  ``aiming``. Otherwise the switch is deferred: hover := x as for other labels,
+  switch_wait := x, switch_since := now (every move over x refreshes it). Deferred are
+  ``aiming`` moves (aim guard: the pointer crosses x on its way to the open dropdown or one
+  of its submenus) and any crossing of x while the chain is sticky (user report 2026-09-26:
+  "menus still do close" - the way out of a submenu to the viewport crosses the rows stacked
+  around it, and a hover switch there opened a transient chain that then closed on its
+  own). A later ``along`` HoverLabel(x), or a non-aimed one of a transient chain, switches
+  at once; Timer switches once the pointer rests on x (``now - switch_since >=``
+  :func:`switch_rest`, the hover-open delay with a one-tick floor); a press on x switches.
+  Other labels / None: hover := x, chain unchanged, pending submenu and switch_wait
+  cancelled; Redraw when the hover changed. A transient chain (opened_by 'hover', never
+  entered): x == open_label clears the leave timer; anything else starts it (leave_since :=
+  now unless set) and ``aiming`` (the pointer moves toward a panel of the chain) marks
+  leave_aim := now. A sticky chain (click / key opened, ``entered``) never starts its leave
+  timer.
 - HoverItem(path, role, aiming): hover := path. With ``child`` = the open submenu opener at
   level L (``submenus[L - 1]`` when ``len(submenus) >= L``):
   - child == path: nothing to close; pending and aim cleared.
@@ -59,14 +66,15 @@ Open (depth >= 1):
 - HoverItem(None): inside a panel on no item; hover cleared, pending cleared.
 - HoverItem (any, also None): the pointer is inside the chain: leave timer and switch_wait
   cleared, and ``entered`` := True (user feedback 2026-09-26: once the pointer has been
-  inside a panel of the chain, moving onto nothing - the viewport, empty strip space, a
-  non-eligible label - never closes it; it closes on a pick, an empty click, a switch to
-  another eligible label (aim guard rules unchanged; the switched chain starts un-entered),
-  the open-title click, Esc or the Space release).
+  inside a panel of the chain, moving onto nothing - the viewport, empty strip space, any
+  label it only crosses - never closes it; it closes on a pick, an empty click, an intended
+  switch to another eligible label (a slide along the bar, a rest or a click on it; the
+  switched chain is sticky too), the open-title click, Esc or the Space release).
 - Timer(now): a deferred switch (switch_wait == hover_label, rested for
   :func:`switch_rest`) -> CloseChain(0), OpenDropdown(switch_wait), Redraw (nothing else this
-  step). Then a transient chain whose ``now - leave_since > hover_close_delay`` and whose
-  last aim is ``>= aim_timeout`` old -> CloseChain(0), Redraw (nothing else this step).
+  step; a sticky chain's switch is sticky as for every switch). Then a transient chain
+  whose ``now - leave_since > hover_close_delay`` and whose last aim is ``>= aim_timeout``
+  old -> CloseChain(0), Redraw (nothing else this step).
   Then an expired aim (``now - aim_since >= AIM_TIMEOUT``) closes the stale child of
   the hovered level (CloseChain(L)); then a pending submenu whose delay has passed opens
   (CloseChain(L) if another child is open, OpenSubmenu(pending)). Redraw when anything opened
@@ -139,7 +147,8 @@ Hover-open (``hover_open``; spec: docs/phase4-interfaces.md "Hover-open"): ``ope
 None when closed, else how the chain was opened: 'hover' (transient: closes on its own once
 the pointer has been outside the open label and every panel for ``hover_close_delay``, as
 long as it never entered a panel: ``entered`` makes it sticky), or 'click' / 'key' (sticky:
-closes only on an empty click, Esc, the open-title click or the key release). Only ROLE_DROPDOWN labels (a custom dropdown / Tool Settings cascade) ever
+closes only on a pick, an empty click, Esc, the open-title click, an intended switch or the
+key release). Only ROLE_DROPDOWN labels (a custom dropdown / Tool Settings cascade) ever
 open on hover (:func:`hover_opens`); hand-off, apply and passive labels never do, so no
 native menu opens on a mere hover. ``hover_open`` False: ``opened_by`` is never 'hover' and
 every row above is exactly the Phase 4 behaviour.
@@ -225,13 +234,16 @@ class HoverLabel:
     (ZONE_LABEL) or over nothing (None: empty strip space or outside). ``role`` / ``action``
     describe that label (ROLE_DROPDOWN = eligible for hover-open, :func:`hover_opens`).
     ``aiming``: the move heads toward a panel of the open chain
-    (``core.dropdown_geometry.is_approaching``; False when closed)."""
+    (``core.dropdown_geometry.is_approaching``; False when closed). ``along``: a slide along
+    the open label's own row onto ``label_id`` (``core.dropdown_geometry.along_row``; D clears
+    ``aiming`` then; False when closed): the one move that switches a sticky chain at once."""
 
     label_id: str | None
     role: str = ROLE_PASSIVE
     now: float = 0.0
     action: Action | None = None
     aiming: bool = False
+    along: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -420,10 +432,13 @@ class MenuBarState:
     label waiting for ``hover_open_delay``), ``leave_since`` (a transient chain: when the
     pointer left the open label and every panel; None while inside) and ``leave_aim`` (the
     last move outside that aimed at a panel of the chain). ``entered``: the pointer has been
-    inside a panel of the open chain (any HoverItem); a hover-opened chain is then sticky
-    (not :attr:`transient`). Reset whenever a new root dropdown opens or the chain closes.
-    Aim guard: ``switch_wait`` (the ROLE_DROPDOWN label crossed toward the open chain whose
-    switch is deferred; None otherwise) and ``switch_since`` (its last aimed move).
+    inside a panel of the open chain (any HoverItem), or the chain was switched to from a
+    sticky one (the bar stays engaged); a hover-opened chain is then sticky (not
+    :attr:`transient`). Reset whenever the chain closes or a root dropdown opens otherwise
+    (a click, a hover-open, a switch out of a transient chain).
+    Deferred switch: ``switch_wait`` (the ROLE_DROPDOWN label crossed toward the open chain,
+    or crossed while the chain is sticky, whose switch waits for a rest; None otherwise) and
+    ``switch_since`` (its last move).
     """
 
     submenu_delay: float = DEFAULT_SUBMENU_DELAY
@@ -473,6 +488,13 @@ class MenuBarState:
         its panels (it closes when the pointer leaves)."""
         return (self.open_label is not None and self.opened_by == OPENED_HOVER
                 and not self.entered)
+
+    @property
+    def sticky(self) -> bool:
+        """True while a chain is open and not :attr:`transient` (click / key opened, entered,
+        or switched to from a sticky chain): the pointer leaving it never closes it, and a
+        label merely crossed on the way out never switches it."""
+        return self.open_label is not None and not self.transient
 
 
 def _clamped(value, default: float, lo_hi: tuple[float, float]) -> float:
@@ -712,7 +734,10 @@ def _on_hover_label(s: MenuBarState, e: HoverLabel):
     x = e.label_id
     eligible = x is not None and e.role == ROLE_DROPDOWN
     switching = s.is_open and eligible and x != s.open_label
-    guard = switching and e.aiming is True
+    # A switch is deferred (switch_wait) when x is crossed toward the chain (aim guard), or
+    # crossed while a sticky chain is open without sliding along the open label's row (the
+    # way out of a submenu crosses the rows stacked around it: user report 2026-09-26).
+    guard = switching and e.along is not True and (e.aiming is True or s.sticky)
     if switching and not guard:
         _switch(o, x)
         return o.result()
@@ -723,8 +748,9 @@ def _on_hover_label(s: MenuBarState, e: HoverLabel):
           hover_action=None, pending=None, aim_since=None,
           switch_wait=x if guard else None)
     if guard:
-        # Aim guard: x is crossed on the way to the open chain; the bar switches only once
-        # the pointer rests on x (Timer) or moves over it without heading for the chain.
+        # x is only crossed (on the way to the open chain, or out of a sticky one): the bar
+        # switches once the pointer rests on x (Timer) or on a click; every move over x
+        # restarts the rest.
         o.set(switch_since=e.now)
     if not s.is_open:
         if not (s.hover_open and eligible) or s.pressed is not None:
@@ -752,8 +778,11 @@ def _on_hover_label(s: MenuBarState, e: HoverLabel):
 def _switch(o: _Step, x: str) -> None:
     """Menu-bar switch to the ROLE_DROPDOWN label ``x`` while a chain is open."""
     s = o.s
-    # The switched chain keeps how the bar was opened (a pinned bar stays pinned).
+    # The switched chain keeps how the bar was opened (a pinned bar stays pinned), and a
+    # switch out of a sticky chain stays sticky: once engaged, the bar stays engaged (as a
+    # native menu bar), so the new dropdown is not transient before the pointer enters it.
     o.open_dropdown(x, s.opened_by or OPENED_CLICK)
+    o.set(entered=s.sticky)
     # Opened by a gesture that is still going on (press-drag across the bar): its
     # release on this label must not close it.
     o.set(press_opened=s.pressed is not None)

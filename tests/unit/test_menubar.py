@@ -208,14 +208,14 @@ class TestClosed(unittest.TestCase):
 class TestOpenBar(unittest.TestCase):
     def test_hover_switches_dropdown_without_click(self):
         s = opened_file()
-        s, (e,) = run(s, mb.HoverLabel(EDIT, dm.ROLE_DROPDOWN))
+        s, (e,) = run(s, mb.HoverLabel(EDIT, dm.ROLE_DROPDOWN, along=True))
         self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
         self.assertEqual((s.open_label, s.depth, s.roles, s.hover_label), (EDIT, 1, (), EDIT))
         self.assertFalse(s.press_opened)
         # the switch with a submenu open closes the whole chain first
         s = with_sub(opened_file())
         self.assertEqual(s.depth, 2)
-        s, (e,) = run(s, mb.HoverLabel(RENDER, dm.ROLE_DROPDOWN))
+        s, (e,) = run(s, mb.HoverLabel(RENDER, dm.ROLE_DROPDOWN, along=True))
         self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(RENDER), mb.Redraw()))
         self.assertEqual((s.depth, s.submenus), (1, ()))
 
@@ -405,15 +405,15 @@ class TestRuns(unittest.TestCase):
 
     def test_drag_across_bar_keeps_switched_dropdown(self):
         s = mb.initial_state()
-        s, out = run(s, press(lbl(FILE)), mb.HoverLabel(EDIT, dm.ROLE_DROPDOWN),
+        s, out = run(s, press(lbl(FILE)), mb.HoverLabel(EDIT, dm.ROLE_DROPDOWN, along=True),
                      release(lbl(EDIT)))
         self.assertEqual(out[1], (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
         self.assertEqual(out[2], ())
         self.assertEqual(s.open_label, EDIT)
         # dragging back to File re-opens it; the release there keeps it open
         s, out = run(mb.initial_state(), press(lbl(FILE)),
-                     mb.HoverLabel(EDIT, dm.ROLE_DROPDOWN),
-                     mb.HoverLabel(FILE, dm.ROLE_DROPDOWN), release(lbl(FILE)))
+                     mb.HoverLabel(EDIT, dm.ROLE_DROPDOWN, along=True),
+                     mb.HoverLabel(FILE, dm.ROLE_DROPDOWN, along=True), release(lbl(FILE)))
         self.assertEqual(out[-1], ())
         self.assertEqual(s.open_label, FILE)
 
@@ -703,10 +703,11 @@ WS, SNAP, NATIVE, RECENT = 'ws:Layout', 'ts:snap:use_snap', 'TEST_MT_native…',
 PIVOT = 'ts:pivot:transform_pivot_point'
 
 
-def hl(label_id, now=0.0, role=dm.ROLE_DROPDOWN, aiming=False):
-    """HoverLabel; ``role`` ROLE_DROPDOWN = eligible (custom dropdown / cascade)."""
+def hl(label_id, now=0.0, role=dm.ROLE_DROPDOWN, aiming=False, along=False):
+    """HoverLabel; ``role`` ROLE_DROPDOWN = eligible (custom dropdown / cascade); ``along``:
+    a slide along the open label's row."""
     action = None if role in (dm.ROLE_DROPDOWN, P) else NATIVE_ACT
-    return mb.HoverLabel(label_id, role, now, action, aiming)
+    return mb.HoverLabel(label_id, role, now, action, aiming, along)
 
 
 def hover_state(delay=0.05, close=0.3, submenu_delay=0.12, eor=False):
@@ -847,7 +848,7 @@ class TestHoverOpen(unittest.TestCase):
         s = opened_file()
         s = dataclasses.replace(s, hover_open=True)
         self.assertEqual(s.opened_by, mb.OPENED_CLICK)
-        s, _ = run(s, hl(EDIT, 1.0))
+        s, _ = run(s, hl(EDIT, 1.0, along=True))
         self.assertEqual((s.open_label, s.opened_by), (EDIT, mb.OPENED_CLICK))
         s, outs = run(s, hl(None, 1.1), mb.Timer(5.0))
         self.assertEqual(outs, [(mb.Redraw(),), ()])
@@ -1078,8 +1079,9 @@ class TestHoverOpen(unittest.TestCase):
         self.assertFalse(base.hover_open)
         cd, rd = mb.CloseChain(0), mb.Redraw()
         rows = (
-            (hl(EDIT, 1.0), (cd, mb.OpenDropdown(EDIT), rd), EDIT, mb.OPENED_CLICK, 1,
-             False, False),
+            (hl(EDIT, 1.0, along=True), (cd, mb.OpenDropdown(EDIT), rd), EDIT,
+             mb.OPENED_CLICK, 1, False, False),
+            (hl(EDIT, 1.0), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
             (hl(None, 1.0), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
             (hl(SNAP, 1.0, AP), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
             (hl(None, 1.0, P, aiming=True), (rd,), FILE, mb.OPENED_CLICK, 1, False, False),
@@ -1171,18 +1173,16 @@ class TestStickyOnceEntered(unittest.TestCase):
         s, (e1, e2) = run(s, press(lbl(FILE), 2.0), release(lbl(FILE), 2.1))
         self.assertEqual((e1, e2), ((), (mb.CloseChain(0), mb.Redraw())))
 
-    def test_switch_starts_an_unentered_transient_chain(self):
+    def test_switch_out_of_an_entered_chain_is_sticky(self):
+        """User report 2026-09-26 ("menus still do close"): the bar stays engaged."""
         s = self.entered_submenu()
-        s, (e,) = run(s, hl(EDIT, 2.0))
+        s, (e,) = run(s, hl(EDIT, 2.0, along=True))
         self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
-        self.assertEqual((s.opened_by, s.entered, s.transient), (mb.OPENED_HOVER, False, True))
-        s, outs = run(s, mb.Opened(0, FILE_ROLES), hl(None, 2.1), mb.Timer(2.5))
-        self.assertEqual(outs[-1], (mb.CloseChain(0), mb.Redraw()), "never entered: closes")
-        # entering the switched chain makes it sticky again
-        s = self.entered_submenu()
-        s, _ = run(s, hl(EDIT, 2.0), mb.Opened(0, FILE_ROLES), hover_item((0,), R_, 2.1),
-                   hl(None, 2.2), mb.Timer(9.0))
-        self.assertEqual((s.open_label, s.entered), (EDIT, True))
+        self.assertEqual((s.opened_by, s.entered, s.transient, s.sticky),
+                         (mb.OPENED_HOVER, True, False, True))
+        s, outs = run(s, mb.Opened(0, FILE_ROLES), hl(None, 2.1), mb.Timer(2.5), mb.Timer(9.0))
+        self.assertEqual(outs[2:], [(), ()], "never entered, still sticky")
+        self.assertEqual(s.open_label, EDIT)
 
     def test_aim_guard_still_applies(self):
         s = self.entered_submenu()
@@ -1217,6 +1217,163 @@ class TestStickyOnceEntered(unittest.TestCase):
         s, outs = run(s, hl(None, 1.1), mb.Timer(9.0))
         self.assertTrue(s.is_open)
         self.assertEqual(s.opened_by, mb.OPENED_CLICK)
+
+
+class TestStickyExit(unittest.TestCase):
+    """User report 2026-09-26, after TestStickyOnceEntered: "menus still do close". A hand
+    leaving a submenu for the viewport crosses the row labels stacked around the Plaza; a
+    crossing that switched at once opened a transient chain that then closed on its own.
+    While the chain is sticky only a slide along the open label's row switches at once; a
+    crossed label switches after a rest or on a click (docs/phase4-interfaces.md
+    "Hover-open": "Sticky exits")."""
+
+    def entered_submenu(self):
+        return TestStickyOnceEntered.entered_submenu(self)
+
+    def exit_path(self, s, labels, t0=2.0, dt=0.008):
+        """Moves every ``dt`` s over ``labels`` (three moves each: a hand crossing a row),
+        then onto nothing, where the pointer rests ~3 s; a watchdog Timer every 0.05 s.
+        Returns (state, every effect)."""
+        events, now, tick = [], t0, t0
+        for label, role, aiming in labels:
+            for _ in range(3):
+                now += dt
+                events.append(hl(label, now, role, aiming=aiming))
+                if now - tick >= 0.05:
+                    tick = now
+                    events.append(mb.Timer(now))
+        now += dt
+        events.append(hl(None, now))
+        events += [mb.Timer(now + 0.05 * i) for i in range(1, 60)]
+        s, outs = run(s, *events)
+        return s, [e for fx in outs for e in fx]
+
+    def assert_kept(self, before, after, effects):
+        self.assertFalse([e for e in effects if isinstance(e, (mb.CloseChain, mb.OpenDropdown,
+                                                                 mb.OpenSubmenu))], effects)
+        self.assertEqual((after.open_label, after.submenus, after.opened_by),
+                         (before.open_label, before.submenus, before.opened_by))
+        self.assertIsNone(after.switch_wait)
+        self.assertTrue(after.sticky)
+
+    def test_the_reported_exit_keeps_the_chain(self):
+        s0 = self.entered_submenu()
+        s, fx = self.exit_path(s0, [(EDIT, dm.ROLE_DROPDOWN, False)])
+        self.assert_kept(s0, s, fx)
+
+    def test_exits_across_rows_keep_every_sticky_chain(self):
+        crossings = (
+            [(PIVOT, dm.ROLE_DROPDOWN, False), (SNAP, AP, False),
+             ('ts:snap_elements', dm.ROLE_DROPDOWN, False)],
+            [(RENDER, dm.ROLE_DROPDOWN, True), (HELP, dm.ROLE_DROPDOWN, False), (WS, H, False)],
+            [(EDIT, dm.ROLE_DROPDOWN, False), ('sep', P, False), (PIVOT, dm.ROLE_DROPDOWN, True)],
+        )
+        starts = {
+            'entered': self.entered_submenu,
+            'clicked': lambda: with_sub(dataclasses.replace(opened_file(), hover_open=True)),
+            'key': lambda: run(hover_opened(FILE, 1.0), mb.Nav(mb.NAV_DOWN))[0],
+            'switched': lambda: run(self.entered_submenu(), hl(EDIT, 2.0, along=True),
+                                    mb.Opened(0, FILE_ROLES))[0],
+        }
+        for name, make in starts.items():
+            for path in crossings:
+                with self.subTest(start=name, path=path):
+                    s0 = make()
+                    self.assertTrue(s0.sticky, s0)
+                    s, fx = self.exit_path(s0, path, t0=3.0)
+                    self.assert_kept(s0, s, fx)
+
+    def test_rest_on_a_crossed_label_switches_and_stays_sticky(self):
+        s = self.entered_submenu()
+        s, (e,) = run(s, hl(PIVOT, 2.0))
+        self.assertEqual(e, (mb.Redraw(),), "crossed: only the hover changes")
+        self.assertEqual((s.open_label, s.hover_label, s.switch_wait), (FILE, PIVOT, PIVOT))
+        s, (e,) = run(s, mb.Timer(2.0 + mb.switch_rest(s) - 0.001))
+        self.assertEqual(e, ())
+        s, (e,) = run(s, mb.Timer(2.0 + mb.switch_rest(s) + 1e-6))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(PIVOT), mb.Redraw()))
+        self.assertEqual((s.opened_by, s.entered, s.sticky), (mb.OPENED_HOVER, True, True))
+        s, outs = run(s, mb.Opened(0, FILE_ROLES), hl(None, 2.2), mb.Timer(3.0), mb.Timer(9.0))
+        self.assertEqual(s.open_label, PIVOT, "the switched chain stays over the viewport")
+        self.assertEqual(outs[2:], [(), ()])
+
+    def test_every_move_over_the_crossed_label_restarts_the_rest(self):
+        s = self.entered_submenu()
+        s, outs = run(s, hl(PIVOT, 2.0), hl(PIVOT, 2.04), mb.Timer(2.06), hl(PIVOT, 2.08),
+                      mb.Timer(2.1), mb.Timer(2.12))
+        self.assertEqual(outs[2:], [(), (), (), ()])
+        self.assertEqual(s.open_label, FILE)
+        s, (e,) = run(s, mb.Timer(2.14))
+        self.assertIn(mb.OpenDropdown(PIVOT), e)
+
+    def test_moving_off_the_crossed_label_cancels(self):
+        for away in (hl(None, 2.02), hl(SNAP, 2.02, AP), hl(FILE, 2.02),
+                     hover_item((1, 2, 0), R_, 2.02)):
+            with self.subTest(away=away):
+                s = self.entered_submenu()
+                s, _ = run(s, hl(PIVOT, 2.0), away)
+                self.assertIsNone(s.switch_wait)
+                s, outs = run(s, mb.Timer(3.0), mb.Timer(9.0))
+                self.assertEqual((outs, s.open_label, s.depth), ([(), ()], FILE, 3))
+
+    def test_another_crossed_label_moves_the_candidate(self):
+        s = self.entered_submenu()
+        s, _ = run(s, hl(PIVOT, 2.0), hl(EDIT, 2.02))
+        self.assertEqual((s.switch_wait, s.switch_since), (EDIT, 2.02))
+        s, (e,) = run(s, mb.Timer(2.08))
+        self.assertIn(mb.OpenDropdown(EDIT), e)
+
+    def test_slide_along_the_bar_switches_at_once(self):
+        s = self.entered_submenu()
+        s, (e,) = run(s, hl(EDIT, 2.0, along=True))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
+        self.assertTrue(s.sticky)
+        # also after a first crossing (a candidate), then a slide along the bar
+        s = self.entered_submenu()
+        s, (e1, e2) = run(s, hl(EDIT, 2.0), hl(RENDER, 2.01, along=True))
+        self.assertEqual(e2, (mb.CloseChain(0), mb.OpenDropdown(RENDER), mb.Redraw()))
+        self.assertIsNone(s.switch_wait)
+
+    def test_click_on_a_crossed_label_switches(self):
+        s = self.entered_submenu()
+        s, (e1, e2, e3) = run(s, hl(PIVOT, 2.0), press(lbl(PIVOT), 2.01),
+                              release(lbl(PIVOT), 2.05))
+        self.assertEqual(e2, (mb.CloseChain(0), mb.OpenDropdown(PIVOT), mb.Redraw()))
+        self.assertEqual(e3, (), "its release keeps it open")
+        self.assertEqual((s.open_label, s.opened_by, s.switch_wait),
+                         (PIVOT, mb.OPENED_CLICK, None))
+
+    def test_transient_brush_past_still_closes(self):
+        """Never entered: crossing another label switches at once to a transient chain,
+        which closes hover_close_delay after the pointer left it (unchanged)."""
+        s = hover_opened(FILE, 1.0, close=0.3)
+        self.assertFalse(s.sticky)
+        s, outs = run(s, hl(EDIT, 1.1), mb.Opened(0, FILE_ROLES), hl(None, 1.12),
+                      mb.Timer(1.3), mb.Timer(1.45))
+        self.assertEqual(outs[0], (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
+        self.assertEqual(outs[-1], (mb.CloseChain(0), mb.Redraw()))
+        self.assertFalse(s.is_open)
+
+    def test_empty_click_and_esc_still_close_after_an_exit(self):
+        for close in (press(STRIP, 9.0), press(OUTSIDE, 9.0), mb.Esc()):
+            with self.subTest(close=close):
+                s0 = self.entered_submenu()
+                s, _ = self.exit_path(s0, [(PIVOT, dm.ROLE_DROPDOWN, False)])
+                s, (e,) = run(s, close)
+                self.assertEqual(e, (mb.CloseChain(0), mb.Redraw()))
+                self.assertFalse(s.is_open)
+
+    def test_parent_level_hover_still_closes_the_child(self):
+        s = self.entered_submenu()
+        s, (e,) = run(s, hover_item((0,), R_, 2.0))
+        self.assertEqual(e, (mb.CloseChain(1), mb.Redraw()), "native: a parent item closes it")
+
+    def test_click_only_bar(self):
+        s0 = with_sub(opened_file())
+        self.assertFalse(s0.hover_open)
+        s, fx = self.exit_path(s0, [(EDIT, dm.ROLE_DROPDOWN, False),
+                                    (PIVOT, dm.ROLE_DROPDOWN, False)])
+        self.assert_kept(s0, s, fx)
 
 
 # --------------------------------------------------------------------------- aim guard
@@ -1283,16 +1440,23 @@ class TestAimGuard(unittest.TestCase):
         s, (e,) = run(s, mb.Timer(1.14))
         self.assertIn(mb.OpenDropdown(HELP), e)
 
-    def test_non_aimed_move_switches_at_once(self):
-        s = opened_file()
+    def test_non_aimed_move_switches_a_transient_chain_at_once(self):
+        s = hover_opened(FILE)
         s, (e1, e2) = run(s, hl(HELP, 1.0, aiming=True), hl(HELP, 1.01, aiming=False))
         self.assertEqual(e2, (mb.CloseChain(0), mb.OpenDropdown(HELP), mb.Redraw()))
         self.assert_open(s, HELP)
+        # a sticky (clicked) chain: only a slide along the bar switches at once
+        s = opened_file()
+        s, (e1, e2) = run(s, hl(HELP, 1.0, aiming=True), hl(HELP, 1.01, aiming=False))
+        self.assertEqual(e2, ())
+        self.assertEqual((s.open_label, s.switch_wait, s.switch_since), (FILE, HELP, 1.01))
+        s, (e,) = run(s, hl(HELP, 1.02, along=True))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(HELP), mb.Redraw()))
 
     def test_unaimed_label_switches_at_once(self):
         """Unchanged Phase 4 switch: a move along the bar (not toward the chain)."""
         s = opened_file()
-        s, (e,) = run(s, hl(EDIT, 1.0))
+        s, (e,) = run(s, hl(EDIT, 1.0, along=True))
         self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
         self.assertIsNone(s.switch_wait)
 
@@ -1428,7 +1592,8 @@ class TestInvariants(unittest.TestCase):
             t = rand_target()
             if t.zone == dm.ZONE_ITEM:
                 return mb.HoverItem(t.path, t.role, now, rng.random() < 0.3, t.action)
-            return mb.HoverLabel(t.label_id, t.role, now, t.action, rng.random() < 0.2)
+            return mb.HoverLabel(t.label_id, t.role, now, t.action, rng.random() < 0.2,
+                                 rng.random() < 0.3)
         if k < 0.5:
             return mb.Press(rng.choice((LMB, LMB, 'RIGHTMOUSE')), rand_target(), now)
         if k < 0.7:
@@ -1507,6 +1672,18 @@ class TestInvariants(unittest.TestCase):
                 and isinstance(ev, (mb.HoverLabel, mb.HoverItem, mb.Timer))
                 and mb.CloseChain(0) in effects):
             self.assertTrue([e for e in effects if isinstance(e, mb.OpenDropdown)], effects)
+        # Sticky exits: a sticky chain never changes on a HoverLabel that does not slide along
+        # the bar, a move or a Timer never closes it without a switch, and a switch out of it
+        # is sticky.
+        if before.sticky and isinstance(ev, mb.HoverLabel) and not ev.along:
+            self.assertFalse([e for e in effects if isinstance(
+                e, (mb.CloseChain, mb.OpenDropdown, mb.OpenSubmenu))], (ev, effects))
+        if (before.sticky and isinstance(ev, (mb.HoverLabel, mb.HoverItem, mb.Timer))
+                and mb.CloseChain(0) in effects):
+            self.assertTrue([e for e in effects if isinstance(e, mb.OpenDropdown)], effects)
+        if (before.sticky and isinstance(ev, (mb.HoverLabel, mb.Timer))
+                and any(isinstance(e, mb.OpenDropdown) for e in effects)):
+            self.assertTrue(s.sticky, s)
         if isinstance(ev, (mb.HoverLabel, mb.Timer, mb.HoverItem)):
             self.assertFalse([e for e in effects if isinstance(e, (mb.RunItem, mb.Handoff))])
             for e in effects:

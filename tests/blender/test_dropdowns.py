@@ -337,6 +337,12 @@ class _Case(unittest.TestCase):
     def bar(self):
         return self.state.menus.bar
 
+    def rest(self, dt=0.06):
+        """The pointer rests: the clock advances ``dt`` and one watchdog TIMER arrives (a
+        label crossed while a sticky chain is open switches after ``switch_rest``)."""
+        self.clock[0] += dt
+        return self.ev('TIMER', 'NOTHING')
+
 
 class TestOpenAndSwitch(_Case):
 
@@ -387,11 +393,15 @@ class TestOpenAndSwitch(_Case):
         self.move(self.label_xy('TOPBAR_MT_file'))
         self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
         self.assertEqual(self.state.menus.cache.hits, 1, "File came from the session cache")
-        # Rows below: the contextual Object menu, then back up to Edit.
+        # Rows below: the contextual Object menu, then back up to Edit. Another row's label
+        # is only crossed until the pointer rests on it (the chain is sticky).
         self.ev('ESC', 'PRESS')
         self.click(self.label_xy(md().contextual_item_id('VIEW3D_MT_object')))
         self.assertEqual(self.state.open_label, 'ctx:VIEW3D_MT_object')
         self.move(self.label_xy('TOPBAR_MT_edit'))
+        self.assertEqual((self.state.open_label, self.state.hover_id, self.bar().switch_wait),
+                         ('ctx:VIEW3D_MT_object', 'TOPBAR_MT_edit', 'TOPBAR_MT_edit'))
+        self.rest()
         self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
         self.assertEqual(self.state.menus.opened, ['TOPBAR_MT_file', 'TOPBAR_MT_edit',
                                                    'TOPBAR_MT_file', 'VIEW3D_MT_object',
@@ -479,12 +489,15 @@ class TestOpenAndSwitch(_Case):
         self.click(self.label_xy(md().contextual_item_id('VIEW3D_MT_object')))
         self.assertEqual(self.state.open_label, 'ctx:VIEW3D_MT_object')
         self.move(self.label_xy(PIVOT_ID))
+        self.assertEqual(self.state.open_label, 'ctx:VIEW3D_MT_object', "crossed: waits")
+        self.rest()
         self.assertEqual(self.state.open_label, PIVOT_ID)
         self.assertEqual(self.builds[-1][:2], (PIVOT_ID, 'tool'), "build_tool_cascade")
         self.assertEqual([p.key for p in self.state.dropdowns.panels], [PIVOT_ID])
         self.move(self.label_xy(SNAP_ID))            # a ROLE_APPLY toggle: only hovers
         self.assertEqual(self.state.open_label, PIVOT_ID)
         self.move(self.label_xy('TOPBAR_MT_file'))   # and back to a menu
+        self.rest()
         self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
         self.assertEqual([p.key for p in self.state.dropdowns.panels], ['TOPBAR_MT_file'])
         self.assertEqual((self.executed, self.run_calls), ([], []))
@@ -654,7 +667,9 @@ class TestAimGuard(_Case):
         self.assertEqual([p.key for p in self.state.dropdowns.panels], [HELP_ID])
         self.assertIsNone(self.bar().switch_wait)
 
-    def test_move_away_from_the_chain_switches(self):
+    def test_move_away_from_the_chain_waits_for_a_rest(self):
+        """A move over Help away from the chain: a transient (hover-opened) chain switches
+        at once; the clicked (sticky) Object waits for a rest on Help (sticky exits)."""
         ddg = _mod("core.dropdown_geometry")
         path = self.open_object()
         i = self.first_on_help(path)
@@ -671,7 +686,23 @@ class TestAimGuard(_Case):
         self.assertIsNotNone(away, "a point of Help away from the chain")
         self.clock[0] += 0.008
         self.move(away)
-        self.assertEqual(self.state.open_label, HELP_ID, "not heading for the chain: switch")
+        self.assertEqual((self.state.open_label, self.bar().switch_wait), (self.OBJECT, HELP_ID),
+                         "sticky: only crossed")
+        self.tick(0.06)
+        self.assertEqual(self.state.open_label, HELP_ID, "resting on Help switches")
+        self.assertTrue(self.bar().sticky)
+        # A transient chain switches at once on a move away from it.
+        self.stub, self.state = self._session(hover_open=True)
+        self.install_aim_layout()
+        self.move(self.label_xy(self.OBJECT))
+        self.tick(0.06)
+        self.assertTrue(self.bar().transient)
+        path = self.crossing_path()
+        self.move(path[0][0])
+        self.walk(path[:self.first_on_help(path) + 1])
+        self.clock[0] += 0.008
+        self.move(away)
+        self.assertEqual(self.state.open_label, HELP_ID, "transient: not heading for the chain")
 
     def test_along_the_bar_switches_at_once(self):
         """The Phase 4 switch is unchanged: File open, a move along the root row to Edit."""
@@ -913,12 +944,25 @@ class TestHoverOpen(_Case):
         self.assertEqual(_hb().last_session()['end'], 'finish')
         self.assertEqual(self.executed, [])
 
-    def test_switch_from_an_entered_chain_is_transient(self):
+    def test_switch_from_an_entered_chain_is_sticky(self):
+        """User report 2026-09-26 ("menus still do close"): once engaged, the bar stays
+        engaged; a transient chain's switch stays transient."""
         self.hover_open('TOPBAR_MT_file')
         self.move(self.item_xy((0,)))
+        self.move(self.label_xy('TOPBAR_MT_file'))
         self.move(self.label_xy('TOPBAR_MT_edit'))       # a move along the bar: switches
         self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
-        self.assertEqual((self.bar().opened_by, self.bar().entered), ('hover', False))
+        self.assertEqual((self.bar().opened_by, self.bar().sticky), ('hover', True))
+        self.move(self.gap())
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit', "sticky before it is entered")
+        self.click(self.gap())
+        self.assertIsNone(self.state.dropdowns)
+        self.move(self.label_xy('TOPBAR_MT_file'))
+        self.tick(0.06)
+        self.assertTrue(self.bar().transient)
+        self.move(self.label_xy('TOPBAR_MT_edit'))
+        self.assertEqual((self.state.open_label, self.bar().transient), ('TOPBAR_MT_edit', True))
         self.move(self.gap())
         self.tick(0.35)
         self.assertIsNone(self.state.dropdowns, "never entered: closes after the grace")
@@ -1009,6 +1053,173 @@ class TestHoverOpen(_Case):
         self.tick(1.0)
         self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
         self.assertEqual(self.builds, [('TOPBAR_MT_file', 'INVOKE_REGION_WIN', self.region)])
+
+
+class TestStickyExit(_Case):
+    """User report 2026-09-26 ("menus still do close"; docs/phase4-interfaces.md
+    "Hover-open": "Sticky exits"): File ▸ Import hover-opened and entered, then hand-like
+    walks (6 px every 8 ms, a watchdog TIMER every 0.05 s) from the submenu to outside the
+    Plaza across other rows' dropdown labels, and a rest there well past the close delay:
+    the chain is kept. Resting on a crossed label switches, and the switched chain is sticky;
+    a brush-past hover-opened chain still closes."""
+
+    STEP, DT = 6, 0.008
+
+    def setUp(self):
+        super().setUp()
+        self.stub, self.state = self._session(hover_open=True)
+
+    def tick(self, dt):
+        self.clock[0] += dt
+        return self.ev('TIMER', 'NOTHING')
+
+    def enter_import(self):
+        self.move(self.label_xy('TOPBAR_MT_file'))
+        self.tick(0.06)
+        self.assertEqual((self.state.open_label, self.bar().opened_by), ('TOPBAR_MT_file', 'hover'))
+        self.move(self.item_xy((2,)))                      # submenu_delay 0: Import opens
+        start = self.item_xy((2, 0))
+        self.move(start)
+        self.assertEqual(self.keys(), ['TOPBAR_MT_file', 'TOPBAR_MT_file_import'])
+        self.assertTrue(self.bar().entered)
+        return start
+
+    def keys(self):
+        chain = self.state.dropdowns
+        return [p.key for p in chain.panels] if chain is not None else []
+
+    def eligible(self, label_id):
+        ddg = _mod("core.dropdown_geometry")
+        return _dd().hover_eligible(self.state.menus, self.state,
+                                    ddg.Hit(dm().ZONE_LABEL, label_id=label_id))
+
+    def exit_paths(self):
+        """Straight paths (STEP px) from a point of the Import submenu to a point outside
+        the Plaza that leave the submenu straight onto the Plaza rows (no other panel on the
+        way: hovering the File panel would close Import natively) and cross at least one
+        other dropdown label; never sideways over the open File row (a slide along the bar
+        switches by design). ``{kind: (points, crossed eligible labels)}``, the first found
+        of each kind: 'down', 'sideways' (over the Tool Settings row), 'diagonal'."""
+        import math
+        ddg = _mod("core.dropdown_geometry")
+        layout, chain = self.state.layout, self.state.menus.chain
+        plaza, sub = layout.plaza_rect, chain.panels[-1].rect
+        inside = (dm().ZONE_ITEM, dm().ZONE_PANEL)
+        starts = [(int(sub.x + fx * sub.w), int(sub.y + fy * sub.h))
+                  for fx in (0.05, 0.5, 0.95) for fy in (0.1, 0.5, 0.9)]
+        found = {}
+        for start in starts:
+            for deg in range(0, 360, 5):
+                a = math.radians(deg)
+                dx, dy = math.cos(a), math.sin(a)
+                pts, hits = [start], []
+                for k in range(1, 400):
+                    x = round(start[0] + dx * self.STEP * k)
+                    y = round(start[1] + dy * self.STEP * k)
+                    if not self.state.bounds.contains(x, y):
+                        break
+                    pts.append((x, y))
+                    hits.append(ddg.resolve_hit(layout, chain, x, y))
+                    if not plaza.contains(x, y) and hits[-1].zone == dm().ZONE_NONE:
+                        break
+                if not hits or hits[-1].zone != dm().ZONE_NONE:
+                    continue
+                left = next((n for n, h in enumerate(hits) if h.zone not in inside), None)
+                if left is None or any(h.zone in inside and h.depth != len(chain.panels) - 1
+                                       for h in hits) \
+                        or any(h.zone in inside for h in hits[left:]):
+                    continue
+                crossed = [h.label_id for h in hits if h.zone == dm().ZONE_LABEL]
+                others = [c for c in dict.fromkeys(crossed)
+                          if c != self.state.open_label and self.eligible(c)]
+                if not others:
+                    continue
+                rows = {layout.item(c).row_key for c in crossed}
+                open_row = layout.item(self.state.open_label).row_key
+                if open_row in rows and abs(dy) <= 1.2 * abs(dx):
+                    continue
+                if abs(dy) > 2 * abs(dx) and dy < 0:
+                    kind = 'down'
+                elif abs(dx) > 2 * abs(dy) and md().ROW_TOOL_SETTINGS in rows:
+                    kind = 'sideways'
+                else:
+                    kind = 'diagonal'
+                found.setdefault(kind, (pts, others))
+        return found
+
+    def walk(self, points):
+        since = 0.0
+        for xy in points[1:]:
+            self.clock[0] += self.DT
+            since += self.DT
+            self.move(xy)
+            if since >= 0.05:
+                since = 0.0
+                self.ev('TIMER', 'NOTHING')
+
+    def test_hand_exits_keep_the_chain(self):
+        self.enter_import()
+        paths = self.exit_paths()
+        self.assertGreaterEqual(len(paths), 2, sorted(paths))
+        self.assertIn('down', paths)
+        for kind, (pts, crossed) in sorted(paths.items()):
+            with self.subTest(kind=kind, crossed=crossed):
+                self.move(pts[0])
+                self.assertEqual(self.keys(), ['TOPBAR_MT_file', 'TOPBAR_MT_file_import'])
+                opened = list(self.state.menus.opened)
+                self.walk(pts)
+                for _ in range(20):                        # 1 s: > 2x hover_close_delay
+                    self.tick(0.05)
+                self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+                self.assertEqual(self.keys(), ['TOPBAR_MT_file', 'TOPBAR_MT_file_import'])
+                self.assertEqual(self.state.menus.opened, opened, "nothing else opened")
+                self.assertIsNone(self.bar().switch_wait)
+                self.assertTrue(_hb().is_running())
+        self.click(self.outside())
+        self.assertIsNone(self.state.dropdowns, "an empty click closes the chain")
+        self.assertEqual((self.executed, self.run_calls), ([], []))
+
+    def test_rest_on_a_crossed_label_switches_to_a_sticky_chain(self):
+        self.enter_import()
+        pts, crossed = self.exit_paths()['down']
+        ddg = _mod("core.dropdown_geometry")
+        layout, chain = self.state.layout, self.state.menus.chain
+        i = next(i for i, xy in enumerate(pts)
+                 if ddg.resolve_hit(layout, chain, *xy).label_id == crossed[0])
+        self.walk(pts[:i + 1])
+        self.assertEqual((self.state.open_label, self.state.hover_id, self.bar().switch_wait),
+                         ('TOPBAR_MT_file', crossed[0], crossed[0]))
+        self.tick(0.06)
+        self.assertEqual(self.state.open_label, crossed[0], "the rest switches")
+        self.assertEqual((self.bar().opened_by, self.bar().sticky), ('hover', True))
+        self.walk([pts[i]] + pts[i + 1:])
+        self.tick(1.0)
+        self.assertEqual(self.state.open_label, crossed[0], "the switched chain is sticky")
+        self.ev('ESC', 'PRESS')
+        self.assertIsNone(self.state.dropdowns, "Esc closes it")
+        self.assertTrue(_hb().is_running())
+
+    def test_brush_past_still_closes(self):
+        """A hover-opened File the pointer never entered: a steep move up out of the Plaza
+        over the corner of Edit (not a slide along the bar) switches to it at once
+        (transient), and Edit closes after the grace."""
+        self.move(self.label_xy('TOPBAR_MT_file'))
+        self.tick(0.06)
+        self.assertTrue(self.bar().transient)
+        ddg = _mod("core.dropdown_geometry")
+        edit = self.state.layout.item('TOPBAR_MT_edit').rect
+        x0, y0 = int(edit.x) - 4, int(edit.y) + 4
+        pts = [(x0 + 3 * k, y0 + 5 * k) for k in range(12)]
+        hits = [ddg.resolve_hit(self.state.layout, self.state.menus.chain, *xy) for xy in pts]
+        self.assertEqual(hits[0].label_id, 'TOPBAR_MT_file')
+        self.assertIn('TOPBAR_MT_edit', [h.label_id for h in hits])
+        self.assertEqual(hits[-1].zone, dm().ZONE_NONE)
+        self.walk(pts)
+        self.assertEqual((self.state.open_label, self.bar().transient), ('TOPBAR_MT_edit', True))
+        self.assertEqual(self.state.menus.opened, ['TOPBAR_MT_file', 'TOPBAR_MT_edit'])
+        self.tick(0.35)
+        self.assertIsNone(self.state.dropdowns, "never entered: closes after the grace")
+        self.assertTrue(_hb().is_running())
 
 
 class TestRuns(_Case):

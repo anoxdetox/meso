@@ -63,9 +63,9 @@ cell's action (in place: the re-record updates the checks; the chain stays open)
 Hover-open (docs/phase4-interfaces.md "Hover-open"): the pref snapshots ``hover_open`` /
 ``hover_open_delay`` / ``hover_close_delay`` go into the reducer; the reducer opens a
 ROLE_DROPDOWN label after the delay (on the watchdog Timer) and closes a hover-opened chain
-once the pointer has left it, so D only adds the ``aiming`` of HoverLabel. Eligibility is
-the label role (:func:`hover_eligible`): no hand-off, apply or native label ever opens on a
-mere hover.
+once the pointer has left it, so D only adds the ``aiming`` / ``along`` of HoverLabel.
+Eligibility is the label role (:func:`hover_eligible`): no hand-off, apply or native label
+ever opens on a mere hover.
 
 Only plain data lives in :class:`MenuSession` (models, chain layout, cache, reducer state);
 live window / area / region come from ``PlazaState`` during the modal only. ``_end()`` drops
@@ -353,7 +353,8 @@ def _sliding_along_bar(session: MenuSession, state: Any, xy: tuple[float, float]
                        hit: Hit) -> bool:
     """The pointer over another label of the open label's row, reached by a sideways move
     (``core.dropdown_geometry.along_row``, heading from the same ``aim_origin`` as
-    :func:`_aiming_chain`): a slide along the bar, never an aim at the open chain."""
+    :func:`_aiming_chain`): a slide along the bar, never an aim at the open chain, and the
+    only move that switches a sticky chain at once (``HoverLabel.along``)."""
     if hit.zone != ZONE_LABEL or hit.label_id is None or hit.label_id == session.bar.open_label:
         return False
     layout = getattr(state, 'layout', None)
@@ -385,7 +386,8 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
     """The one reducer event of a modal event (None = not ours: the modal keeps its Phase 1
     handling): MOUSEMOVE / INBETWEEN_MOUSEMOVE -> HoverItem (inside a panel; ``aiming`` from
     ``is_aiming(prev_xy, xy, <rect of the submenu below the hovered level>)``) or HoverLabel
-    (``aiming``: toward a panel of the open chain, ``is_approaching``);
+    (``along``: a slide along the open label's row, :func:`_sliding_along_bar`; else
+    ``aiming``: toward a panel of the open chain, ``is_approaching``);
     LMB PRESS / DOUBLE_CLICK / RELEASE -> Press / Release; the release key's RELEASE ->
     SpaceRelease; ESC PRESS -> Esc; TIMER -> Timer; ``core.menubar.NAV_KEYS`` PRESS -> Nav,
     except the enter keys: their PRESS only arms (``session.enter_armed``; None = swallowed
@@ -418,10 +420,12 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
     target = target_for(session, state, hit)
     if etype in MOUSE_MOVES:
         inside = hit.zone in (ZONE_ITEM, ZONE_PANEL)
+        along = False
         if inside:
             aiming = _aiming(session, xy, hit)
         else:
-            aiming = _aiming_chain(session, xy) and not _sliding_along_bar(session, state, xy, hit)
+            along = session.bar.is_open and _sliding_along_bar(session, state, xy, hit)
+            aiming = not along and _aiming_chain(session, xy)
         session.prev_xy = xy
         session.trail = (session.trail + [xy])[-ddg.AIM_TRAIL_LEN:]
         session.target = target
@@ -429,7 +433,7 @@ def reducer_event(session: MenuSession, state: Any, event: Any, now: float) -> E
             return HoverItem(hit.path if hit.zone == ZONE_ITEM else None, target.role, now,
                              aiming, target.action, target.cell)
         return HoverLabel(hit.label_id if hit.zone == ZONE_LABEL else None, target.role, now,
-                          target.action, aiming)
+                          target.action, aiming, along)
     session.target = target
     if value in PRESS_VALUES:
         return Press(menubar.LMB, target, now)
