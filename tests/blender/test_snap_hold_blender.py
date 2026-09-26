@@ -658,6 +658,26 @@ class TestPivotOnce(HoldCase):
         self.assertEqual(state(), dict(header, use_transform_data_origin=False))
         self.assertFalse(mod.session().active)
 
+    def test_scene_rename_while_armed_still_restores(self):
+        """Review finding: the session found its scene by name, so a rename while D was armed
+        dropped the one-shot without writing the user's value back (stuck on)."""
+        mod = hold()
+        scene = bpy.context.scene
+        old = scene.name
+        self.addCleanup(setattr, scene, 'name', old)
+        self.tap()
+        scene.name = old + " renamed"
+        self.assertIsNone(mod.once_tick([[]], (1, 'X')))
+        self.assertTrue(mod.once_armed())
+        mod.once_tick(self.TR, (1, 'X'))
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        self.assertEqual(state(), USER)
+        self.assertFalse(mod.session().active)
+        self.assertEqual(self.tap(), 'ARM')                 # not "already on"
+        scene.name = old
+        self.assertEqual(self.tap(), 'CANCEL')
+        self.assertEqual(state(), USER)
+
     def test_watcher_keeps_it_armed_with_no_hold_operator(self):
         mod = hold()
         self.tap()

@@ -111,7 +111,7 @@ class HoldSession:
     session active for as long as it stays armed, so without these two rules a snap change the
     user made meanwhile would be undone by the last release.
     """
-    scene: str | None = None
+    scene: object = None      # the scene's key (a plain value: ``ID.session_uid``)
     baseline: Snapshot | None = None
     held: list = field(default_factory=list)       # [(key, element)], press order
     written: set = field(default_factory=set)

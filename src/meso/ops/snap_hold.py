@@ -35,8 +35,8 @@ Insert pivot toggle (docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivo
 - ``meso.pivot_toggle`` (Insert) flips Affect Only Origins, the persistent mode, like the native
   checkbox. Insert while the one-shot is armed makes it persistent (on, the one-shot ends).
 
-Module state holds plain values only (scene name, snapshots, per-key states); no RNA pointer is
-kept. Hold-J snap inversion *during* a transform is not bound (not verified in a real
+Module state holds plain values only (the scene's ``session_uid``, snapshots, per-key states); no
+RNA pointer is kept. Hold-J snap inversion *during* a transform is not bound (not verified in a real
 transform yet): during a drag, hold Ctrl to invert snapping (native).
 """
 
@@ -143,14 +143,26 @@ def apply_writes(ts, writes) -> None:
         setattr(ts, name, set(value) if name == 'snap_elements' else value)
 
 
-def _session_tool_settings():
-    name = _session.scene
-    if not name:
+def scene_key(scene) -> int:
+    """The session's scene key: ``ID.session_uid``, a plain integer that survives a rename and
+    a memfile undo (verified facts), unlike the name: a D tap stays armed for any length of
+    time, and a rename meanwhile must not lose the scene whose value it has to restore."""
+    return scene.session_uid
+
+
+def _session_scene():
+    key = _session.scene
+    if key is None:
         return None
     try:
-        scene = bpy.data.scenes.get(name)
+        scenes = bpy.data.scenes
     except AttributeError:            # bpy.data restricted
         return None
+    return next((s for s in scenes if s.session_uid == key), None)
+
+
+def _session_tool_settings():
+    scene = _session_scene()
     return scene.tool_settings if scene is not None else None
 
 
@@ -405,13 +417,13 @@ def start_hold(context, key: str, element: str) -> bool:
     scene = getattr(context, 'scene', None)
     if scene is None or foreign_now(context):
         return False
-    if _session.active and _session.scene != scene.name:
+    if _session.active and _session.scene != scene_key(scene):
         end_all(context)                    # the scene changed under a hold
     stale = _ops.pop(key, None)
     if stale is not None and _session.holds(key):
         release_key(key, context)
     ts = scene.tool_settings
-    apply_writes(ts, _session.press(key, element, scene.name, snapshot(ts)))
+    apply_writes(ts, _session.press(key, element, scene_key(scene), snapshot(ts)))
     _ops[key] = sh.HoldState(key, time.monotonic())
     _start_watch()
     return True
@@ -522,9 +534,9 @@ def tap_once(context) -> str | None:
     last = last_registered(context)
     new, action = po.tap(st, bool(ts.use_transform_data_origin), last[0] if last else None)
     if action == po.ARM:
-        if _session.active and _session.scene != scene.name:
+        if _session.active and _session.scene != scene_key(scene):
             end_all(context)                # the scene changed under a hold
-        apply_writes(ts, _session.press(po.ONCE_KEY, sh.PIVOT, scene.name, snapshot(ts)))
+        apply_writes(ts, _session.press(po.ONCE_KEY, sh.PIVOT, scene_key(scene), snapshot(ts)))
         _start_watch()
     elif action == po.CANCEL:
         release_key(po.ONCE_KEY, context)
@@ -635,7 +647,8 @@ def toggle_origins(context) -> bool | None:
         _set_once(po.Once())
     ts = scene.tool_settings
     name = 'use_transform_data_origin'
-    holding = _session.active and _session.scene == scene.name and name in _session.written
+    holding = (_session.active and _session.scene == scene_key(scene)
+               and name in _session.written)
     new = not (_session.baseline.use_transform_data_origin if holding else ts.use_transform_data_origin)
     writes = _session.user_set(name, new, snapshot(ts)) if holding else None
     if writes is None:
