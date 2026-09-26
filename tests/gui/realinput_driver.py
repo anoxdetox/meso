@@ -957,6 +957,13 @@ D_SCENARIOS = [
 
 # ------------------------------------------------------------------------------ G16: multi-drag
 
+def track_until(case, cond, timeout):
+    """``track()`` in small steps until ``cond()`` holds or ``timeout`` seconds passed."""
+    end = time.monotonic() + timeout
+    while not cond() and time.monotonic() < end:
+        yield from track(case, 0.015)
+
+
 def track(case, seconds):
     """``wait()`` plus the transforms: start and end times, and every distinct snap state read
     while one ran (a single state per transform: nothing was written during it)."""
@@ -1053,7 +1060,11 @@ def multi(steps, expect, tool_id="builtin.select", in_check=None):
                 if kind == "key":
                     XT.key("x", arg)
                     if arg:
-                        yield from track(case, 0.08)
+                        # The nested session can hold input back ~150 ms: sample the overlay
+                        # as soon as the hold runs (its press wrote it), not a fixed time after
+                        # XTEST; no fixed wait on top (ri_x_drag_in_the_check's drag 2 must
+                        # still come before the first OS repeat).
+                        yield from track_until(case, lambda: 'MESO_OT_snap_hold' in modal_ids(), 1.0)
                         case["overlay"] = snap_state()
                 elif kind == "wait":
                     yield from track(case, arg)
