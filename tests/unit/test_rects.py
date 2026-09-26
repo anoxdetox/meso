@@ -368,5 +368,22 @@ class TestBoundingBox(unittest.TestCase):
             self.assertEqual(bb.y1, max(r.y1 for r in live))
 
 
+class TestFitsInside(unittest.TestCase):
+
+    def test_fits_inside(self):
+        rects = importlib.import_module(_load_core() + ".rects")
+        R, fits = rects.Rect, rects.fits_inside
+        bounds = R(0, 0, 100, 50)
+        self.assertTrue(fits(R(5, 5, 90, 40), bounds, 5))
+        self.assertFalse(fits(R(4, 5, 90, 40), bounds, 5), "into the margin")
+        self.assertFalse(fits(R(5, 5, 90, 41), bounds, 5))
+        self.assertFalse(fits(R(10, -20, 20, 20), bounds), "below the bounds")
+        self.assertTrue(fits(R(0, 0, 100, 50), bounds, 30), "an empty inset: the bounds")
+        self.assertTrue(fits(R(0, 0, 500, 500), None))
+        self.assertTrue(fits(None, bounds))
+        self.assertEqual(rects.inset(bounds, 5), R(5, 5, 90, 40))
+        self.assertEqual(rects.inset(bounds, 25), bounds)
+
+
 if __name__ == "__main__":
     unittest.main()

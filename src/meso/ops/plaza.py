@@ -113,7 +113,8 @@ class PlazaState:
     area_ptr: int = 0
     plaza_style: str = 'FULL'
     plaza_anchor: str = 'CURSOR'
-    draw_scope: str = 'WINDOW'            # core.geometry.effective_scope: AREA only over an area
+    draw_scope: str = 'WINDOW'            # core.geometry.effective_scope: AREA only over an area;
+                                          # WINDOW once a piece does not fit it (widen_scope)
     seams: tuple = ()                     # core.dropdown_geometry.area_seams(screen.areas)
     area_type: str | None = None          # None over no area; 'TOPBAR'/'STATUSBAR' over bars
     area_ui_type: str | None = None
@@ -409,9 +410,9 @@ def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
                                    state.font_scale, state.row_spacing,
                                    cap_height_fn=renderer.cap_height)
     bounds = state.bounds or Rect(0, 0, window.width, window.height)
-    state.layout = geometry.layout(state.model, state.anchor, bounds, metrics,
-                                   renderer.text_width_fn(metrics.font_px),
-                                   ticks=style_parts(state.plaza_style).ticks)
+    # Phase 6 §4: a Plaza bigger than the area of the AREA scope is drawn over the window.
+    state.layout = dropdowns.layout_in_scope(state, bounds, metrics,
+                                             style_parts(state.plaza_style).ticks)
     state.palette = theme.from_preferences(context, state.palette_style, state.transparency,
                                            state.custom_colors)
     state.hover_id = geometry.hit_test(state.layout, *press)
@@ -428,8 +429,9 @@ def place_plaza(state: PlazaState, area, window, anchor_mode: str | None,
     reports no size). ``area`` / ``window`` are the live objects of the running invoke /
     modal (read, never stored). Invoke calls it with the pref snapshots; an in-Plaza
     preference change (``ops.dropdowns.rebuild_after_mode_change``) calls it with the new
-    values, then re-lays the Plaza out at ``state.anchor`` in ``state.bounds``. Never
-    raises."""
+    values, then re-lays the Plaza out at ``state.anchor`` in ``state.bounds``
+    (``ops.dropdowns.layout_in_scope``: a Plaza the area cannot hold widens AREA to
+    WINDOW). Never raises."""
     try:
         press = state.press if state.press is not None else state.anchor
         area_rect = state.area_bounds

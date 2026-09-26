@@ -182,6 +182,20 @@ class TestPlacement(unittest.TestCase):
         self.assertLessEqual(top.extent.x + top.extent.w, 1600 - m)
         self.assertLessEqual(top.extent.y + top.extent.h, 900 - m)
 
+    def test_fits_whole(self):
+        """Phase 6 §4: what the AREA draw scope keeps in the area."""
+        wide = cp.place_compass(compass(8, 6), (800, 450), metrics(), BOUNDS, width_fn)
+        self.assertTrue(cp.fits_whole(wide, BOUNDS))
+        short = Rect(0, 400, 1600, 74)          # a Timeline-sized area
+        lay = cp.place_compass(compass(8, 6), (800, 440), metrics(), short, width_fn)
+        self.assertFalse(cp.fits_whole(lay, short), "radial and list stick out")
+        tall = Rect(0, 0, 1600, 300)            # the radial fits, the list is capped
+        lay = cp.place_compass(compass(8, 40), (800, 150), metrics(), tall, width_fn)
+        self.assertTrue(lay.scrolls)
+        self.assertFalse(cp.fits_whole(lay, tall), "a capped list does not show whole")
+        free = cp.place_compass(compass(8, 40), (800, 150), metrics(), None, width_fn)
+        self.assertTrue(cp.fits_whole(free, None), "no bounds: nothing to fit")
+
     def test_scale(self):
         a = cp.place_compass(compass(8), (800, 450), metrics(1.0), BOUNDS, width_fn)
         b = cp.place_compass(compass(8), (800, 450), metrics(2.0), BOUNDS, width_fn)

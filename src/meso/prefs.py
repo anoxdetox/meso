@@ -441,14 +441,21 @@ def _draw_plaza(layout, prefs) -> None:
     col.prop(prefs, "plaza_anchor")
     col.prop(prefs, "plaza_draw_scope")
     rows_col = col.column(heading="Show")
-    rows_col.active = prefs.plaza_style == zones.STYLE_FULL
-    for name in ("show_root_row", "show_contextual_row", "show_tool_settings_row"):
-        rows_col.prop(prefs, name)
+    full = prefs.plaza_style == zones.STYLE_FULL
+    sub = rows_col.column()
+    sub.active = full                   # only Full draws the rows and side boxes
+    for name in ("show_root_row", "show_contextual_row"):
+        sub.prop(prefs, name)
+    # The Tool Settings toggles stay active in every style: without the rows they still
+    # shape the Tool Settings Compass (record.rows.compass_tool_settings_row).
+    rows_col.prop(prefs, "show_tool_settings_row")
     sub = rows_col.column()
     sub.active = prefs.show_tool_settings_row
     sub.prop(prefs, "show_display_controls")
+    sub = rows_col.column()
+    sub.active = full
     for name in ("show_workspace_row", "show_recent_commands", "show_recent_files"):
-        rows_col.prop(prefs, name)
+        sub.prop(prefs, name)
     _draw_editors(layout, prefs)
 
 

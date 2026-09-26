@@ -13,6 +13,7 @@ a file browser (-b): the operators run EXEC.
 import json
 import math
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -287,6 +288,7 @@ class _PresetCase(unittest.TestCase):
 
         self.addCleanup(clean)
         self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
 
     def write(self, name, doc):
         path = os.path.join(self.tmp, name)
@@ -357,6 +359,67 @@ class TestPresetFiles(_PresetCase):
         self.assertEqual(_presets().list_presets(), sorted(_presets().list_presets(),
                                                             key=str.casefold))
         self.assertIn("_.._escape", _presets().list_presets())
+
+    def test_hand_copied_files_load_and_delete(self):
+        """A file put in the folder by hand is listed by its stem as it is; Load and Delete
+        open that very file (never a name rebuilt through safe_name)."""
+        pr, pp = _presets(), _pp()
+        p = _prefs()
+        doc = json.dumps(pp.to_document({'transparency': 33}))
+        for file_name, name in (("a:b.json", "a:b"), ("Studio.JSON", "Studio"),
+                                ("my[1].json", "my[1]")):
+            with self.subTest(file_name=file_name):
+                path = os.path.join(self.folder, file_name)
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(doc)
+                self.assertIn(name, pr.list_presets())
+                self.assertEqual(pr.preset_file(name), path)
+                p.transparency = 5
+                self.assertEqual(bpy.ops.meso.prefs_preset_load('EXEC_DEFAULT', name=name),
+                                 {'FINISHED'})
+                self.assertEqual(p.transparency, 33)
+                self.assertEqual(bpy.ops.meso.prefs_preset_delete('EXEC_DEFAULT', name=name),
+                                 {'FINISHED'})
+                self.assertFalse(os.path.exists(path))
+                self.assertNotIn(name, pr.list_presets())
+        self.assertIsNone(pr.preset_file("never saved"))
+        # Both 'x.json' and 'x.JSON': 'x' is the '.json' one, listed once.
+        for file_name, value in (("x.json", 40), ("x.JSON", 60)):
+            with open(os.path.join(self.folder, file_name), 'w', encoding='utf-8') as f:
+                f.write(json.dumps(pp.to_document({'transparency': value})))
+        self.assertEqual(pr.list_presets().count("x"), 1)
+        pr.load_preset(p, "x")
+        self.assertEqual(p.transparency, 40)
+
+    def test_export_to_a_folder_is_refused(self):
+        folder = os.path.join(self.tmp, "sub")
+        os.mkdir(folder)
+        for path in (folder + os.sep, folder):
+            with self.subTest(path=path), self.assertRaises(RuntimeError, msg="an ERROR"):
+                bpy.ops.meso.prefs_export('EXEC_DEFAULT', filepath=path)
+        self.assertEqual(os.listdir(folder), [], "no hidden '.json' file")
+
+    def test_deep_and_huge_files_never_raise(self):
+        pr, pp = _presets(), _pp()
+        p = _prefs()
+        p.transparency, p.font_scale = 10, 1.0
+        before = pr.read_values(p)
+        deep = self.write("deep.json", '{"format": "%s", "version": %d, "values": {"x": '
+                          % (pp.FORMAT, pp.VERSION) + "[" * 200000 + "]" * 200000 + "}}")
+        applied, warnings = pr.import_file(p, deep)
+        self.assertEqual((applied, len(warnings)), ([], 1), warnings)
+        self.assertEqual(pr.read_values(p), before, "nothing changed")
+        self.assertEqual(pr.last_result['warnings'], warnings, "recorded")
+        self.assertEqual(bpy.ops.meso.prefs_import('EXEC_DEFAULT', filepath=deep),
+                         {'CANCELLED'})
+        huge = self.write("huge.json", '{"format": "%s", "version": %d, "values": '
+                          '{"transparency": 50, "font_scale": 1%s}}'
+                          % (pp.FORMAT, pp.VERSION, "0" * 400))
+        applied, warnings = pr.import_file(p, huge)
+        self.assertEqual(sorted(applied), ['font_scale', 'transparency'])
+        self.assertEqual(len(warnings), 1, warnings)
+        self.assertEqual(p.transparency, 50, "the other values still load")
+        self.assertEqual(p.font_scale, 3.0, "clamped")
 
     def test_export_import_round_trip_of_every_key(self):
         pp, pr = _pp(), _presets()
@@ -470,14 +533,19 @@ class TestNextInvoke(_PresetCase):
 
 
 class _Layout:
-    """Records ``prop`` / ``prop_enum`` / operator ids and the sub-panels; ``closed``: the
-    panel idnames drawn closed (their body is None)."""
+    """Records ``prop`` / ``prop_enum`` (with whether the layout is active, parents
+    included) / operator ids and the sub-panels; ``closed``: the panel idnames drawn closed
+    (their body is None)."""
 
-    def __init__(self, log, closed=()):
-        self._log, self._closed = log, closed
+    def __init__(self, log, closed=(), parent=None):
+        self._log, self._closed, self._parent = log, closed, parent
+        self.active = True
 
     def _child(self, *a, **k):
-        return _Layout(self._log, self._closed)
+        return _Layout(self._log, self._closed, self)
+
+    def _active(self):
+        return bool(self.active) and (self._parent is None or self._parent._active())
 
     row = column = box = split = column_flow = grid_flow = _child
 
@@ -486,10 +554,10 @@ class _Layout:
         return self._child(), (None if idname in self._closed else self._child())
 
     def prop(self, data, name, **k):
-        self._log.append(('prop', name))
+        self._log.append(('prop', name, self._active()))
 
     def prop_enum(self, data, name, value, **k):
-        self._log.append(('prop', name))
+        self._log.append(('prop', name, self._active()))
 
     def operator(self, idname, **k):
         self._log.append(('op', idname))
@@ -535,6 +603,25 @@ class TestPrefsPage(unittest.TestCase):
         self.assertTrue({'meso.prefs_preset_load', 'meso.prefs_preset_save',
                          'meso.prefs_preset_delete', 'meso.prefs_export',
                          'meso.prefs_import'} <= ops)
+
+    def test_row_toggles_greyed_only_where_they_do_nothing(self):
+        """Outside Full the rows are not drawn, but the Tool Settings toggles still shape the
+        Tool Settings Compass: they stay active."""
+        tool = ('show_tool_settings_row', 'show_display_controls')
+        rows = ('show_root_row', 'show_contextual_row', 'show_workspace_row',
+                'show_recent_commands', 'show_recent_files')
+        for style in ('FULL', 'ZONES_ONLY', 'CENTER_ONLY'):
+            with self.subTest(style=style):
+                active = {e[1]: e[2] for e in self._draw(plaza_style=style,
+                                                         show_tool_settings_row=True)
+                          if e[0] == 'prop'}
+                for name in tool:
+                    self.assertTrue(active[name], name)
+                for name in rows:
+                    self.assertEqual(active[name], style == 'FULL', name)
+        active = {e[1]: e[2] for e in self._draw(show_tool_settings_row=False)
+                  if e[0] == 'prop'}
+        self.assertFalse(active['show_display_controls'], "inside the hidden row")
 
     def test_a_closed_section_draws_nothing(self):
         drawn = {e[1] for e in self._draw(closed=('meso_prefs_look',)) if e[0] == 'prop'}

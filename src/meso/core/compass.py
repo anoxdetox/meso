@@ -34,13 +34,14 @@ from .dropdown_model import (
     DD_LABEL, DD_SEPARATOR, PASSIVE_DD_KINDS, DropdownItem, DropdownModel, Path, has_arrow,
     has_check, radio_glyph,
 )
-from .rects import Rect
+from .rects import Rect, fits_inside
 
 __all__ = (
     'COMPASS_DEAD_PX', 'COMPASS_TAP_TIMEOUT', 'DIRECTIONS', 'DIRECTION_ANGLE', 'LIST_DWELL',
     'LIST_STILL_PX', 'MIN_LIST_ROWS', 'PAN_UNIT_PX', 'PIE_ORDER', 'SCROLL_REPEAT',
     'CancelCompass', 'CompassLayout', 'CompassModel', 'CompassState', 'Pick', 'Scroll',
-    'SlotBox', 'angle_to', 'compass_step', 'direction_index', 'list_path_at', 'max_scroll',
+    'SlotBox', 'angle_to', 'compass_step', 'direction_index', 'fits_whole', 'list_path_at',
+    'max_scroll',
     'on_list', 'open_state', 'pan_steps', 'pick_slot', 'pie_direction', 'place_compass',
     'scroll_arrow_at', 'scroll_by', 'slot_offsets',
 )
@@ -451,6 +452,14 @@ def place_compass(model: CompassModel, centre: tuple[float, float], dm: Dropdown
     return CompassLayout((cx + dx, cy + dy), dead_r, boxes, panel, ext, dm, (dx, dy),
                          rows, s, up, down, bool(fixed), model.key,
                          _signature(model.key, boxes, panel, s))
+
+
+def fits_whole(layout: CompassLayout, bounds: Rect | None) -> bool:
+    """``layout`` (a moving Compass placed in ``bounds``) shows whole there: its extent lies
+    inside ``bounds`` inset by the margin and its list is not capped (no item hidden). The
+    Plaza's AREA draw scope keeps a Compass in the area only then (phase6-interfaces.md §4)."""
+    return (fits_inside(layout.extent, bounds, layout.metrics.margin)
+            and not layout.scrolls)
 
 
 def max_scroll(layout: CompassLayout | None) -> int:

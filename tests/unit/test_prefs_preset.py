@@ -123,6 +123,22 @@ class TestWarnings(unittest.TestCase):
         self.assertEqual(self._one('scale', 9), {'scale': 3.0})
         self.assertEqual(self._one('colour', [2, 0.5, -1]), {'colour': (1.0, 0.5, 0.0)})
 
+    def test_huge_integers_skip_or_clamp_only_that_value(self):
+        # JSON reads a 400-digit integer literal exactly; float() of it overflows.
+        huge = 10 ** 400
+        text = ('{"format": "%s", "version": %d, "values": {"count": 7, "scale": %d, '
+                '"colour": [%d, 0.5, 0.5]}}' % (pp.FORMAT, pp.VERSION, huge, -huge))
+        values, warnings = pp.from_document(json.loads(text), SCHEMA)
+        self.assertEqual(values, {'count': 7, 'scale': 3.0, 'colour': (0.0, 0.5, 0.5)},
+                         "the other values are kept; the huge ones are clamped")
+        self.assertEqual(len(warnings), 2, warnings)
+        self.assertTrue(all(len(w) < 80 for w in warnings), "the number is shortened")
+        self.assertEqual(self._one('count', huge), {'count': 100})
+        unbounded = {'scale': F(pp.KIND_FLOAT), 'n': F(pp.KIND_INT)}
+        values, warnings = pp.from_document(_doc({'scale': huge, 'n': 5}), unbounded)
+        self.assertEqual(values, {'n': 5}, "no range to clamp into: skipped")
+        self.assertEqual(len(warnings), 1)
+
     def test_unknown_enum_ids(self):
         self.assertEqual(self._one('style', 'HUGE'), {})
         values = self._one('editors', ['VIEW_3D', 'NEW_EDITOR'])

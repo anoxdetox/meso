@@ -182,3 +182,21 @@ def bounding_box(rects: Iterable[Rect]) -> Rect | None:
     if x0 is None:
         return None
     return Rect.from_corners(x0, y0, x1, y1)
+
+
+def inset(bounds: Rect, margin: float) -> Rect:
+    """``bounds`` shrunk by ``margin`` on every side; ``bounds`` itself when that leaves
+    nothing (the rule the Plaza and Compass clamps use)."""
+    inner = Rect(bounds.x + margin, bounds.y + margin, bounds.w - 2 * margin,
+                 bounds.h - 2 * margin)
+    return bounds if inner.is_empty() else inner
+
+
+def fits_inside(rect: Rect | None, bounds: Rect | None, margin: float = 0) -> bool:
+    """``rect`` lies wholly inside ``bounds`` inset by ``margin`` (:func:`inset`). No
+    ``bounds`` (None / empty): True, nothing to fit; no ``rect``: True."""
+    if rect is None or rect.is_empty() or bounds is None or bounds.is_empty():
+        return True
+    inner = inset(bounds, margin)
+    return (inner.x <= rect.x and rect.x1 <= inner.x1
+            and inner.y <= rect.y and rect.y1 <= inner.y1)

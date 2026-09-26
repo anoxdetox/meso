@@ -23,8 +23,8 @@ from bpy.props import BoolProperty, EnumProperty, StringProperty
 from ..core import prefs_preset as pp
 
 __all__ = ('apply_document', 'build_schema', 'export_file', 'import_file', 'last_result',
-           'list_presets', 'load_preset', 'preset_path', 'presets_dir', 'read_values',
-           'save_preset')
+           'list_presets', 'load_preset', 'preset_file', 'preset_path', 'presets_dir',
+           'read_values', 'save_preset')
 
 _ROOT = __package__.rpartition('.')[0]      # the add-on package (bl_ext.<repo>.meso)
 EXT = '.json'
@@ -123,22 +123,50 @@ def presets_dir(create: bool = False) -> str | None:
     return path if path and (create or os.path.isdir(path)) else None
 
 
+def _preset_files(folder: str) -> dict[str, str]:
+    """``{name: file name}`` of the presets folder's JSON files: the name is the file stem as
+    it is (a file copied in by hand may hold characters :func:`core.prefs_preset.safe_name`
+    would change), the extension matched without regard to case; when 'x.json' and 'x.JSON'
+    both exist, 'x' is the '.json' one. Empty stems are left out."""
+    files: dict[str, str] = {}
+    try:
+        entries = sorted(os.listdir(folder))
+    except OSError:
+        return files
+    for f in entries:
+        stem = f[:-len(EXT)]
+        if not f.lower().endswith(EXT) or not stem.strip(' .'):
+            continue
+        if not os.path.isfile(os.path.join(folder, f)):
+            continue
+        if stem not in files or f.endswith(EXT):
+            files[stem] = f
+    return files
+
+
 def list_presets() -> list[str]:
-    """The saved preset names (file stems of the presets folder's ``*.json``), sorted."""
+    """The saved preset names (the stems of the presets folder's ``*.json`` files,
+    :func:`_preset_files`), sorted."""
     folder = presets_dir()
     if folder is None:
         return []
-    try:
-        names = [f[:-len(EXT)] for f in os.listdir(folder)
-                 if f.lower().endswith(EXT) and os.path.isfile(os.path.join(folder, f))]
-    except OSError:
-        return []
-    return sorted(names, key=lambda n: (n.casefold(), n))
+    return sorted(_preset_files(folder), key=lambda n: (n.casefold(), n))
+
+
+def preset_file(name: str) -> str | None:
+    """The existing file of the listed preset ``name`` (the folder entry itself, never a
+    name rebuilt through ``safe_name``: what the Load / Delete menus offer is what they
+    open), or None when no preset has that name."""
+    folder = presets_dir()
+    if not name or folder is None:
+        return None
+    f = _preset_files(folder).get(name)
+    return os.path.join(folder, f) if f is not None else None
 
 
 def preset_path(name: str, create: bool = False) -> str | None:
-    """The file of the preset ``name`` (``core.prefs_preset.safe_name``); None for an empty
-    name or no presets folder."""
+    """The file a preset saved as ``name`` is written to (``core.prefs_preset.safe_name``);
+    None for an empty name or no presets folder."""
     stem = pp.safe_name(name)
     folder = presets_dir(create=create)
     if not stem or folder is None:
@@ -162,8 +190,11 @@ def _read(path: str) -> tuple[Any, str | None]:
             return json.load(f), None
     except (OSError, UnicodeDecodeError) as ex:
         return None, f"could not read {os.path.basename(path)} ({ex.__class__.__name__})"
-    except ValueError:
+    except (ValueError, RecursionError):
+        # RecursionError: a document nested too deeply for the parser (not a ValueError).
         return None, f"{os.path.basename(path)} is not a JSON file"
+    except Exception as ex:     # never raise into an operator
+        return None, f"could not read {os.path.basename(path)} ({ex.__class__.__name__})"
 
 
 def export_file(addon_prefs: Any, path: str) -> None:
@@ -193,9 +224,10 @@ def save_preset(addon_prefs: Any, name: str) -> str | None:
 
 
 def load_preset(addon_prefs: Any, name: str) -> tuple[list[str], list[str]]:
-    """Load the saved preset ``name``: ``(applied keys, warnings)`` (:func:`import_file`)."""
-    path = preset_path(name)
-    if path is None or not os.path.isfile(path):
+    """Load the saved preset ``name`` (a :func:`list_presets` name): ``(applied keys,
+    warnings)`` (:func:`import_file`)."""
+    path = preset_file(name)
+    if path is None:
         last_result.clear()
         last_result.update(what=name, applied=[], warnings=[f"no preset named {name!r}"])
         return [], list(last_result['warnings'])
@@ -287,8 +319,8 @@ class MESO_OT_prefs_preset_delete(bpy.types.Operator):
 
     def execute(self, context):
         name = self.name        # read once: the items are the files, this one goes now
-        path = preset_path(name) if name else None
-        if path is None or not os.path.isfile(path):
+        path = preset_file(name)
+        if path is None:
             return {'CANCELLED'}
         try:
             os.remove(path)
@@ -322,7 +354,12 @@ class MESO_OT_prefs_export(_FileOperator, bpy.types.Operator):
         addon_prefs = _prefs(context)
         if addon_prefs is None or not self.filepath:
             return {'CANCELLED'}
-        path = bpy.path.ensure_ext(bpy.path.abspath(self.filepath), EXT)
+        path = bpy.path.abspath(self.filepath)
+        if not os.path.basename(path) or os.path.isdir(path):
+            # A folder (the file name field cleared) would become a hidden '<folder>/.json'.
+            self.report({'ERROR'}, "Choose a file name to export to")
+            return {'CANCELLED'}
+        path = bpy.path.ensure_ext(path, EXT)
         try:
             export_file(addon_prefs, path)
         except (OSError, TypeError, ValueError) as ex:

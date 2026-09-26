@@ -234,10 +234,19 @@ def scenarios(drv):
         import bpy
         root = os.environ.get("BLENDER_USER_EXTENSIONS", "")
         presets = importlib.import_module(drv.ADDON_MODULE + ".ops.prefs_presets")
+        # Check where the folder would go BEFORE creating it: never under ~/.config/blender.
+        try:
+            planned = bpy.utils.extension_path_user(presets._ROOT, path='presets',
+                                                    create=False)
+        except Exception:
+            planned = ""
+        inside = bool(root and planned) and os.path.realpath(planned).startswith(
+            os.path.realpath(root) + os.sep)
+        drv.check(rec, "temp_folder", inside, planned)
+        if not inside:
+            return
         folder = presets.presets_dir(create=True)
-        drv.check(rec, "temp_folder", bool(root) and folder is not None
-                  and os.path.realpath(folder).startswith(os.path.realpath(root)), folder)
-        if not root or folder is None:
+        if folder is None:
             return
         name = "GUI Scenario"
         with prefs_set(transparency=30, plaza_style='FULL', show_recent_files=True) as p:

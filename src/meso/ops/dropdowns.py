@@ -128,6 +128,7 @@ from ..core.menubar import (
     SpaceRelease, Target, Timer, initial_state,
 )
 from ..core.model import PlazaModel, Item, Row, item_action
+from ..core.rects import fits_inside
 from ..record import dropdown as rec_dropdown
 from ..record import popover as rec_popover
 from ..record import rows
@@ -575,17 +576,51 @@ def _replace_row_item(model: PlazaModel, new: Item) -> PlazaModel:
     return dataclasses.replace(model, rows=tuple(rows_out), **line)
 
 
+def area_scope(state: Any) -> bool:
+    """The Plaza draws under the AREA draw scope (Phase 6 §4, ``state.draw_scope``)."""
+    return getattr(state, 'draw_scope', geometry.SCOPE_WINDOW) == geometry.SCOPE_AREA
+
+
+def widen_scope(state: Any) -> bool:
+    """Phase 6 §4 (local/docs/phase6-interfaces.md): a piece that does not fit the hovered
+    area whole (the Plaza, a dropdown or a Compass) ends the AREA draw scope for the rest of
+    this Plaza: ``draw_scope`` WINDOW and ``bounds`` the screen-area bbox
+    (``state.screen_bounds``), so the piece is placed, drawn and reached whole, as the WINDOW
+    scope places it (the parts of an area-clamped piece outside the area would neither draw
+    nor be reachable). True when the scope changed (the caller re-places what it was
+    placing; its redraw covers the new rects); False (nothing done) under WINDOW."""
+    if not area_scope(state):
+        return False
+    state.draw_scope = geometry.SCOPE_WINDOW
+    screen = getattr(state, 'screen_bounds', None)
+    if screen is not None:
+        state.bounds = screen
+    return True
+
+
+def layout_in_scope(state: Any, bounds: Any, metrics: Any, ticks: bool) -> Any:
+    """``core.geometry.layout`` of ``state.model`` at ``state.anchor`` in ``bounds``; under the
+    AREA draw scope a Plaza that does not fit the area (inset by the margin) is laid out
+    again in the screen bounds, and the scope widens (:func:`widen_scope`)."""
+    width = renderer.text_width_fn(metrics.font_px)
+    lay = geometry.layout(state.model, state.anchor, bounds, metrics, width, ticks=ticks)
+    if (area_scope(state) and not fits_inside(lay.plaza_rect, bounds, metrics.margin)
+            and widen_scope(state)):
+        lay = geometry.layout(state.model, state.anchor, state.bounds, metrics, width,
+                              ticks=ticks)
+    return lay
+
+
 def _relayout(state: Any, session: MenuSession, bounds: Any = None) -> None:
     """Re-place the Plaza after a model change (same anchor, bounds and metrics; ``bounds``
-    given: those, after a Phase 6 draw-scope change). The zone ticks follow
+    given: those, after a Phase 6 draw-scope change; one that no longer fits the area of the
+    AREA scope widens it, :func:`layout_in_scope`). The zone ticks follow
     ``state.plaza_style`` (none for CENTER_ONLY)."""
     metrics = state.layout.metrics
     if bounds is None:
         bounds = state.layout.window_bounds
     ticks = zones.style_parts(getattr(state, 'plaza_style', zones.STYLE_FULL)).ticks
-    state.layout = geometry.layout(state.model, state.anchor, bounds,
-                                   metrics, renderer.text_width_fn(metrics.font_px),
-                                   ticks=ticks)
+    state.layout = layout_in_scope(state, bounds, metrics, ticks)
 
 
 def _make_native(state: Any, session: MenuSession, label_id: str) -> None:
@@ -618,17 +653,25 @@ def _fits_area(ab: Any, model: DropdownModel, dm: DropdownMetrics, tw: Any) -> t
     return w, h
 
 
+def _wide_bounds(state: Any) -> Any:
+    """The bounds of a panel that does not fit the invoking area: the whole screen-area bbox
+    (``state.bounds``, D2); under the AREA draw scope that first widens the scope
+    (:func:`widen_scope`: the panel is drawn over the window, whole)."""
+    widen_scope(state)
+    return state.bounds
+
+
 def _dropdown_bounds(state: Any, model: DropdownModel, label_rect: Any,
                      dm: DropdownMetrics, tw: Any) -> Any:
     """Placement bounds of a root dropdown: the invoking area (``state.area_bounds``) when
     the label lies in it and the panel fits it - no row then crosses an area seam, where
-    nothing can draw - else the whole screen-area bbox (``state.bounds``, D2)."""
+    nothing can draw - else the whole screen-area bbox (:func:`_wide_bounds`)."""
     ab = getattr(state, 'area_bounds', None)
     if (ab is not None and ab.contains(label_rect.x, label_rect.y)
             and ab.contains(label_rect.x1 - 1, label_rect.y1 - 1)
             and _fits_area(ab, model, dm, tw) is not None):
         return ab
-    return state.bounds
+    return _wide_bounds(state)
 
 
 def _submenu_bounds(state: Any, model: DropdownModel, parent: Any, dm: DropdownMetrics,
@@ -638,14 +681,14 @@ def _submenu_bounds(state: Any, model: DropdownModel, parent: Any, dm: DropdownM
     ab = getattr(state, 'area_bounds', None)
     size = _fits_area(ab, model, dm, tw)
     if size is None or parent is None:
-        return state.bounds
+        return _wide_bounds(state)
     pr = parent.rect
     if not (ab.contains(pr.x, pr.y) and ab.contains(pr.x1 - 1, pr.y1 - 1)):
-        return state.bounds
+        return _wide_bounds(state)
     w = size[0]
     if pr.x1 + w <= ab.x1 - dm.margin or pr.x - w >= ab.x + dm.margin:
         return ab
-    return state.bounds
+    return _wide_bounds(state)
 
 
 def _label_rect(state: Any, label_id: str | None):

@@ -129,8 +129,22 @@ def short_float(value: float) -> float:
 
 
 def _is_number(raw: Any) -> bool:
-    return isinstance(raw, (int, float)) and not isinstance(raw, bool) \
-        and math.isfinite(raw)
+    """An int (any size: JSON reads a long integer literal exactly) or a finite float; never
+    a bool."""
+    if isinstance(raw, bool):
+        return False
+    if isinstance(raw, int):
+        return True
+    return isinstance(raw, float) and math.isfinite(raw)
+
+
+def _as_float(raw: int | float) -> float:
+    """``float(raw)``; an int too large for a float becomes +/- infinity (the clamp then
+    brings it into range)."""
+    try:
+        return float(raw)
+    except OverflowError:
+        return math.inf if raw > 0 else -math.inf
 
 
 def _clamp(value: float, field: Field) -> float:
@@ -141,6 +155,12 @@ def _clamp(value: float, field: Field) -> float:
     return value
 
 
+def _shown(raw: Any, limit: int = 24) -> str:
+    """``repr(raw)`` for a warning line, shortened to ``limit`` characters."""
+    text = repr(raw)
+    return text if len(text) <= limit else text[:limit - 1] + '…'
+
+
 def _coerce(key: str, raw: Any, field: Field) -> tuple[bool, Any, str | None]:
     """``(ok, value, warning)`` of one stored value (``ok`` False: skip it)."""
     kind = field.kind
@@ -149,34 +169,39 @@ def _coerce(key: str, raw: Any, field: Field) -> tuple[bool, Any, str | None]:
             return True, raw, None
         return False, None, f"{key}: expected true or false, skipped"
     if kind in (KIND_INT, KIND_FLOAT):
-        if not _is_number(raw) or (kind == KIND_INT and not float(raw).is_integer()):
+        whole = not isinstance(raw, float) or raw.is_integer()
+        if not _is_number(raw) or (kind == KIND_INT and not whole):
             what = "a whole number" if kind == KIND_INT else "a number"
             return False, None, f"{key}: expected {what}, skipped"
-        value = int(raw) if kind == KIND_INT else float(raw)
+        value = int(raw) if kind == KIND_INT else _as_float(raw)
         clamped = _clamp(value, field)
+        if not (isinstance(clamped, int) or math.isfinite(clamped)):
+            return False, None, f"{key}: {_shown(raw)} is out of range, skipped"
         if clamped != value:
-            return True, clamped, f"{key}: {raw!r} is out of range, set to {clamped!r}"
+            return True, clamped, f"{key}: {_shown(raw)} is out of range, set to {clamped!r}"
         return True, value, None
     if kind == KIND_VECTOR:
         if not isinstance(raw, list) or len(raw) != field.size \
                 or not all(_is_number(v) for v in raw):
             return False, None, f"{key}: expected {field.size} numbers, skipped"
-        value = tuple(float(v) for v in raw)
+        value = tuple(_as_float(v) for v in raw)
         clamped = tuple(_clamp(v, field) for v in value)
+        if not all(math.isfinite(v) for v in clamped):
+            return False, None, f"{key}: out of range, skipped"
         if clamped != value:
             return True, clamped, f"{key}: out of range, clamped to {list(clamped)!r}"
         return True, value, None
     if kind == KIND_ENUM:
         if isinstance(raw, str) and raw in field.items:
             return True, raw, None
-        return False, None, f"{key}: unknown value {raw!r}, skipped"
+        return False, None, f"{key}: unknown value {_shown(raw)}, skipped"
     if kind == KIND_FLAG:
         if not isinstance(raw, list) or not all(isinstance(v, str) for v in raw):
             return False, None, f"{key}: expected a list of names, skipped"
         unknown = sorted({v for v in raw if v not in field.items})
         value = {v for v in raw if v in field.items}
         if unknown:
-            return True, value, f"{key}: unknown {', '.join(map(repr, unknown))} left out"
+            return True, value, f"{key}: unknown {', '.join(map(_shown, unknown))} left out"
         return True, value, None
     if kind == KIND_STRING:
         if isinstance(raw, str):

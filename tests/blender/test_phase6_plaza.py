@@ -384,6 +384,26 @@ class TestInvoke(_PrefsSaved):
         self.assertNotEqual(state.screen_bounds, state.bounds)
         self.assertEqual(_hb().last_session()['draw_scope'], 'AREA')
 
+    def test_area_scope_too_small_falls_back_to_the_window(self):
+        """A Plaza bigger than the hovered area (the factory Timeline is ~74 px tall) is drawn
+        over the window: under AREA its strips would hang out of the area, undrawn."""
+        rects = _mod("core.rects")
+        p = _prefs()
+        p.plaza_draw_scope = 'AREA'
+        short = min(_window().screen.areas, key=lambda a: a.height)
+        region = _visible(short)
+        self.assertIsNotNone(region)
+        state, _ = self._invoke(short.type, (region.x + 20, region.y + region.height // 2))
+        self.assertEqual(state.area_ptr, short.as_pointer())
+        self.assertEqual(state.draw_scope, 'WINDOW', "widened: it does not fit the area")
+        self.assertEqual(state.bounds, state.screen_bounds)
+        self.assertEqual(state.layout.window_bounds, state.screen_bounds)
+        self.assertTrue(rects.fits_inside(state.layout.plaza_rect, state.screen_bounds))
+        self.assertEqual(_hb().last_session()['draw_scope'], 'WINDOW')
+        # A big area keeps the AREA scope (test_draw_scope).
+        state, _ = self._invoke()
+        self.assertEqual(state.draw_scope, 'AREA')
+
     def test_place_plaza_over_the_bars_falls_back(self):
         hb = _hb()
         rects = _mod("core.rects")
@@ -527,6 +547,56 @@ class TestCompassStyle(_CompassCase):
         for key in ('LEFT_ARROW', 'RIGHT_ARROW', 'DOWN_ARROW', 'UP_ARROW', 'RET'):
             self.assertEqual(self.ev(key, 'PRESS'), {'RUNNING_MODAL'}, key)
         self.assertTrue(_hb().is_running())
+
+
+class TestAreaScopeFallback(_CompassCase):
+    """Phase 6 §4: a Compass or a dropdown the AREA scope's area cannot hold whole is placed
+    over the window, and the scope widens for the rest of the Plaza."""
+
+    def _area_scope(self, area):
+        state = self.state
+        state.screen_bounds = state.bounds
+        state.area_bounds = area
+        state.bounds = area
+        state.draw_scope = 'AREA'
+
+    def _open_settings(self):
+        xy = self.zone_xy('C')
+        self.move(xy)
+        self.ev('MIDDLEMOUSE', 'PRESS', xy)
+        self.assertIsNotNone(self.compass())
+        self.assertEqual(self.compass().model.key, 'meso:settings')
+        return self.compass().layout
+
+    def test_compass_too_big_for_the_area(self):
+        rects = _mod("core.rects")
+        cp = _mod("core.compass")
+        ox, oy = self.origin()
+        self._area_scope(rects.Rect(int(ox) - 700, int(oy) - 37, 1400, 74))
+        layout = self._open_settings()
+        state = self.state
+        self.assertEqual(state.draw_scope, 'WINDOW')
+        self.assertEqual(state.bounds, state.screen_bounds)
+        self.assertTrue(cp.fits_whole(layout, state.screen_bounds) or layout.scrolls)
+        self.assertTrue(rects.fits_inside(layout.extent, state.screen_bounds,
+                                          layout.metrics.margin))
+
+    def test_compass_that_fits_keeps_the_area(self):
+        self._area_scope(self.state.bounds)
+        self._open_settings()
+        self.assertEqual(self.state.draw_scope, 'AREA')
+
+    def test_wide_bounds(self):
+        dd, rects = _mod("ops.dropdowns"), _mod("core.rects")
+        screen, area = rects.Rect(0, 0, 1000, 800), rects.Rect(0, 0, 1000, 70)
+        st = SimpleNamespace(draw_scope='AREA', bounds=area, area_bounds=area,
+                             screen_bounds=screen)
+        self.assertIs(dd._wide_bounds(st), screen)
+        self.assertEqual(st.draw_scope, 'WINDOW')
+        self.assertFalse(dd.widen_scope(st), "already WINDOW")
+        st = SimpleNamespace(draw_scope='WINDOW', bounds=screen, area_bounds=area,
+                             screen_bounds=screen)
+        self.assertIs(dd._wide_bounds(st), screen)
 
 
 class TestInPlaceRebuild(_LiveCase):

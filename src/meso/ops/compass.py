@@ -160,8 +160,12 @@ def _try_open(op: Any, state: Any, context: Any, event: Any) -> Any:
         session.bar, effects = menubar.step(session.bar, Esc())
         dd.execute_effects(op, state, context, effects, before=before)
     session.stroke = None
-    layout = cp.place_compass(model, (x, y), dd.session_metrics(session, state),
-                              getattr(state, 'bounds', None), dd._text_width(session, state))
+    dm, width = dd.session_metrics(session, state), dd._text_width(session, state)
+    bounds = getattr(state, 'bounds', None)
+    layout = cp.place_compass(model, (x, y), dm, bounds, width)
+    if dd.area_scope(state) and not cp.fits_whole(layout, bounds) and dd.widen_scope(state):
+        # Phase 6 §4: a Compass the area cannot hold whole is placed over the window.
+        layout = cp.place_compass(model, (x, y), dm, state.bounds, width)
     pointer = (x, y)
     if layout.shift != (0, 0):
         # Moved to fit the window: the pointer follows the centre, as a Blender pie warps it,

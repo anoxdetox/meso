@@ -78,10 +78,13 @@ Elsewhere a tap keeps Blender's own Space action (play, tools or search).
 The preferences choose a **Style**: *Full* (everything above), *Zones Only* (just the centre box
 and the zone ticks, with every Compass menu) or *Centre Only* (the centre box alone; only its
 own Compass opens). With *Full*, each row and side box can be hidden on its own (the centre box
-and Meso Settings always show). **Position** opens the Plaza at the mouse, at the centre of the
-editor under the mouse, or at the centre of the window; **Draw Over** keeps it inside the
-hovered editor instead of the whole window. **Open the Plaza over** switches it off for chosen
-editors: there Space does what it does in Blender (in the Timeline, for instance, it plays).
+and Meso Settings always show). The Tool Settings row and display controls switches also decide
+what the Tool Settings Compass offers, in every style. **Position** opens the Plaza at the mouse,
+at the centre of the editor under the mouse, or at the centre of the window; **Draw Over** keeps
+it inside the hovered editor instead of the whole window. When the Plaza, a menu or a Compass is
+too big for that editor (a short Timeline, say), it is drawn over the window instead, so nothing
+is cut off. **Open the Plaza over** switches it off for chosen editors: there Space does what it
+does in Blender (in the Timeline, for instance, it plays).
 
 ## Compass menus
 ![The View Compass on the centre box](images/compass_views.png)
@@ -174,16 +177,18 @@ A change takes effect the next time you open the Plaza; there is nothing to rest
 Middle-click the centre box for the settings Compass. Around it: **Meso Settings…** (north), the
 Tool Settings row, the display controls, opening menus on hover, shortcuts in menus, running on
 key release, and Compass menus. In the list under it: which rows show, the style and the
-position. A pick applies at once: the Plaza is drawn again with the change, in the same place,
-and stays open.
+position. A pick applies at once: the Plaza is drawn again with the change and stays open. It
+is laid out again from the point where you pressed Space, so a new position moves it there.
 
 ### Presets
-**Save…** stores every Meso Mode setting under a name; **Load** and **Delete** pick a saved
+**Save…** stores your Meso Mode settings under a name; **Load** and **Delete** pick a saved
 preset. **Export…** and **Import…** write and read a settings file, to take your setup to another
-computer or share it. A preset holds everything on the page, colours and Compass slots included,
-but never your keymap choice or keymap edits. Loading skips what it does not understand (a
-setting from a newer version, a value out of place) and lists it in the Info log; the rest still
-loads. Presets are kept in your own Blender user folder.
+computer or share it. A preset holds the Plaza, Look, Timing, Behaviour and Compass Menus
+settings, colours and slots included (not the debug timing switch). It never holds the Plaza's
+keys, your keymap choice or keymap edits. Loading skips settings it does not know and values that
+do not fit, brings a number that is out of range back into range, and lists each of these in the
+Info log; everything else still loads. A file written in a newer Meso Mode format is not loaded at
+all. Presets are kept in your own Blender user folder.
 
 ## Nothing native is removed
 Every binding can be edited or switched off: the Plaza's in the add-on preferences, the Meso
