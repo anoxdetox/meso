@@ -11,13 +11,14 @@ docs/phase2-interfaces.md):
 - each row is ONE flat strip with its labels laid out left to right inside it; strips are
   centred horizontally on the anchor x and have different widths;
 - top -> bottom: Root, Contextual, Tool Settings strips, then the CENTRE LINE
-  (``files`` box | ``recent`` box | centre box | ``controls`` box), then every other row
-  (Workspace, ...);
+  (``recent`` box over the ``files`` box | centre box | ``controls`` box), then every other
+  row (Workspace, ...);
 - the centre box (height ``center_h``, taller than a strip) is centred on the anchor; the
   side boxes are one-label strips vertically centred on the centre line, aligned to the
   outer edge of the widest neighbouring line (the nearest line above and below the centre
   line) but never closer than ``side_gap`` to the centre box; the ``files`` box ('Recent
-  Files') sits left of the ``recent`` box, ``gap_x`` apart;
+  Files') sits under the ``recent`` box, ``gap_y`` apart, so the Plaza stays as wide on
+  both sides of the anchor as without it (the centre line grows taller instead);
 - four short 45-degree ticks lie on the diagonals through the centre box's centre, just
   outside the Plaza (they mark the N/S/E/W Compass-menu zone borders, Phase 5);
 - empty rows are skipped (no strip, no gap); a row wider than the bounds (or than the soft
@@ -364,17 +365,21 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
        (``arrow_size`` square, vertically centred) starts ``glyph_gap`` right of its text.
     4. Centre box: ``w = ceil(max(text_w + 2*center_pad_x, center_min_w))``, ``h = center_h``,
        centred on the anchor (``round_px`` of the low corner); its text is centred in it.
-    5. Vertical: lines above (ROWS_ABOVE order, each row's lines in reading order) stack
-       upward from ``center.y1 + gap_y`` (lowest line first); lines below stack downward from
-       ``center.y - gap_y`` in model order, ROWS_LAST rows last; line pitch ``row_h + gap_y``.
-    6. Side boxes (``model.recent`` left, ``model.controls`` right): ``w = ceil(text_w +
-       2*pad_x)``, ``h = row_h``, vertically centred on the centre box.
-       ``recent.x = min(nx0, center.x - side_gap - w)`` where ``nx0`` = left edge of the
-       widest of the nearest line above / below (term dropped when there are none);
-       ``controls.x1 = max(nx1, center.x1 + side_gap + w)`` likewise. ``model.files``: the
-       same size rule, ``files.x1 = recent.x - gap_x`` (``center.x - side_gap`` without a
-       recent box, then aligned like it), so it never overlaps the recent box, the centre
-       box or a row strip (it lies within the centre box's height, between the rows).
+    5. Vertical: the centre-line band is the centre box, or, with both ``model.recent`` and
+       ``model.files``, the union of it and their stack (``2*row_h + gap_y`` high, centred on
+       the centre box: ``files.y = round_px(center.y + (center.h - stack_h)/2)``,
+       ``recent.y = files.y + row_h + gap_y``). Lines above (ROWS_ABOVE order, each row's
+       lines in reading order) stack upward from ``band.y1 + gap_y`` (lowest line first);
+       lines below stack downward from ``band.y - gap_y`` in model order, ROWS_LAST rows
+       last; line pitch ``row_h + gap_y``.
+    6. Side boxes (``model.recent`` / ``model.files`` left, ``model.controls`` right): ``w =
+       ceil(text_w + 2*pad_x)``, ``h = row_h``; a lone side box is vertically centred on the
+       centre box. The left column (recent over files, or whichever exists) shares one
+       outer edge ``x = min(nx0, center.x - side_gap - max(w))`` where ``nx0`` = left edge
+       of the widest of the nearest line above / below (term dropped when there are none);
+       ``controls.x1 = max(nx1, center.x1 + side_gap + w)`` likewise. Stacking keeps the
+       Plaza's left extent what it is without Recent Files, so the clamp (step 7) moves the
+       centre box off the anchor no more often than before.
     7. Clamp: ``inner = window_bounds`` inset by ``margin`` (the bounds themselves when that
        is empty). Per axis, the minimal int shift that puts ``plaza_rect`` inside ``inner``;
        if it is larger than ``inner``: x centred on ``inner`` (round_px), y top-aligned
@@ -410,15 +415,27 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     cw = math.ceil(max(c_tw + 2 * m.center_pad_x, m.center_min_w))
     center_rect = Rect(round_px(ax - cw / 2), round_px(ay - m.center_h / 2), cw, m.center_h)
 
+    # Centre-line band: the centre box, or the Recent Commands / Recent Files stack when it
+    # is taller (step 6); the rows stack from its edges.
+    side_y = round_px(center_rect.y + (center_rect.h - m.row_h) / 2)
+    recent_y = files_y = side_y
+    band_y, band_y1 = center_rect.y, center_rect.y1
+    stacked = model.files is not None and model.recent is not None
+    if stacked:
+        stack_h = 2 * m.row_h + m.gap_y
+        files_y = round_px(center_rect.y + (center_rect.h - stack_h) / 2)
+        recent_y = files_y + m.row_h + m.gap_y
+        band_y, band_y1 = min(band_y, files_y), max(band_y1, files_y + stack_h)
+
     pitch = m.row_h + m.gap_y
     # (row, line, items, y) top -> bottom.
     placed: list[tuple[str, int, tuple[Item, ...], int]] = []
     n_above = len(above_lines)
     for idx, (row, line, items) in enumerate(above_lines):
         k = n_above - 1 - idx                       # 0 = lowest line above
-        placed.append((row.key, line, items, center_rect.y1 + m.gap_y + k * pitch))
+        placed.append((row.key, line, items, band_y1 + m.gap_y + k * pitch))
     for k, (row, line, items) in enumerate(below_lines):
-        placed.append((row.key, line, items, center_rect.y - m.gap_y - m.row_h - k * pitch))
+        placed.append((row.key, line, items, band_y - m.gap_y - m.row_h - k * pitch))
 
     strips: list[Strip] = []
     boxes: list[ItemBox] = []
@@ -434,30 +451,28 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     if below_lines:
         neighbours.append(strips[n_above].rect)
     widest = max(neighbours, key=lambda r: r.w) if neighbours else None
-    side_y = round_px(center_rect.y + (center_rect.h - m.row_h) / 2)
 
     recent_box = controls_box = files_box = None
     line_boxes_c: list[tuple[Strip, ItemBox]] = []
-    recent_placed = None
-    if model.recent is not None:
-        w = math.ceil(widths[model.recent.id] + 2 * m.pad_x)
-        x = center_rect.x - m.side_gap - w
+    # Left column: Recent Commands over Recent Files, outer edges aligned.
+    left = [(item, item_id, y) for item, item_id, y in
+            ((model.recent, RECENT_ID, recent_y), (model.files, RECENT_FILES_ID, files_y))
+            if item is not None]
+    if left:
+        col_w = max(math.ceil(widths[item.id] + 2 * m.pad_x) for item, _, _ in left)
+        x = center_rect.x - m.side_gap - col_w
         if widest is not None:
             x = min(widest.x, x)
-        recent_placed = _box(model.recent, RECENT_ID, Rect(x, side_y, w, m.row_h), widths, m)
-    if model.files is not None:
-        w = math.ceil(widths[model.files.id] + 2 * m.pad_x)
-        if recent_placed is not None:
-            x = recent_placed.rect.x - m.gap_x - w
-        else:
-            x = center_rect.x - m.side_gap - w
-            if widest is not None:
-                x = min(widest.x, x)
-        files_box = _box(model.files, RECENT_FILES_ID, Rect(x, side_y, w, m.row_h), widths, m)
-        line_boxes_c.append((_strip_for(files_box, ROLE_SIDE), files_box))
-    if recent_placed is not None:
-        recent_box = recent_placed
-        line_boxes_c.append((_strip_for(recent_box, ROLE_SIDE), recent_box))
+        for item, item_id, y in left:
+            w = math.ceil(widths[item.id] + 2 * m.pad_x)
+            box = _box(item, item_id, Rect(x, y, w, m.row_h), widths, m)
+            if item_id == RECENT_ID:
+                recent_box = box
+            else:
+                files_box = box
+    for box in (files_box, recent_box):
+        if box is not None:
+            line_boxes_c.append((_strip_for(box, ROLE_SIDE), box))
     center_box = _box(model.center, CENTER_ID, center_rect, widths, m)
     line_boxes_c.append((_strip_for(center_box, ROLE_CENTER), center_box))
     if model.controls is not None:

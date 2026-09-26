@@ -28,7 +28,7 @@ Familiar workflows for artists coming from Autodesk Maya software. See
   (Object Mode, Edit Mode, ...) opens the same mode list as Blender's header menu, for the
   active object's type, with the current mode checked. Pick a mode and the Plaza stays open,
   its menus and tool settings already those of the new mode.
-- **Recent files inside the Plaza:** the **Recent Files** box on the centre line (next to
+- **Recent files inside the Plaza:** the **Recent Files** box on the centre line (under
   Recent Commands), and File ▸ Open Recent, list Blender's recent files as its Open Recent
   menu does, with More... and Clear Recent Files List.... Picking one closes the Plaza and
   opens the file; Blender asks about unsaved changes as usual.

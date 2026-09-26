@@ -65,7 +65,7 @@ UI_TYPE_LABELS: dict[str, str] = {
 # Centre-line side boxes (translated with pgettext_iface by record.rows).
 RECENT_LABEL = 'Recent Commands'
 CONTROLS_LABEL = 'Meso Settings'
-# The 'Recent Files' box left of Recent Commands: opens OPEN_RECENT_MENU as a custom dropdown.
+# The 'Recent Files' box under Recent Commands: opens OPEN_RECENT_MENU as a custom dropdown.
 RECENT_FILES_LABEL = 'Recent Files'
 
 

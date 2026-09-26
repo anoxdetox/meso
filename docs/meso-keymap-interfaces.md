@@ -1415,10 +1415,18 @@ anything in Phase 5+.
     enabled, as Blender's Open Recent does (only its tooltip says 'File Not Found'; a pick then reports the error);
     (b) greyed, which the native menu does not do.
 54. **New with the built menus (DEFAULT in force: a).** Where Recent Files sits: (a) **in force:** a 'Recent Files'
-    box on the centre line left of Recent Commands (File ▸ Open Recent is the same list); (b) another place or
-    label (e.g. stacked with Recent Commands, which needs more vertical room between the rows).
+    box on the centre line with Recent Commands (File ▸ Open Recent is the same list), stacked under it (decision
+    56); (b) another place or label.
 55. **New with the built menus (DEFAULT in force: a).** Items that load a .blend run after the Plaza modal has
     returned (the D3 timer fallback): (a) **in force:** every such item (Recent Files entries and the File menu's
     New, Revert and Recover), since a file load frees the running modal's handler; (b) only the Recent Files
     entries (New / Revert / Recover keep running inside the modal as before). Entries show only the file name, as
     natively (the dropdowns have no tooltip for the path).
+56. **New with the built menus, review fix (DEFAULT in force: a).** How the Recent Files box shares the centre line
+    with Recent Commands: (a) **in force:** stacked under it (one outer edge, `gap_y` apart, the pair centred on
+    the centre box; the rows above and below move out by half the extra height, about 9 px each at 1x). The Plaza
+    keeps the width it has without the box, so the clamp moves the centre box (and the Compass origin) off the
+    pointer no more often than before; (b) beside it, left of Recent Commands: about 95 px (1x) more on the left
+    only, so opening the Plaza over the left third of a viewport, or at the centre of a 1280 px window at 2x,
+    shifted the centre box off the pointer. The right side (beside Meso Settings) was measured too: the same
+    imbalance mirrored.

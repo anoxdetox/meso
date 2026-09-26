@@ -578,7 +578,8 @@ class TestRecentFilesLive(_LiveCase):
         with history(paths, self):
             files, recent = (self.state.layout.item(i) for i in (m.RECENT_FILES_ID,
                                                                   m.RECENT_ID))
-            self.assertEqual(files.rect.x1, recent.rect.x - self.state.layout.metrics.gap_x)
+            self.assertEqual(files.rect.x, recent.rect.x)       # under Recent Commands
+            self.assertEqual(recent.rect.y, files.rect.y1 + self.state.layout.metrics.gap_y)
             self.assertEqual(self.click(self.label_xy(m.RECENT_FILES_ID)), {'RUNNING_MODAL'})
             self.assertEqual(self.state.open_label, m.RECENT_FILES_ID)
             model = self.state.menus.models[0]

@@ -195,8 +195,8 @@ def scenarios(drv):
                 return
             files, recent = st.layout.item(M.RECENT_FILES_ID), st.layout.item(M.RECENT_ID)
             drv.check(rec, "label_placed", files is not None and recent is not None
-                      and files.rect.x1 <= recent.rect.x
-                      and files.rect.y == recent.rect.y,
+                      and files.rect.x == recent.rect.x
+                      and recent.rect.y == files.rect.y1 + st.layout.metrics.gap_y,
                       [files and repr(files.rect), recent and repr(recent.rect)])
             if not (yield from drv.open_dropdown(rec, st, M.RECENT_FILES_ID)):
                 yield from drv.close_plaza(xy, rec)

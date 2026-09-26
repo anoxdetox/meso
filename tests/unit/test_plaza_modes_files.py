@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Unit tests for the mode switcher / Recent Files additions (pure parts):
-core/recent_files.py (the history-file parser), the 'Recent Files' centre-line box of
+core/recent_files.py (the history-file parser), the 'Recent Files' box (under Recent Commands) of
 core/model.py + core/geometry.py (placement at scale 1 and 2, long labels, no overlap),
 core/dropdown_model.py (built menus are custom dropdown sources) and core/actions.py
 (``loads_file``).
@@ -132,16 +132,25 @@ class TestRecentFilesBox(unittest.TestCase):
         # dataclasses.replace keeps the box (how every rebuild of the rows is written).
         self.assertIs(dataclasses.replace(model, rows=()).files, model.files)
 
-    def test_left_of_recent_on_the_centre_line(self):
+    def test_under_recent_commands_on_the_centre_line(self):
         for scale in (1.0, 2.0):
             with self.subTest(scale=scale):
                 lay = _layout(_model(), scale)
                 m = lay.metrics
                 f, r, c = lay.files.rect, lay.recent.rect, lay.center.rect
-                self.assertEqual(f.x1, r.x - m.gap_x)
-                self.assertEqual((f.y, f.h), (r.y, r.h))
+                self.assertEqual(f.x, r.x)                      # one outer edge
+                self.assertEqual(r.y, f.y1 + m.gap_y)
+                self.assertEqual((f.h, r.h), (m.row_h, m.row_h))
                 self.assertEqual(f.w, math.ceil(lay.files.text_w + 2 * m.pad_x))
-                self.assertLess(f.x1, c.x)
+                self.assertLessEqual(max(f.x1, r.x1), c.x - m.side_gap)
+                # The stack is centred on the centre box (within a pixel of rounding).
+                self.assertLessEqual(abs((f.y + r.y1) / 2 - (c.y + c.y1) / 2), 0.5)
+                # The nearest rows clear the stack by gap_y.
+                row_rects = [s.rect for s in lay.strips if s.role == g.ROLE_ROW]
+                above = min((s for s in row_rects if s.y >= c.y1), key=lambda s: s.y)
+                below = max((s for s in row_rects if s.y1 <= c.y), key=lambda s: s.y1)
+                self.assertEqual(above.y, r.y1 + m.gap_y)
+                self.assertEqual(below.y1, f.y - m.gap_y)
                 self.assertEqual(lay.files.row_key, md.RECENT_FILES_ID)
                 strip = lay.strip(md.RECENT_FILES_ID)
                 self.assertEqual((strip.role, strip.rect), (g.ROLE_SIDE, f))
@@ -150,12 +159,39 @@ class TestRecentFilesBox(unittest.TestCase):
                 self.assertEqual(keys, [md.RECENT_FILES_ID, md.RECENT_ID, md.CENTER_ID,
                                         md.CONTROLS_ID])
 
+    def test_centre_box_stays_on_the_anchor(self):
+        # Recent Files adds no width: a centred Plaza is not shifted, and near the left
+        # edge the shift is exactly the one without the box.
+        for scale, width in itertools.product((1.0, 2.0), (1280, 1920)):
+            bounds = Rect(0, 0, width, 800)
+            for ax in (width / 2, width / 4, width / 6):
+                with self.subTest(scale=scale, width=width, ax=ax):
+                    lay = _layout(_model(), scale, bounds, (ax, 400))
+                    ref = _layout(_model(files=None), scale, bounds, (ax, 400))
+                    self.assertEqual(lay.shift[0], ref.shift[0])
+                    self.assertEqual((lay.plaza_rect.x, lay.plaza_rect.x1),
+                                     (ref.plaza_rect.x, ref.plaza_rect.x1))
+                    if ax == width / 2:
+                        self.assertEqual(lay.shift, (0, 0))
+                        self.assertLessEqual(abs(lay.origin[0] - ax), 0.5)   # odd widths
+                        self.assertEqual(lay.center.rect, ref.center.rect)
+
+    def test_without_recent_files_the_layout_is_unchanged(self):
+        lay = _layout(_model(files=None))
+        m = lay.metrics
+        c, r = lay.center.rect, lay.recent.rect
+        self.assertEqual(r.y, g.round_px(c.y + (c.h - m.row_h) / 2))
+        row_rects = [s.rect for s in lay.strips if s.role == g.ROLE_ROW]
+        self.assertEqual(min(s.y for s in row_rects if s.y >= c.y1), c.y1 + m.gap_y)
+
     def test_without_recent_commands_it_takes_its_place(self):
         with_recent = _layout(_model())
         alone = _layout(_model(recent=None))
         self.assertIsNone(alone.recent)
         m = alone.metrics
         self.assertLessEqual(alone.files.rect.x1, alone.center.rect.x - m.side_gap)
+        c = alone.center.rect
+        self.assertEqual(alone.files.rect.y, g.round_px(c.y + (c.h - m.row_h) / 2))
         self.assertIsNotNone(with_recent.files)
         self.assertIsNone(_layout(_model(files=None)).files)
 
@@ -179,6 +215,8 @@ class TestRecentFilesBox(unittest.TestCase):
                 strips = [s.rect for s in lay.strips]
                 for a, b in itertools.combinations(strips, 2):
                     self.assertTrue(a.intersect(b).is_empty(), (a, b))
+                if lay.recent is not None:
+                    self.assertEqual(lay.files.rect.x, lay.recent.rect.x)
                 self.assertGreaterEqual(lay.files.text_x, lay.files.rect.x)
                 self.assertLessEqual(lay.files.text_x + lay.files.text_w, lay.files.rect.x1)
 

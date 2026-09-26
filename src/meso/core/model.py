@@ -59,7 +59,7 @@ ROWS_LAST = (ROW_WORKSPACE,)
 # --- fixed item ids ---
 CENTER_ID = 'center'
 RECENT_ID = 'recent'
-RECENT_FILES_ID = 'recent_files'        # 'Recent Files' box, left of Recent Commands
+RECENT_FILES_ID = 'recent_files'        # 'Recent Files' box, under Recent Commands
 CONTROLS_ID = 'controls'
 WORKSPACE_ID_PREFIX = 'workspace:'      # workspace item id = prefix + workspace name
 CONTEXTUAL_ID_PREFIX = 'ctx:'           # contextual row: 'ctx:' + menu idname
