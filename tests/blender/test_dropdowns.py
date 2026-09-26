@@ -408,6 +408,25 @@ class TestOpenAndSwitch(_Case):
                                                    'TOPBAR_MT_edit'])
         self.assertEqual(self.executed, [])
 
+    def test_click_only_cross_row_switch_ignores_the_hover_open_delay(self):
+        """Review of 2026-09-26: with Open Menus on Hover off the Hover Open Delay pref is
+        greyed out, so a 1 s value must not slow a clicked bar down: a label of another row
+        switches after one watchdog tick of rest (SWITCH_REST_MIN), not after 1 s."""
+        mb = _mod("core.menubar")
+        self.stub, self.state = self._session(hover_open=False, hover_open_delay=1.0)
+        obj = md().contextual_item_id('VIEW3D_MT_object')
+        self.click(self.label_xy(obj))
+        self.assertEqual(self.state.open_label, obj)
+        self.assertEqual(mb.switch_rest(self.bar()), mb.SWITCH_REST_MIN)
+        self.move(self.label_xy('TOPBAR_MT_edit'))
+        self.assertEqual((self.state.open_label, self.bar().switch_wait), (obj, 'TOPBAR_MT_edit'))
+        self.rest(mb.SWITCH_REST_MIN + 0.001)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
+        self.assertEqual(self.bar().opened_by, 'click')
+        # a slide along the root row stays instant
+        self.move(self.label_xy('TOPBAR_MT_file'))
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+
     def test_hover_without_open_dropdown_only_hovers(self):
         h0 = self.state.hover_redraws
         self.move(self.label_xy('TOPBAR_MT_file'))

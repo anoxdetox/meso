@@ -158,7 +158,8 @@ class MesoAddonPreferences(AddonPreferences):
     )
     hover_open_delay: FloatProperty(
         name="Hover Open Delay",
-        description="Seconds the pointer rests on a menu label before its dropdown opens "
+        description="Seconds the pointer rests on a menu label before its dropdown opens, "
+                    "or before a label crossed from another row replaces the open dropdown "
                     "(a faster sweep across the labels opens nothing)",
         default=0.05,
         min=0.0,

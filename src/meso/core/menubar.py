@@ -150,8 +150,12 @@ long as it never entered a panel: ``entered`` makes it sticky), or 'click' / 'ke
 closes only on a pick, an empty click, Esc, the open-title click, an intended switch or the
 key release). Only ROLE_DROPDOWN labels (a custom dropdown / Tool Settings cascade) ever
 open on hover (:func:`hover_opens`); hand-off, apply and passive labels never do, so no
-native menu opens on a mere hover. ``hover_open`` False: ``opened_by`` is never 'hover' and
-every row above is exactly the Phase 4 behaviour.
+native menu opens on a mere hover. ``hover_open`` False: ``opened_by`` is never 'hover', no
+label opens a closed bar on hover, and every chain is sticky (click / key opened). Menu-bar
+switching then differs from Phase 4 in one way only: a slide along the open label's row
+switches at once as before, but a label crossed from another row (or toward the chain)
+switches after a rest of the fixed :data:`SWITCH_REST_MIN` (:func:`switch_rest`; the Hover
+Open Delay pref plays no part), on a click, and never on a mere crossing.
 
 Effect invariants (tested): effects run in tuple order; a CloseChain precedes the
 OpenDropdown / OpenSubmenu it makes room for; a radio's RunItem precedes its CloseChain (D
@@ -177,8 +181,9 @@ from .model import Action
 DEFAULT_SUBMENU_DELAY = 0.12
 SUBMENU_DELAY_RANGE = (0.0, 1.0)
 AIM_TIMEOUT = 0.25          # max time a diagonal move toward an open submenu keeps it open
-# Aim guard for label switching: the least rest on a label crossed toward the open chain
-# before the bar switches to it (one 0.05 s watchdog tick; see switch_rest()).
+# Deferred label switching (aim guard, sticky exits): the least rest on a crossed label
+# before the bar switches to it, and the whole rest with hover_open off (one 0.05 s watchdog
+# tick; see switch_rest()).
 SWITCH_REST_MIN = 0.05
 # Hover-open (prefs hover_open_delay / hover_close_delay).
 DEFAULT_HOVER_OPEN_DELAY = 0.05
@@ -541,9 +546,14 @@ def hover_opens(target: Target | None) -> bool:
 
 
 def switch_rest(state: MenuBarState) -> float:
-    """How long the pointer must rest on a label crossed toward the open chain (the aim
-    guard) before the bar switches to it: ``hover_open_delay``, at least
-    :data:`SWITCH_REST_MIN` (a 0 delay still needs one quiet watchdog tick)."""
+    """How long the pointer must rest on a crossed label (toward the open chain: the aim
+    guard; or out of a sticky chain) before the bar switches to it: with ``hover_open``,
+    ``hover_open_delay`` (resting on a label opens it, as on a closed bar), at least
+    :data:`SWITCH_REST_MIN` (a 0 delay still needs one quiet watchdog tick); without it the
+    fixed :data:`SWITCH_REST_MIN` (the Hover Open Delay pref is inactive then, and greyed out
+    in the preferences)."""
+    if not state.hover_open:
+        return SWITCH_REST_MIN
     return max(state.hover_open_delay, SWITCH_REST_MIN)
 
 

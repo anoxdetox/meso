@@ -1494,6 +1494,29 @@ class TestAimGuard(unittest.TestCase):
         s, (e,) = run(s, mb.Timer(1.05))
         self.assertIn(mb.OpenDropdown(HELP), e)
 
+    def test_hover_open_off_ignores_the_hover_open_delay(self):
+        """Review of 2026-09-26: with hover_open off the Hover Open Delay pref is greyed out,
+        so it must not slow a clicked bar down: a crossed label (another row, or toward the
+        chain) switches after the fixed SWITCH_REST_MIN, whatever the delay says."""
+        for delay in (0.0, 0.3, 1.0):
+            for aiming in (True, False):
+                with self.subTest(delay=delay, aiming=aiming):
+                    s = with_opened(mb.initial_state(0.12, False, False, delay))
+                    self.assertFalse(s.hover_open)
+                    self.assertTrue(s.sticky)
+                    self.assertEqual(mb.switch_rest(s), mb.SWITCH_REST_MIN)
+                    s, outs = run(s, hl(HELP, 1.0, aiming=aiming), mb.Timer(1.03))
+                    self.assertEqual(outs, [(mb.Redraw(),), ()],
+                                     "a crossing alone only moves the hover")
+                    self.assertEqual((s.open_label, s.switch_wait), (FILE, HELP))
+                    s, (e,) = run(s, mb.Timer(1.0 + mb.SWITCH_REST_MIN))
+                    self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(HELP), mb.Redraw()))
+                    self.assertEqual((s.open_label, s.opened_by), (HELP, mb.OPENED_CLICK))
+                    self.assertTrue(s.sticky)
+        # with hover_open on, the delay is the rest (and the pref is active)
+        s = with_opened(mb.initial_state(0.12, False, True, 1.0))
+        self.assertEqual(mb.switch_rest(s), 1.0)
+
     def test_click_only_bar_guards_too(self):
         s = opened_file()
         self.assertFalse(s.hover_open)
