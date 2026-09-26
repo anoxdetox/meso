@@ -16,7 +16,9 @@ from __future__ import annotations
 import bpy
 from bpy.props import EnumProperty
 
-from .. import meso_keymap
+from .. import meso_keymap, wrapped_text
+
+DIALOG_WIDTH = 460       # the first-enable dialog (unscaled px; its text wraps to it)
 
 _CHOICES = (
     ('MESO', "Use the Meso Keymap",
@@ -60,18 +62,19 @@ class MESO_OT_keymap_choice_dialog(bpy.types.Operator):
     def invoke(self, context, _event):
         # The event is stale when invoked from a timer (the window's last event); unused.
         return context.window_manager.invoke_props_dialog(
-            self, width=460, title="Meso Keymap", confirm_text="OK")
+            self, width=DIALOG_WIDTH, title="Meso Keymap", confirm_text="OK")
 
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
         name = meso_keymap.active_keyconfig_name(context) or "your keymap"
-        for line in ("Meso Mode can switch Blender to the Meso keymap: Industry Compatible",
-                     "plus Meso's bindings (Ctrl Shift A select all, Alt D deselect,",
-                     "Ctrl 1 isolate, hold X/C/V/J to snap, Ctrl Alt A Apply menu, ...).",
+        width = DIALOG_WIDTH * wrapped_text.ui_scale(context)
+        for text in ("Meso Mode can switch Blender to the Meso keymap: Industry Compatible "
+                     "plus Meso's bindings (Ctrl Shift A select all, Alt D deselect, Ctrl 1 "
+                     "isolate, hold X/C/V/J to snap, Ctrl Alt A Apply menu, ...).",
                      f"Keep, or disabling Meso Mode, gives you back the {name} keymap.",
                      "Edit or switch off any key in Preferences > Keymap, like any keymap."):
-            col.label(text=line)
+            wrapped_text.labels(col, text, context, width=width)
         layout.separator()
         layout.prop(self, "choice", expand=True)
 

@@ -20,12 +20,10 @@ copies, found with ``find_match``).
 
 from __future__ import annotations
 
-import textwrap
-
 import bpy
 from bpy.props import StringProperty
 
-from . import meso_keymap, prefs
+from . import meso_keymap, prefs, wrapped_text
 from .prefs import space_key_items as key_items
 from .core import keymap_tree
 from .core import meso_bindings as mb
@@ -36,7 +34,7 @@ INDENT_PX = 16
 MESO_ROOT = "Meso Keymap"     # section path root of the binding groups
 CHOOSE_IDNAME = "meso.keymap_choose"   # ops/keymap_choice.py
 RESET_IDNAME = "meso.keymap_reset"     # ops/keymap_choice.py
-WRAP_CHARS = 72                        # hint and warning lines of the Meso Keymap box
+BODY_INDENT = 2 * INDENT_PX            # a binding group's body: two _indented levels
 
 
 def space_keymap_names() -> tuple[str, ...]:
@@ -156,10 +154,10 @@ def _draw_set_all(kc, layout, addon_prefs):
                  oskey=addon_prefs.space_items_oskey)
     clashes = mb.plaza_key_conflicts(key, meso_keymap.live_bindings())
     if clashes:
-        row = layout.row()
+        row = layout.column(align=True)
         row.alert = True
-        row.label(text=f"{key.label()} is also a Meso Keymap key: "
-                       + ", ".join(b.label for b in clashes), icon='ERROR')
+        _wrapped(row, f"{key.label()} is also a Meso Keymap key: "
+                 + ", ".join(b.label for b in clashes), icon='ERROR')
 
 
 def _binding_text(binding) -> str:
@@ -223,10 +221,11 @@ def displaced_lines(b: mb.Binding) -> list[str]:
     return lines
 
 
-def _wrapped(layout, text, width=WRAP_CHARS, **kwargs):
-    """Long hint/warning text as several labels (the first carries ``kwargs``, e.g. icon)."""
-    for i, line in enumerate(textwrap.wrap(text, width) or [""]):
-        layout.label(text=line, **(kwargs if i == 0 else {}))
+def _wrapped(layout, text, *, boxes=1, indent=0.0, **kwargs):
+    """Long hint/warning text as label rows wrapped to the full width of the row (measured;
+    ``wrapped_text``), ``boxes`` boxes deep in this draw (the Meso Keymap / Keymap box: 1) and
+    ``indent`` px indented. The first row carries ``kwargs``, e.g. an icon."""
+    return wrapped_text.labels(layout, text, bpy.context, boxes=boxes, indent=indent, **kwargs)
 
 
 def binding_keys(b: mb.Binding, user, meso_active: bool = False) -> list[str]:
@@ -258,7 +257,7 @@ def _draw_binding(layout, b, user, meso_active=False):
     for line in displaced_lines(b):
         hint = col.column(align=True)
         hint.active = False
-        _wrapped(hint, line)
+        _wrapped(hint, line, indent=BODY_INDENT)
 
 
 def cycle_hint_lines(text) -> tuple[list[str], list[str]]:
@@ -275,11 +274,11 @@ def _draw_cycle_hint(layout, text):
     for line in alerts:
         row = layout.column(align=True)
         row.alert = True
-        _wrapped(row, line, icon='ERROR')
+        _wrapped(row, line, indent=BODY_INDENT, icon='ERROR')
     col = layout.column(align=True)
     col.active = False
     for line in hints:
-        _wrapped(col, line)
+        _wrapped(col, line, indent=BODY_INDENT)
 
 
 # Greyed hints under a group's bindings (the hold-J blocker: docs/meso-keymap-interfaces.md).
@@ -324,7 +323,7 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     choice = meso_keymap.choice(context)
     active_name = meso_keymap.active_keyconfig_name(context) or "?"
     meso_active = active_name == mb.MESO_NAME
-    col.label(text=_choice_status(choice, active_name))
+    _wrapped(col.column(align=True), _choice_status(choice, active_name))
     row = col.row(align=True)
     op = row.operator(CHOOSE_IDNAME, text="Use Meso Keymap",
                       depress=choice == mb.CHOICE_MESO)
@@ -343,10 +342,10 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
         op = row.operator(CHOOSE_IDNAME, text=f"Keep {active_name}")
         op.choice = mb.CHOICE_KEEP
     elif meso_active and addon_prefs.previous_keyconfig not in ("", mb.MESO_NAME):
-        hint = col.row()
+        hint = col.column(align=True)
         hint.active = False
-        hint.label(text=f"Keep, or disabling Meso Mode, restores the {addon_prefs.previous_keyconfig} "
-                        "keymap")
+        _wrapped(hint, f"Keep, or disabling Meso Mode, restores the "
+                       f"{addon_prefs.previous_keyconfig} keymap")
     row = col.row()
     row.enabled = meso_active
     n = meso_keymap.modified_count(context)
@@ -357,7 +356,8 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     _wrapped(hint, KEYMAP_EDITOR_HINT)
     _wrapped(hint, SHARED_EDITS_HINT)
     live = meso_keymap.live_bindings(context)
-    for message in mb.warnings(live, meso_keymap.off_bindings(context)):
+    off = tuple(b for b in mb.BINDINGS if b not in live) if meso_active else ()
+    for message in mb.warnings(live, off):
         warn = col.column(align=True)
         warn.alert = True
         _wrapped(warn, message, icon='ERROR')
@@ -385,7 +385,7 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
             col_hint = body.column(align=True)
             col_hint.active = False
             for text in hints:
-                _wrapped(col_hint, text)
+                _wrapped(col_hint, text, indent=BODY_INDENT)
 
 
 def set_space_items(kc, key, shift=False, ctrl=False, alt=False, oskey=False):

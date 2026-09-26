@@ -407,8 +407,10 @@ class TestMesoKeymapPrefs(_PrefsCase):
         self.assertTrue(any(t.startswith("Replaces Ctrl Shift A") for t in labels), labels)
         text = " ".join(labels)
         self.assertIn("now: Alt D (Deselect All)", text)
-        self.assertTrue(all(len(t) <= self.kp.WRAP_CHARS for t in labels
-                            if t.startswith("Replaces")), labels)
+        wt, tw = _mod("wrapped_text"), _mod("core.text_wrap")
+        width = tw.label_width(wt.DEFAULT_REGION_WIDTH, wt.ui_scale(), 1, self.kp.BODY_INDENT)
+        m = wt.measure()
+        self.assertTrue(all(m(t) <= width for t in labels if t.startswith("Replaces")), labels)
 
     def test_mismatch_warning_and_binding_warnings(self):
         self._meso_on()
@@ -449,6 +451,92 @@ class TestMesoKeymapPrefs(_PrefsCase):
         self.assertEqual(after, before)
         self._reset_bulk_prefs()
         bpy.ops.meso.set_space_items()
+
+
+class TestWrappedText(_PrefsCase):
+    """The help text wraps to the full width of its row (user item E of 2026-09-26): measured
+    with blf in the UI font, re-wrapped on every draw for the region width it gets."""
+
+    _meso_on = TestMesoKeymapPrefs._meso_on
+    _reset_meso = TestMesoKeymapPrefs._reset_meso
+    _labels = TestMesoKeymapPrefs._labels
+
+    def setUp(self):
+        super().setUp()
+        from tests.blender import test_meso_keymap as tmk
+        self.tmk, self.mk, self.mb = tmk, tmk.mk(), tmk.mb()
+        self.addCleanup(self._reset_meso)
+        self.wt = _mod("wrapped_text")
+        self.tw = _mod("core.text_wrap")
+        self._saved_width = self.wt.region_width
+        self.addCleanup(setattr, self.wt, "region_width", self._saved_width)
+
+    def _at(self, width):
+        self.wt.region_width = lambda context=None: width
+
+    def _hint_rows(self, text):
+        """The label rows the draw made for ``text`` (consecutive labels that join to it)."""
+        labels = self._labels(self._draw())
+        for i in range(len(labels)):
+            for j in range(i + 1, len(labels) + 1):
+                if " ".join(labels[i:j]) == text:
+                    return labels[i:j]
+        self.fail(f"{text!r} not drawn: {labels}")
+
+    def test_measure_is_the_ui_font(self):
+        m = self.wt.measure()
+        self.assertGreater(m("Reset to Default (Meso)"), m("Reset"))
+        self.assertEqual(self.wt.font_px(), 11.0 * self.wt.ui_scale())
+        self.assertEqual(self.wt.ui_scale(), bpy.context.preferences.system.ui_scale or 1.0)
+        self.assertEqual(self.wt.base_boxes(), 0)          # headless: no Preferences editor
+
+    def test_the_reset_hint_uses_the_full_width(self):
+        m = self.wt.measure()
+        text = self.kp.KEYMAP_EDITOR_HINT
+        counts = []
+        for width in (300, 500, 800, 1400, 2400):
+            with self.subTest(width=width):
+                self._at(width)
+                rows = self._hint_rows(text)
+                limit = self.tw.label_width(width, self.wt.ui_scale(), 1)
+                self.assertTrue(all(m(r) <= limit for r in rows), rows)
+                for row, following in zip(rows, rows[1:]):   # broken only where needed
+                    self.assertGreater(m(f"{row} {following.split()[0]}"), limit, row)
+                counts.append(len(rows))
+        self.assertEqual(counts, sorted(counts, reverse=True))
+        self.assertGreater(counts[0], 2)
+        self.assertEqual(counts[-1], 1)                  # a wide region: one line
+
+    def test_warnings_and_group_hints_wrap_too(self):
+        self._meso_on()
+        tree = _mod("core.keymap_tree")
+        root = self.kp.MESO_ROOT
+        self.prefs.keymap_expanded = tree.EXPANDED_SEP.join(
+            [root] + [f"{root}/{label}" for _g, label in self.mb.GROUPS])
+        self.mk.set_binding_active('deselect_all', False)
+        self._at(420)
+        log = self._draw()
+        m = self.wt.measure()
+        scale = self.wt.ui_scale()
+        body = self.tw.label_width(420, scale, 1, self.kp.BODY_INDENT)
+        warn = [e for e in log if e[0] == 'label' and e[2].get('icon') == 'ERROR']
+        self.assertTrue(warn)
+        first = self.tw.label_width(420, scale, 1, icon=True)
+        self.assertTrue(all(m(e[1]) <= first for e in warn), warn)
+        hint = self.kp.GROUP_HINTS['SNAPPING'][0]
+        rows = self._hint_rows(hint)
+        self.assertGreater(len(rows), 1)
+        self.assertTrue(all(m(r) <= body for r in rows), rows)
+
+    def test_the_choice_dialog_wraps_to_its_width(self):
+        dialog = _mod("ops.keymap_choice")
+        lines = self.wt.lines("Meso Mode can switch Blender to the Meso keymap: Industry "
+                              "Compatible plus Meso's bindings (Ctrl Shift A select all, Alt D "
+                              "deselect, Ctrl 1 isolate, hold X/C/V/J to snap, Ctrl Alt A Apply "
+                              "menu, ...).", width=dialog.DIALOG_WIDTH * self.wt.ui_scale())
+        self.assertGreater(len(lines), 1)
+        limit = self.tw.label_width(dialog.DIALOG_WIDTH * self.wt.ui_scale(), self.wt.ui_scale())
+        self.assertTrue(all(self.wt.measure()(t) <= limit for t in lines), lines)
 
 
 if __name__ == '__main__':
