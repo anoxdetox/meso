@@ -10,6 +10,8 @@ from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorPro
                        IntProperty, StringProperty)
 from bpy.types import AddonPreferences
 
+from .core import zones
+
 
 def _update_text_chord(self, context):
     # Imported lazily: keymaps imports this module's get_prefs.
@@ -135,6 +137,12 @@ class MesoAddonPreferences(AddonPreferences):
         name="Display Controls",
         description="Add the header's display controls (X-ray, shading, overlays, gizmos) to "
                     "the Tool Settings row",
+        default=True,
+    )
+    compass_menus: BoolProperty(
+        name="Compass Menus",
+        description="A mouse press in a zone around the Plaza (north, south, east, west or "
+                    "the centre box) opens that zone's Compass menu for the pressed button",
         default=True,
     )
     submenu_delay: FloatProperty(
@@ -350,8 +358,46 @@ class MesoAddonPreferences(AddonPreferences):
             for source, text in (('BLENDER', "Blender Theme"), ('TRADITIONAL', "Traditional")):
                 row.operator(MESO_OT_palette_to_custom.bl_idname, text=text).source = source
         col.prop(self, "debug_timing")
+        _draw_compass_slots(layout, self)
         from . import keymap_prefs  # lazy: keymap_prefs imports this module
         keymap_prefs.draw(context, layout, self)
+
+
+_ZONE_NAMES = {'N': "North", 'E': "East", 'S': "South", 'W': "West", 'C': "Centre"}
+_BUTTON_NAMES = {'L': "Left", 'M': "Middle", 'R': "Right"}
+
+
+def _draw_compass_slots(layout, prefs) -> None:
+    """The "Compass menus" section: the switch and the 15 zone / button slots as a grid."""
+    box = layout.box()
+    box.use_property_split = False
+    box.prop(prefs, "compass_menus")
+    grid = box.grid_flow(row_major=True, columns=4, even_columns=False, align=True)
+    grid.active = prefs.compass_menus
+    grid.label(text="")
+    for letter in ('L', 'M', 'R'):
+        grid.label(text=_BUTTON_NAMES[letter])
+    for zone in zones.ZONES:
+        grid.label(text=_ZONE_NAMES[zone])
+        for letter in ('L', 'M', 'R'):
+            grid.prop(prefs, zones.slot_key(zone, letter), text="")
+    col = box.column(align=True)
+    col.active = prefs.compass_menus
+    col.label(text="A Blender menu or pie menu id (VIEW3D_MT_view_pie), or a built-in Compass:")
+    col.label(text="  " + ", ".join(zones.BUILTIN_PREFIX + b for b in zones.BUILTIN_COMPASSES))
+
+
+# One slot per zone and mouse button (docs/phase5-interfaces.md "Preferences").
+for _key in zones.SLOT_KEYS:
+    _zone, _letter = _key.split('_')[1:]
+    MesoAddonPreferences.__annotations__[_key] = StringProperty(
+        name=f"{_ZONE_NAMES[_zone]} {_BUTTON_NAMES[_letter]}",
+        description=f"The Compass menu of the {_ZONE_NAMES[_zone].lower()} zone for the "
+                    f"{_BUTTON_NAMES[_letter].lower()} mouse button: a menu or pie menu id, "
+                    f"a built-in 'meso:' Compass, or empty for none",
+        default=zones.DEFAULT_SLOTS.get(_key, ''),
+    )
+del _key, _zone, _letter
 
 
 class MESO_OT_palette_to_custom(bpy.types.Operator):

@@ -102,6 +102,11 @@ ITEM_SOURCE_PANEL = 'panel_content'
 # a cell click is ROLE_APPLY (the chain stays open).
 ITEM_SOURCE_TOGGLE_TABLE = 'toggle_table'
 
+# DropdownItem.source of a Compass item that stands for a Plaza row label (the Tool Settings
+# Compass, ``record.compass``): ``submenu`` is the label id; a pick opens that label's own
+# dropdown (docs/phase5-interfaces.md "Picks").
+ITEM_SOURCE_PLAZA_LABEL = 'plaza_label'
+
 # --- DropdownSource.kind ---
 SOURCE_MENU = 'menu'            # a Menu idname recorded by record.dropdown.build_dropdown
 SOURCE_TOOL = 'tool'            # a Tool Settings cascade built by record.popover.build_tool_cascade

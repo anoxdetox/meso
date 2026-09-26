@@ -150,6 +150,7 @@ class PlazaState:
     dropdown_hover: tuple[int, ...] | None = None   # hovered dropdown item path
     dropdown_hover_cell: int | None = None          # focused cell of a hovered table row
     open_label: str | None = None         # row label whose dropdown is open
+    compass: Any = None                   # ops.compass.CompassSession | None (open Compass)
 
     # --- live objects: modal lifetime only, dropped by drop_live() ---
     window: Any = None                    # bpy.types.Window

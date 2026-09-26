@@ -1594,3 +1594,69 @@ def tearDownModule():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOffscreenCompass(unittest.TestCase):
+    """view.renderer.draw_compass (Phase 5): slot boxes in the panel grey, the hovered one in
+    ``item_hover`` with a light outline, the list panel through draw_dropdowns, GPU state
+    restored, nothing drawn when clipped away."""
+
+    def setUp(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+
+    def compass(self, hover=None):
+        cp = _mod("core.compass")
+        dm_mod, geo = _mod("core.dropdown_model"), _mod("core.geometry")
+        dg = _mod("core.dropdown_geometry")
+        model = _mod("core.model")
+        A, I = model.Action, dm_mod.DropdownItem
+        slots = tuple(I(dm_mod.DD_OP, d, action=A(model.ACTION_OPERATOR, target='x.y'))
+                      for d in cp.DIRECTIONS)
+        items = (I(dm_mod.DD_OP, 'Listed', action=A(model.ACTION_OPERATOR, target='x.y')),)
+        dm = dg.dropdown_metrics(geo.metrics_for(1.0, 11))
+        lay = cp.place_compass(cp.CompassModel('k', 'T', slots, items), (500, 600), dm, None,
+                               _rd().text_width_fn(dm.font_px))
+        gesture = cp.CompassState('LEFTMOUSE', 0.0, hover_slot=hover)
+        return SimpleNamespace(layout=lay, gesture=gesture, pointer=(500, 700))
+
+    def draw(self, cs, clip=None):
+        rd = _rd()
+        palette = _th().meso_palette(25)
+        off = gpu.types.GPUOffScreen(DW, DH)
+        try:
+            with off.bind():
+                gpu.state.active_framebuffer_get().clear(color=BACKGROUND)
+                with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                    gpu.matrix.load_identity()
+                    gpu.matrix.load_projection_matrix(_ortho(DW, DH))
+                    drawn = rd.draw_compass(cs, palette, (0, 0), False, clip=clip)
+                    blend = gpu.state.blend_get()
+                pixels = _Pixels(DW, DH)
+        finally:
+            off.free()
+        return drawn, pixels, blend, rd.dropdown_colors(palette)
+
+    def test_boxes_hover_and_list(self):
+        cs = self.compass(hover=0)
+        drawn, px, blend, colors = self.draw(cs)
+        self.assertTrue(drawn)
+        self.assertEqual(blend, 'NONE')
+        n, e = cs.layout.box(0).rect, cs.layout.box(2).rect
+        inner = lambda r: (r.x + r.w // 2, r.y + 2)
+        grey = lambda c: sum(c[:3]) / 3
+        self.assertAlmostEqual(px.grey(*inner(e)), grey(colors.panel), delta=0.03)
+        self.assertAlmostEqual(px.grey(*inner(n)), grey(colors.item_hover), delta=0.05,
+                               msg="the hovered slot")
+        self.assertGreater(px.grey(n.x, n.y + n.h // 2), px.grey(*inner(n)), "light outline")
+        panel = cs.layout.panel.rect
+        self.assertAlmostEqual(px.grey(panel.x + 3, panel.y + 3), grey(colors.panel), delta=0.03)
+        far = (5, 5)
+        self.assertAlmostEqual(px.grey(*far), grey(BACKGROUND), delta=0.01)
+
+    def test_clipped_away(self):
+        cs = self.compass()
+        drawn, px, blend, _c = self.draw(cs, clip=_Rect(0, 0, 10, 10))
+        self.assertFalse(drawn)
+        self.assertEqual(blend, 'NONE')

@@ -1003,3 +1003,88 @@ def _draw_dd_labels(panel: Panel, font_px: int, colors: DropdownColors,
                 current = color
             blf.position(FONT_ID, it.shortcut_x - ox, it.text_y - oy, 0)
             blf.draw(FONT_ID, it.shortcut)
+
+
+# --------------------------------------------------------------------------- Compass menus
+
+COMPASS_RING_SEGMENTS = 24
+
+
+def compass_extent(compass: Any) -> Rect | None:
+    """The window rect an open Compass (``ops.compass.CompassSession``) draws in: its layout
+    extent plus the pointer line; None without one."""
+    lay = getattr(compass, 'layout', None)
+    if lay is None:
+        return None
+    (cx, cy), (px, py) = lay.centre, compass.pointer
+    line = Rect(min(cx, px) - 2, min(cy, py) - 2, abs(px - cx) + 4, abs(py - cy) + 4)
+    return bounding_box((lay.extent, line))
+
+
+def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
+                 linear_blend: bool, clip: Rect | None = None) -> bool:
+    """Draw an open Compass (docs/phase5-interfaces.md "Draw"): the centre ring (radius
+    ``dead_r``) and, once the pointer is outside it, a line from the centre to the pointer,
+    both in ``palette.ticks``; each slot box filled with the dropdown panel colour and a
+    border, the hovered one with ``item_hover`` and a 2-scale-px ``text_hover`` outline; its
+    glyph (check box, cascade arrow) and label; then the list panel with
+    :func:`draw_dropdowns` (hover on the gesture's ``hover_path``). Returns False without GPU
+    work when ``clip`` misses the Compass. Exceptions propagate (draw_manager logs once)."""
+    lay = getattr(compass, 'layout', None)
+    extent = compass_extent(compass)
+    if lay is None or extent is None:
+        return False
+    if clip is not None and not clip.intersects(extent):
+        return False
+    colors = dropdown_colors(palette)
+    dm = lay.metrics
+    ox, oy = region_offset
+    gesture = compass.gesture
+    hover = gesture.hover_slot
+    line_w = max(1.0, round(dm.scale))
+    cx, cy = lay.centre
+    px, py = compass.pointer
+    try:
+        gpu.state.blend_set('ALPHA')
+        gpu.matrix.push()
+        try:
+            gpu.matrix.translate((-ox, -oy))
+            ring = []
+            for k in range(COMPASS_RING_SEGMENTS):
+                a0 = 2 * math.pi * k / COMPASS_RING_SEGMENTS
+                a1 = 2 * math.pi * (k + 1) / COMPASS_RING_SEGMENTS
+                ring.append((cx + lay.dead_r * math.cos(a0), cy + lay.dead_r * math.sin(a0),
+                             cx + lay.dead_r * math.cos(a1), cy + lay.dead_r * math.sin(a1)))
+            lines(ring, palette.ticks, line_w)
+            dist = math.hypot(px - cx, py - cy)
+            if dist > lay.dead_r and not gesture.sticky:
+                ux, uy = (px - cx) / dist, (py - cy) / dist
+                lines([(cx + ux * lay.dead_r, cy + uy * lay.dead_r, px, py)], palette.ticks,
+                      line_w)
+            panel_fill = corrected(colors.panel, linear_blend)
+            hover_fill = corrected(colors.item_hover, linear_blend)
+            for box in lay.boxes:
+                lit = box.index == hover
+                rect_fill(box.rect, hover_fill if lit else panel_fill)
+                rect_outline(box.rect, 0.0, colors.text_hover if lit else colors.border,
+                             2 * line_w if lit else line_w)
+                glyph = colors.text_hover if lit else (
+                    colors.glyph if box.enabled and box.active else colors.glyph_disabled)
+                if box.check_rect is not None:
+                    checkbox(box.check_rect, bool(box.checked), glyph, glyph, line_w)
+                if box.arrow_rect is not None:
+                    triangle(box.arrow_rect, glyph)
+        finally:
+            gpu.matrix.pop()
+        for box in lay.boxes:
+            lit = box.index == hover
+            color = (colors.text_disabled if not box.enabled else colors.text_hover if lit
+                     else colors.text if box.active else colors.text_disabled)
+            text(box.text_x - ox, box.text_y - oy, box.label, dm.font_px, color)
+    finally:
+        gpu.state.blend_set('NONE')
+    if lay.panel is not None:
+        chain = ChainLayout((lay.panel,), lay.panel.rect, dm)
+        draw_dropdowns(chain, palette, gesture.hover_path, region_offset, linear_blend,
+                       clip=clip)
+    return True

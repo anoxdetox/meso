@@ -5,8 +5,8 @@ cursor. They hold the top-bar menus, the hovered editor's header menus, a Tool S
 (orientation, pivot, snapping, proportional editing and display toggles), recent commands and
 the workspaces.
 
-**Compass menus** (gesture menus on the Plaza's north, south, east, west and centre zones) are
-next on the roadmap.
+Around the Plaza sit five zones: north, south, east, west and the centre box. Press a mouse
+button in one and its **Compass menu** opens at the pointer.
 
 "Meso" stands for Mesoamerican.
 
@@ -83,6 +83,23 @@ Familiar workflows for artists coming from Autodesk Maya software. See
   Press a check box and drag across the ones below or above it to set them all the same way,
   as in Blender (in Selectability & Visibility the drag stays in its column). The whole drag
   is one undo step.
+
+- **Compass menus:** while the Plaza is open, press the left, middle or right mouse button in a
+  zone (the four quarters split by the corner ticks, or the centre box) and that zone's Compass
+  opens at the pointer: up to eight boxes around a small ring, and a list under them. Drag toward
+  a box and let go to pick it, without looking. Let go in the ring to cancel.
+
+  A quick middle or right click leaves the Compass open; then click a box. A left click on empty
+  space still just closes an open menu.
+
+  The defaults, all with the left button: north for the area (maximize, full screen, quad view,
+  split), south to change this editor, west to select, east for the toolbar, sidebar, overlays
+  and other toggles, and the centre for the view (Top, Front, Camera…). Right button in the east
+  opens the Tool Settings, and in the centre the workspaces; middle in the centre holds the Plaza
+  options.
+
+  Each of the 15 zone and button slots can hold any Blender menu or pie menu (a pie's items land
+  in their pie directions) or a built-in Compass: set them in the add-on preferences.
 
 - **Tap Space:** in the 3D Viewport a tap toggles quad view, or maximizes the hovered
   Top/Front/Side view. Elsewhere a tap keeps Blender's own Space action (play, tools or search).

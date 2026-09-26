@@ -109,7 +109,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core import actions as core_actions
-from ..core import drag_toggle
+from ..core import drag_toggle, zones
 from ..core import dropdown_geometry as ddg
 from ..core import geometry
 from ..core import menubar
@@ -133,6 +133,7 @@ from ..record import popover as rec_popover
 from ..record import rows
 from ..record.dropdown import DropdownCache
 from ..view import renderer
+from . import compass as compass_ops
 from . import invoke
 
 # Follow-up rounds (Opened / Changed fed back into the reducer) per modal event.
@@ -193,7 +194,11 @@ class MenuSession:
     'hover' / 'click' / 'key'; None for submenus); ``mode_changes`` (``context.mode`` after
     each in-place mode switch that re-recorded the whole Plaza); ``strokes`` (``(label,
     sets, pushed)`` of each ended drag-toggle stroke: the undo step name, the toggles set,
-    whether the step was pushed).
+    whether the step was pushed). Compass menus (Phase 5, ``ops.compass``): ``compass_on`` /
+    ``compass_slots`` (the ``compass_menus`` / ``zone_*`` pref snapshots), ``compass`` (the
+    open ``ops.compass.CompassSession`` or None), ``compasses`` (``(zone, button letter,
+    model key)`` of each opened Compass) and ``compass_picks`` (``(model key, where, label,
+    role)`` of each pick).
     """
 
     bar: MenuBarState = field(default_factory=initial_state)
@@ -217,6 +222,11 @@ class MenuSession:
     mode_changes: list[str | None] = field(default_factory=list)
     stroke: drag_toggle.Stroke | None = None
     strokes: list[tuple[str, int, bool]] = field(default_factory=list)
+    compass_on: bool = True
+    compass_slots: dict[str, str] = field(default_factory=dict)
+    compass: Any = None
+    compasses: list[tuple[str, str, str]] = field(default_factory=list)
+    compass_picks: list[tuple] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- setup
@@ -251,6 +261,13 @@ def start_session(state: Any, context: Any, addon_prefs: Any) -> MenuSession | N
                                                     state.hover_close_delay))
         session = MenuSession(bar=_initial_bar(state),
                               show_shortcuts=bool(state.show_shortcuts))
+        if addon_prefs is not None:
+            session.compass_on = bool(getattr(addon_prefs, 'compass_menus', True))
+            session.compass_slots = {key: str(getattr(addon_prefs, key,
+                                                      zones.DEFAULT_SLOTS.get(key, '')))
+                                     for key in zones.SLOT_KEYS}
+        else:
+            session.compass_slots = dict(zones.DEFAULT_SLOTS)
         if state.model is not None:
             state.model = rec_dropdown.classify_rows(context, _info(state), state.model,
                                                      session.cache,
@@ -1022,11 +1039,13 @@ def _terminal_source(state: Any, effect: Effect) -> tuple[Any, tuple]:
     return action, (label_id, None, item.label if item is not None else '')
 
 
-def _run_terminal(op: Any, state: Any, effect: Effect) -> set[str]:
-    """Record, tear down, then run / hand off right before FINISHED (D3)."""
+def _run_terminal(op: Any, state: Any, effect: Effect,
+                  source: tuple[Any, tuple] | None = None) -> set[str]:
+    """Record, tear down, then run / hand off right before FINISHED (D3). ``source``:
+    ``(action, run record)`` given by the caller (a Compass pick) instead of the chain's."""
     hb = _plaza()
     session = state.menus
-    action, where = _terminal_source(state, effect)
+    action, where = source if source is not None else _terminal_source(state, effect)
     action = core_actions.with_click_modifiers(action, shift=session.shift, ctrl=session.ctrl)
     reason = 'run' if isinstance(effect, RunItem) else 'handoff'
     window, area, region, area_type = state.window, state.area, state.region, state.area_type
@@ -1244,6 +1263,13 @@ def handle_event(op: Any, state: Any, context: Any, event: Any) -> set[str] | No
         if not getattr(event, 'type', '').startswith('TIMER'):
             session.shift = bool(getattr(event, 'shift', False))
             session.ctrl = bool(getattr(event, 'ctrl', False))
+        got = compass_ops.handle(op, state, context, event)
+        if got is compass_ops.PASS_ON:
+            return None
+        if got is not compass_ops.NOT_OURS:
+            return got
+        if state.menus is not session:
+            return None
         if session.stroke is not None:
             result = _stroke_event(op, state, context, event)
             if result is not None:

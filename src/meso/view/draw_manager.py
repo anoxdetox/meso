@@ -312,7 +312,7 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
                 cache: renderer.BatchCache | None, chain: Any = None,
                 dropdown_hover: Any = None, open_label: str | None = None,
                 dropdown_cache: renderer.DropdownBatchCache | None = None,
-                dropdown_hover_cell: Any = None) -> int:
+                dropdown_hover_cell: Any = None, compass: Any = None) -> int:
     """Draw ``layout`` (and, Phase 4, the open dropdown ``chain`` above it) into the bound
     region framebuffer, once per visible piece.
 
@@ -325,14 +325,16 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
     linear_blend, cache=cache, clip=piece, open_label=open_label)`` followed by
     ``renderer.draw_dropdowns(chain, palette, dropdown_hover, ..., cache=dropdown_cache,
     clip=piece, hover_cell=dropdown_hover_cell)`` (each culls against its own extent;
-    panels land above the strips).
+    panels land above the strips); Phase 5: an open ``compass`` is drawn alone
+    (``renderer.draw_compass``): the Plaza and its chain are hidden while it is open, as the
+    reference DCC hides its rows under a marking menu.
     Restores the scissor box, disables the scissor test when the previous box was the full
     viewport (gpu.state has no getter for the test; with a full box both states clip
     identically) and resets the blend mode. Returns the number of pieces where anything was
     drawn.
     """
     ox, oy = int(region_rect.x), int(region_rect.y)
-    targets = draw_targets(layout, palette, chain)
+    targets = draw_targets(layout, palette, chain, compass)
     prev_box = tuple(gpu.state.scissor_get())
     prev_viewport = tuple(gpu.state.viewport_get())
     drawn = 0
@@ -344,12 +346,16 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
             if w <= 0 or h <= 0 or not any(piece.intersects(t) for t in targets):
                 continue
             gpu.state.scissor_set(x0, y0, w, h)
-            hot = renderer.draw_plaza(layout, palette, hover_id, (ox, oy), linear_blend,
-                                       cache=cache, clip=piece, open_label=open_label)
-            dd = chain is not None and renderer.draw_dropdowns(
-                chain, palette, dropdown_hover, (ox, oy), linear_blend, cache=dropdown_cache,
-                clip=piece, hover_cell=dropdown_hover_cell)
-            if hot or dd:
+            hot = dd = False
+            if compass is None:     # an open Compass hides the Plaza (the reference DCC)
+                hot = renderer.draw_plaza(layout, palette, hover_id, (ox, oy), linear_blend,
+                                          cache=cache, clip=piece, open_label=open_label)
+                dd = chain is not None and renderer.draw_dropdowns(
+                    chain, palette, dropdown_hover, (ox, oy), linear_blend,
+                    cache=dropdown_cache, clip=piece, hover_cell=dropdown_hover_cell)
+            cm = compass is not None and renderer.draw_compass(
+                compass, palette, (ox, oy), linear_blend, clip=piece)
+            if hot or dd or cm:
                 drawn += 1
     finally:
         gpu.state.scissor_set(*prev_box)
@@ -359,11 +365,12 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
     return drawn
 
 
-def draw_targets(layout: Any, palette: Any, chain: Any = None) -> list[Rect]:
+def draw_targets(layout: Any, palette: Any, chain: Any = None,
+                 compass: Any = None) -> list[Rect]:
     """The window rects a piece must intersect to be drawn: ``layout.extent``, the chain
-    extent (``renderer.chain_extent``) and, when ``palette.dim`` is visible,
-    ``layout.window_bounds`` (None / empty ones left out)."""
-    rects = [layout.extent, renderer.chain_extent(chain)]
+    extent (``renderer.chain_extent``), the open Compass (``renderer.compass_extent``) and,
+    when ``palette.dim`` is visible, ``layout.window_bounds`` (None / empty ones left out)."""
+    rects = [layout.extent, renderer.chain_extent(chain), renderer.compass_extent(compass)]
     dim = getattr(palette, 'dim', None)
     if dim is not None and dim[3] > 0:
         rects.append(layout.window_bounds)
@@ -454,7 +461,8 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
                         dropdown_hover=getattr(state, 'dropdown_hover', None),
                         open_label=getattr(state, 'open_label', None),
                         dropdown_cache=_dropdown_cache_for(state),
-                        dropdown_hover_cell=getattr(state, 'dropdown_hover_cell', None))
+                        dropdown_hover_cell=getattr(state, 'dropdown_hover_cell', None),
+                        compass=getattr(state, 'compass', None))
             if timing:
                 state.timing.add(time.perf_counter() - t0)
         state.draw_calls += 1

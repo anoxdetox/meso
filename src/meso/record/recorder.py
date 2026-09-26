@@ -192,6 +192,10 @@ class Record:
     - ``context_pointers``: context_pointer_set / context_string_set names in effect.
     - ``template``: the template_* name (dynamic, opaque); ``error``: repr (error).
     - ``children``: an opaque template's child recorder's records (usually empty).
+    - ``pie_group``: inside a ``menu_pie()``: the index of the pie child it belongs to (each
+      element emitted directly on the pie, and each sub-layout created from it, is the next
+      child, as Blender allocates pie slots), -1 outside any pie; ``pie_direct``: emitted on
+      the pie layout itself (an ``operator_enum`` there fills one slot per item).
     """
 
     kind: str
@@ -218,6 +222,8 @@ class Record:
     error: str = ''
     children: list[Record] = field(default_factory=list)
     line: int = 0
+    pie_group: int = -1
+    pie_direct: bool = False
 
 
 @dataclass(slots=True)
@@ -743,6 +749,15 @@ class FakeLayout:
         d['_state'] = state
         d['_container'] = _container
         d['_log'] = recording.records if _log is None else _log
+        # Pie slots (Record.pie_group): a pie counts its children; a sub-layout of a pie takes
+        # the next one and its own children inherit it.
+        d['_pie_next'] = 0
+        if parent is None:
+            d['_pie_group'] = -1
+        elif parent._container == 'menu_pie':
+            d['_pie_group'] = parent._take_pie_slot()
+        else:
+            d['_pie_group'] = parent._pie_group
         if _container != 'row':
             d['_line'] = 0
         elif parent is not None and parent._container == 'row':
@@ -779,16 +794,26 @@ class FakeLayout:
         return f'<FakeLayout {self._container} depth={self.depth}>'
 
     # --- internals -----------------------------------------------------------------------
+    def _take_pie_slot(self) -> int:
+        n = self.__dict__['_pie_next']
+        self.__dict__['_pie_next'] = n + 1
+        return n
+
     def _child(self, container: str) -> FakeLayout:
         return FakeLayout(self.recording, self, _log=self._log, _container=container)
 
     def _emit(self, kind: str, *, proxy: PropsProxy | None = None, **fields: Any) -> Record:
         state = self._state
+        if self._container == 'menu_pie':
+            pie_group, pie_direct = self._take_pie_slot(), True
+        else:
+            pie_group, pie_direct = self._pie_group, False
         rec = Record(kind, operator_context=self._shared.operator_context,
                      enabled=bool(state['enabled']), active=bool(state['active']),
                      alert=bool(state['alert']), depth=self.depth,
                      section=self._shared.section, inline_from=self._inline_from,
-                     context_pointers=dict(self._pointers), line=self._line, **fields)
+                     context_pointers=dict(self._pointers), line=self._line,
+                     pie_group=pie_group, pie_direct=pie_direct, **fields)
         self._log.append(rec)
         self._shared.pending.append((rec, self, proxy))
         return rec

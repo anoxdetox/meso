@@ -243,8 +243,12 @@ def scenarios(drv):
                     n = sum(len(drawn.get((r.as_pointer(), t), [])) for _k, t in hints)
                     shot = np.asarray(w.screenshot())[:, :, :3].astype(np.int16)
                     got = bands(shot, r)
-                    if n and len(got) == n and got[0][0] < r.y + r.height - 50 * scale:
-                        break       # every line on screen, and the button above them
+                    if n and len(got) == n and got[0][0] < r.y + r.height - 50 * scale \
+                            and got[-1][1] > r.y + 6 * scale:
+                        # every line on screen, the button above them, and the last line
+                        # clear of the region's bottom edge (a line cut at its baseline
+                        # still makes a band, one period short)
+                        break
                     scroll(w, a, r, 1)
                 return measured(tag, w, a, r)
             finally:
