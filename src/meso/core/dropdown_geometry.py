@@ -31,11 +31,16 @@ Placement:
 Toggle tables (``DD_COLUMN_HEADER`` + ``DD_TOGGLE_ROW`` lines, :func:`table_columns`): a header
 and the rows after it with the same number of cells form one table (rows without a header
 form one of their own); column ``j`` is ``max(title_w + 2 * cell_pad, check_size + 2 *
-cell_pad, item_h)`` wide (the title width comes from the header). The columns are
-right-aligned at ``panel right - pad_x``, so every line of a table shares the column x
-positions; a table line needs ``check_col + label_w + shortcut_gap + sum(columns) + pad_x``.
-Each cell (:class:`PlacedCell`) is its column x the line height: the hit rect, the check box
-centred in it, the header title centred over it.
+cell_pad, item_h)`` wide (the title width comes from the header). A column whose cells carry
+a text (``DropdownCell.text``: the mode row's 'V' / 'E' / 'F') is at least ``check_size +
+cell_gap + text_w + 2 * cell_pad`` wide (``text_w`` the widest text of that column in the
+table), the glyph and its text centred as one group. The columns are right-aligned at
+``panel right - pad_x``, so every line of a table shares the column x positions; a table
+line needs ``check_col + label_w + shortcut_gap + sum(columns) + pad_x``. Each cell
+(:class:`PlacedCell`) is its column x the line height: the hit rect, the check box (or the
+radio of a ``DropdownCell.radio`` cell) centred in it, the header title centred over it. A
+label row (``core.dropdown_model.label_row``, a checked-state row) also draws its radio in
+the check column, like a DD_RADIO.
 
 Hit testing priority: deepest open panel -> ... -> the root dropdown -> the Plaza strips
 (``core.geometry.hit_test``) -> empty strip space -> nothing. On a DD_TOGGLE_ROW the hit also
@@ -72,6 +77,7 @@ BASE_DD_BORDER = 1.0        # panel outline width (scale only)
 BASE_DD_SUBMENU_OVERLAP = 0  # submenu panels touch their parent; >0 overlaps
 BASE_DD_RADIO_FACTOR = 0.6  # radio dot size relative to check_size
 BASE_DD_CELL_PAD = 6        # toggle-table cell: padding each side of its check box / title
+BASE_DD_CELL_GAP = 4        # toggle-table cell with a text: gap between its glyph and text
 
 # PlacedItem.check_style values.
 GLYPH_BOX = 'box'           # hollow square, filled inner square when checked (toggle, flag)
@@ -102,6 +108,7 @@ class DropdownMetrics:
     margin: int
     submenu_overlap: int
     cell_pad: int = 0
+    cell_gap: int = 0
 
 
 def dropdown_metrics(m: Metrics, font_scale: float = 1.0) -> DropdownMetrics:
@@ -112,7 +119,7 @@ def dropdown_metrics(m: Metrics, font_scale: float = 1.0) -> DropdownMetrics:
     ``check_size``, ``arrow_size``, ``hover_inset``, ``margin``. ``item_h =
     max(round_px(m.row_h * DD_ITEM_H_FACTOR), m.cap_h + 2 * m.pad_y)``. ``separator_h``,
     ``pad_y``, ``pad_x``, ``check_col``, ``arrow_col``, ``shortcut_gap``, ``min_w``,
-    ``submenu_overlap`` and ``cell_pad`` = ``round_px(BASE_DD_* * fs)``; ``border = BASE_DD_BORDER * m.scale``;
+    ``submenu_overlap``, ``cell_pad`` and ``cell_gap`` = ``round_px(BASE_DD_* * fs)``; ``border = BASE_DD_BORDER * m.scale``;
     ``radio_size = max(1, round_px(check_size * BASE_DD_RADIO_FACTOR))``. Deterministic."""
     fs = m.scale * _clamped(font_scale, FONT_SCALE_RANGE)
     check_size = max(1, int(m.check_size))
@@ -127,7 +134,7 @@ def dropdown_metrics(m: Metrics, font_scale: float = 1.0) -> DropdownMetrics:
         shortcut_gap=round_px(BASE_DD_SHORTCUT_GAP * fs), min_w=round_px(BASE_DD_MIN_W * fs),
         border=BASE_DD_BORDER * m.scale, hover_inset=m.hover_inset, margin=m.margin,
         submenu_overlap=round_px(BASE_DD_SUBMENU_OVERLAP * fs),
-        cell_pad=round_px(BASE_DD_CELL_PAD * fs))
+        cell_pad=round_px(BASE_DD_CELL_PAD * fs), cell_gap=round_px(BASE_DD_CELL_GAP * fs))
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,9 +144,11 @@ class PlacedCell:
 
     ``rect``: the hit rect (column width x line height; the cells of a line tile its column
     area); ``highlight``: the hover box (``rect`` inset by the border). Rows: ``check_rect``
-    (the GLYPH_BOX check box centred in ``rect``), ``checked`` / ``active`` / ``enabled``
-    from the ``DropdownCell``. Header: ``label`` (the column title) at ``text_x`` (centred
-    over the column; the line's ``text_y``), ``check_rect`` None.
+    (the glyph, ``check_style`` GLYPH_BOX, or GLYPH_RADIO for a ``DropdownCell.radio``
+    cell, centred in ``rect``; with a text the glyph + text group is centred), ``checked`` /
+    ``active`` / ``enabled`` from the ``DropdownCell``, ``label`` its ``text`` at ``text_x``
+    ('' without). Header: ``label`` (the column title) at ``text_x`` (centred over the
+    column; the line's ``text_y``), ``check_rect`` None.
     """
 
     index: int
@@ -151,6 +160,7 @@ class PlacedCell:
     enabled: bool = True
     label: str = ''
     text_x: int = 0
+    check_style: str = GLYPH_BOX
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,8 +291,9 @@ def measure_items(model: DropdownModel, text_width_fn: TextWidthFn) -> tuple[tup
                  else (width(item.label), width(item.shortcut)) for item in model.items)
 
 
-# One table line's columns (:func:`table_columns`): ``(column width, title width)`` each.
-Columns = tuple[tuple[int, float], ...]
+# One table line's columns (:func:`table_columns`): ``(column width, title width, cell text
+# width)`` each (the text width: the widest ``DropdownCell.text`` of that column, 0 without).
+Columns = tuple[tuple[int, float, float], ...]
 
 
 def table_columns(model: DropdownModel, dm: DropdownMetrics,
@@ -291,12 +302,19 @@ def table_columns(model: DropdownModel, dm: DropdownMetrics,
     tables"), () for items that are not DD_TOGGLE_ROW / DD_COLUMN_HEADER. A header and the
     rows right after it with as many cells as it has titles are one table; rows without such
     a header form one with the rows next to them of the same cell count. Column ``j`` is
-    ``ceil(max(title_w + 2 * cell_pad, check_size + 2 * cell_pad, item_h))`` wide; the title
-    widths come from ``text_width_fn`` (None: 0, the check box decides)."""
+    ``ceil(max(title_w + 2 * cell_pad, check_size + 2 * cell_pad, item_h))`` wide, and at
+    least ``check_size + cell_gap + text_w + 2 * cell_pad`` when its cells carry a text; the
+    title / text widths come from ``text_width_fn`` (None: 0, the check box decides)."""
     items = model.items
     out: list[Columns] = [()] * len(items)
     pad = 2 * dm.cell_pad
     floor = max(dm.check_size + pad, dm.item_h)
+
+    def measured(t: str) -> float:
+        if not t or text_width_fn is None:
+            return 0.0
+        return max(0.0, _finite_or(text_width_fn(t), 0.0))
+
     index = 0
     while index < len(items):
         item = items[index]
@@ -312,10 +330,16 @@ def table_columns(model: DropdownModel, dm: DropdownMetrics,
         while end < len(items) and items[end].kind == DD_TOGGLE_ROW \
                 and len(items[end].cells) == count:
             end += 1
-        tw = tuple(max(0.0, _finite_or(text_width_fn(t), 0.0))
-                   if (t and text_width_fn is not None) else 0.0 for t in titles)
+        tw = tuple(measured(t) for t in titles)
         tw += (0.0,) * (count - len(tw))
-        cols = tuple((math.ceil(max(floor, w + pad)), w) for w in tw)
+        xw = [0.0] * count
+        for k in range(index, max(end, index + 1)):
+            if items[k].kind == DD_TOGGLE_ROW:
+                for j, cell in enumerate(items[k].cells[:count]):
+                    xw[j] = max(xw[j], measured(cell.text))
+        cols = tuple((math.ceil(max(floor, w + pad,
+                                    (dm.check_size + dm.cell_gap + x + pad) if x > 0 else 0)),
+                      w, x) for w, x in zip(tw, xw))
         for k in range(index, max(end, index + 1)):
             out[k] = cols
         index = max(end, index + 1)
@@ -391,9 +415,14 @@ def place_items(model: DropdownModel, rect: Rect, dm: DropdownMetrics,
         text_y = round_px(y + (h - dm.cap_h) / 2)
         if item.kind in TABLE_KINDS:
             cols = columns[index] if index < len(columns) else ()
+            check_rect, style = None, ''
+            if has_check(item):     # a label row: its radio in the check column
+                cs = dm.check_size
+                check_rect = Rect(x + (dm.check_col - cs) // 2, y + (h - cs) // 2, cs, cs)
+                style = GLYPH_RADIO if radio_glyph(item) else GLYPH_BOX
             placed.append(PlacedItem(
                 path, item.kind, row, highlight, item.label, x + dm.check_col, text_y,
-                item.enabled, item.active, None,
+                item.enabled, item.active, item.checked, check_rect, style,
                 cells=_place_cells(item, cols, x1 - dm.pad_x, y, h, bi, dm)))
             continue
         check_rect, style = None, ''
@@ -430,7 +459,7 @@ def _place_cells(item: DropdownItem, cols: Columns, right: int, y: int, h: int, 
     out: list[PlacedCell] = []
     x = right - sum(c[0] for c in cols)
     cs = dm.check_size
-    for j, (col_w, title_w) in enumerate(cols):
+    for j, (col_w, title_w, text_w) in enumerate(cols):
         rect = Rect(x, y, col_w, h)
         highlight = Rect(x + bi, y + bi, max(0, col_w - 2 * bi), max(0, h - 2 * bi))
         if item.kind == DD_COLUMN_HEADER:
@@ -439,11 +468,16 @@ def _place_cells(item: DropdownItem, cols: Columns, right: int, y: int, h: int, 
                                   text_x=round_px(x + (col_w - title_w) / 2)))
         else:
             cell = item.cells[j] if j < len(item.cells) else None
-            check = Rect(x + (col_w - cs) // 2, y + (h - cs) // 2, cs, cs)
+            text = cell.text if cell is not None else ''
+            group = cs + dm.cell_gap + round_px(text_w) if (text and text_w > 0) else cs
+            check = Rect(x + (col_w - group) // 2, y + (h - cs) // 2, cs, cs)
             out.append(PlacedCell(j, rect, highlight, check,
                                   bool(cell.checked) if cell is not None else False,
                                   cell.active if cell is not None else True,
-                                  cell.enabled if cell is not None else False))
+                                  cell.enabled if cell is not None else False,
+                                  text, check.x + cs + dm.cell_gap if text else 0,
+                                  GLYPH_RADIO if cell is not None and cell.radio
+                                  else GLYPH_BOX))
         x += col_w
     return tuple(out)
 

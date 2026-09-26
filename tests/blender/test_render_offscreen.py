@@ -791,7 +791,8 @@ def dd_metrics(m):
         arrow_col=r(dg.BASE_DD_ARROW_COL * fs), arrow_size=m.arrow_size,
         shortcut_gap=r(dg.BASE_DD_SHORTCUT_GAP * fs), min_w=r(dg.BASE_DD_MIN_W * fs),
         border=dg.BASE_DD_BORDER * m.scale, hover_inset=m.hover_inset, margin=m.margin,
-        submenu_overlap=r(dg.BASE_DD_SUBMENU_OVERLAP * fs), cell_pad=r(dg.BASE_DD_CELL_PAD * fs))
+        submenu_overlap=r(dg.BASE_DD_SUBMENU_OVERLAP * fs), cell_pad=r(dg.BASE_DD_CELL_PAD * fs),
+        cell_gap=r(dg.BASE_DD_CELL_GAP * fs))
 
 
 def hand_panel(items, x, top, dm, width_fn, depth=0, opener=None, key='TEST_MT_menu'):
@@ -1072,6 +1073,90 @@ class TestOffscreenToggleTable(unittest.TestCase):
         self.assertIsNotNone(glyphs[0])
         cache.clear()
         self.assertEqual(cache._cells, {})
+
+
+def _mode_row_chain(scale=1.0):
+    """The mode switch with its label rows (core geometry): Object Mode (radio), Edit Mode
+    [V] [E] [F] checked with V and F on, Draw Edit (Point) (Stroke) (Segment) radio cells
+    with Stroke on."""
+    d, dg, g, rd = _dmod(), _dg(), _geo(), _rd()
+    I, C = d.DropdownItem, d.DropdownCell                               # noqa: E741
+    act = _mod("core.model").Action(_mod("core.model").ACTION_OPERATOR, target='x.y')
+    items = (
+        I(d.DD_RADIO, 'Object Mode', checked=False, action=act),
+        I(d.DD_TOGGLE_ROW, 'Edit Mode', checked=True, action=act, cells=(
+            C('Vertex', True, action=act, text='V'), C('Edge', False, action=act, text='E'),
+            C('Face', True, action=act, text='F'))),
+        I(d.DD_TOGGLE_ROW, 'Draw Edit', checked=False, action=act, cells=tuple(
+            C(name, name == 'Stroke', action=act, text=name, radio=True)
+            for name in ('Point', 'Stroke', 'Segment'))))
+    model = d.DropdownModel('MESO_MT_mode_switch', 'Mode', items)
+    met = g.metrics_for(scale, 11.0, cap_height_fn=rd.cap_height)
+    dm = dg.dropdown_metrics(met)
+    return dg.layout_chain((model,), _Rect(200, 800, 80, 22), (), _Rect(0, 0, DW, DH), dm,
+                           rd.text_width_fn(dm.font_px))
+
+
+class TestOffscreenModeRow(unittest.TestCase):
+    """The mode switch row 'Edit Mode [V] [E] [F]': the label's radio, the cells' boxes (or
+    radios) followed by their texts, the focused cell's box (renderer.draw_dropdowns)."""
+
+    def setUp(self):
+        reason = _gpu_ready()
+        if reason:
+            self.skipTest(reason)
+        self.colors = _rd().dropdown_colors(_th().meso_palette(25))
+
+    @staticmethod
+    def grey(c):
+        return sum(c[:3]) / 3
+
+    def test_mode_row_pixels(self):
+        rd = _rd()
+        for scale in (1.0, 2.0):
+            with self.subTest(scale=scale):
+                chain = _mode_row_chain(scale)
+                drawn, px, after = _render_dd(None, chain, dd_hover=(2,), dd_hover_cell=0,
+                                              dd_cache=_dd_cache(self))
+                path = _save_png(px.data, DW, DH, f"dropdown_mode_row_scale{scale:g}")
+                msg = f"(see {path})"
+                self.assertTrue(drawn, msg)
+                self.assertEqual(after.blend, 'NONE')
+                c = self.colors
+                obj, edit, draw = (chain.item((i,)) for i in (0, 1, 2))
+
+                def centre(r):
+                    return px.grey(int(r.x + r.w // 2), int(r.y + r.h // 2))
+
+                # The label row's radio: checked (a dot in the glyph colour), like a DD_RADIO.
+                self.assertAlmostEqual(centre(edit.check_rect), self.grey(c.glyph), delta=0.03,
+                                       msg=f"label radio checked {msg}")
+                self.assertAlmostEqual(centre(obj.check_rect), self.grey(c.panel), delta=0.02,
+                                       msg=f"unchecked radio {msg}")
+                # Box cells: V and F filled, E empty; every cell's text drawn in the text colour.
+                v, e, f = edit.cells
+                self.assertAlmostEqual(centre(v.check_rect), self.grey(c.glyph), delta=0.03,
+                                       msg=f"V checked {msg}")
+                self.assertAlmostEqual(centre(e.check_rect), self.grey(c.panel), delta=0.02,
+                                       msg=f"E unchecked {msg}")
+                self.assertAlmostEqual(centre(f.check_rect), self.grey(c.glyph), delta=0.03,
+                                       msg=f"F checked {msg}")
+                wf = rd.text_width_fn(chain.metrics.font_px)
+                for cell in edit.cells + draw.cells:
+                    box = _Rect(cell.text_x, edit.text_y if cell in edit.cells else draw.text_y,
+                                math.ceil(wf(cell.label)) + 1, chain.metrics.cap_h + 1)
+                    self.assertGreater(px.region_max(box), self.grey(c.panel) + 0.3,
+                                       f"text {cell.label} {msg}")
+                # Radio cells: the checked one has a dot, the others only the ring.
+                point, stroke, _segment = draw.cells
+                self.assertAlmostEqual(centre(stroke.check_rect), self.grey(c.text_hover),
+                                       delta=0.03, msg=f"lit radio cell {msg}")
+                self.assertAlmostEqual(centre(point.check_rect), self.grey(c.cell_hover),
+                                       delta=0.02, msg=f"unchecked radio cell: no dot {msg}")
+                # The hovered row's focused first cell gets the lighter box.
+                self.assertAlmostEqual(
+                    px.grey(int(point.highlight.x) + 1, int(point.rect.y + point.rect.h // 2)),
+                    self.grey(c.cell_hover), delta=0.02, msg=f"focused cell box {msg}")
 
 
 class TestOffscreenDropdowns(unittest.TestCase):

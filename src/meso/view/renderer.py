@@ -21,10 +21,12 @@ strips in the same callback pass (``view.draw_manager.draw_region`` calls ``draw
 ``draw_dropdowns`` per visible piece); colours come from :func:`dropdown_colors`, derived from
 the session :class:`view.theme.Palette` only (the palette itself is frozen: user-approved).
 Toggle tables (docs/phase4-interfaces.md "Toggle tables"): a DD_TOGGLE_ROW draws its label
-left and one GLYPH_BOX check box per cell (the DD_TOGGLE primitive; inactive / disabled
-cells dimmed); a hovered row gets the normal hover bar and its focused cell a lighter box
-(``cell_hover``) under the check box; a DD_COLUMN_HEADER draws its titles dimmed, centred
-over the columns.
+left and one GLYPH_BOX check box per cell (the DD_TOGGLE primitive; a GLYPH_RADIO for a radio
+cell; inactive / disabled cells dimmed), followed by the cell's text when it has one (the
+mode row's 'V' / 'E' / 'F', in the row's label colour); a label row also draws its radio in
+the check column; a hovered row gets the normal hover bar and its focused cell a lighter
+box (``cell_hover``) under the check box; a DD_COLUMN_HEADER draws its titles dimmed,
+centred over the columns.
 
 Headless: needs ``gpu.init()`` + a bound ``GPUOffScreen`` with a pixel-ortho projection
 (tests/blender/test_render_offscreen.py, docs/spikes/draw.md). Never call from ``register()``.
@@ -683,13 +685,19 @@ def _dd_glyph_mesh(items: Iterable[PlacedItem], dm: DropdownMetrics,
     """TRIS mesh of the glyphs of ``items``: GLYPH_BOX = hollow square + filled inner square
     when checked; GLYPH_RADIO = round ring + filled dot when checked (exclusive picks read
     apart from multi-select boxes); '▸' arrows (:func:`arrow_points`, always pointing right,
-   ); plus the GLYPH_BOX of every toggle-table cell in ``cells``."""
+   ); plus the glyph of every toggle-table cell in ``cells`` (its ``check_style``)."""
     verts: list[Point] = []
     tris: list[tuple[int, int, int]] = []
     t = dd_line_px(dm)
     for cell in cells:
         cr = cell.check_rect
         if cr is not None and not cr.is_empty():
+            if cell.check_style == GLYPH_RADIO:
+                cx, cy = cr.x + cr.w / 2, cr.y + cr.h / 2
+                _add_ring(verts, tris, cx, cy, min(cr.w, cr.h), t)
+                if cell.checked:
+                    _add_dot(verts, tris, cx, cy, radio_dot_diameter(cr, dm))
+                continue
             _add_outline(verts, tris, cr, t)
             if cell.checked:
                 f = check_fill_rect(cr, dm)
@@ -962,7 +970,8 @@ def _draw_dd_labels(panel: Panel, font_px: int, colors: DropdownColors,
     coords; size set once and the colour only when it changes. A highlighted row's shortcut
     is drawn in ``text`` (``shortcut`` is too close to the hover bar grey to read). The
     column titles of a DD_COLUMN_HEADER are drawn in ``text_disabled`` at their cells'
-    ``text_x``."""
+    ``text_x``; the texts of a DD_TOGGLE_ROW's cells in the row's label colour
+    (``text_disabled`` for an inactive / disabled cell)."""
     blf.size(FONT_ID, font_px)
     current = None
     for it in panel.items:
@@ -975,13 +984,16 @@ def _draw_dd_labels(panel: Panel, font_px: int, colors: DropdownColors,
                 current = color
             blf.position(FONT_ID, it.text_x - ox, it.text_y - oy, 0)
             blf.draw(FONT_ID, it.label)
-        if it.kind == DD_COLUMN_HEADER:
+        if it.kind in (DD_COLUMN_HEADER, DD_TOGGLE_ROW):
+            row_color = (colors.text_disabled if it.kind == DD_COLUMN_HEADER
+                         else dd_label_color(it, colors, it.path in lit))
             for cell in it.cells:
                 if not cell.label:
                     continue
-                if colors.text_disabled != current:
-                    blf.color(FONT_ID, *colors.text_disabled)
-                    current = colors.text_disabled
+                color = row_color if (cell.enabled and cell.active) else colors.text_disabled
+                if color != current:
+                    blf.color(FONT_ID, *color)
+                    current = color
                 blf.position(FONT_ID, cell.text_x - ox, it.text_y - oy, 0)
                 blf.draw(FONT_ID, cell.label)
         if it.shortcut:

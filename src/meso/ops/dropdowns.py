@@ -61,10 +61,13 @@ which stay in ``ops.plaza``) to :func:`handle_event`, which
 
 Toggle tables (docs/phase4-interfaces.md "Toggle tables"): a hit on a DD_TOGGLE_ROW names
 its cell (``Hit.cell``); :func:`target_for` makes the Target that cell's (role
-``cell_role``, the cell's action, ``cell``), and ROLE_PASSIVE on the row label. The cell
-travels through HoverItem / RunItem (``RunItem.cell``) and :func:`_chain_action` runs that
-cell's action (in place: the re-record updates the checks; the chain stays open).
-``Opened`` carries ``model_cell_roles`` for keyboard navigation between cells.
+``cell_role``, the cell's action, ``cell``), and ROLE_PASSIVE on the row label, except on a
+label row (``label_row``: the mode switch's 'Edit Mode [V] [E] [F]'), whose label is the
+row's own pick (``row_label_role``, the row's action, ``cell`` None). The cell travels
+through HoverItem / RunItem (``RunItem.cell``) and :func:`_chain_action` runs that cell's
+action, or the label row's with no cell (in place: the re-record updates the checks; the
+chain stays open). ``Opened`` carries ``model_cell_roles`` and ``model_label_rows`` for
+keyboard navigation between the label and the cells.
 
 Hover-open (docs/phase4-interfaces.md "Hover-open"): the pref snapshots ``hover_open`` /
 ``hover_open_delay`` / ``hover_close_delay`` go into the reducer; the reducer opens a
@@ -99,8 +102,9 @@ from ..core.dropdown_model import (
     COVERAGE_NATIVE, DD_ENUM_CASCADE, DD_NATIVE, DD_NATIVE_MORE, DD_SUBMENU, DD_TOGGLE_ROW,
     DD_VALUE, DROPDOWN_OPERATOR_CONTEXT, ROLE_PASSIVE, SOURCE_MENU, SOURCE_TOOL, ZONE_ITEM,
     ZONE_LABEL, ZONE_NONE, ZONE_PANEL, DropdownModel, cell_role, enum_child_model, item_at,
-    item_cell, item_role, label_role, label_source, model_cell_roles, native_label,
-    native_menu_action, same_opener, valid_depth,
+    item_cell, item_role, label_role, label_row, label_source, model_cell_roles,
+    model_label_rows, native_label, native_menu_action, row_label_role, same_opener,
+    valid_depth,
 )
 from ..core.menubar import (
     Cancel, Changed, CloseChain, Effect, Esc, Event, Finish, HoverItem, HoverLabel,
@@ -303,21 +307,27 @@ def _chain_item(session: MenuSession, path: Any) -> Any:
 
 def _chain_action(session: MenuSession, path: Any, cell: int | None) -> tuple[Any, Any]:
     """``(item, action)`` of the chain item at ``path``; on a DD_TOGGLE_ROW the action of
-    its cell ``cell`` (None without a valid cell: a click on the row label runs nothing)."""
+    its cell ``cell``; without a valid cell the label's: a label row's own action, else None
+    (a click on a plain row label runs nothing)."""
     item = _chain_item(session, path)
     if item is None:
         return None, None
     if item.kind == DD_TOGGLE_ROW:
-        c = item_cell(item, cell) if item.enabled else None
-        return item, (c.action if c is not None else None)
+        if not item.enabled:
+            return item, None
+        c = item_cell(item, cell)
+        if c is None:
+            return item, (item.action if label_row(item) else None)
+        return item, c.action
     return item, item.action
 
 
 def target_for(session: MenuSession, state: Any, hit: Hit) -> Target:
     """``core.menubar.Target`` of ``hit``: ZONE_LABEL -> ``label_role(model.find(id))`` +
     ``item_action``; ZONE_ITEM -> ``item_role(item_at(models, path))`` + ``item.action``
-    (a DD_TOGGLE_ROW: the hit cell's ``cell_role`` + action + ``cell``, ROLE_PASSIVE on the
-    row label); other zones -> passive targets."""
+    (a DD_TOGGLE_ROW: the hit cell's ``cell_role`` + action + ``cell``; on the row label
+    ``row_label_role`` + the row's action, ROLE_PASSIVE on a plain row's); other zones ->
+    passive targets."""
     if hit.zone == ZONE_LABEL:
         item = state.model.find(hit.label_id) if state.model is not None else None
         return Target(ZONE_LABEL, hit.label_id, None, label_role(item), item_action(item))
@@ -326,7 +336,9 @@ def target_for(session: MenuSession, state: Any, hit: Hit) -> Target:
         if item is not None and item.kind == DD_TOGGLE_ROW:
             c = item_cell(item, hit.cell)
             if c is None:
-                return Target(ZONE_ITEM, None, hit.path, ROLE_PASSIVE)
+                role = row_label_role(item)
+                return Target(ZONE_ITEM, None, hit.path, role,
+                              item.action if role != ROLE_PASSIVE else None)
             role = cell_role(c) if item.enabled else ROLE_PASSIVE
             return Target(ZONE_ITEM, None, hit.path, role, c.action, cell=hit.cell)
         return Target(ZONE_ITEM, None, hit.path, item_role(item),
@@ -470,9 +482,9 @@ def _roles(model: DropdownModel) -> tuple[str, ...]:
 
 
 def _opened(level: int, model: DropdownModel) -> Opened:
-    """The ``Opened`` event of ``model`` placed as level ``level``: its roles and the cell
-    roles of its table rows."""
-    return Opened(level, _roles(model), model_cell_roles(model))
+    """The ``Opened`` event of ``model`` placed as level ``level``: its roles, the cell
+    roles of its table rows and which of them are label rows."""
+    return Opened(level, _roles(model), model_cell_roles(model), model_label_rows(model))
 
 
 def _openable(model: DropdownModel | None) -> bool:

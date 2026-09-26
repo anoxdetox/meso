@@ -6,8 +6,8 @@ Every setter pushes exactly one undo step via the positional undo flag (docs/spi
 (``space_data.*``) return CANCELLED with the value changed and no step (native parity).
 The Plaza operator itself never has UNDO.
 
-:class:`MESO_OT_mode_set_select` (``{'INTERNAL'}``) is the Plaza mode switch's submode
-pick from another mode: ``object.mode_set`` then the select mode of that mode
+:class:`MESO_OT_mode_set_select` (``{'INTERNAL'}``) is the Plaza mode switch's select-mode
+cell clicked from another mode: ``object.mode_set`` then the select mode of that mode
 (``core.modes``), nested, each followed by the undo step its native call pushes, so the pick
 leaves the two steps of the native mode menu then header button (see the class).
 
@@ -195,7 +195,7 @@ def _select_step_name(domains: modes.SelectDomains) -> str:
 
 
 class MESO_OT_mode_set_select(Operator):
-    """Enter an object mode with a select mode (the Plaza's mode switch submenus)"""
+    """Enter an object mode with a select mode (the Plaza's mode switch select-mode cells)"""
 
     bl_idname = MODE_SELECT_OPERATOR
     bl_label = 'Set Object Mode and Select Mode'

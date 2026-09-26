@@ -1628,10 +1628,33 @@ def dd_find(st, level, pred):
 
 
 def dd_xy(st, path):
-    """Window point in the middle of the placed dropdown item ``path`` (None if unplaced)."""
+    """Window point in the middle of the placed dropdown item ``path`` (None if unplaced; a
+    table row: a point on its label, never on a cell)."""
     chain = st.menus.chain if st is not None and st.menus is not None else None
     placed = chain.item(tuple(path)) if chain is not None else None
+    if placed is not None and placed.cells:
+        return dd_label_xy(st, path)
     return rect_mid(placed.rect) if placed is not None else None
+
+
+def dd_label_xy(st, path):
+    """Window point on the label of the placed table row ``path`` (left of its cells; the
+    mode switch's 'Edit Mode' of 'Edit Mode [V] [E] [F]'), None if unplaced."""
+    chain = st.menus.chain if st is not None and st.menus is not None else None
+    placed = chain.item(tuple(path)) if chain is not None else None
+    if placed is None:
+        return None
+    return int(placed.text_x + 2), int(placed.rect.y + placed.rect.h // 2)
+
+
+def dd_cell_xy(st, path, cell):
+    """Window point in the middle of cell ``cell`` of the placed table row ``path`` (None if
+    unplaced or no such cell)."""
+    chain = st.menus.chain if st is not None and st.menus is not None else None
+    placed = chain.item(tuple(path)) if chain is not None else None
+    if placed is None or not 0 <= cell < len(placed.cells):
+        return None
+    return rect_mid(placed.cells[cell].rect)
 
 
 def dd_keys(st):
@@ -1805,8 +1828,8 @@ def sc_p3_click_object_menu(rec):
 
 def sc_p3_mode_switch(rec):
     """Click the mode switcher: the custom mode dropdown opens (a built menu; no hand-off,
-    no native popup), one row per mode of the cube (radios; Edit Mode a cascade of its
-    select modes), the native labels, Object Mode checked; ESC closes the chain only and the Space release finishes. The pick itself
+    no native popup), one row per mode of the cube (radios; Edit Mode one row with its select
+    mode cells, 'Edit Mode [V] [E] [F]'), the native labels, Object Mode checked; ESC closes the chain only and the Space release finishes. The pick itself
     (Edit Mode in place, the rows re-recorded) is ``pm_mode_pick``
     (scenarios_plazamodes.py)."""
     md = model_mod()
@@ -1820,10 +1843,12 @@ def sc_p3_mode_switch(rec):
         yield from close_plaza(xy, rec)
         return
     items = dd_models(st)[0].items
-    # Edit Mode has submodes (Vertex / Edge / Face): a radio-glyph cascade; the rest radios.
+    # Edit Mode has select modes: a label row with the cells V / E / F; the rest radios.
     check(rec, "radio_rows", [it.kind for it in items] == [
-        D.DD_RADIO, D.DD_ENUM_CASCADE, D.DD_RADIO, D.DD_RADIO, D.DD_RADIO, D.DD_RADIO],
+        D.DD_RADIO, D.DD_TOGGLE_ROW, D.DD_RADIO, D.DD_RADIO, D.DD_RADIO, D.DD_RADIO],
           [(it.kind, it.label) for it in items])
+    check(rec, "edit_cells", len(items) > 1 and [c.text for c in items[1].cells]
+          == ["V", "E", "F"], len(items) > 1 and [c.text for c in items[1].cells])
     check(rec, "cube_modes", [it.label for it in items] == [
         "Object Mode", "Edit Mode", "Sculpt Mode", "Vertex Paint", "Weight Paint",
         "Texture Paint"], [it.label for it in items])

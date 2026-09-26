@@ -52,7 +52,9 @@ DD_NATIVE = 'native'            # hands ``action`` off natively; ends the Plaza.
 DD_NATIVE_MORE = 'native_more'  # trailing 'More…'; hands the WHOLE container off natively
 DD_TOGGLE_ROW = 'toggle_row'    # a toggle-table row: label left + one check box per column
                                 # (``cells``); a click on a cell applies that cell in place,
-                                # a click on the label does nothing (as natively)
+                                # a click on the label does nothing (as natively) unless the
+                                # row has its own ``action`` (a label row: the mode switch's
+                                # 'Edit Mode [V] [E] [F]', the label a radio pick)
 DD_COLUMN_HEADER = 'column_header'  # a toggle-table header: dimmed column titles
                                 # (``columns``) centred over the check boxes; never hit
 DD_KINDS = (DD_OP, DD_SUBMENU, DD_ENUM_CASCADE, DD_TOGGLE, DD_RADIO, DD_FLAG, DD_VALUE,
@@ -86,9 +88,8 @@ NATIVE_ONLY_MENUS: frozenset[str] = frozenset()
 
 # DropdownItem.source of the items of the built menus (``record.builtin_menus``).
 ITEM_SOURCE_MODE = 'mode_switch'        # a mode of the mode switcher (DD_RADIO; a mode with
-                                        # select domains: a DD_ENUM_CASCADE of its submodes)
-ITEM_SOURCE_SUBMODE = 'mode_submode'    # a select mode in a mode's submenu (DD_FLAG for the
-                                        # mesh select mode, else DD_RADIO; core.modes)
+                                        # select domains: a DD_TOGGLE_ROW label row whose
+                                        # cells are its select modes, core.modes)
 ITEM_SOURCE_RECENT = 'recent_file'      # a file of Open Recent (DD_OP wm.open_mainfile)
 
 # DropdownItem.source of an inline DD_RADIO drawn by recorded popover content
@@ -141,11 +142,14 @@ ZONES = (ZONE_ITEM, ZONE_PANEL, ZONE_LABEL, ZONE_STRIP, ZONE_NONE)
 class DropdownCell:
     """One check box of a DD_TOGGLE_ROW (plain data): the toggle of one table column.
 
-    ``label``: the long name of the toggle ('Mesh Visible': run records, tests; never
-    drawn). ``checked``: the current value. ``active`` False: dimmed but clickable (the
-    native Selectable cell of a hidden object type). ``enabled`` False: dimmed, never runs.
-    ``action``: what a click applies in place (ACTION_TOGGLE / ACTION_OPERATOR, as a
-    DD_TOGGLE); not part of ``hash()``.
+    ``label``: the long name of the toggle ('Mesh Visible', 'Vertex': run records, tests;
+    never drawn). ``checked``: the current value. ``active`` False: dimmed but clickable
+    (the native Selectable cell of a hidden object type). ``enabled`` False: dimmed, never
+    runs. ``action``: what a click applies in place (ACTION_TOGGLE / ACTION_OPERATOR, as a
+    DD_TOGGLE); not part of ``hash()``. ``text``: a short text drawn right of the glyph
+    (a headerless cell names itself: the mode row's 'V' / 'E' / 'F'); '' = the glyph alone
+    (a table column's title names it). ``radio``: the glyph is a radio (one member of an
+    exclusive group: the Grease Pencil / Curves / Particle select modes), else a box.
     """
 
     label: str = ''
@@ -153,6 +157,8 @@ class DropdownCell:
     active: bool = True
     enabled: bool = True
     action: Action | None = field(default=None, hash=False)
+    text: str = ''
+    radio: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,16 +170,17 @@ class DropdownItem:
     - ``enabled`` False: dimmed and never runs (operator poll False under the override,
       ``layout.enabled`` False). ``active`` False (``layout.active = False``): dimmed but
       clickable.
-    - ``checked``: bool for :data:`CHECK_KINDS` (current state), else None; a cascade
-      (DD_ENUM_CASCADE / DD_SUBMENU) with a bool draws a radio glyph (:func:`has_check`: the
-      mode switch row of a mode with submodes, the current mode's filled).
+    - ``checked``: bool for :data:`CHECK_KINDS` (current state), else None; a DD_TOGGLE_ROW
+      label row with a bool draws a radio glyph (:func:`has_check`: the mode switch row of a
+      mode with select modes, the current mode's filled).
     - ``shortcut``: optional right-aligned hint ('Ctrl A'), '' = none.
     - ``action``: what a click runs (:func:`item_role`): DD_OP ACTION_OPERATOR (recorded
       operator_context + props); DD_TOGGLE ACTION_TOGGLE (or ACTION_OPERATOR for a
       ``depress=`` operator); DD_RADIO ACTION_SET_ENUM; DD_FLAG ACTION_TOGGLE_FLAG;
       DD_VALUE / DD_NATIVE / DD_NATIVE_MORE a native hand-off (ACTION_MENU / ACTION_PANEL /
-      ACTION_PROP_ENUM_MENU); None for submenu / enum_cascade / label / separator.
-      Not part of ``hash()``.
+      ACTION_PROP_ENUM_MENU); DD_TOGGLE_ROW None (a click on the label does nothing) or the
+      label's own pick (a label row, :func:`label_row`; ROLE_APPLY_CLOSE like a DD_RADIO);
+      None for submenu / enum_cascade / label / separator. Not part of ``hash()``.
     - ``submenu``: DD_SUBMENU: the child Menu idname ('' otherwise).
     - ``children``: DD_ENUM_CASCADE: the inline child items (DD_RADIO for a property enum,
       DD_OP for ``operator_menu_enum``), shown by :func:`enum_child_model`.
@@ -182,7 +189,8 @@ class DropdownItem:
     - ``source``: the recorder kind it came from (``record.recorder.REC_*``; coverage and
       debugging only).
     - ``cells``: DD_TOGGLE_ROW: one :class:`DropdownCell` per table column, in draw order
-      (``label`` is the row label; ``action`` None: a click on the row itself does nothing).
+      (``label`` is the row label; ``action`` None: a click on the row itself does nothing,
+      else the label row's own pick).
     - ``columns``: DD_COLUMN_HEADER: the column titles, in draw order ('Sel', 'Vis').
     """
 
@@ -290,17 +298,33 @@ def has_arrow(item: DropdownItem | None) -> bool:
 
 def has_check(item: DropdownItem | None) -> bool:
     """True when ``item`` draws a glyph in the check column: :data:`CHECK_KINDS`, and a
-    cascade whose ``checked`` is a bool (a radio choice that opens submodes)."""
+    DD_TOGGLE_ROW whose ``checked`` is a bool (a label row that is a radio choice: the mode
+    switch's 'Edit Mode [V] [E] [F]')."""
     if item is None:
         return False
-    return item.kind in CHECK_KINDS or (item.kind in CASCADE_KINDS and item.checked is not None)
+    return item.kind in CHECK_KINDS or (item.kind == DD_TOGGLE_ROW and item.checked is not None)
 
 
 def radio_glyph(item: DropdownItem | None) -> bool:
     """True when the check-column glyph of ``item`` is a radio (DD_RADIO, a checked-state
-    cascade); a box otherwise (toggles, flags)."""
-    return item is not None and (item.kind == DD_RADIO or (item.kind in CASCADE_KINDS
+    DD_TOGGLE_ROW); a box otherwise (toggles, flags)."""
+    return item is not None and (item.kind == DD_RADIO or (item.kind == DD_TOGGLE_ROW
                                                            and item.checked is not None))
+
+
+def label_row(item: DropdownItem | None) -> bool:
+    """True when ``item`` is a DD_TOGGLE_ROW whose label is itself a target (it has an
+    ``action``: the mode switch row of a mode with select modes); a plain toggle-table row's
+    label does nothing."""
+    return item is not None and item.kind == DD_TOGGLE_ROW and item.action is not None
+
+
+def row_label_role(item: DropdownItem | None) -> str:
+    """The role of a click on the label of a DD_TOGGLE_ROW: ROLE_APPLY_CLOSE for an enabled
+    :func:`label_row` (a radio pick: in place, closes its level), else ROLE_PASSIVE."""
+    if not label_row(item) or not item.enabled:
+        return ROLE_PASSIVE
+    return ROLE_APPLY_CLOSE
 
 
 def label_source(item: Item | None) -> DropdownSource | None:
@@ -367,11 +391,14 @@ def item_role(item: DropdownItem | None) -> str:
                                            -> ROLE_PASSIVE)
     DD_OP                                  ROLE_RUN
     DD_TOGGLE, DD_FLAG                     ROLE_APPLY
-    DD_TOGGLE_ROW                          ROLE_APPLY when a cell is (:func:`cell_role`;
+    DD_TOGGLE_ROW                          a label row (:func:`label_row`): the
+                                           label's :func:`row_label_role`; else
+                                           ROLE_APPLY when a cell is (:func:`cell_role`;
                                            keyboard navigation stops there), else
                                            ROLE_PASSIVE. The pointer target of a
                                            row is its CELL: ``cell_role`` of the
-                                           hovered cell, ROLE_PASSIVE on the label
+                                           hovered cell, on the label
+                                           :func:`row_label_role`
     DD_COLUMN_HEADER                       ROLE_PASSIVE
     DD_RADIO                               ROLE_APPLY_CLOSE (``source`` ==
                                            :data:`ITEM_SOURCE_PANEL`: ROLE_APPLY)
@@ -389,6 +416,8 @@ def item_role(item: DropdownItem | None) -> str:
     if kind == DD_ENUM_CASCADE:
         return ROLE_SUBMENU if item.children else ROLE_PASSIVE
     if kind == DD_TOGGLE_ROW:
+        if label_row(item):
+            return row_label_role(item)
         return ROLE_APPLY if ROLE_APPLY in cell_roles(item) else ROLE_PASSIVE
     if item.action is None:
         return ROLE_PASSIVE
@@ -434,6 +463,14 @@ def model_cell_roles(model: DropdownModel | None) -> tuple[tuple[str, ...], ...]
     if model is None:
         return ()
     return tuple(cell_roles(item) for item in model.items)
+
+
+def model_label_rows(model: DropdownModel | None) -> tuple[bool, ...]:
+    """:func:`label_row` of every item of ``model`` (``core.menubar.Opened.labels``: the
+    keyboard can focus those labels); () for None."""
+    if model is None:
+        return ()
+    return tuple(label_row(item) for item in model.items)
 
 
 def model_roles(model: DropdownModel | None) -> tuple[str, ...]:

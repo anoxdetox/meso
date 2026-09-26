@@ -142,6 +142,14 @@ level (() for non-table items; stored in ``cell_roles``), so the keyboard can re
   submenu when depth >= 2). Other rows keep the RIGHT / LEFT submenu behaviour.
 - RETURN / NUMPAD_ENTER apply the focused cell (RunItem(path, True, cell=c)).
 - A mouse hover sets the focused cell to the hovered one (None on the label).
+Label rows (``core.dropdown_model.label_row``: the mode switch's 'Edit Mode [V] [E] [F]'):
+the row label is a target of its own (``Opened.labels``, stored in ``label_rows``); its
+role is the row's entry in ``roles`` (ROLE_APPLY_CLOSE, a radio pick) and the focus on it is
+``hover_cell`` None. The keyboard treats the label as the stop before the first cell: UP /
+DOWN onto a label row focus the label (or keep the column coming from a row of as many
+cells), keyboard entry lands on the label, RIGHT on the label focuses the first cell, LEFT
+on the first cell focuses the label, and LEFT on the label is the plain LEFT; RETURN on the
+label runs the row's pick.
 
 Hover-open (``hover_open``; spec: docs/phase4-interfaces.md "Hover-open"): ``opened_by`` is
 None when closed, else how the chain was opened: 'hover' (transient: closes on its own once
@@ -318,12 +326,15 @@ class Changed:
 class Opened:
     """Sent by D after it executed OpenDropdown (``depth`` 0) / OpenSubmenu (``depth`` =
     ``len(path)``) or re-recorded a level: the item roles of that level
-    (``core.dropdown_model.model_roles``) for keyboard navigation, and ``cells``: the cell
-    roles per item (``core.dropdown_model.model_cell_roles``; () for non-table items)."""
+    (``core.dropdown_model.model_roles``) for keyboard navigation, ``cells``: the cell
+    roles per item (``core.dropdown_model.model_cell_roles``; () for non-table items), and
+    ``labels``: per item, True for a label row whose label the keyboard can focus
+    (``core.dropdown_model.model_label_rows``; () = none)."""
 
     depth: int
     roles: tuple[str, ...] = ()
     cells: tuple[tuple[str, ...], ...] = ()
+    labels: tuple[bool, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -425,7 +436,7 @@ class MenuBarState:
     ``hover_path`` / ``hover_role`` / ``hover_action`` (dropdown item under the cursor),
     ``hover_cell`` (the focused cell of a hovered DD_TOGGLE_ROW, None otherwise; the role /
     action are then the cell's). ``cell_roles``: per open level, the cell roles per item
-    (from :class:`Opened`, like ``roles``).
+    (from :class:`Opened`, like ``roles``); ``label_rows`` likewise its ``labels``.
     Timing: ``pending`` / ``pending_since`` (submenu waiting for ``submenu_delay``),
     ``aim_since`` (None, or when the pointer started crossing siblings toward the open
     submenu). Gesture: ``pressed`` (Target of the last LMB press, None after its release),
@@ -461,6 +472,7 @@ class MenuBarState:
     hover_action: Action | None = field(default=None, compare=False)
     hover_cell: int | None = None
     cell_roles: tuple[tuple[tuple[str, ...], ...], ...] = ()
+    label_rows: tuple[tuple[bool, ...], ...] = ()
     pending: Path | None = None
     pending_since: float = 0.0
     aim_since: float | None = None
@@ -617,12 +629,13 @@ def _closed_to(s: MenuBarState, depth: int) -> MenuBarState:
     """``s`` with only the first ``depth`` levels open (hover / pending beyond dropped)."""
     if depth <= 0:
         return replace(s, open_label=None, submenus=(), roles=(), cell_roles=(),
-                       hover_path=None, hover_cell=None,
+                       label_rows=(), hover_path=None, hover_cell=None,
                        hover_role=ROLE_PASSIVE, hover_action=None, pending=None,
                        aim_since=None, nav_enter=False, opened_by=None, hover_wait=None,
                        leave_since=None, leave_aim=None, switch_wait=None, entered=False)
     kw = {'submenus': s.submenus[:depth - 1], 'roles': s.roles[:depth],
-          'cell_roles': s.cell_roles[:depth], 'aim_since': None}
+          'cell_roles': s.cell_roles[:depth], 'label_rows': s.label_rows[:depth],
+          'aim_since': None}
     if s.hover_path is not None and len(s.hover_path) > depth:
         kw.update(hover_path=None, hover_cell=None, hover_role=ROLE_PASSIVE, hover_action=None)
     if s.pending is not None and len(s.pending) > depth:
@@ -656,7 +669,7 @@ class _Step:
     def open_dropdown(self, label_id: str, by: str = OPENED_CLICK) -> None:
         self.close(0)
         self.effects.append(OpenDropdown(label_id))
-        self.set(open_label=label_id, submenus=(), roles=(), cell_roles=(),
+        self.set(open_label=label_id, submenus=(), roles=(), cell_roles=(), label_rows=(),
                  hover_label=label_id, hover_path=None, hover_cell=None,
                  hover_role=ROLE_PASSIVE, hover_action=None, pending=None,
                  aim_since=None, nav_enter=False, opened_by=by, hover_wait=None,
@@ -679,7 +692,8 @@ class _Step:
             self.close(level)
         self.effects.append(OpenSubmenu(path))
         self.set(submenus=self.s.submenus[:level - 1] + (path,), roles=self.s.roles[:level],
-                 cell_roles=self.s.cell_roles[:level], pending=None, aim_since=None)
+                 cell_roles=self.s.cell_roles[:level], label_rows=self.s.label_rows[:level],
+                 pending=None, aim_since=None)
         self.redraw = True
 
     def hover_item(self, path: Path | None, role: str, action: Action | None,
@@ -694,7 +708,8 @@ class _Step:
         """Keyboard: hover the item ``path`` of an open level (no action: D resolves it). On
         a table row focus a cell: ``prev_cell`` when given and in range (the caller passes
         it when moving between rows with as many cells: one table keeps its column), else
-        the last one; the role is that cell's."""
+        the label of a label row (``cell`` None, the row's role), else the last cell; the
+        role is that cell's."""
         level = len(path)
         roles = _level_roles(self.s, level)
         index = path[-1]
@@ -702,9 +717,12 @@ class _Step:
         cells = _item_cells(self.s, path)
         cell = None
         if cells:
-            cell = prev_cell if (isinstance(prev_cell, int)
-                                 and 0 <= prev_cell < len(cells)) else len(cells) - 1
-            role = cells[cell]
+            if isinstance(prev_cell, int) and 0 <= prev_cell < len(cells):
+                cell = prev_cell
+            elif not _is_label_row(self.s, path):
+                cell = len(cells) - 1
+            if cell is not None:
+                role = cells[cell]
         self.hover_item(path, role, None, cell)
 
     def terminal(self, effect: Effect) -> None:
@@ -728,7 +746,7 @@ def _activate_item(o: _Step, path: Path, role: str, action: Action | None,
         o.effects.append(RunItem(path, True, cell=cell))
         o.redraw = True
     elif role == ROLE_APPLY_CLOSE:
-        o.effects.append(RunItem(path, True))
+        o.effects.append(RunItem(path, True, cell=cell))
         o.close(len(path) - 1)
         o.redraw = True
     elif role == ROLE_SUBMENU:
@@ -978,7 +996,10 @@ def _on_opened(s: MenuBarState, e: Opened):
     cells = list(s.cell_roles[:s.depth])
     cells += [()] * (d + 1 - len(cells))
     cells[d] = tuple(tuple(c) for c in e.cells)
-    o.set(roles=tuple(roles), cell_roles=tuple(cells))
+    labels = list(s.label_rows[:s.depth])
+    labels += [()] * (d + 1 - len(labels))
+    labels[d] = tuple(bool(b) for b in e.labels)
+    o.set(roles=tuple(roles), cell_roles=tuple(cells), label_rows=tuple(labels))
     if s.nav_enter and d == s.depth - 1:
         o.set(nav_enter=False)
         idx = _first_active(level_roles)
@@ -999,6 +1020,16 @@ def _item_cells(s: MenuBarState, path: Path | None) -> tuple[str, ...]:
     per_item = s.cell_roles[level - 1] if 1 <= level <= len(s.cell_roles) else ()
     index = path[-1]
     return per_item[index] if 0 <= index < len(per_item) else ()
+
+
+def _is_label_row(s: MenuBarState, path: Path | None) -> bool:
+    """True when the item ``path`` is a label row (from Opened.labels)."""
+    if not path:
+        return False
+    level = len(path)
+    per_item = s.label_rows[level - 1] if 1 <= level <= len(s.label_rows) else ()
+    index = path[-1]
+    return bool(per_item[index]) if 0 <= index < len(per_item) else False
 
 
 def _enter(o: _Step, opener: Path) -> None:
@@ -1046,8 +1077,25 @@ def _on_nav(s: MenuBarState, e: Nav):
         same = bool(prev_cells) and len(prev_cells) == len(_item_cells(s, path))
         o.hover_nav(path, s.hover_cell if same else None)
         o.set(pending=None, aim_since=None)
-    elif key in (NAV_RIGHT, NAV_LEFT) and _item_cells(s, hp) and not (
-            key == NAV_LEFT and s.hover_cell == 0):
+    elif key in (NAV_RIGHT, NAV_LEFT) and _item_cells(s, hp) and _is_label_row(s, hp) \
+            and not (key == NAV_LEFT and s.hover_cell is None):
+        # A label row: its label is the stop before the first cell.
+        cells = _item_cells(s, hp)
+        cur = s.hover_cell
+        if not isinstance(cur, int) or not 0 <= cur < len(cells):
+            cell = 0 if key == NAV_RIGHT else None
+        elif key == NAV_RIGHT:
+            cell = min(cur + 1, len(cells) - 1)
+        else:
+            cell = cur - 1 if cur > 0 else None
+        if cell is None:
+            roles = _level_roles(s, len(hp))
+            role = roles[hp[-1]] if 0 <= hp[-1] < len(roles) else ROLE_PASSIVE
+            o.hover_item(hp, role, None, None)
+        else:
+            o.hover_item(hp, cells[cell], None, cell)
+    elif key in (NAV_RIGHT, NAV_LEFT) and _item_cells(s, hp) and not _is_label_row(s, hp) \
+            and not (key == NAV_LEFT and s.hover_cell == 0):
         cells = _item_cells(s, hp)
         cur = s.hover_cell
         if not isinstance(cur, int) or not 0 <= cur < len(cells):

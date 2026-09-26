@@ -150,7 +150,7 @@ class TestGeometry(unittest.TestCase):
         cols = dg.table_columns(self.m, d, width_fn)
         pad = 2 * d.cell_pad
         want = tuple((math.ceil(max(width_fn(t) + pad, d.check_size + pad, d.item_h)),
-                      width_fn(t)) for t in ('Sel', 'Vis'))
+                      width_fn(t), 0.0) for t in ('Sel', 'Vis'))
         self.assertEqual(cols[1], want)
         self.assertEqual(set(cols[1:6]), {want}, "header and rows share the columns")
         self.assertEqual((cols[0], cols[6]), ((), ()))

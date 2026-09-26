@@ -73,7 +73,7 @@ def mode_model():
 
 
 def mode_ids(model):
-    """The modes of the mode switcher rows (a mode with submodes: its cascade's mode radio)."""
+    """The modes of the mode switcher rows (a mode with select modes: its label row's)."""
     return [B().item_mode(it) for it in model.items]
 
 
@@ -180,7 +180,7 @@ class TestModeSwitchModel(unittest.TestCase):
                 self.assertEqual(mode_ids(model), itemf_ids(), "core.modes == the C itemf")
                 self.assertEqual([(i, it.label) for i, it in zip(mode_ids(model), model.items)],
                                  native_mode_labels())
-                self.assertTrue(all(it.kind in (D().DD_RADIO, D().DD_ENUM_CASCADE)
+                self.assertTrue(all(it.kind in (D().DD_RADIO, D().DD_TOGGLE_ROW)
                                     and it.enabled for it in model.items))
                 self.assertEqual([it.checked for it in model.items],
                                  [m == 'OBJECT' for m in expected])
@@ -222,15 +222,15 @@ class TestModeSwitchModel(unittest.TestCase):
                           'Weight Paint', 'Texture Paint'])
         self.assertEqual(model.key, T().MODE_SWITCH_MENU)
         self.assertEqual(model.native_action, D().native_menu_action(T().MODE_SWITCH_MENU))
-        # Edit Mode has submodes: a cascade whose first child is the mode radio.
-        cascade = model.items[1]
-        self.assertEqual((cascade.kind, cascade.label, cascade.source, cascade.action),
-                         (D().DD_ENUM_CASCADE, 'Edit Mode', D().ITEM_SOURCE_MODE, None))
-        self.assertEqual(D().item_role(cascade), D().ROLE_SUBMENU)
-        edit = cascade.children[0]
-        self.assertEqual((edit.kind, edit.label), (D().DD_RADIO, 'Edit Mode'))
-        self.assertEqual(edit.source, D().ITEM_SOURCE_MODE)
+        # Edit Mode has select modes: one label row 'Edit Mode [V] [E] [F]' whose label is
+        # the mode radio.
+        edit = model.items[1]
+        self.assertEqual((edit.kind, edit.label, edit.source),
+                         (D().DD_TOGGLE_ROW, 'Edit Mode', D().ITEM_SOURCE_MODE))
+        self.assertTrue(D().label_row(edit))
+        self.assertEqual([c.text for c in edit.cells], ['V', 'E', 'F'])
         self.assertEqual(D().item_role(edit), D().ROLE_APPLY_CLOSE)
+        self.assertEqual(D().item_role(model.items[0]), D().ROLE_APPLY_CLOSE)
         self.assertEqual((edit.action.kind, edit.action.target, dict(edit.action.props),
                           edit.action.operator_context, edit.action.undo),
                          (M().ACTION_OPERATOR, 'object.mode_set', {'mode': 'EDIT'},
@@ -512,9 +512,27 @@ class _LiveCase(unittest.TestCase):
         return self.mid(box.rect)
 
     def item_xy(self, path):
+        """The middle of the item ``path`` (a label row: its label, never a cell)."""
         placed = self.state.menus.chain.item(tuple(path))
         self.assertIsNotNone(placed, path)
+        if placed.cells:
+            return self.row_label_xy(path)
         return self.mid(placed.rect)
+
+    def row_label_xy(self, path):
+        """A point on the label of the table row ``path`` (left of its cells)."""
+        placed = self.state.menus.chain.item(tuple(path))
+        self.assertIsNotNone(placed, path)
+        x = placed.text_x + 2
+        if placed.cells:
+            self.assertLess(x, placed.cells[0].rect.x)
+        return int(x), int(placed.rect.y + placed.rect.h // 2)
+
+    def cell_xy(self, path, cell):
+        """The middle of cell ``cell`` of the table row ``path``."""
+        placed = self.state.menus.chain.item(tuple(path))
+        self.assertIsNotNone(placed, path)
+        return self.mid(placed.cells[cell].rect)
 
 
 def _hb():
@@ -535,13 +553,9 @@ class TestModePickLive(_LiveCase):
         self.assertEqual(model.key, T().MODE_SWITCH_MENU)
         self.assertEqual([it.checked for it in model.items][:2], [True, False])
         edit = mode_ids(model).index('EDIT')
-        # 'Edit Mode ▸' opens its submenu (no call yet); its first row is the mode itself.
-        self.assertEqual(self.click(self.item_xy((edit,))), {'RUNNING_MODAL'})
-        self.assertEqual(self.calls, [])
-        self.assertEqual([p.key for p in self.state.dropdowns.panels],
-                         [T().MODE_SWITCH_MENU, f"{T().MODE_SWITCH_MENU}/{edit}"])
+        # A click on the label of 'Edit Mode [V] [E] [F]' enters the mode as it is.
         with quiet():
-            self.assertEqual(self.click(self.item_xy((edit, 0))), {'RUNNING_MODAL'})
+            self.assertEqual(self.click(self.row_label_xy((edit,))), {'RUNNING_MODAL'})
         # In place, the native call: INVOKE_REGION_WIN with the undo flag (headless run
         # without it); one call.
         self.assertEqual(len(self.calls), 1)

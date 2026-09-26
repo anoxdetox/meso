@@ -10,9 +10,9 @@ against the itemf itself (tests/blender/test_plaza_modes_files.py: headless, whe
 assignment's TypeError lists the itemf result; inside the GUI modal the same TypeError
 lists the unfiltered enum, so live code cannot ask the itemf).
 
-Select domains (the mode switch submenus, user request 2026-09-26): :data:`SELECT_DOMAINS`
-lists, per (object type, object mode), the select-mode control the native 3D View header
-shows in that mode (space_view3d.py ``VIEW3D_HT_header.draw`` and the C
+Select domains (the mode switch's select-mode cells, user requests 2026-09-26):
+:data:`SELECT_DOMAINS` lists, per (object type, object mode), the select-mode control the
+native 3D View header shows in that mode (space_view3d.py ``VIEW3D_HT_header.draw`` and the C
 ``template_header_3D_mode``, verified in the installed 5.2.2 ``bl_ui``): the mesh Vertex /
 Edge / Face buttons (multi-select, Shift extends, Ctrl expands), Particle Edit's Path /
 Point / Tip, the hair Curves Control Point / Curve domain (Edit and Sculpt Mode) and Grease
@@ -98,7 +98,11 @@ class SelectDomains:
     ``state_path`` is then also what a pick sets). ``state_path``: the context path of the
     current value (a bool vector aligned with ``idents`` for a flag domain, else the enum).
     ``modifiers``: the button reads Shift (``use_extend``) and Ctrl (``use_expand``), as
-    ``core.actions.with_click_modifiers`` applies them.
+    ``core.actions.with_click_modifiers`` applies them. ``short``: the text of each member's
+    cell in the Plaza's mode row (the header buttons are icon-only and the Plaza draws text
+    only): one letter for the mesh select mode (V / E / F, as the user asked), else the
+    member name, shortened where it has a qualifier ('Control Point' -> 'Point'); within
+    a domain the texts are distinct (unit test).
     """
 
     kind: str
@@ -108,25 +112,29 @@ class SelectDomains:
     op_prop: str = ''
     state_path: str = ''
     modifiers: bool = False
+    short: tuple[str, ...] = ()
 
 
 _CURVES_DOMAIN = SelectDomains(
     DOMAIN_RADIO, ('POINT', 'CURVE'), ('Control Point', 'Curve'),
-    'curves.set_selection_domain', 'domain', 'active_object.data.selection_domain')
+    'curves.set_selection_domain', 'domain', 'active_object.data.selection_domain',
+    short=('Point', 'Curve'))
 
 # (``Object.type``, ``Object.mode``) -> its select domains (module doc).
 SELECT_DOMAINS: dict[tuple[str, str], SelectDomains] = {
     ('MESH', 'EDIT'): SelectDomains(
         DOMAIN_FLAG, ('VERT', 'EDGE', 'FACE'), ('Vertex', 'Edge', 'Face'),
-        'mesh.select_mode', 'type', 'tool_settings.mesh_select_mode', modifiers=True),
+        'mesh.select_mode', 'type', 'tool_settings.mesh_select_mode', modifiers=True,
+        short=('V', 'E', 'F')),
     ('MESH', PARTICLE_EDIT): SelectDomains(
         DOMAIN_RADIO, ('PATH', 'POINT', 'TIP'), ('Path', 'Point', 'Tip'),
-        state_path='tool_settings.particle_edit.select_mode'),
+        state_path='tool_settings.particle_edit.select_mode', short=('Path', 'Point', 'Tip')),
     ('CURVES', 'EDIT'): _CURVES_DOMAIN,
     ('CURVES', 'SCULPT_CURVES'): _CURVES_DOMAIN,
     ('GREASEPENCIL', 'EDIT'): SelectDomains(
         DOMAIN_RADIO, ('POINT', 'STROKE', 'SEGMENT'), ('Point', 'Stroke', 'Segment'),
-        'grease_pencil.set_selection_mode', 'mode', 'tool_settings.gpencil_selectmode_edit'),
+        'grease_pencil.set_selection_mode', 'mode', 'tool_settings.gpencil_selectmode_edit',
+        short=('Point', 'Stroke', 'Segment')),
 }
 
 
@@ -143,7 +151,7 @@ MODE_TOGGLE_OPERATORS: dict[str, str] = {
 
 def select_domains(obj_type: str | None, mode: str | None) -> SelectDomains | None:
     """The select domains of ``mode`` for an object of type ``obj_type``, or None (no
-    submodes: the mode switch row stays a plain radio)."""
+    select modes: the mode switch row stays a plain radio)."""
     if obj_type is None or mode is None:
         return None
     return SELECT_DOMAINS.get((obj_type, mode))
@@ -165,10 +173,17 @@ def current_members(domains: SelectDomains, value: Any) -> tuple[str, ...]:
     return (value,) if isinstance(value, str) and value in domains.idents else ()
 
 
+def cell_texts(domains: SelectDomains) -> tuple[str, ...]:
+    """The English cell texts of ``domains`` in member order: ``short``, else the labels
+    (the builder translates the multi-letter ones)."""
+    return tuple(domains.short) if len(domains.short) == len(domains.idents) \
+        else tuple(domains.labels)
+
+
 def submode_action(domains: SelectDomains, mode: str, ident: str,
                    current_mode: str | None) -> Action:
-    """What a pick of the member ``ident`` of ``mode``'s ``domains`` runs while the active
-    object is in ``current_mode``.
+    """What a click on the cell of the member ``ident`` of ``mode``'s ``domains`` runs while
+    the active object is in ``current_mode``.
 
     - In ``mode`` already: only the select mode changes, with the native header button's
       call: ``Action(ACTION_OPERATOR, operator, props={op_prop: ident},
