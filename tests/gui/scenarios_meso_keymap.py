@@ -21,8 +21,16 @@ G1, G3-G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
   and Industry Compatible's own item switched on again, the Outliner is blocked (the reason
   for the wrapper; a Blender change there fails this scenario).
 - ``mk_alt_d_driver``: Alt D over a driven sidebar field (drivers on X and Y) and a driven
-  node socket removes the drivers and does not deselect; undo brings them back, redo removes
-  them, undo again (one native "Remove Driver" step); over an undriven field nothing changes.
+  node socket removes the drivers; undo brings them back, redo removes them, undo again (one
+  native "Remove Driver" step); over an undriven field nothing changes. The places where the
+  wrapper's FINISHED must also stop the editor's own Alt D deselect: a driven socket field on
+  a node in the Node Editor canvas, a driven channel slider in the Dope Sheet channel list and
+  a driven restriction toggle in the Outliner: the driver goes and nothing is deselected. (The
+  Clip Editor, File Browser and Info main regions draw no property buttons to drive.) Each
+  button is found by hovering and ``ui.copy_data_path_button``, never by a guessed offset.
+- ``mk_alt_d_console``: Alt D over the Python Console's input line types nothing (the
+  wrapper keeps Industry Compatible's result there: the console's text input would insert
+  the "d" of the key event otherwise).
 - G7 ``mk_apply_menu``: Ctrl Alt A opens Object > Apply and Pose > Apply; the Plaza's Object >
   Apply submenu still opens.
 - G5 ``mk_isolate``: Ctrl 1 local view in and out in Object Mode (selection kept, the light
@@ -783,6 +791,184 @@ def scenarios(drv):
         yield 0.3
         drv.check(rec, f"{tag}_undo_again", drivers_of(owner()) == driven, drivers_of(owner()))
 
+    def hovered_path(area, rtype):
+        """The full data path of the property button under the pointer, or None."""
+        wm = bpy.context.window_manager
+        wm.clipboard = ""
+        try:
+            with bpy.context.temp_override(window=drv.win(), area=area,
+                                           region=drv.region_of(area, rtype)):
+                bpy.ops.ui.copy_data_path_button(full_path=True)
+        except RuntimeError:            # no property button: the poll fails
+            return None
+        return wm.clipboard or None
+
+    SEEN = []
+
+    def find_button(area, rtype, points, want):
+        """Hover each of ``points`` until the button of the data path ``want`` is under the
+        pointer; its point, or None. ``SEEN``: the other paths met on the way."""
+        SEEN.clear()
+        for xy in points:
+            drv.sim('MOUSEMOVE', 'NOTHING', xy)
+            yield 0.04
+            got = hovered_path(area, rtype)
+            if got == want:
+                return xy
+            if got is not None and got not in SEEN:
+                SEEN.append(got)
+        return None
+
+    def column(r, x, step):
+        top, bottom = r.y + r.height - 4, r.y + 4
+        return [(x, y) for y in range(top, bottom, -step)]
+
+    def alt_d_on_driven_canvas(rec):
+        """The editor's own Alt D (deselect) runs after the wrapper unless it FINISHED: over a
+        driven button there the driver goes and nothing is deselected (review finding)."""
+        scale = bpy.context.preferences.system.ui_scale or 1.0
+        cube = bpy.data.objects.get("Cube")
+        # -- the Node Editor canvas: a driven socket field on the Principled BSDF node -----
+        tree, node = principled()
+        if node is not None:
+            area = swap('ShaderNodeTree')
+            yield 0.4
+            clear_drivers(tree)
+            for n in tree.nodes:
+                n.select = True
+            n_nodes = len(tree.nodes)
+            sock = node.inputs['Roughness']
+            sock.driver_add("default_value").driver.expression = "0.25"
+            want = f'bpy.data.materials["{DRIVEN["material"]}"].node_tree.' \
+                   + sock.path_from_id("default_value")
+            area.tag_redraw()
+            yield 0.3
+            r = drv.region_of(area, 'WINDOW')
+            v2d = r.view2d
+            x0 = v2d.view_to_region(node.location.x * scale, 0.0, clip=False)[0]
+            x1 = v2d.view_to_region((node.location.x + node.width) * scale, 0.0, clip=False)[0]
+            points = [p for f in (0.5, 0.3, 0.7) for p in
+                      column(r, r.x + int(x0 + f * (x1 - x0)), max(3, int(4 * scale)))]
+            xy = yield from find_button(area, 'WINDOW', points, want)
+            drv.check(rec, "canvas_socket_found", xy is not None, [want, list(SEEN)])
+            if xy is not None:
+                yield from key(xy, 'D', **DESELECT)
+                yield 0.2
+                tree = principled()[0]
+                drv.check(rec, "canvas_socket_removed", drivers_of(tree) == [],
+                          drivers_of(tree))
+                drv.check(rec, "canvas_no_deselect",
+                          sum(n.select for n in tree.nodes) == n_nodes,
+                          [n.name for n in tree.nodes if not n.select])
+            clear_drivers(principled()[0])
+            unswap()
+            yield 0.3
+        # -- the Dope Sheet channel list: a driven slider (X Location keyed and driven) ----
+        select_only(cube)
+        cube.keyframe_insert("location", index=0, frame=1)
+        cube.driver_add("location", 0).driver.expression = "0"
+        area = swap('DOPESHEET')
+        yield 0.4
+        space = area.spaces.active
+        space.show_sliders = True
+        ch = drv.region_of(area, 'CHANNELS')
+        from bpy_extras import anim_utils
+
+        def channelbag():
+            ad = cube.animation_data
+            return anim_utils.action_get_channelbag_for_slot(ad.action, ad.action_slot)
+
+        for g in channelbag().groups:                # the X Location row (and its slider)
+            g.show_expanded = True
+        with bpy.context.temp_override(window=drv.win(), area=area, region=ch):
+            bpy.ops.anim.channels_expand(all=True)
+            bpy.ops.anim.channels_select_all(action='SELECT')
+        area.tag_redraw()
+        yield 0.4
+
+        def channels_selected():
+            return [fc.select for fc in channelbag().fcurves]
+
+        before = channels_selected()
+        want = 'bpy.data.objects["Cube"].location[0]'
+        points = [p for dx in (20, 35, 50, 65) for p in
+                  column(ch, ch.x + ch.width - int(dx * scale), max(3, int(4 * scale)))[:60]]
+        xy = yield from find_button(area, 'CHANNELS', points, want)
+        drv.check(rec, "slider_found", xy is not None and before == [True],
+                  [xy, before, list(SEEN)])
+        if xy is not None:
+            yield from key(xy, 'D', **DESELECT)
+            yield 0.2
+            drv.check(rec, "slider_removed", drivers_of(cube) == [], drivers_of(cube))
+            drv.check(rec, "slider_no_deselect", channels_selected() == before,
+                      channels_selected())
+        space.show_sliders = False
+        clear_drivers(cube)
+        cube.animation_data_clear()
+        cube.location = (0.0, 0.0, 0.0)
+        unswap()
+        yield 0.3
+        # -- the Outliner: a driven restriction toggle (Disable in Viewports) --------------
+        area = swap('OUTLINER')
+        yield 0.4
+        space = area.spaces.active
+        saved = {n: getattr(space, n) for n in dir(space) if n.startswith('show_restrict_column')}
+        for n in saved:
+            setattr(space, n, n == 'show_restrict_column_viewport')
+        select_only(cube)
+        cube.driver_add("hide_viewport").driver.expression = "0"
+        area.tag_redraw()
+        yield 0.4
+        r = drv.region_of(area, 'WINDOW')
+        want = 'bpy.data.objects["Cube"].hide_viewport'
+        points = [p for dx in range(6, 80, 6) for p in
+                  column(r, r.x + r.width - int(dx * scale), max(3, int(5 * scale)))[:40]]
+        xy = yield from find_button(area, 'WINDOW', points, want)
+        drv.check(rec, "outliner_toggle_found", xy is not None, [want, list(SEEN)])
+        if xy is not None:
+            yield from key(xy, 'D', **DESELECT)
+            yield 0.2
+            drv.check(rec, "outliner_removed", drivers_of(cube) == [], drivers_of(cube))
+            drv.check(rec, "outliner_no_deselect", selected_names() == ["Cube"],
+                      selected_names())
+        clear_drivers(cube)
+        cube.hide_viewport = False
+        for n, v in saved.items():
+            setattr(space, n, v)
+        unswap()
+        yield 0.3
+
+    def sc_alt_d_console(rec):
+        """The wrapper returns CANCELLED over the console's main region (review finding):
+        PASS_THROUGH would let ``console.insert`` type the key's "d"."""
+        try:
+            choose('MESO')
+            yield 0.3
+            area = swap('CONSOLE')
+            yield 0.5
+            xy = mid(area)
+            drv.sim('MOUSEMOVE', 'NOTHING', xy)
+            yield 0.2
+            line = lambda: area.spaces.active.history[-1].body
+            before = line()
+            drv.sim('D', 'PRESS', xy, alt=True, unicode='d')
+            yield 0.05
+            drv.sim('D', 'RELEASE', xy, alt=True)
+            yield 0.3
+            drv.check(rec, "console_alt_d_types_nothing", line() == before, [before, line()])
+            drv.sim('D', 'PRESS', xy, unicode='d')         # the control: plain D types
+            yield 0.05
+            drv.sim('D', 'RELEASE', xy)
+            yield 0.3
+            drv.check(rec, "console_d_types", line() == before + "d", [before, line()])
+            with bpy.context.temp_override(window=drv.win(), area=area,
+                                           region=drv.region_of(area, 'WINDOW')):
+                bpy.ops.console.clear_line()
+        finally:
+            unswap()
+            back_to_blender()
+            yield 0.3
+
     def sc_alt_d_driver(rec):
         cube = bpy.data.objects.get("Cube")
         DRIVEN["material"] = cube.active_material.name if cube.active_material else None
@@ -852,6 +1038,8 @@ def scenarios(drv):
                 clear_drivers(tree_now())
                 area.spaces.active.show_region_ui = False
                 unswap()
+                yield 0.3
+            yield from alt_d_on_driven_canvas(rec)
         finally:
             unswap()
             cube = bpy.data.objects.get("Cube")
@@ -1293,6 +1481,7 @@ def scenarios(drv):
         ("mk_select_keys", sc_select_keys),
         ("mk_alt_d_reach", sc_alt_d_reach),
         ("mk_alt_d_driver", sc_alt_d_driver),
+        ("mk_alt_d_console", sc_alt_d_console),
         ("mk_apply_menu", sc_apply_menu),
         ("mk_isolate", sc_isolate),
         ("mk_properties_cycle", sc_properties_cycle),
