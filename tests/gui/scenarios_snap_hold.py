@@ -936,7 +936,10 @@ def scenarios(drv):
                       and cube.mode == 'OBJECT', [bpy.context.mode, cube.mode])
             drv.check(rec, "edit_d_tap_armed", ts().use_transform_data_origin
                       and hold_mod().once_armed(), [state(), debug()])
-            drv.check(rec, "edit_d_switch_is_native", last == 'OBJECT_OT_mode_set', last)
+            # object.mode_set runs the native toggle, which registers after it in the GUI
+            # (OBJECT_OT_editmode_toggle leaving Edit Mode): either is the native switch.
+            drv.check(rec, "edit_d_switch_is_native",
+                      last in ('OBJECT_OT_mode_set', 'OBJECT_OT_editmode_toggle'), last)
             drv.check(rec, "edit_d_tap_modal_ended", holds_running() == [], drv.modal_ops())
             # Ctrl Z: back in Edit Mode (tool settings are not undone: still armed, native)
             with v3d_ctx():

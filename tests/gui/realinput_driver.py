@@ -550,12 +550,14 @@ def check_common(rec, case, key, repeats_expected):
 
 def check_free_move(rec, case):
     """The drag was an ordinary free move: the translate it ran finished without an axis
-    constraint, and it moved the cube off every world axis the drag is not along (the view is
-    oblique, so a free view-plane move changes at least two coordinates)."""
+    constraint, and the cube did not end on the world X axis alone (what an X repeat reaching
+    the Transform Modal Map, AXIS_X, would give). A grid-snapped free move may round one
+    coordinate to 0 (seen: (0, 1, 0) after a short drag), so "off two axes" is not required."""
     tr = case["translate"]
     check(rec, "free_translate", tr is not None and tr[0] == 'TRANSFORM_OT_translate'
           and list(tr[1] or ()) == [False, False, False], tr)
-    check(rec, "not_on_one_axis", sum(abs(v) > 1e-3 for v in case["location"]) >= 2,
+    x, y, z = case["location"]
+    check(rec, "not_on_x_axis_only", not (abs(x) > 1e-3 and abs(y) <= 1e-3 and abs(z) <= 1e-3),
           case["location"])
 
 
