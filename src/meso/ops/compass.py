@@ -81,6 +81,11 @@ class CompassSession:
     button: str
     pointer: tuple[float, float]
     pan: float = 0.0
+    # A Compass moved to fit the window warps the pointer to its centre; events Blender
+    # queued before the warp still carry the press point: ``warp_from`` (that point) and
+    # ``warp_delta`` map them onto the centre until the pointer really moves away.
+    warp_from: tuple[float, float] | None = None
+    warp_delta: tuple[float, float] = (0.0, 0.0)
 
 
 def _dd():
@@ -162,6 +167,8 @@ def _try_open(op: Any, state: Any, context: Any, event: Any) -> Any:
         warp_cursor(state.window, pointer)
     cs = CompassSession(model, layout, cp.open_state(button, time.perf_counter()), zone,
                         button, pointer)
+    if pointer != (x, y):
+        cs.warp_from, cs.warp_delta = (x, y), (pointer[0] - x, pointer[1] - y)
     _set(state, cs)
     session.compasses.append((zone, zones.BUTTONS[button], model.key))
     _redraw(state, [], plaza=True)
@@ -174,6 +181,20 @@ def warp_cursor(window: Any, xy: tuple[float, float]) -> None:
         window.cursor_warp(int(round(xy[0])), int(round(xy[1])))
     except Exception:
         pass
+
+
+def event_xy(cs: CompassSession, event: Any) -> tuple[float, float]:
+    """The pointer of ``event`` for the open Compass: an event still at (about) the press
+    point of a warped Compass (queued before the warp; a simulated or very fast click) is
+    mapped onto the Compass centre, so its release is a tap in the ring, never a flick;
+    the first event away from it ends the mapping (the pointer is real again)."""
+    x, y = float(event.mouse_x), float(event.mouse_y)
+    if cs.warp_from is not None:
+        fx, fy = cs.warp_from
+        if math.hypot(x - fx, y - fy) <= cs.layout.dead_r:
+            return x + cs.warp_delta[0], y + cs.warp_delta[1]
+        cs.warp_from = None
+    return x, y
 
 
 def hover_at(cs: CompassSession, x: float, y: float) -> dict[str, Any]:
@@ -238,7 +259,7 @@ def wheel_scroll(cs: CompassSession, event: Any, now: float) -> bool:
     n = WHEEL_STEPS.get(getattr(event, 'type', ''))
     if n is None or getattr(event, 'value', '') != 'PRESS':
         return False
-    x, y = float(event.mouse_x), float(event.mouse_y)
+    x, y = event_xy(cs, event)
     if not cp.on_list(cs.layout, x, y):
         return False
     cs.pointer = (x, y)
@@ -255,7 +276,7 @@ def pan_scroll(cs: CompassSession, event: Any, now: float) -> bool:
     Blender's menus). True when the list moved (redraw)."""
     if getattr(event, 'type', '') not in PAN_EVENTS:
         return False
-    x, y = float(event.mouse_x), float(event.mouse_y)
+    x, y = event_xy(cs, event)
     if not cp.on_list(cs.layout, x, y):
         cs.pan = 0.0
         return False
@@ -291,7 +312,7 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
         now = time.perf_counter()
         before = _extent(cs)
         if etype in MOUSE_MOVES:
-            gesture_move(cs, float(event.mouse_x), float(event.mouse_y), now)
+            gesture_move(cs, *event_xy(cs, event), now)
             _redraw(state, before)
             return {'RUNNING_MODAL'}
         if etype in WHEEL_STEPS:
@@ -309,7 +330,7 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
         if etype in zones.BUTTONS and value in PRESS_VALUES | {'RELEASE'}:
             session.shift = bool(getattr(event, 'shift', False))
             session.ctrl = bool(getattr(event, 'ctrl', False))
-            x, y = float(event.mouse_x), float(event.mouse_y)
+            x, y = event_xy(cs, event)
             if value == 'RELEASE':
                 # The mark's end decides (a flick may release before its last move arrives).
                 gesture_move(cs, x, y, now)

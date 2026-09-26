@@ -362,6 +362,31 @@ class TestCompassModal(_CompassCase):
         self.assertEqual(warps, [tuple(int(round(v)) for v in cs.layout.centre)])
         self.assertEqual(cs.pointer, cs.layout.centre)
 
+    def test_a_click_on_a_warped_compass_is_a_tap(self):
+        """Events queued before the warp still carry the press point: a quick click there is
+        a tap in the ring (the LMB tap cancels), never a flick from the moved centre (GUI
+        run 2026-09-26: an empty-space click near the edge switched the editor)."""
+        oc = _mod("ops.compass")
+        self.addCleanup(setattr, oc, 'warp_cursor', oc.warp_cursor)
+        oc.warp_cursor = lambda window, xy: None
+        ox, _oy = self.origin()
+        xy = (int(ox), 3)
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        self.assertNotEqual(self.compass().layout.shift, (0, 0))
+        self.clock[0] += 0.05
+        self.ev('LEFTMOUSE', 'RELEASE', xy)
+        self.assertIsNone(self.compass())
+        self.assertEqual(self.executed, [], "nothing picked")
+        self.assertTrue(_hb().is_running())
+        # A middle tap there leaves the Compass open (click style), a real move then picks.
+        self.state.menus.compass_slots['zone_S_M'] = 'meso:editors'
+        self.ev('MIDDLEMOUSE', 'PRESS', xy)
+        self.clock[0] += 0.05
+        self.ev('MIDDLEMOUSE', 'RELEASE', xy)
+        cs = self.compass()
+        self.assertTrue(cs is not None and cs.gesture.sticky)
+        self.assertIsNone(cs.warp_from is not None and cs.gesture.hover_slot)
+
     def test_timer_passes_through(self):
         xy = self.zone_xy('N')
         self.ev('LEFTMOUSE', 'PRESS', xy)
