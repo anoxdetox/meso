@@ -165,6 +165,11 @@ switches at once as before, but a label crossed from another row (or toward the 
 switches after a rest of the fixed :data:`SWITCH_REST_MIN` (:func:`switch_rest`; the Hover
 Open Delay pref plays no part), on a click, and never on a mere crossing.
 
+Drag-toggle (docs/phase4-interfaces.md "Drag-toggle"): a checkbox stroke is not a reducer
+gesture. D arms ``core.drag_toggle.Stroke`` next to the Press here; once the stroke starts,
+D takes the moves (none reach this reducer) and ends it with a Release over nothing
+(``Target(ZONE_PANEL)``: ``pressed`` is dropped, nothing runs twice).
+
 Effect invariants (tested): effects run in tuple order; a CloseChain precedes the
 OpenDropdown / OpenSubmenu it makes room for; a radio's RunItem precedes its CloseChain (D
 resolves the path before the chain shrinks); at most one Redraw per step, after the

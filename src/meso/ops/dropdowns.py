@@ -69,6 +69,21 @@ action, or the label row's with no cell (in place: the re-record updates the che
 chain stays open). ``Opened`` carries ``model_cell_roles`` and ``model_label_rows`` for
 keyboard navigation between the label and the cells.
 
+Drag-toggle (docs/phase4-interfaces.md "Drag-toggle"; ``core.drag_toggle``): a LMB press
+on a toggle of an open panel (a check box, a toggle-table cell or a table row's label)
+arms a :class:`core.drag_toggle.Stroke` (``session.stroke``) next to the reducer's press.
+While the button is down, the moves feed :func:`_stroke_move` first: once the pointer
+reaches another toggle of the stroke's group, the pressed toggle and every toggle passed
+are SET to the pressed toggle's new value (in place, ``apply_in_place(undo=False)``, each
+re-recorded like a click; the hover follows the toggle just set) and the reducer sees no
+move until the release (no submenu opens, no label switches). The release of a started
+stroke pushes ONE undo step (``ops.invoke.push_undo_step``, the pressed toggle's name;
+only when a set changed undoable data) and reaches the reducer as a release over nothing
+(its click is not applied a second time). Esc, the Space release (after clearing the
+hover, so ``execute_on_release`` does not flip the last toggle again) and every teardown
+(``ops.plaza._end`` -> :func:`end_stroke`) end a started stroke the same way first. A
+press that is released before reaching another toggle stays the plain click.
+
 Hover-open (docs/phase4-interfaces.md "Hover-open"): the pref snapshots ``hover_open`` /
 ``hover_open_delay`` / ``hover_close_delay`` go into the reducer; the reducer opens a
 ROLE_DROPDOWN label after the delay (on the watchdog Timer) and closes a hover-opened chain
@@ -94,6 +109,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core import actions as core_actions
+from ..core import drag_toggle
 from ..core import dropdown_geometry as ddg
 from ..core import geometry
 from ..core import menubar
@@ -168,13 +184,16 @@ class MenuSession:
     times after an animated in-place change (:data:`ANIMATED_PATH_PREFIXES`). ``shift`` /
     ``ctrl``: the modifiers of the last non-TIMER event, so a click runs as it would natively
     (``core.actions.with_click_modifiers``: flag-enum members are exclusive unless Shift is
-    held; the mesh select-mode buttons extend / expand). Debug / test
+    held; the mesh select-mode buttons extend / expand). ``stroke``: the drag-toggle of
+    the held LMB press on a toggle (module doc "Drag-toggle"), None otherwise. Debug / test
     records (plain): ``opened`` (model keys in open
     order), ``in_place`` (``core.actions.describe`` of each in-place call), ``run``
     (``(model key, path, label, (kind, target, data_path))`` of the terminal RunItem /
     Handoff, or None); ``opened_by`` (``bar.opened_by`` of each ``opened`` root dropdown:
     'hover' / 'click' / 'key'; None for submenus); ``mode_changes`` (``context.mode`` after
-    each in-place mode switch that re-recorded the whole Plaza).
+    each in-place mode switch that re-recorded the whole Plaza); ``strokes`` (``(label,
+    sets, pushed)`` of each ended drag-toggle stroke: the undo step name, the toggles set,
+    whether the step was pushed).
     """
 
     bar: MenuBarState = field(default_factory=initial_state)
@@ -196,6 +215,8 @@ class MenuSession:
     shift: bool = False
     ctrl: bool = False
     mode_changes: list[str | None] = field(default_factory=list)
+    stroke: drag_toggle.Stroke | None = None
+    strokes: list[tuple[str, int, bool]] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- setup
@@ -276,13 +297,14 @@ def summary(session: MenuSession | None) -> dict[str, Any]:
     """The ``last_session()`` additions of ``session`` (plain data; defaults for None)."""
     if session is None:
         return {'menus_opened': [], 'menus_opened_by': [], 'in_place': [], 'run_item': None,
-                'dropdown_builds': 0, 'dropdown_hits': 0, 'mode_changes': []}
+                'dropdown_builds': 0, 'dropdown_hits': 0, 'mode_changes': [], 'strokes': []}
     return {'menus_opened': list(session.opened),
             'menus_opened_by': [by for by in session.opened_by if by is not None],
             'in_place': list(session.in_place),
             'run_item': session.run, 'dropdown_builds': session.cache.builds,
             'dropdown_hits': session.cache.hits,
             'mode_changes': list(session.mode_changes),
+            'strokes': list(session.strokes),
             'classify_ms': rec_dropdown.LAST_TIMING.get('classify_rows_ms')}
 
 
@@ -840,6 +862,113 @@ def _refresh_events(state: Any, context: Any, key: str) -> list[Event]:
     return events
 
 
+# --------------------------------------------------------------------------- drag-toggle
+
+
+def _stroke_press(session: MenuSession, target: Target, xy: tuple[float, float]) -> None:
+    """A LMB press: arm a drag-toggle when it is on a toggle of an open panel (module doc
+    "Drag-toggle"), else drop any stroke."""
+    session.stroke = None
+    if target.zone != ZONE_ITEM or not session.bar.is_open:
+        return
+    session.stroke = drag_toggle.begin(_chain_item(session, target.path), target.path,
+                                       target.cell, xy[1])
+
+
+def _stroke_level(session: MenuSession, stroke: drag_toggle.Stroke) -> tuple[Any, Any]:
+    """``(model, panel)`` of the stroke's panel while it is still the open level the press
+    was on (same opener), else ``(None, None)``."""
+    level = stroke.level
+    panel = session.chain.panel(level - 1)
+    if panel is None or level > len(session.models):
+        return None, None
+    if (panel.opener or ()) != stroke.prefix:
+        return None, None
+    return session.models[level - 1], panel
+
+
+def _stroke_set(state: Any, context: Any, toggle: drag_toggle.Toggle) -> tuple[list[Event], bool]:
+    """Set one toggle of the stroke: its action in place without the undo flag (a flag-enum
+    member toggles alone, as a Shift-click: never exclusive), then the re-record events of a
+    click, the hover on that toggle. Returns ``(events, changed)``; ``changed``: the setter
+    reported an undoable change (FINISHED; an editor's display setting reports CANCELLED)."""
+    session = state.menus
+    key = session.models[len(toggle.path) - 1].key
+    _item, action = _chain_action(session, toggle.path, toggle.cell)
+    if action is None:
+        return [], False
+    action = core_actions.with_click_modifiers(action, shift=True)
+    res = invoke.apply_in_place(action, state.window, state.area, state.region, undo=False)
+    if res.call is not None:
+        session.in_place.append(res.call)
+    changed = 'FINISHED' in (res.result or ())
+    events = [ev for ev in _refresh_events(state, context, key) if not isinstance(ev, HoverItem)]
+    placed = session.chain.item(toggle.path)
+    if placed is not None:
+        target = target_for(session, state, Hit(ZONE_ITEM, path=toggle.path,
+                                                depth=len(toggle.path) - 1, cell=toggle.cell))
+        events.append(HoverItem(toggle.path, target.role, time.perf_counter(), False,
+                                target.action, target.cell))
+    return events, changed
+
+
+def _stroke_move(op: Any, state: Any, context: Any, xy: tuple[float, float]) -> bool:
+    """A move with the stroke's button down: set every pending toggle
+    (``core.drag_toggle.pending``, re-resolved on the re-recorded chain after each set; a
+    toggle that did not take is not retried this move). Returns True when the stroke has
+    started (the move is the stroke's: the reducer does not see it)."""
+    session = state.menus
+    stroke = session.stroke
+    y = xy[1]
+    effects: list[Effect] = []
+    before = _draw_snapshot(state)
+    tried: set[tuple] = set()
+    for _guard in range(256):
+        model, panel = _stroke_level(session, stroke)
+        if panel is None:
+            break
+        todo = [t for t in drag_toggle.pending(stroke, drag_toggle.panel_toggles(
+                    model, panel.items), y) if (t.path, t.cell) not in tried]
+        if not todo:
+            break
+        toggle = todo[0]
+        tried.add((toggle.path, toggle.cell))
+        events, changed = _stroke_set(state, context, toggle)
+        stroke = drag_toggle.did_set(stroke, changed)
+        session.stroke = stroke
+        for event in events:
+            session.bar, out = menubar.step(session.bar, event)
+            effects.extend(out)
+    session.stroke = stroke = drag_toggle.moved(stroke, y)
+    if effects:
+        execute_effects(op, state, context, tuple(e for e in effects
+                                                  if not menubar.is_terminal(e)), before=before)
+    return stroke.started
+
+
+def end_stroke(state: Any, push: bool = True) -> drag_toggle.Stroke | None:
+    """End the drag-toggle of ``state.menus`` (module doc "Drag-toggle"): a started stroke
+    that changed undoable data pushes its one undo step (``push``: False on teardowns
+    whose window is gone). Returns the ended started stroke (None: there was none or it
+    never started). Never raises."""
+    session = getattr(state, 'menus', None)
+    stroke = getattr(session, 'stroke', None)
+    if stroke is None:
+        return None
+    session.stroke = None
+    if not stroke.started:
+        return None
+    pushed = False
+    try:
+        if push and stroke.changed:
+            invoke.push_undo_step(stroke.label or 'Toggle')
+            pushed = True
+    except Exception:
+        _log_once('stroke_undo', "pushing the drag-toggle undo step failed", exc=True)
+    session.strokes.append((stroke.label, stroke.sets, pushed))
+    return stroke
+
+
 def _deferred_refresh(op: Any, state: Any, context: Any, now: float) -> set[str] | None:
     """A TIMER after an animated in-place change (``session.rerecord_at``): re-record the
     open chain and the Tool Settings row once per due delay (module doc of RunItem)."""
@@ -1063,6 +1192,46 @@ def _reset_chain(session: MenuSession) -> None:
                                     bar.hover_open_delay, bar.hover_close_delay)
 
 
+def _stroke_event(op: Any, state: Any, context: Any, event: Any) -> set[str] | None:
+    """The events of an armed stroke (module doc "Drag-toggle"), before the reducer: a
+    move -> :func:`_stroke_move` (``{'RUNNING_MODAL'}`` once started: the reducer does not
+    see it); the LMB release of a started stroke -> :func:`end_stroke` + a reducer release
+    over nothing (``{'RUNNING_MODAL'}``); Esc / the Space release / another press end a
+    started stroke first (the Space release also clears the reducer's hover) and go on to
+    the reducer. None: the reducer handles the event as usual."""
+    session = state.menus
+    etype, value = getattr(event, 'type', ''), getattr(event, 'value', '')
+    if etype.startswith('TIMER'):
+        return None
+    if etype in MOUSE_MOVES:
+        xy = (event.mouse_x, event.mouse_y)
+        if _stroke_move(op, state, context, xy):
+            session.last_xy = session.prev_xy = xy
+            session.trail = (session.trail + [xy])[-ddg.AIM_TRAIL_LEN:]
+            return {'RUNNING_MODAL'}
+        return None
+    stroke = session.stroke
+    if etype == menubar.LMB and value == 'RELEASE':
+        if end_stroke(state) is None:
+            return None
+        now = time.perf_counter()
+        session.bar, effects = menubar.step(session.bar, Release(menubar.LMB,
+                                                                 Target(ZONE_PANEL), now))
+        result = execute_effects(op, state, context, effects)
+        return result if result is not None else {'RUNNING_MODAL'}
+    if etype == state.release_key or etype == 'ESC' or etype == menubar.LMB \
+            or etype in menubar.NAV_KEYS or etype in ENTER_KEYS:
+        if end_stroke(state) is not None:
+            now = time.perf_counter()
+            session.bar, _ = menubar.step(session.bar, Release(menubar.LMB,
+                                                               Target(ZONE_PANEL), now))
+            if etype == state.release_key:
+                session.bar, _ = menubar.step(session.bar, HoverItem(None, ROLE_PASSIVE, now))
+        elif stroke is not None and not stroke.started:
+            session.stroke = None
+    return None
+
+
 def handle_event(op: Any, state: Any, context: Any, event: Any) -> set[str] | None:
     """The modal hook (module doc steps 1-4). Returns the modal result, or None when the
     event is not a dropdown event (the modal continues with its own handling). A TIMER
@@ -1075,11 +1244,17 @@ def handle_event(op: Any, state: Any, context: Any, event: Any) -> set[str] | No
         if not getattr(event, 'type', '').startswith('TIMER'):
             session.shift = bool(getattr(event, 'shift', False))
             session.ctrl = bool(getattr(event, 'ctrl', False))
+        if session.stroke is not None:
+            result = _stroke_event(op, state, context, event)
+            if result is not None:
+                return result
         ev = reducer_event(session, state, event, time.perf_counter())
         if ev is None:
             return None
         if isinstance(ev, Press):
             state.interacted = True
+            if ev.button == menubar.LMB:
+                _stroke_press(session, ev.target, session.last_xy or (0, 0))
         if isinstance(ev, Timer) and session.rerecord_at:
             result = _deferred_refresh(op, state, context, ev.now)
             if result is not None:

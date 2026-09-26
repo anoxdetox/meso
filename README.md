@@ -45,7 +45,10 @@ Familiar workflows for artists coming from Autodesk Maya software. See
 - **Custom dropdowns** are drawn from Blender's own menus and popovers. They follow Blender's
   click conventions: Shift+click adds to a multi-choice set, and Ctrl+click expands the select
   mode. In Selectability & Visibility, clicking a type's name (Mesh, Empty, Text…) toggles its
-  visibility, like its Vis box. Anything that can't be reproduced hands off to the native menu.
+  visibility, like its Vis box. Press a check box and drag across the ones below or above it
+  to set them all the same way, as in Blender (in Selectability & Visibility the drag stays in
+  its column); the whole drag is one undo step. Anything that can't be reproduced hands off to
+  the native menu.
 - **Tap Space:** in the 3D Viewport a tap toggles quad view, or maximizes the hovered
   Top/Front/Side view. Elsewhere a tap keeps Blender's own Space action (play, tools or search).
 - **Nothing native is removed.** Every binding can be edited or switched off: the Plaza's in

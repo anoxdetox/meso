@@ -22,7 +22,7 @@ Headless (``-b``): ``wm.call_menu`` / ``call_menu_pie`` / ``call_panel`` /
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import bpy
@@ -106,7 +106,8 @@ def run_call(call: OpCall, window: Any, area: Any, region: Any) -> set[str] | No
         return None
 
 
-def apply_in_place(action: Action | None, window: Any, area: Any, region: Any) -> ExecResult:
+def apply_in_place(action: Action | None, window: Any, area: Any, region: Any,
+                   undo: bool = True) -> ExecResult:
     """Phase 4 (D): run an in-place action NOW, inside the running plaza modal (the Plaza
     stays open): a Tool Settings row toggle or a dropdown DD_TOGGLE / DD_RADIO / DD_FLAG item.
 
@@ -117,7 +118,9 @@ def apply_in_place(action: Action | None, window: Any, area: Any, region: Any) -
     WINDOW region: setters ``('EXEC_DEFAULT', True, ...)`` (D5: one undo step each; Space-owned
     paths return CANCELLED with the value changed), operator toggles with their recorded
     context. Returns ``ExecResult(call, result, ok, ends_session=False)``. Never raises.
-    GUI check (D): the undo step is pushed while the modal (no UNDO flag) keeps running."""
+    GUI check (D): the undo step is pushed while the modal (no UNDO flag) keeps running.
+    ``undo`` False: a setter runs with the undo flag off (a drag-toggle stroke, which
+    pushes one step for the whole stroke when it ends: ``push_undo_step``)."""
     if action is None or action.kind not in IN_PLACE_ACTIONS:
         kind = getattr(action, 'kind', None)
         _log_once(f"in_place:{kind}", f"action {kind!r} cannot run in place")
@@ -128,6 +131,8 @@ def apply_in_place(action: Action | None, window: Any, area: Any, region: Any) -
             _log_once(f"plan:{action.kind}:{action.target}:{action.data_path}",
                       f"no call for action {action.kind!r} ({action.target or action.data_path!r})")
             return ExecResult(None, None, False, ends_session=False)
+        if not undo and call.undo:
+            call = replace(call, undo=False)
         described = describe(call)
         result = run_call(call, window, area, region)
         if result is None:
@@ -138,6 +143,12 @@ def apply_in_place(action: Action | None, window: Any, area: Any, region: Any) -
     except Exception as ex:
         _log_once(f"in_place:{action.kind}", f"applying {action.kind!r} in place failed: {ex!r}")
         return ExecResult(None, None, False, ends_session=False)
+
+
+def push_undo_step(name: str) -> None:
+    """One undo step named ``name`` for changes made without the undo flag (a drag-toggle
+    stroke): ``ed.undo_push``, as an operator's own push does. Never raises."""
+    actions.push_step(name)
 
 
 def execute(action: Action | None, window: Any, area: Any, region: Any,

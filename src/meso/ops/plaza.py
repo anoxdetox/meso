@@ -378,6 +378,10 @@ def _tag_window(window_ptr: int) -> None:
             area.tag_redraw()
 
 
+# Teardowns whose window or session is gone: a held drag-toggle ends without its undo step.
+_NO_STROKE_PUSH = frozenset({'watchdog', 'stale', 'external', 'unregister'})
+
+
 def _end(state: PlazaState | None, reason: str = 'finish') -> None:
     """Idempotent teardown shared by finish, cancel, errors and unregister.
 
@@ -392,6 +396,12 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
     global _running
     if state is None:
         return
+    try:
+        if getattr(state, 'menus', None) is not None:
+            # A drag-toggle still held gets its one undo step (not when the window is gone).
+            dropdowns.end_stroke(state, push=reason not in _NO_STROKE_PUSH)
+    except Exception:
+        _log_exc("ending the drag-toggle stroke failed")
     try:
         state.active = False
         first = state.timer is not None or state.handlers is not None or _running is state

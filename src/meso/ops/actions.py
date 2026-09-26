@@ -162,7 +162,7 @@ def _apply_select(context: Any, domains: modes.SelectDomains, ident: str, extend
     return {'FINISHED'} if old != ident else {'CANCELLED'}
 
 
-def _push_step(name: str) -> None:
+def push_step(name: str) -> None:
     """``ed.undo_push(message=name)``: a step exactly as an operator's own push names it
     (``ED_undo_push_op`` pushes ``ot->name``); it runs at any undo depth."""
     try:
@@ -268,14 +268,14 @@ class MESO_OT_mode_set_select(Operator):
             if obj is None or obj.mode != self.mode:
                 self.report({'WARNING'}, f"Cannot enter {self.mode}")
                 return {'CANCELLED'}
-            _push_step(_mode_step_name(self.mode))
+            push_step(_mode_step_name(self.mode))
         res = _apply_select(context, domains, self.select, self.use_extend, self.use_expand)
         if res is None:
             self.report({'WARNING'}, f"Cannot set the select mode {self.select}")
             return {'CANCELLED'}
         if 'FINISHED' not in res:
             return {'CANCELLED'}
-        _push_step(_select_step_name(domains))
+        push_step(_select_step_name(domains))
         return {'FINISHED'}
 
 

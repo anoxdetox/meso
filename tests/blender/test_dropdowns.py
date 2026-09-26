@@ -210,6 +210,8 @@ class _Case(unittest.TestCase):
         self.snap_checked = False
         self.pivot = 'MEDIAN_POINT'
         self.fail_build = None
+        self.overrides = {}         # menu id -> callable building its model (subclasses)
+        self.on_call = None         # callable(call) -> result set (subclasses)
 
         def fake_build(context, info, menu_id, operator_context='INVOKE_REGION_WIN', *,
                        cache=None, show_shortcuts=False):
@@ -220,7 +222,10 @@ class _Case(unittest.TestCase):
                 if hit is not None:
                     return hit
             self.builds.append((menu_id, operator_context, info.region))
-            model = dropdown_models(self.toggle_checked)[menu_id]
+            if menu_id in self.overrides:
+                model = self.overrides[menu_id]()
+            else:
+                model = dropdown_models(self.toggle_checked)[menu_id]
             if cache is not None:
                 cache.builds += 1
                 cache.put(model)
@@ -237,6 +242,8 @@ class _Case(unittest.TestCase):
         def fake_run_call(call, window, area, region):
             self.run_calls.append({'call': call, 'window': window, 'area': area,
                                    'region': region, 'running': hb.is_running()})
+            if self.on_call is not None:
+                return self.on_call(call)
             # The in-place change the fake re-records.
             if call.kwargs.get('data_path') == 'tool_settings.use_snap':
                 self.toggle_checked = not self.toggle_checked
@@ -1776,7 +1783,7 @@ class TestStartSession(unittest.TestCase):
         self.assertEqual(_dd().summary(None), {'menus_opened': [], 'menus_opened_by': [],
                                                'in_place': [], 'run_item': None,
                                                'dropdown_builds': 0, 'dropdown_hits': 0,
-                                               'mode_changes': []})
+                                               'mode_changes': [], 'strokes': []})
 
 
 class TestApplyInPlace(unittest.TestCase):
@@ -2347,6 +2354,278 @@ class TestToggleTableModal(_Case):
                                          True)])
         self.assertFalse(self.state.dropdowns.item((3,)).cells[1].checked)
         self.assertEqual((self.state.dropdown_hover, self.state.dropdown_hover_cell), ((3,), 1))
+
+
+class TestDragToggleModal(_Case):
+    """Checkbox drag-toggle through the real modal (docs/phase4-interfaces.md "Drag-toggle"):
+    press a toggle and drag across its neighbours; each passed toggle is SET to the pressed
+    one's new value, without undo steps, and the stroke pushes one undo step at its end."""
+
+    TYPES = ('mesh', 'curve', 'light')
+
+    def setUp(self):
+        super().setUp()
+        self.values = {'scene.render.use_a': False, 'scene.render.use_b': True,
+                       'scene.render.use_c': False, 'scene.render.use_d': False,
+                       ('tool_settings.snap_elements', 'VERTEX'): False,
+                       ('tool_settings.snap_elements', 'EDGE'): False}
+        for key in self.TYPES:
+            self.values[f'space_data.show_object_select_{key}'] = True
+            self.values[f'space_data.show_object_viewport_{key}'] = key != 'light'
+        self.overrides['TOPBAR_MT_file'] = self.menu
+        self.on_call = self.flip
+        self.pushed = []
+        self.addCleanup(setattr, self.inv, 'push_undo_step', self.inv.push_undo_step)
+        self.inv.push_undo_step = self.pushed.append
+
+    def flip(self, call):
+        path = call.kwargs.get('data_path')
+        if call.op_idname == 'wm.context_toggle' and path in self.values:
+            self.values[path] = not self.values[path]
+            return {'CANCELLED'} if path.startswith('space_data.') else {'FINISHED'}
+        if call.op_idname == 'meso.toggle_flag':
+            key = (path, call.kwargs['flag'])
+            if call.kwargs.get('exclusive'):
+                for other in [k for k in self.values if isinstance(k, tuple) and k[0] == path]:
+                    self.values[other] = False
+                self.values[key] = True
+            else:
+                self.values[key] = not self.values[key]
+            return {'FINISHED'}
+        return {'FINISHED'}
+
+    def menu(self):
+        M, D = md(), dm()
+        A, I, C = M.Action, D.DropdownItem, D.DropdownCell
+
+        def box(label, path):
+            return I(D.DD_TOGGLE, label, checked=self.values[path],
+                     action=A(M.ACTION_TOGGLE, data_path=path))
+
+        def flag(label, ident):
+            key = ('tool_settings.snap_elements', ident)
+            return I(D.DD_FLAG, label, checked=self.values[key],
+                     action=A(M.ACTION_TOGGLE_FLAG, data_path=key[0], value=ident))
+
+        rows = []
+        for key in self.TYPES:
+            sel, vis = (f'space_data.show_object_select_{key}',
+                        f'space_data.show_object_viewport_{key}')
+            rows.append(I(D.DD_TOGGLE_ROW, key.title(), source=D.ITEM_SOURCE_TOGGLE_TABLE,
+                          label_cell=1, cells=(
+                              C(f'{key.title()} Selectable', self.values[sel], True, True,
+                                A(M.ACTION_TOGGLE, data_path=sel)),
+                              C(f'{key.title()} Visible', self.values[vis], True, True,
+                                A(M.ACTION_TOGGLE, data_path=vis)))))
+        items = (box('A', 'scene.render.use_a'), box('B', 'scene.render.use_b'),     # 0 1
+                 box('C', 'scene.render.use_c'),                                     # 2
+                 I(D.DD_OP, 'Join', action=A(M.ACTION_OPERATOR, target='object.join')),  # 3
+                 box('D', 'scene.render.use_d'),                                     # 4
+                 I(D.DD_COLUMN_HEADER, columns=('Sel', 'Vis'),
+                   source=D.ITEM_SOURCE_TOGGLE_TABLE),                               # 5
+                 *rows,                                                              # 6 7 8
+                 flag('Vertex', 'VERTEX'), flag('Edge', 'EDGE'))                     # 9 10
+        return D.DropdownModel('TOPBAR_MT_file', 'File', items,
+                               native_action=D.native_menu_action('TOPBAR_MT_file'))
+
+    def open(self):
+        self.click(self.label_xy('TOPBAR_MT_file'))
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+
+    def cell_xy(self, path, cell):
+        r = self.state.menus.chain.item(tuple(path)).cells[cell].rect
+        return int(r.x + r.w // 2), int(r.y + r.h // 2)
+
+    def calls(self):
+        return [(c['call'].op_idname, c['call'].kwargs.get('data_path'), c['call'].undo)
+                for c in self.run_calls]
+
+    def stroke(self, points, release=True):
+        self.move(points[0])
+        self.assertEqual(self.ev('LEFTMOUSE', 'PRESS', points[0]), {'RUNNING_MODAL'})
+        for xy in points[1:]:
+            self.assertEqual(self.move(xy), {'RUNNING_MODAL'})
+        if release:
+            return self.ev('LEFTMOUSE', 'RELEASE', points[-1])
+
+    def test_drag_down_sets_every_passed_box_to_the_new_value(self):
+        hb = _hb()
+        self.open()
+        builds = len(self.builds)
+        self.assertEqual(self.stroke([self.item_xy((0,)), self.item_xy((2,)),
+                                      self.item_xy((4,))]), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls(), [('wm.context_toggle', 'scene.render.use_a', False),
+                                        ('wm.context_toggle', 'scene.render.use_c', False),
+                                        ('wm.context_toggle', 'scene.render.use_d', False)],
+                         "set, not flipped: B was on and is left alone; Join never runs")
+        self.assertTrue(all(self.values[f'scene.render.use_{k}'] for k in 'abcd'))
+        self.assertEqual(self.pushed, ['A'], "one undo step for the whole stroke")
+        self.assertEqual(self.state.menus.strokes, [('A', 3, True)])
+        self.assertTrue(hb.is_running())
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual(len(self.builds), builds + 3, "re-recorded after each set")
+        self.assertEqual([self.state.dropdowns.item((i,)).checked for i in (0, 1, 2, 4)],
+                         [True] * 4, "the checks update live")
+        self.assertEqual(self.state.dropdown_hover, (4,), "the hover follows the stroke")
+        self.assertIsNone(self.bar().pressed)
+        self.assertIsNone(self.state.menus.stroke)
+        self.ev('SPACE', 'RELEASE')
+        self.assertEqual(hb.last_session()['strokes'], [('A', 3, True)])
+
+    def test_a_fast_move_skips_nothing_and_back_changes_nothing(self):
+        self.open()
+        self.stroke([self.item_xy((4,)), self.item_xy((0,)), self.item_xy((4,))])
+        self.assertEqual([c[1] for c in self.calls()],
+                         ['scene.render.use_d', 'scene.render.use_c', 'scene.render.use_a'],
+                         "upward in the order the pointer meets them; the way back is set")
+
+    def test_a_click_is_still_one_click(self):
+        self.open()
+        self.click(self.item_xy((0,)))
+        self.assertEqual(self.calls(), [('wm.context_toggle', 'scene.render.use_a', True)])
+        self.assertEqual((self.pushed, self.state.menus.strokes), ([], []))
+        xy = self.item_xy((2,))
+        self.move(xy)
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        self.move((xy[0] + 3, xy[1] + 1))
+        self.ev('LEFTMOUSE', 'RELEASE', (xy[0] + 3, xy[1] + 1))
+        self.assertEqual(self.calls()[-1], ('wm.context_toggle', 'scene.render.use_c', True),
+                         "a wobble inside the pressed box is a click")
+        self.assertEqual(self.pushed, [])
+
+    def test_the_table_stroke_keeps_its_column(self):
+        self.open()
+        # Down the Vis column, drifting over to the Sel column of the last row: Vis only.
+        end = (self.cell_xy((8,), 0)[0], self.cell_xy((8,), 0)[1])
+        self.stroke([self.cell_xy((6,), 1), self.cell_xy((7,), 1), end])
+        self.assertEqual([c[1] for c in self.calls()],
+                         ['space_data.show_object_viewport_mesh',
+                          'space_data.show_object_viewport_curve'],
+                         "light is hidden already; Sel never changes")
+        self.assertTrue(all(self.values[f'space_data.show_object_select_{k}']
+                            for k in self.TYPES))
+        self.assertEqual(self.pushed, [], "the editor's display settings push no step")
+        self.assertEqual(self.state.menus.strokes, [('Mesh Visible', 2, False)])
+
+    def test_a_type_label_press_strokes_visibility(self):
+        self.open()
+        placed = self.state.menus.chain.item((6,))
+        label_x = int(placed.rect.x + 8)
+        ys = [self.item_xy((i,))[1] for i in (6, 7)]
+        self.stroke([(label_x, ys[0]), (label_x, ys[1])])
+        self.assertEqual([c[1] for c in self.calls()],
+                         ['space_data.show_object_viewport_mesh',
+                          'space_data.show_object_viewport_curve'])
+
+    def test_plain_boxes_and_table_cells_never_mix(self):
+        self.open()
+        self.stroke([self.item_xy((4,)), self.cell_xy((6,), 1), self.cell_xy((8,), 1)])
+        self.assertEqual(self.state.menus.strokes, [], "no other plain box was reached")
+        self.assertEqual(self.calls(), [('wm.context_toggle',
+                                         'space_data.show_object_viewport_light', True)],
+                         "only the release applies what it is over (press-drag-release)")
+
+    def test_flag_members_toggle_alone(self):
+        self.open()
+        self.values[('tool_settings.snap_elements', 'VERTEX')] = False
+        self.stroke([self.item_xy((9,)), self.item_xy((10,))])
+        self.assertEqual([(c['call'].op_idname, c['call'].kwargs.get('flag'),
+                           c['call'].kwargs.get('exclusive', False), c['call'].undo)
+                          for c in self.run_calls],
+                         [('meso.toggle_flag', 'VERTEX', False, False),
+                          ('meso.toggle_flag', 'EDGE', False, False)],
+                         "a stroke never makes a member exclusive")
+        self.assertEqual(self.pushed, ['Vertex'])
+
+    def test_space_release_ends_the_stroke_without_a_second_flip(self):
+        hb = _hb()
+        self.stub, self.state = self._session(execute_on_release=True)
+        self.open()
+        self.stroke([self.item_xy((0,)), self.item_xy((2,))], release=False)
+        self.assertEqual(len(self.run_calls), 2)
+        self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
+        self.assertFalse(hb.is_running())
+        self.assertEqual(len(self.run_calls), 2, "execute_on_release does not flip C again")
+        self.assertEqual(self.executed, [])
+        self.assertEqual(self.pushed, ['A'])
+        self.assertEqual(hb.last_session()['strokes'], [('A', 2, True)])
+
+    def test_teardown_mid_stroke_pushes_the_step(self):
+        hb = _hb()
+        self.open()
+        self.stroke([self.item_xy((0,)), self.item_xy((2,))], release=False)
+        self.assertEqual(self.ev('WINDOW_DEACTIVATE', 'NOTHING'), {'CANCELLED'})
+        self.assertFalse(hb.is_running())
+        self.assertEqual(self.pushed, ['A'])
+
+    def test_esc_mid_stroke_ends_it_and_closes_the_dropdown(self):
+        hb = _hb()
+        self.open()
+        self.stroke([self.item_xy((0,)), self.item_xy((2,))], release=False)
+        self.assertEqual(self.ev('ESC', 'PRESS'), {'RUNNING_MODAL'})
+        self.assertEqual(self.pushed, ['A'])
+        self.assertIsNone(self.state.open_label)
+        self.assertTrue(hb.is_running())
+        self.ev('LEFTMOUSE', 'RELEASE', self.gap())
+        self.assertEqual(len(self.run_calls), 2, "the late release runs nothing")
+
+    def test_no_submenu_or_label_switch_during_a_stroke(self):
+        self.open()
+        opened = list(self.state.menus.opened)
+        self.stroke([self.item_xy((0,)), self.item_xy((2,)), self.label_xy('TOPBAR_MT_edit')],
+                    release=False)
+        self.rest(0.5)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual(self.state.menus.opened, opened)
+
+
+class TestDragToggleUndo(unittest.TestCase):
+    """The real calls of a stroke (no fakes): each set runs without the undo flag, and the
+    one ``push_undo_step`` at the end makes the whole stroke one step: one undo reverts every
+    toggle it set, one redo sets them again (Scene data: the memfile undo restores it; tool
+    settings keep their value on undo natively, docs/spikes.md 14)."""
+
+    PATHS = ('scene.render.use_simplify', 'scene.render.use_motion_blur',
+             'scene.render.use_border')
+
+    def test_one_step_for_the_stroke(self):
+        from tests.blender.test_actions import push_base, steps_since
+        from tests.blender.test_header import area_of, override
+        M = md()
+        inv = _mod("ops.invoke")
+        area = area_of('VIEW_3D')
+        region = _visible(area, 'WINDOW')
+        window = _window()
+
+        def read():
+            render = bpy.context.scene.render
+            return [getattr(render, p.rpartition('.')[2]) for p in self.PATHS]
+
+        render = bpy.context.scene.render
+        saved = read()
+        try:
+            for p in self.PATHS:
+                setattr(render, p.rpartition('.')[2], False)
+            with override(area):
+                marker = push_base()
+            for p in self.PATHS:
+                res = inv.apply_in_place(M.Action(M.ACTION_TOGGLE, data_path=p), window, area,
+                                         region, undo=False)
+                self.assertEqual(res.result, ['FINISHED'], p)
+            self.assertEqual(read(), [True] * 3)
+            self.assertEqual(steps_since(marker), [], "no step per set")
+            with override(area):
+                inv.push_undo_step('Simplify')
+            self.assertEqual(steps_since(marker), ['Simplify'])
+            with override(area):
+                self.assertEqual(bpy.ops.ed.undo(), {'FINISHED'})
+                self.assertEqual(read(), [False] * 3, "one undo reverts the whole stroke")
+                self.assertEqual(bpy.ops.ed.redo(), {'FINISHED'})
+                self.assertEqual(read(), [True] * 3)
+        finally:
+            render = bpy.context.scene.render
+            for p, v in zip(self.PATHS, saved):
+                setattr(render, p.rpartition('.')[2], v)
 
 
 class TestToggleFlagOperator(unittest.TestCase):
