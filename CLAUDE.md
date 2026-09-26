@@ -128,8 +128,9 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   session (`tests/gui/realinput_driver.py`: no `--enable-event-simulate`, XTEST on the nested Xwayland, nested only,
   never `--host`).
 - Phase 0 decisions in `local/docs/spikes.md` (D1–D5) supersede the plan where they differ.
-- Commits: `git commit -s` as `anoxdetox <5579531+anoxdetox@users.noreply.github.com>`; the message may end with a
-  `Co-Authored-By:` trailer but never a `Claude-Session:` line or any other session link (user decision 2026-09-26).
+- Commits: `git commit -s` with the contributor's own configured git identity (a noreply address keeps a private email
+  out of the history); never change the git identity. A message may end with a `Co-Authored-By:` trailer, but never a
+  `Claude-Session:` line or any other session or tool link.
 - IP hygiene: never commit third-party screenshots, icons, docs text or sampled colours; never implement
   multi-touch finger-chord gesture recognition (live third-party patent until 2031). See `local/docs/roadmap.md`.
 - Never erase native Blender features: Meso adds or relocates, and every displaced action (e.g. the 3D cursor,
