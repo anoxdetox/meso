@@ -1138,7 +1138,7 @@ class TestStickyExit(_Case):
                 open_row = layout.item(self.state.open_label).row_key
                 if open_row in rows and abs(dy) <= 1.2 * abs(dx):
                     continue
-                if abs(dy) > 2 * abs(dx) and dy < 0:
+                if dy < 0 and abs(dy) >= abs(dx):          # steeply down
                     kind = 'down'
                 elif abs(dx) > 2 * abs(dy) and md().ROW_TOOL_SETTINGS in rows:
                     kind = 'sideways'

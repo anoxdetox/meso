@@ -14,10 +14,16 @@ diagonal path to the top of its tall panel crosses Help (above Object) and Help 
 opens; stopping and resting on Help switches to it; (h) File open, a quick slide along the
 root row to Edit switches on arrival (the aim guard never delays a slide along the bar);
 (i) a hover-opened chain the pointer entered (Object ▸ Apply) stays open over the viewport
-until an empty click or Esc.
+until an empty click or Esc; (j) sticky exits (user report 2026-09-26, "menus still do
+close"): from inside a submenu (Object ▸ Apply, File ▸ Import / Export), hand-like walks out
+to the viewport across other rows' dropdown labels (down, sideways, diagonal) keep the chain
+while the pointer rests there; resting on a crossed label switches to it and the switched
+menu is sticky.
 """
 
 import importlib
+import math
+import time
 
 import bpy
 
@@ -31,6 +37,8 @@ AIM_STEP = 3              # px per simulated move of the diagonal path
 AIM_BATCH = 5             # moves per frame (15 px / frame: a quick, ordinary hand)
 AIM_FRAME = 0.016
 AIM_REST = 0.3            # hover_open_delay (the aim-guard rest) of the rest-switch session
+HAND_STEP = 7             # px per move of a hand-like exit walk
+HAND_FRAME = 0.008        # s between its moves (125 Hz)
 
 
 def scenarios(drv):
@@ -518,6 +526,206 @@ def scenarios(drv):
         drv.check(rec, "menus_opened_by", ls.get("menus_opened_by") == ["hover", "hover"],
                   ls.get("menus_opened_by"))
 
+    # -------------------------------------------------------------------------- (j)
+    # Chains entered for the exits: (name, row label id, submenu opened from its dropdown).
+    EXIT_CHAINS = (("object_apply", "ctx:VIEW3D_MT_object", "VIEW3D_MT_object_apply"),
+                   ("file_import", FILE, "TOPBAR_MT_file_import"),
+                   ("file_export", FILE, "TOPBAR_MT_file_export"))
+
+    def exit_paths(st):
+        """Straight paths (HAND_STEP px) from a point of the deepest open panel (the
+        submenu) to a point of the invoking area outside the Plaza, that leave the chain's
+        panels once (through the parent panel if it lies in the way: hovering a parent item
+        closes the submenu natively) and then cross at least one other hover-eligible label;
+        never sideways over the open label's row (a slide along the bar switches by design).
+        ``{kind: (points, crossed eligible labels, index of the last point in a panel)}``,
+        the first found per kind: 'down', 'sideways' (over the Tool Settings row) and
+        'diagonal'."""
+        g = ddg()
+        layout, chain = st.layout, st.menus.chain
+        plaza, sub = layout.plaza_rect, chain.panels[-1].rect
+        area = st.area_bounds or st.bounds
+        inside = (D().ZONE_ITEM, D().ZONE_PANEL)
+        others = set(eligible_labels(st)) - {st.menus.bar.open_label}
+        open_row = layout.item(st.menus.bar.open_label).row_key
+        starts = [(int(sub.x + fx * sub.w), int(sub.y + fy * sub.h))
+                  for fx in (0.1, 0.5, 0.9) for fy in (0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97)]
+        found = {}
+        for start in starts:
+            for deg in range(0, 360, 5):
+                dx, dy = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+                pts, hits = [start], [g.resolve_hit(layout, chain, *start)]
+                for k in range(1, 400):
+                    x = round(start[0] + dx * HAND_STEP * k)
+                    y = round(start[1] + dy * HAND_STEP * k)
+                    if not area.contains(x, y):
+                        break
+                    pts.append((x, y))
+                    hits.append(g.resolve_hit(layout, chain, x, y))
+                    if not plaza.contains(x, y) and hits[-1].zone == D().ZONE_NONE:
+                        break
+                if hits[0].zone not in inside or hits[-1].zone != D().ZONE_NONE \
+                        or plaza.contains(*pts[-1]):
+                    continue
+                last_in = max(n for n, h in enumerate(hits) if h.zone in inside)
+                if any(h.zone not in inside for h in hits[:last_in]):
+                    continue                    # left the chain and came back
+                crossed = [h.label_id for h in hits[last_in:] if h.zone == D().ZONE_LABEL]
+                eligible = [c for c in dict.fromkeys(crossed) if c in others]
+                if not eligible:
+                    continue
+                rows = {layout.item(c).row_key for c in crossed}
+                if open_row in rows and abs(dy) <= 1.2 * abs(dx):
+                    continue
+                if dy < 0 and abs(dy) >= abs(dx):          # steeply down
+                    kind = "down"
+                elif abs(dx) > 2 * abs(dy) and md().ROW_TOOL_SETTINGS in rows:
+                    kind = "sideways"
+                else:
+                    kind = "diagonal"
+                found.setdefault(kind, (pts, eligible, last_in))
+        return found
+
+    walk_gaps = []
+
+    def hand_walk(points):
+        """One MOUSEMOVE per HAND_FRAME along ``points`` (a hand leaving the menu).
+        ``walk_gaps`` collects the longest real gap between two moves of each walk (a
+        starved driver pauses the simulated hand)."""
+        last, gap = None, 0.0
+        for xy in points:
+            now = time.perf_counter()
+            if last is not None:
+                gap = max(gap, now - last)
+            last = now
+            drv.sim('MOUSEMOVE', 'NOTHING', xy)
+            yield HAND_FRAME
+        walk_gaps.append(round(gap, 3))
+
+    def enter_chain(rec, st, prefix, label_id, submenu):
+        """Hover-open ``label_id`` (unless open), rest on the ``submenu`` item of its
+        dropdown (the submenu opens), enter the submenu: returns the chain keys, or None."""
+        if st.open_label != label_id:
+            lxy = label_xy(st, label_id)
+            drv.check(rec, prefix + "label_placed", lxy is not None)
+            if lxy is None:
+                return None
+            drv.sim('MOUSEMOVE', 'NOTHING', lxy)
+            yield OPEN_WAIT + st.menus.bar.hover_open_delay
+            drv.check(rec, prefix + "hover_opened", st.open_label == label_id
+                      and opened_by(st) == "hover", [st.open_label, opened_by(st)])
+        idx = drv.dd_find(st, 0, lambda it: it.kind == D().DD_SUBMENU and it.submenu == submenu)
+        drv.check(rec, prefix + "opener_found", idx is not None)
+        if idx is None or drv.dd_xy(st, (idx,)) is None:
+            return None
+        drv.sim('MOUSEMOVE', 'NOTHING', drv.dd_xy(st, (idx,)))
+        yield OPEN_WAIT
+        keys = drv.dd_keys(st)
+        drv.check(rec, prefix + "submenu_opened", keys[1:] == [submenu], keys)
+        first = drv.dd_xy(st, (idx, 0))
+        if first is not None:
+            drv.sim('MOUSEMOVE', 'NOTHING', first)
+            yield 0.1
+        drv.check(rec, prefix + "sticky", bar(st) is not None and bar(st).sticky,
+                  bar(st) and [bar(st).entered, bar(st).opened_by])
+        return keys if len(keys) == 2 and keys[1] == submenu else None
+
+    def sc_sticky_exits(rec):
+        """User report 2026-09-26 ("menus still do close"): a hover-opened chain entered
+        down to a submenu (Object ▸ Apply, File ▸ Import / Export), then hand-like walks
+        (HAND_STEP px every HAND_FRAME, through the real aim / trail logic) from the submenu
+        out to the viewport across other rows' dropdown labels (down, sideways, diagonal:
+        the first path of each kind over the chains), then a rest there of more than twice
+        the close delay: the open label and the chain as the pointer left it are unchanged,
+        nothing else opened. Then resting on a crossed label switches to it, and the
+        switched menu stays open over the viewport; an empty click closes it.
+
+        ``hover_open_delay`` (the rest a crossed label needs) is raised to AIM_REST: in the
+        nested session a hover redraw starves the simulating driver for up to ~80 ms
+        (``walk_gaps``) while the watchdog TIMER keeps running, so the simulated hand pauses
+        on a label longer than the 0.05 s default. Real input is queued during such a frame
+        and handled before the TIMER, so it never reads as a rest; the default delay is
+        covered by the reducer and headless tests (8 ms moves, a TIMER every 0.05 s)."""
+        prefs = drv.addon_prefs()
+        old = prefs.hover_open_delay
+        try:
+            prefs.hover_open_delay = AIM_REST
+            yield from sticky_exits(rec)
+        finally:
+            prefs = drv.addon_prefs()
+            if prefs is not None:
+                prefs.hover_open_delay = old
+
+    def sticky_exits(rec):
+        xy, st = yield from start(rec)
+        if st is None:
+            return
+        done, rest_case = {}, None
+        for name, label_id, submenu in EXIT_CHAINS:
+            keys = yield from enter_chain(rec, st, f"{name}_", label_id, submenu)
+            if keys is None:
+                continue
+            paths = exit_paths(st)
+            rec.setdefault("exit_paths", {})[name] = {k: v[1] for k, v in paths.items()}
+            rec.setdefault("panels", {})[name] = [repr(p.rect) for p in st.menus.chain.panels]
+            for kind, (pts, crossed, last_in) in sorted(paths.items()):
+                if kind in done:
+                    continue
+                tag = f"{name}_{kind}"
+                if drv.dd_keys(st) != keys:     # a previous exit closed the submenu
+                    yield from enter_chain(rec, st, tag + "_re", label_id, submenu)
+                drv.sim('MOUSEMOVE', 'NOTHING', pts[0])      # into the submenu
+                yield 0.1
+                drv.check(rec, tag + "_starts_in_chain", drv.dd_keys(st) == keys,
+                          drv.dd_keys(st))
+                yield from hand_walk(pts[1:last_in + 1])
+                exit_keys, opened = drv.dd_keys(st), list(st.menus.opened)
+                drv.check(rec, tag + "_root_kept_on_leaving", exit_keys[:1] == keys[:1],
+                          exit_keys)
+                yield from hand_walk(pts[last_in + 1:])
+                yield CLOSE_WAIT * 2
+                drv.check(rec, tag + "_chain_kept", st.open_label == label_id
+                          and drv.dd_keys(st) == exit_keys,
+                          [crossed, exit_keys, st.open_label, drv.dd_keys(st)])
+                drv.check(rec, tag + "_nothing_else_opened", st.menus.opened == opened,
+                          st.menus.opened)
+                drv.check(rec, tag + "_no_pending_switch", bar(st).switch_wait is None,
+                          bar(st).switch_wait)
+                done[kind] = [name, crossed]
+                rest_case = rest_case or (label_id, submenu, pts, crossed, last_in)
+            yield from drv.press_click(empty(st))
+            drv.check(rec, f"{name}_empty_click_closes", st.dropdowns is None,
+                      drv.dd_keys(st))
+        rec["exits"] = done
+        rec["walk_gaps"] = list(walk_gaps)
+        drv.check(rec, "exit_kinds", set(done) == {"down", "sideways", "diagonal"}, done)
+        drv.check(rec, "no_draw_error", not st.failed and st.error is None, st.error)
+        # Rest on a crossed label: it switches, and the switched menu is sticky.
+        if rest_case is not None:
+            label_id, submenu, pts, crossed, last_in = rest_case
+            keys = yield from enter_chain(rec, st, "rest_", label_id, submenu)
+            g = ddg()
+            i = next(n for n in range(last_in, len(pts))
+                     if g.resolve_hit(st.layout, st.menus.chain, *pts[n]).label_id == crossed[0])
+            drv.sim('MOUSEMOVE', 'NOTHING', pts[0])
+            yield 0.1
+            yield from hand_walk(pts[1:i + 1])
+            yield AIM_REST + 0.3
+            drv.check(rec, "rest_switches", st.open_label == crossed[0],
+                      [crossed[0], st.open_label, drv.dd_keys(st)])
+            drv.check(rec, "switched_is_sticky", bar(st) is not None and bar(st).sticky,
+                      bar(st) and [bar(st).opened_by, bar(st).entered])
+            yield from hand_walk([empty(st)])
+            yield CLOSE_WAIT * 2
+            drv.check(rec, "switched_kept_over_viewport", st.open_label == crossed[0],
+                      [st.open_label, drv.dd_keys(st)])
+        away = empty(st)
+        yield from drv.press_click(away)
+        drv.check(rec, "empty_click_closes", st.dropdowns is None and st.open_label is None,
+                  [st.open_label, drv.dd_keys(st)])
+        drv.check(rec, "plaza_open_after_click", drv.plaza().is_running())
+        yield from finish(rec, away)
+
     return [
         ("hover_opens_switches_closes", sc_hover_opens_switches_closes),
         ("hover_fast_sweep", sc_fast_sweep),
@@ -528,4 +736,5 @@ def scenarios(drv):
         ("hover_aim_guard_diagonal", sc_aim_guard_diagonal),
         ("hover_aim_guard_slide_bar", sc_aim_guard_slide_bar),
         ("hover_entered_chain_sticky", sc_entered_chain_sticky),
+        ("hover_sticky_exits", sc_sticky_exits),
     ]
