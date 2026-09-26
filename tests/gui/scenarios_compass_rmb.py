@@ -5,8 +5,9 @@ Compass (a drag north picks Edge), Shift+right-click taps place the 3D cursor an
 the tool Compass, Ctrl+Shift+right-click drags move the cursor. Phase 5c
 (local/docs/phase5c-interfaces.md "B"): a quick flick south picks Face even when it ends on the
 list, a rest on the list picks a context item, a pick on an unselected object selects it and
-enters Edit Mode on it, Multi, the wheel scrolls a long list, a press near the bottom edge keeps
-the radial at the press. The cursor drag starts a transform, so the module runs in the grab
+enters Edit Mode on it, the Compass over an Empty has only the Empty's modes (a flick south
+picks nothing), Multi, the wheel scrolls a long list, a press near the bottom edge keeps the
+radial at the press. The cursor drag starts a transform, so the module runs in the grab
 (Xwayland) session. Each scenario restores the keyconfig, the mode, the select mode, the
 selection and the cursor.
 """
@@ -366,6 +367,12 @@ def scenarios(drv):
             if cs is None:
                 yield from release_all(spot)
                 return
+            # The probe found the object under the press and put the selection back.
+            drv.check(rec, "press_object", last().get('press_object') == probe.name_full,
+                      last().get('press_object'))
+            drv.check(rec, "shown_selection_unchanged", not probe.select_get()
+                      and cube.select_get() and view_layer.objects.active == cube,
+                      getattr(view_layer.objects.active, 'name', None))
             end = toward(cs, 'N')
             yield from stroke(spot, end)
             drv.sim('RIGHTMOUSE', 'RELEASE', end)
@@ -390,6 +397,70 @@ def scenarios(drv):
                 bpy.data.objects.remove(probe, do_unlink=True)
                 if mesh is not None and mesh.users == 0:
                     bpy.data.meshes.remove(mesh)
+            if cube is not None:
+                select_only(cube)
+            back_to_blender()
+            yield 0.3
+
+    def sc_pick_over_empty(rec):
+        """The Compass is the object under the press's: with the Cube active, a right-click
+        on an Empty shows only Object Mode (disabled), and a flick south (Face on a mesh)
+        picks nothing: the selection, the active object and the mode stay."""
+        view_layer = bpy.context.view_layer
+        cube = bpy.data.objects.get('Cube')
+        empty = None
+        try:
+            yield from with_meso(rec)
+            object_mode()
+            empty = bpy.data.objects.new("MesoPressEmpty", None)
+            empty.empty_display_type = 'PLAIN_AXES'
+            empty.empty_display_size = 1.0
+            bpy.context.scene.collection.objects.link(empty)
+            region = v3d_region()
+            cube_xy = to_win(cube.location) if cube is not None else None
+            spot = None
+            for co in ((0.0, 3.0, 0.0), (3.0, 0.0, 0.0), (0.0, -3.0, 0.0), (-3.0, 0.0, 0.0)):
+                empty.location = co
+                view_layer.update()
+                p = to_win(co)
+                if (p is not None and region.x + 150 < p[0] < region.x + region.width - 150
+                        and region.y + 150 < p[1] < region.y + region.height - 150
+                        and (cube_xy is None or math.dist(p, cube_xy) > 120)):
+                    spot = p
+                    break
+            drv.check(rec, "empty_visible", spot is not None)
+            if spot is None or cube is None:
+                return
+            select_only(cube)
+            view_layer.update()
+            yield 0.2
+            yield from press_hold(spot)
+            cs = shown_compass()
+            drv.check(rec, "compass_shown", cs is not None)
+            if cs is None:
+                yield from release_all(spot)
+                return
+            drv.check(rec, "press_object", last().get('press_object') == empty.name_full,
+                      last().get('press_object'))
+            slots = {d: s.enabled for d, s in zip(cp().DIRECTIONS, cs.model.slots)
+                     if s is not None}
+            drv.check(rec, "empty_modes_only", slots == {'NE': False}, slots)
+            drv.save_screenshot("compass_rmb_over_empty")
+            end = toward(cs, 'S')
+            yield from stroke(spot, end)
+            drv.sim('RIGHTMOUSE', 'RELEASE', end)
+            yield 0.6
+            ls = last()
+            drv.check(rec, "cancelled", ls.get('end') == 'cancel', ls.get('end'))
+            drv.check(rec, "no_press_select", 'press_select' not in ls, ls.get('press_select'))
+            drv.check(rec, "selection_unchanged", view_layer.objects.active == cube
+                      and cube.select_get() and not empty.select_get(),
+                      getattr(view_layer.objects.active, 'name', None))
+            drv.check(rec, "still_object_mode", bpy.context.mode == 'OBJECT', bpy.context.mode)
+        finally:
+            object_mode()
+            if empty is not None and empty.name in bpy.data.objects:
+                bpy.data.objects.remove(empty, do_unlink=True)
             if cube is not None:
                 select_only(cube)
             back_to_blender()
@@ -526,5 +597,6 @@ def scenarios(drv):
             ("rmb_shift_hold_tools", sc_shift_hold_tools),
             ("rmb_ctrl_shift_drag_cursor", sc_ctrl_shift_drag_cursor),
             ("rmb_flick_face", sc_flick_face), ("rmb_list_pick", sc_list_pick),
-            ("rmb_pick_unselected", sc_pick_unselected), ("rmb_multi", sc_multi),
+            ("rmb_pick_unselected", sc_pick_unselected),
+            ("rmb_pick_over_empty", sc_pick_over_empty), ("rmb_multi", sc_multi),
             ("rmb_wheel_scroll", sc_wheel_scroll), ("rmb_bottom_edge", sc_bottom_edge)]

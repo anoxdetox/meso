@@ -461,6 +461,32 @@ class TestCompassList(_CompassCase):
         self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
         self.assertEqual(self.executed[0]['action'].props.get('index'), 4)
 
+    def test_a_trackpad_pan_scrolls_a_long_list(self):
+        """A two-finger pan over the list scrolls it as Blender's menus do (one item per
+        PAN_UNIT_PX of pan; a swipe up towards the first item); swallowed elsewhere."""
+        cs = self.open_list(80)
+        xy = self.mid(cs.layout.panel.items[3].rect)
+        self.move(xy)
+        unit = _mod("core.compass").PAN_UNIT_PX
+
+        def pan(dy, at=xy):
+            ev = SimpleNamespace(type='TRACKPADPAN', value='NOTHING', mouse_x=at[0],
+                                 mouse_y=at[1], mouse_prev_y=at[1] + dy, shift=False,
+                                 ctrl=False)
+            with bpy.context.temp_override(window=self.window):
+                return self.stub.modal(bpy.context, ev)
+        self.assertEqual(pan(-unit - 1), {'RUNNING_MODAL'})
+        self.assertEqual(self.compass().layout.scroll, 1)
+        self.assertEqual(self.compass().gesture.hover_path, (3,), "a pan arms the list")
+        pan(-unit - 1)
+        pan(unit / 2)
+        self.assertEqual(self.compass().layout.scroll, 2, "a change of sign starts again")
+        pan(unit)
+        self.assertEqual(self.compass().layout.scroll, 1)
+        self.assertEqual(pan(-unit - 1, at=self.toward('N')), {'RUNNING_MODAL'})
+        self.assertEqual(self.compass().layout.scroll, 1, "off the list: swallowed")
+        self.assertEqual(self.executed, [])
+
     def test_a_rest_on_an_arrow_row_scrolls_and_never_picks(self):
         cs = self.open_list(80)
         down = cs.layout.arrow_down
@@ -471,10 +497,17 @@ class TestCompassList(_CompassCase):
         cp_ = _mod("core.compass")
         self.clock[0] += 2 * cp_.SCROLL_REPEAT + 0.01
         self.ev('TIMER', 'NOTHING')
-        self.assertEqual(self.compass().layout.scroll, 2)
+        self.assertEqual(self.compass().layout.scroll, 0,
+                         "a flick onto an arrow row is a mark: no scroll before the dwell")
+        self.assertIsNotNone(self.compass().gesture.hover_slot)
+        self.clock[0] += cp_.LIST_DWELL
+        self.ev('TIMER', 'NOTHING')
         g = self.compass().gesture
-        self.assertEqual((g.hover_slot, g.hover_path), (None, None),
-                         "the scroll armed the list; an arrow row is no item")
+        self.assertEqual((g.list_armed, g.hover_slot, g.hover_path), (True, None, None),
+                         "the rest armed the list; an arrow row is no item")
+        self.clock[0] += 2 * cp_.SCROLL_REPEAT + 0.01
+        self.ev('TIMER', 'NOTHING')
+        self.assertEqual(self.compass().layout.scroll, 2)
         up = self.compass().layout.arrow_up
         self.assertIsNotNone(up)
         self.move(self.mid(up))
@@ -486,6 +519,53 @@ class TestCompassList(_CompassCase):
         self.assertIsNone(self.compass(), "a release on an arrow row cancels")
         self.assertEqual(self.executed, [])
         self.assertTrue(_hb().is_running(), "the Plaza stays")
+
+
+class TestContextCompassOnAZone(_CompassCase):
+    """``meso:context`` set on a Plaza zone: its UV ▸ from Object Mode enters Edit Mode
+    first, then hands the menu off (``core.compass_rmb.pick_actions``, as the right-click
+    Compass), so the menu never opens with every entry greyed out."""
+
+    def open_with_uv(self):
+        dm, cpm, mm = (_mod("core.dropdown_model"), _mod("core.compass"),
+                       _mod("core.model"))
+        slots = [None] * 8
+        slots[cpm.direction_index('E')] = dm.DropdownItem(dm.DD_SUBMENU, 'UV',
+                                                          submenu='VIEW3D_MT_uv_map')
+        slots[cpm.direction_index('N')] = dm.DropdownItem(
+            dm.DD_SUBMENU, 'Other', submenu='VIEW3D_MT_view')
+        model = cpm.CompassModel('meso:context', 'Context', tuple(slots))
+        rc = _mod("record.compass")
+        self.addCleanup(setattr, rc, 'build_compass', rc.build_compass)
+        rc.build_compass = lambda *args, **kwargs: model
+        xy = self.zone_xy('N')
+        self.move(xy)
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        self.assertIs(self.compass().model, model)
+
+    def test_uv_from_object_mode_enters_edit_mode_first(self):
+        self.assertEqual(bpy.context.mode, 'OBJECT')
+        self.open_with_uv()
+        target = self.toward('E')
+        self.move(target)
+        self.clock[0] += 0.1
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', target), {'FINISHED'})
+        self.assertEqual([(e['action'].kind, e['action'].target, dict(e['action'].props),
+                           e['stopped']) for e in self.executed],
+                         [('operator', 'object.mode_set', {'mode': 'EDIT'}, True),
+                          ('menu', 'VIEW3D_MT_uv_map', {}, True)])
+        self.assertEqual(_hb().last_session()['pre'],
+                         [('operator', 'object.mode_set', '')])
+
+    def test_another_menu_is_handed_off_alone(self):
+        self.open_with_uv()
+        target = self.toward('N')
+        self.move(target)
+        self.clock[0] += 0.1
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', target), {'FINISHED'})
+        self.assertEqual([(e['action'].kind, e['action'].target) for e in self.executed],
+                         [('menu', 'VIEW3D_MT_view')])
+        self.assertEqual(_hb().last_session()['pre'], [])
 
 
 def _hb():

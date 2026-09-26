@@ -40,14 +40,20 @@ A pick runs after the teardown (``handlers`` and timer removed), right before FI
 ``ops.invoke.execute(action, window, area, region, 'VIEW_3D')`` for each action of
 ``core.compass_rmb.pick_actions(item, mode)`` (``pick_action``; UV ▸ from Object Mode enters
 Edit Mode first) whatever the item's Phase 4 role: there is no Plaza to stay in. The chord's
-own modifiers are not click modifiers (a Shift+RMB pick never "extends"). In Object Mode a
-pick of a mode item of the context Compass (a mode, a select-mode cell, Multi, UV ▸:
-``core.compass_rmb.press_selects``) first selects the object under the press point, as a
-click there would (:func:`select_at_press`, ``view3d.select`` EXEC without the undo flag;
-nothing there keeps the selection), then the mode action runs on it. Every native call goes
-through the seam :func:`run_native` (``ops.invoke.run_call``), the press selection through
-:func:`select_at_press`, every pick through ``ops.invoke.execute``: tests stub them (never a
-popup under ``-b``; ``view3d.select`` segfaults there, the region has no view data).
+own modifiers are not click modifiers (a Shift+RMB pick never "extends"). In Object Mode
+the context Compass is for the object under the press point: when it shows, a probe
+(:func:`object_at_press`: the click, then the selection put back) finds it, and its modes
+are built for it (``build_compass(target=...)``; nothing there: the active object's). A
+pick of a mode item (a mode, a select-mode cell, Multi, UV ▸:
+``core.compass_rmb.press_selects``) then first selects that object, as a click there would
+(:func:`select_at_press`, ``view3d.select`` EXEC without the undo flag; nothing there keeps
+the selection), and the mode action runs on it; when no action finishes, the click's own
+'Select' step is pushed (``ops.invoke.push_undo_step``), so the selection change is undone
+on its own. Every native call goes through the seam :func:`run_native`
+(``ops.invoke.run_call``), the probe through :func:`object_at_press`, the press selection
+through :func:`select_at_press`, every pick through ``ops.invoke.execute``: tests stub them
+(never a popup under ``-b``; ``view3d.select`` segfaults there, the region has no view
+data).
 
 invoke passes the key on (PASS_THROUGH, so the native item after it runs) outside a 3D View
 WINDOW region with a window, while the Plaza runs (it owns RMB then: its zone Compasses) and
@@ -83,7 +89,7 @@ from . import compass as compass_ops
 from . import invoke
 
 __all__ = ('MESO_OT_compass_rmb', 'RmbState', 'current_state', 'is_running', 'last_session',
-           'run_native', 'select_at_press')
+           'object_at_press', 'run_native', 'select_at_press')
 
 TIMER_INTERVAL = 0.05       # s: the hold check and the watchdog
 # The operator's name as reported by ``Window.modal_operators`` (stale-session check).
@@ -204,9 +210,12 @@ def last_session() -> dict[str, Any] | None:
     in order: the press placement, the tap, the drag), ``native_result`` (the last one's
     sorted result or None), ``pick`` (``(model key, where, label)``), ``action`` (``(kind,
     target, data_path)`` of the pick's action, or None), ``actions`` (the same of every
-    action the pick runs, ``core.compass_rmb.pick_actions``), ``press_select``
-    (``(location, sorted result)`` of the object selection a mode pick made first, absent
-    otherwise) and ``result`` (the last run action's result or None)."""
+    action the pick runs, ``core.compass_rmb.pick_actions``), ``press_object`` (the
+    ``name_full`` the probe found under the press, None for nothing; absent when there was
+    no probe), ``press_select`` (``(location, sorted result)`` of the object selection a
+    mode pick made first, absent otherwise), ``press_select_step`` (the undo step pushed for
+    it when no action finished, absent otherwise) and ``result`` (the last run action's
+    result or None)."""
     return dict(_last) if _last else None
 
 
@@ -225,6 +234,43 @@ def select_at_press(window: Any, area: Any, region: Any,
     under ``-b`` the call segfaults (the region has no view data)."""
     op, kwargs = rmb.press_select_call(location)
     return invoke.run_call(OpCall(op, 'EXEC_DEFAULT', None, kwargs), window, area, region)
+
+
+def object_at_press(context: Any, window: Any, area: Any, region: Any,
+                    location: tuple[int, int]) -> str | None:
+    """The object a click at ``location`` (the press point in the WINDOW ``region``'s
+    coordinates) would select: its ``name_full``, None when nothing is there. A probe: the
+    click itself (:func:`select_at_press`, Blender's own pick), the active object read, then
+    every object's select state and the active object put back as they were (no undo step,
+    nothing changed). The context Compass is built for that object (``build_compass``
+    ``target``), since a mode pick selects it first. The seam tests stub."""
+    view_layer = context.view_layer
+    objects = view_layer.objects
+    selected = {o.as_pointer() for o in objects if o.select_get()}
+    active = objects.active
+    try:
+        res = select_at_press(window, area, region, location)
+        hit = objects.active if res is not None and 'FINISHED' in res else None
+        return hit.name_full if hit is not None else None
+    finally:
+        for obj in objects:
+            want = obj.as_pointer() in selected
+            if obj.select_get() != want:
+                try:
+                    obj.select_set(want)
+                except RuntimeError:
+                    pass
+        if objects.active != active:
+            objects.active = active
+
+
+def _step_name(op_idname: str) -> str:
+    """The (untranslated) name of the operator ``op_idname``: the undo step it pushes."""
+    try:
+        mod, _, name = op_idname.partition('.')
+        return getattr(getattr(bpy.ops, mod), name).get_rna_type().name
+    except Exception:
+        return ''
 
 
 def _native(state: RmbState, op_idname: str, kwargs: dict[str, Any], undo: bool | None,
@@ -553,9 +599,20 @@ the pointer"""
         from .. import prefs     # lazily (import graph, as ops.invoke.addon_module)
         addon_prefs = prefs.get_prefs(context)
         window, area, region = state.window, state.area, state.region
+        target = ''
+        if rmb.press_probes(state.kind, str(getattr(context, 'mode', '') or '')):
+            # The modes are the ones of the object a mode pick acts on: the one under the
+            # press (a mode pick selects it first); nothing there: the active object's.
+            try:
+                target = object_at_press(context, window, area, region,
+                                         state.press_region) or ''
+            except Exception:
+                _log_once('press_probe', "finding the object under the press failed",
+                          exc=True)
+            _last['press_object'] = target or None
         info = rows.InvokeInfo(window, area, region, area.type, area.ui_type, context.mode)
         model = rec_compass.build_compass(context, info, BUILTIN_OF_KIND[state.kind], None,
-                                          addon_prefs, menu=state.menu)
+                                          addon_prefs, menu=state.menu, target=target)
         if model is None:
             return
         font_scale = float(getattr(addon_prefs, 'font_scale', 1.0))
@@ -605,9 +662,12 @@ the pointer"""
             state.pointer = (x, y)
             self._redraw(state, before)
             return {'RUNNING_MODAL'}
-        if etype in compass_ops.WHEEL_STEPS:
-            # Over the list the wheel scrolls it (never a pick); swallowed everywhere.
-            if compass_ops.wheel_scroll(cs, event, now):
+        if etype in compass_ops.WHEEL_STEPS or etype in compass_ops.PAN_EVENTS:
+            # Over the list the wheel and a trackpad pan scroll it (never a pick); swallowed
+            # everywhere.
+            scroll = (compass_ops.wheel_scroll if etype in compass_ops.WHEEL_STEPS
+                      else compass_ops.pan_scroll)
+            if scroll(cs, event, now):
                 state.pointer = cs.pointer
                 self._redraw(state, before)
             return {'RUNNING_MODAL'}
@@ -667,13 +727,16 @@ the pointer"""
         location = state.press_region
         _end(state, 'run')
         self._state = None
+        selected = False
         if press_select:
             try:
                 res = select_at_press(window, area, region, location)
                 _last['press_select'] = (location, sorted(res) if res is not None else None)
+                selected = res is not None and 'FINISHED' in res
             except Exception:
                 _log_once('press_select', "selecting the object under the press failed",
                           exc=True)
+        finished = False
         for step in actions:
             try:
                 res = invoke.execute(step, window, area, region, 'VIEW_3D')
@@ -683,6 +746,13 @@ the pointer"""
                 break
             if 'FINISHED' not in (res.result or ()):
                 break
+            finished = True
+        if selected and not finished:
+            # The mode change did not run: the click's own step, so the selection change is
+            # undone on its own (as a native click), not folded into the previous step.
+            name = _step_name(rmb.PRESS_SELECT_OPERATOR) or 'Select'
+            invoke.push_undo_step(name)
+            _last['press_select_step'] = name
         return {'FINISHED'}
 
     def cancel(self, context) -> None:

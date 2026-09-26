@@ -43,6 +43,39 @@ def build(value, menu=''):
                                 _mod("prefs").get_prefs(bpy.context), menu=menu)
 
 
+def build_for(target, value='meso:context', menu='VIEW3D_MT_object_context_menu'):
+    rc = _mod("record.compass")
+    with override(area_of('VIEW_3D')):
+        return rc.build_compass(bpy.context, _info(), value, None,
+                                _mod("prefs").get_prefs(bpy.context), menu=menu,
+                                target=target)
+
+
+@contextmanager
+def kept_selection():
+    """Put every object's select state and the active object back afterwards (by name: an
+    undo inside replaces every RNA pointer)."""
+    view_layer = bpy.context.view_layer
+    selected = {o.name for o in view_layer.objects if o.select_get()}
+    active = view_layer.objects.active.name if view_layer.objects.active else None
+    try:
+        yield view_layer
+    finally:
+        view_layer = bpy.context.view_layer
+        for o in view_layer.objects:
+            o.select_set(o.name in selected)
+        view_layer.objects.active = bpy.data.objects.get(active) if active else None
+
+
+def emulate_click(name):
+    """What ``view3d.select`` leaves after a click on the object ``name`` (it segfaults
+    under -b): only it selected, and active."""
+    view_layer = bpy.context.view_layer
+    for o in view_layer.objects:
+        o.select_set(o.name == name)
+    view_layer.objects.active = bpy.data.objects[name]
+
+
 def by_direction(model):
     cp = _mod("core.compass")
     return {d: s for d, s in zip(cp.DIRECTIONS, model.slots) if s is not None}
@@ -136,6 +169,32 @@ class TestContextCompass(unittest.TestCase):
             listed = targets(model.items)
             self.assertTrue(any(t.startswith('mesh.') for t in listed), listed[:10])
             self.assertNotIn('object.shade_smooth', listed)
+
+    def test_built_for_the_object_under_the_press(self):
+        """``target`` (the object under the press): its modes, whatever is active: a mesh
+        under the press with the Camera active gets the mesh layout, the Camera under the
+        press with the Cube active only Object Mode (disabled), never the Cube's modes."""
+        with kept_selection() as view_layer:
+            view_layer.objects.active = bpy.data.objects['Camera']
+            self.assertEqual(set(by_direction(build('meso:context'))), {'NE'})
+            slots = by_direction(build_for('Cube'))
+            self.assertEqual(set(slots), {'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'})
+            self.assertTrue(all(s.enabled for d, s in slots.items() if d != 'NE'),
+                            {d: s.enabled for d, s in slots.items()})
+            self.assertFalse(slots['NE'].enabled, "Object Mode: the Cube's current mode")
+            self.assertEqual(bpy.context.view_layer.objects.active.name, 'Camera',
+                             "building changes nothing")
+            view_layer.objects.active = None
+            self.assertEqual(set(by_direction(build_for('Cube'))), set(slots),
+                             "nothing active: the object under the press")
+            view_layer.objects.active = bpy.data.objects['Cube']
+            model = build_for('Camera')
+            self.assertEqual({d: s.enabled for d, s in by_direction(model).items()},
+                             {'NE': False})
+            self.assertIn('object.shade_smooth', targets(model.items),
+                          "the list is the selection's context menu")
+            self.assertEqual(set(by_direction(build_for('No Such Object'))), set(slots),
+                             "unknown: the active object's")
 
     def test_armature(self):
         with in_mode('ARMATURE', 'OBJECT'):
@@ -248,7 +307,13 @@ class _RmbCase(unittest.TestCase):
         self.area = area_of('VIEW_3D')
         self.region = region_of(self.area)
         self.native, self.executed, self.warps, self.selects = [], [], [], []
+        self.probes, self.pushed = [], []
+        self.under_press = None              # what the probe finds (None: nothing there)
         self.clock = [100.0]
+
+        def fake_probe(context, window, area, region, location):
+            self.probes.append({'location': tuple(location), 'mode': bpy.context.mode})
+            return self.under_press
 
         def fake_select(window, area, region, location):
             # Never the real view3d.select under -b: it segfaults (no region view data).
@@ -272,6 +337,8 @@ class _RmbCase(unittest.TestCase):
         for mod, name, fake in (
                 (rmb, 'run_native', fake_native), (inv, 'execute', fake_execute),
                 (rmb, 'select_at_press', fake_select),
+                (rmb, 'object_at_press', fake_probe),
+                (inv, 'push_undo_step', self.pushed.append),
                 (oc, 'warp_cursor', lambda window, xy: self.warps.append(xy)),
                 (rmb, 'time', SimpleNamespace(perf_counter=lambda: self.clock[0]))):
             self.addCleanup(setattr, mod, name, getattr(mod, name))
@@ -773,7 +840,15 @@ class TestCompassRmbPhase5c(_RmbCase):
         self.assertIsNotNone(down)
         xy = self.mid(down)
         self.ev(op, 'MOUSEMOVE', xy=xy)
-        repeat = _mod("core.compass").SCROLL_REPEAT
+        cpm = _mod("core.compass")
+        repeat = cpm.SCROLL_REPEAT
+        self.clock[0] += 2 * repeat + 0.01
+        self.assertEqual(self.ev(op, 'TIMER'), {'PASS_THROUGH'})
+        self.assertEqual(self.rmb.current_state().compass.layout.scroll, 0,
+                         "a drag scrolls only once the rest armed the list")
+        self.clock[0] += cpm.LIST_DWELL
+        self.ev(op, 'TIMER')
+        self.assertTrue(self.rmb.current_state().compass.gesture.list_armed)
         self.clock[0] += 2 * repeat + 0.01
         self.assertEqual(self.ev(op, 'TIMER'), {'PASS_THROUGH'})
         self.assertEqual(self.rmb.current_state().compass.layout.scroll, 2)
@@ -872,6 +947,159 @@ class TestCompassRmbPhase5c(_RmbCase):
         self.assertEqual(self.executed[0]['action'].target, 'object.join')
         self.assertEqual(self.selects, [])
 
+    def test_a_trackpad_pan_scrolls_the_list(self):
+        self.long_list()
+        op, cs = self.show()
+        row = cs.layout.panel.items[3]
+        x, y = self.mid(row.rect)
+        self.ev(op, 'MOUSEMOVE', xy=(x, y))
+        unit = _mod("core.compass").PAN_UNIT_PX
+
+        def pan(dy, at=(x, y)):
+            ev = Ev('TRACKPADPAN', 'NOTHING', *at)
+            ev.mouse_prev_y = at[1] + dy            # a swipe by dy (the absolute delta)
+            with override(self.area):
+                return op.modal(bpy.context, ev)
+        self.assertEqual(pan(-unit / 2), {'RUNNING_MODAL'})
+        cs = self.rmb.current_state().compass
+        self.assertEqual(cs.layout.scroll, 0, "under one step")
+        pan(-unit / 2 - 1)
+        self.assertEqual(cs.layout.scroll, 1, "a swipe down scrolls down")
+        pan(unit + 1)
+        self.assertEqual(cs.layout.scroll, 0)
+        pan(-unit - 1, at=self.toward('N'))
+        self.assertEqual(cs.layout.scroll, 0, "off the list the pan is swallowed")
+        self.assertEqual((self.executed, self.selects), ([], []), "a scroll never picks")
+
+    def test_the_compass_is_built_for_the_object_under_the_press(self):
+        """The probe runs when the Compass shows (Object Mode, the context Compass), at the
+        press; its object's modes are the radial (the Camera: Object Mode only), so a flick
+        south over a camera picks nothing and changes nothing."""
+        self.under_press = 'Camera'
+        xy = self.centre()
+        op, cs = self.show(xy=xy)
+        self.assertEqual(self.probes, [{'location': self.region_xy(xy), 'mode': 'OBJECT'}])
+        self.assertEqual(self.rmb.last_session()['press_object'], 'Camera')
+        self.assertEqual({d: s.enabled for d, s in by_direction(cs.model).items()},
+                         {'NE': False})
+        self.assertEqual(self.pick_toward(op, 'S'), {'FINISHED'})
+        self.assertEqual((self.executed, self.selects, self.pushed), ([], [], []))
+        self.assertEqual(self.rmb.last_session()['end'], 'cancel')
+
+    def test_a_mesh_under_the_press_with_a_camera_active(self):
+        with kept_selection() as view_layer:
+            view_layer.objects.active = bpy.data.objects['Camera']
+            self.under_press = 'Cube'
+            op, cs = self.show()
+            self.assertEqual(len(by_direction(cs.model)), 8, "the Cube's mesh layout")
+            self.assertEqual(self.pick_toward(op, 'S'), {'FINISHED'})
+            run = self.executed[0]['action']
+            self.assertEqual((run.target, dict(run.props)['select']),
+                             ('meso.mode_set_select', 'FACE'))
+            self.assertEqual(len(self.selects), 1, "the Cube selected first")
+
+    def test_no_probe_in_edit_mode_or_for_the_tool_compass(self):
+        op, _cs = self.show(_op(kind='TOOLS', menu='', role='SHIFT'))
+        self.ev(op, 'ESC', 'PRESS')
+        with in_mode(None, 'EDIT'):
+            op, _cs = self.show()
+            self.ev(op, 'ESC', 'PRESS')
+        self.assertEqual(self.probes, [])
+        self.assertNotIn('press_object', self.rmb.last_session())
+
+    def test_a_failed_mode_change_pushes_the_click_step(self):
+        """The press selected an object but no action finished: the click's own 'Select'
+        step, so Ctrl Z takes back the selection alone (a native click pushes it too)."""
+        inv = _mod("ops.invoke")
+        inv.execute = lambda action, *a, **k: inv.ExecResult(('fake', {}), ['CANCELLED'], True)
+        op, _cs = self.show()
+        self.assertEqual(self.pick_toward(op, 'S'), {'FINISHED'})
+        self.assertEqual(self.pushed, ['Select'])
+        self.assertEqual(self.rmb.last_session()['press_select_step'], 'Select')
+
+    def test_no_click_step_when_the_mode_change_runs_or_nothing_was_selected(self):
+        op, _cs = self.show()
+        self.assertEqual(self.pick_toward(op, 'S'), {'FINISHED'})
+        self.assertEqual(self.pushed, [], "the mode change pushes its own steps")
+        self.rmb.select_at_press = lambda *a: {'CANCELLED', 'PASS_THROUGH'}
+        inv = _mod("ops.invoke")
+        inv.execute = lambda action, *a, **k: inv.ExecResult(('fake', {}), ['CANCELLED'], True)
+        op, _cs = self.show()
+        self.assertEqual(self.pick_toward(op, 'S'), {'FINISHED'})
+        self.assertEqual(self.pushed, [], "nothing under the press: nothing changed")
+
+    def test_the_click_step_undoes_the_selection_alone(self):
+        """Real undo: Cube active, a 'Move' step, then a pick over the Camera whose mode
+        change fails (``meso.mode_set_select`` of Face on a camera: CANCELLED). One undo
+        takes back the selection only; the Move stays."""
+        from tests.blender.test_actions import push_base, steps_since
+        from tests.blender.test_header import quiet
+        inv, modes = _mod("ops.invoke"), _mod("core.modes")
+        inv.push_undo_step = type(self)._real_push           # setUp's cleanup restores it
+        real_execute = type(self)._real_execute
+        old_x = bpy.data.objects['Cube'].location.x
+        with kept_selection() as view_layer:
+            emulate_click('Cube')
+            with override(self.area):
+                marker = push_base()
+                bpy.data.objects['Cube'].location.x = old_x + 5
+                bpy.ops.ed.undo_push(message='Move')
+            self.rmb.select_at_press = lambda *a: emulate_click('Camera') or {'FINISHED'}
+            action = modes.submode_action(modes.select_domains('MESH', 'EDIT'), 'EDIT',
+                                          'FACE', 'OBJECT')
+            with quiet(), override(self.area):
+                emulate_click('Camera')
+                res = real_execute(action, _window(), self.area, self.region, 'VIEW_3D')
+                emulate_click('Cube')
+            self.assertEqual(list(res.result or ()), ['CANCELLED'], "Face on a camera")
+            inv.execute = lambda *a, **k: res
+            op, _cs = self.show()
+            self.assertEqual(self.pick_toward(op, 'S'), {'FINISHED'})
+            with override(self.area):
+                self.assertEqual(steps_since(marker), ['Move', 'Select'])
+                self.assertEqual(view_layer.objects.active.name, 'Camera')
+                self.assertEqual(bpy.ops.ed.undo(), {'FINISHED'})
+                self.assertEqual((bpy.context.view_layer.objects.active.name,
+                                  bpy.data.objects['Cube'].location.x), ('Cube', old_x + 5),
+                                 "the selection back, the Move kept")
+                bpy.ops.ed.undo()
+                bpy.data.objects['Cube'].location.x = old_x
+
+    def test_the_probe_puts_the_selection_back(self):
+        """The real probe (``object_at_press``) over an emulated click: it returns the
+        clicked object and leaves every select state and the active object as they were."""
+        probe = type(self)._real_probe
+        calls = []
+
+        def click(window, area, region, location):
+            calls.append(tuple(location))
+            emulate_click('Camera')
+            return {'FINISHED'}
+        self.rmb.select_at_press = click
+        with kept_selection() as view_layer:
+            emulate_click('Cube')
+            bpy.data.objects['Light'].select_set(True)
+            with override(self.area):
+                found = probe(bpy.context, _window(), self.area, self.region, (40, 50))
+            self.assertEqual((found, calls), ('Camera', [(40, 50)]))
+            self.assertEqual({o.name for o in view_layer.objects if o.select_get()},
+                             {'Cube', 'Light'})
+            self.assertEqual(view_layer.objects.active.name, 'Cube')
+            self.rmb.select_at_press = lambda *a: {'CANCELLED', 'PASS_THROUGH'}
+            with override(self.area):
+                self.assertIsNone(probe(bpy.context, _window(), self.area, self.region,
+                                        (40, 50)), "nothing there")
+
+            def broken(*a):
+                emulate_click('Camera')
+                raise RuntimeError('boom')
+            self.rmb.select_at_press = broken
+            with override(self.area), self.assertRaises(RuntimeError):
+                probe(bpy.context, _window(), self.area, self.region, (40, 50))
+            self.assertEqual(view_layer.objects.active.name, 'Cube', "put back on errors")
+            self.assertEqual({o.name for o in view_layer.objects if o.select_get()},
+                             {'Cube', 'Light'})
+
     def test_the_seam_is_a_plain_click_without_undo(self):
         inv = _mod("ops.invoke")
         calls = []
@@ -889,6 +1117,9 @@ class TestCompassRmbPhase5c(_RmbCase):
     @classmethod
     def setUpClass(cls):
         cls._real_select = staticmethod(_mod("ops.compass_rmb").select_at_press)
+        cls._real_probe = staticmethod(_mod("ops.compass_rmb").object_at_press)
+        cls._real_push = staticmethod(_mod("ops.invoke").push_undo_step)
+        cls._real_execute = staticmethod(_mod("ops.invoke").execute)
 
 
 class TestMultiSelect(unittest.TestCase):

@@ -227,12 +227,28 @@ class TestPick(unittest.TestCase):
         self.assertIsNone(cp.pick_slot(cp.place_compass(cp.CompassModel('k'), (800, 450),
                                                         metrics(), BOUNDS, width_fn), 900, 450))
 
-    def test_disabled_slots_are_skipped(self):
+    def test_a_mark_toward_a_disabled_slot_picks_nothing(self):
+        """Every populated direction keeps its own sector (a native pie's): a mark toward a
+        disabled item hovers nothing, never its neighbour (NE Object Mode in Object Mode
+        never becomes N Edge)."""
         slots = (I(dm.DD_OP, 'Off', enabled=False), op('NE'))
         lay = cp.place_compass(cp.CompassModel('k', slots=slots), (800, 450), metrics(),
                                BOUNDS, width_fn)
         cx, cy = lay.centre
-        self.assertEqual(cp.pick_slot(lay, cx, cy + 80), 1)
+        self.assertIsNone(cp.pick_slot(lay, cx, cy + 80), "north: the disabled N")
+        self.assertEqual(cp.pick_slot(lay, cx, cy + 80, enabled_only=False), 0)
+        at = lambda a: (cx + 80 * math.cos(math.radians(a)), cy + 80 * math.sin(math.radians(a)))
+        self.assertEqual(cp.pick_slot(lay, *at(60)), 1, "nearer NE: NE")
+        self.assertEqual(cp.pick_slot(lay, *at(-60)), 1, "the empty half: NE, the nearest")
+        eight = list(compass(8).slots)
+        eight[1] = I(dm.DD_OP, 'Object Mode', enabled=False)          # NE, the current mode
+        lay = cp.place_compass(cp.CompassModel('k', slots=tuple(eight)), (800, 450), metrics(),
+                               BOUNDS, width_fn)
+        cx, cy = lay.centre
+        for a in (45, 30, 60):
+            self.assertIsNone(cp.pick_slot(lay, *at(a)), a)
+        self.assertEqual(cp.DIRECTIONS[cp.pick_slot(lay, *at(70))], 'N')
+        self.assertEqual(cp.DIRECTIONS[cp.pick_slot(lay, *at(20))], 'E')
 
     def test_list_panel(self):
         it = self.lay.panel.items[1]
@@ -596,20 +612,33 @@ class TestScrollGesture(unittest.TestCase):
     def scrolls(self, fx):
         return sum(f.n for f in fx if isinstance(f, cp.Scroll))
 
-    def test_arrow_repeat_on_moves_and_ticks(self):
+    def armed_on(self, arrow=1, t=1.0):
+        """A drag resting on an arrow row until the list arms: ``(state, arming time)``."""
         s = cp.open_state('RIGHTMOUSE', 0.0)
-        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=1, now=1.0)
-        self.assertEqual((s.arrow, self.scrolls(fx)), (1, 0), "entering does not scroll yet")
-        s, fx = cp.compass_step(s, 'tick', now=1.05)
+        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=arrow, now=t,
+                                xy=(800, 300))
+        self.assertEqual((s.arrow, self.scrolls(fx)), (arrow, 0), "entering does not scroll")
+        s, fx = cp.compass_step(s, 'tick', now=t + cp.LIST_DWELL / 2)
+        self.assertEqual(self.scrolls(fx), 0, "not armed yet: no scroll")
+        s, fx = cp.compass_step(s, 'tick', now=t + cp.LIST_DWELL)
+        self.assertEqual(self.scrolls(fx), 0, "the repeat counts from the arming")
+        self.assertTrue(s.list_armed)
+        return s, t + cp.LIST_DWELL
+
+    def test_arrow_repeat_on_moves_and_ticks(self):
+        s, t = self.armed_on(1)
+        s, fx = cp.compass_step(s, 'tick', now=t + 0.05)
         self.assertEqual(fx, ())
-        s, fx = cp.compass_step(s, 'tick', now=1.0 + cp.SCROLL_REPEAT)
+        s, fx = cp.compass_step(s, 'tick', now=t + cp.SCROLL_REPEAT)
         self.assertEqual(self.scrolls(fx), 1)
         self.assertIn('redraw', fx)
         s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=1,
-                                now=1.0 + 3.5 * cp.SCROLL_REPEAT)
+                                now=t + 3.5 * cp.SCROLL_REPEAT, xy=(801, 300))
         self.assertEqual(self.scrolls(fx), 2, "a move on the row keeps the count")
-        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=-1, now=2.0)
+        s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=-1, now=2.0,
+                                xy=(800, 500))
         self.assertEqual(self.scrolls(fx), 0, "the other arrow starts again")
+        self.assertTrue(s.list_armed, "armed until the pointer leaves the list")
         s, fx = cp.compass_step(s, 'tick', now=2.0 + 2 * cp.SCROLL_REPEAT)
         self.assertEqual(self.scrolls(fx), -2)
         s, fx = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=0, now=3.0)
@@ -617,12 +646,27 @@ class TestScrollGesture(unittest.TestCase):
         self.assertEqual(self.scrolls(fx), 0, "off the arrow rows")
 
     def test_a_stall_scrolls_a_few_items_only(self):
-        s = cp.open_state('RIGHTMOUSE', 0.0)
-        s, _ = cp.compass_step(s, 'move', slot=4, on_list=True, arrow=1, now=1.0)
+        s, t = self.armed_on(1)
         s, fx = cp.compass_step(s, 'tick', now=10.0)
         self.assertEqual(self.scrolls(fx), cp.MAX_SCROLL_STEPS)
         s, fx = cp.compass_step(s, 'tick', now=10.0 + cp.SCROLL_REPEAT / 2)
         self.assertEqual(self.scrolls(fx), 0, "the count restarts after a stall")
+
+    def test_a_flick_onto_an_arrow_row_is_a_mark(self):
+        """A drag that stops on an arrow row for less than LIST_DWELL never scrolls (so it
+        never arms the list): the release picks by the direction."""
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, fx = cp.compass_step(s, 'move', slot=0, on_list=True, arrow=1, now=1.0,
+                                xy=(800, 276))
+        for t in (1.09, 1.14, 1.2, 1.3):
+            s, fx = cp.compass_step(s, 'tick', now=t)
+            self.assertEqual(self.scrolls(fx), 0, t)
+        self.assertEqual((s.hover_slot, s.list_armed), (0, False))
+        s, fx = cp.compass_step(s, 'move', slot=0, on_list=True, arrow=1, now=1.32,
+                                xy=(801, 277))
+        self.assertEqual(self.scrolls(fx), 0)
+        self.assertEqual(cp.compass_step(s, 'release', button='RIGHTMOUSE', now=1.33)[1],
+                         (cp.Pick(slot=0),))
 
     def test_the_click_opened_compass_scrolls_too(self):
         s = cp.open_state('RIGHTMOUSE', 0.0)
@@ -656,6 +700,152 @@ class TestScrollGesture(unittest.TestCase):
         self.assertEqual(s.hover_slot, 4, "back on it: the rest counts again")
         off = cp.compass_step(cp.open_state('RIGHTMOUSE', 0.0), 'scrolled', now=1.0)[0]
         self.assertFalse(off.list_armed, "off the list a scroll arms nothing")
+
+
+class Driven:
+    """The gesture driven as ``ops.compass`` drives it over a real layout (``hover_at``,
+    ``gesture_move`` / ``gesture_tick``, ``scroll_list``): the Scroll effects applied."""
+
+    def __init__(self, layout, button='RIGHTMOUSE'):
+        self.layout, self.pointer = layout, layout.centre
+        self.s = cp.open_state(button, 0.0)
+
+    def hover(self, x, y):
+        lay = self.layout
+        cx, cy = lay.centre
+        return {'slot': cp.pick_slot(lay, x, y, through_list=True),
+                'path': cp.list_path_at(lay, x, y),
+                'in_dead': math.hypot(x - cx, y - cy) < lay.dead_r,
+                'on_list': cp.on_list(lay, x, y), 'arrow': cp.scroll_arrow_at(lay, x, y),
+                'xy': (x, y), 'still_r': cp.LIST_STILL_PX * lay.metrics.scale}
+
+    def apply(self, fx, now):
+        for f in fx:
+            if isinstance(f, cp.Scroll):
+                lay = cp.scroll_by(self.layout, f.n)
+                if lay is not self.layout:
+                    self.layout = lay
+                    self.s, _ = cp.compass_step(self.s, 'scrolled', now=now)
+                    self.s, _ = cp.compass_step(self.s, 'move', now=now,
+                                                **self.hover(*self.pointer))
+
+    def move(self, x, y, now):
+        self.s, fx = cp.compass_step(self.s, 'move', now=now, **self.hover(x, y))
+        self.pointer = (x, y)
+        self.apply(fx, now)
+
+    def tick(self, now):
+        self.s, fx = cp.compass_step(self.s, 'tick', now=now)
+        self.apply(fx, now)
+
+    def release(self, now):
+        self.move(*self.pointer, now)
+        return cp.compass_step(self.s, 'release', button=self.s.button, now=now,
+                               in_dead=self.hover(*self.pointer)['in_dead'])[1]
+
+
+class TestTheListNeverTakesAFlick(unittest.TestCase):
+    """Only a rest arms the list while dragging: a flick that ends on an arrow row, or a
+    slow stroke across the list, stays a mark (the reference behaviour: the direction picks,
+    however far the stroke goes)."""
+
+    def test_a_flick_north_onto_the_arrow_row_of_a_list_above(self):
+        lay = scrolled(30, centre=(800, 150))
+        n_box = next(b for b in lay.boxes if b.direction == 'N')
+        self.assertGreater(lay.panel.rect.y, n_box.rect.y1, "the list is above the radial")
+        down = lay.arrow_down
+        self.assertIsNotNone(down)
+        target = (800.0, float(down.y + down.h // 2))
+        for rest in (0.05, 0.11, 0.3):
+            with self.subTest(rest=rest):
+                g = Driven(lay)
+                g.move(800, 170, 0.01)
+                g.move(*target, 0.03)
+                t = 0.03
+                while t < 0.03 + rest:
+                    t = round(t + 0.05, 3)
+                    g.tick(t)
+                self.assertEqual(g.layout.scroll, 0, "never scrolled")
+                self.assertEqual(g.release(0.03 + rest), (cp.Pick(slot=0),), "N")
+
+    def test_a_rest_on_the_arrow_row_scrolls_after_the_dwell(self):
+        lay = scrolled(30, centre=(800, 150))
+        down = lay.arrow_down
+        g = Driven(lay)
+        g.move(800.0, float(down.y + down.h // 2), 0.05)
+        g.tick(0.05 + cp.LIST_DWELL)
+        self.assertEqual(g.layout.scroll, 0)
+        g.tick(0.05 + cp.LIST_DWELL + cp.SCROLL_REPEAT)
+        self.assertEqual(g.layout.scroll, 1)
+        self.assertEqual(g.release(0.5), (cp.CancelCompass(),), "a scroll never picks")
+
+    def test_a_steady_south_stroke_across_the_list_picks_south(self):
+        lay = scrolled(12, centre=(800, 700))
+        self.assertLess(lay.panel.rect.y1, 700 - 100, "the list below the radial")
+        for speed, length in ((300, 230), (200, 180), (120, 200)):
+            with self.subTest(speed=speed, length=length):
+                g = Driven(lay)
+                t, y = 0.0, 700.0
+                while 700 - y < length:
+                    t += 0.016
+                    y = max(700 - length, y - speed * 0.016)
+                    g.move(800, y, t)
+                    if round(t / 0.05) != round((t - 0.016) / 0.05):
+                        g.tick(t)
+                self.assertTrue(cp.on_list(g.layout, 800, y))
+                self.assertEqual(g.release(t + 0.01), (cp.Pick(slot=4),), "S, not the list")
+
+    def test_a_rest_arms_the_list_and_moving_on_keeps_it(self):
+        lay = scrolled(12, centre=(800, 700))
+        items = [it for it in lay.panel.items if it.kind != dm.DD_SEPARATOR]
+        first, other = items[1], items[4]
+        mid = lambda it: (float(it.rect.x + 20), float(it.rect.y + it.rect.h // 2))
+        g = Driven(lay)
+        g.move(*mid(first), 0.1)
+        x, y = mid(first)
+        g.move(x + 3, y + 2, 0.2)                           # jitter: still resting
+        g.move(x + 6, y, 0.3)
+        self.assertEqual(g.s.hover_slot, 4, "not yet")
+        g.tick(0.1 + cp.LIST_DWELL)
+        self.assertEqual((g.s.hover_slot, g.s.hover_path), (None, first.path))
+        g.move(*mid(other), 0.5)
+        self.assertEqual(g.s.hover_path, other.path, "the armed list follows the pointer")
+        self.assertEqual(g.release(0.55), (cp.Pick(path=other.path),))
+
+    def test_a_drift_restarts_the_rest(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        kw = dict(slot=4, path=(1,), on_list=True, still_r=10.0)
+        s, _ = cp.compass_step(s, 'move', now=1.0, xy=(0, 0), **kw)
+        s, _ = cp.compass_step(s, 'move', now=1.2, xy=(0, 11), **kw)
+        self.assertEqual((s.list_since, s.rest_xy), (1.2, (0.0, 11.0)))
+        s, _ = cp.compass_step(s, 'move', now=1.0 + cp.LIST_DWELL, xy=(0, 12), **kw)
+        self.assertEqual(s.hover_slot, 4, "the rest began at 1.2")
+        s, _ = cp.compass_step(s, 'tick', now=1.2 + cp.LIST_DWELL + 1e-6)
+        self.assertEqual(s.hover_path, (1,))
+        s, _ = cp.compass_step(s, 'move', now=1.7, xy=(0, 200), slot=4, path=None,
+                               on_list=False)
+        self.assertEqual((s.list_since, s.rest_xy, s.list_armed), (None, None, False))
+
+
+class TestPanSteps(unittest.TestCase):
+    """A trackpad pan as wheel steps (Blender's ``pan_to_scroll``)."""
+
+    def test_gathers_past_the_unit(self):
+        acc, n = cp.pan_steps(0.0, 8, 20)
+        self.assertEqual((acc, n), (8.0, 0))
+        acc, n = cp.pan_steps(acc, 8, 20)
+        self.assertEqual((acc, n), (16.0, 0))
+        acc, n = cp.pan_steps(acc, 8, 20)
+        self.assertEqual((acc, n), (0.0, -1), "a swipe up: towards the first item")
+        acc, n = cp.pan_steps(0.0, -25, 20)
+        self.assertEqual((acc, n), (0.0, 1))
+
+    def test_a_change_of_sign_starts_again(self):
+        acc, _ = cp.pan_steps(0.0, 15, 20)
+        acc, n = cp.pan_steps(acc, -3, 20)
+        self.assertEqual((acc, n), (-3.0, 0))
+        acc, n = cp.pan_steps(acc, -30, 20)
+        self.assertEqual((acc, n), (0.0, 1), "one item per event")
 
 
 if __name__ == "__main__":

@@ -19,9 +19,10 @@ operator and the content builders make from plain values:
   main menu (:func:`mode_menu`), the radial of modes (:func:`mode_slots`; a mesh has the
   reference layout's component modes, UV and Multi, Phase 5c) and the tool radial per
   select mode (:data:`TOOL_SLOTS`);
-- the press point picks the object (Phase 5c, local/docs/phase5c-interfaces.md "B"): which
-  picks first select the object under the press (:func:`press_selects`) and the click that
-  does it (:func:`press_select_call`).
+- the press point picks the object (Phase 5c, local/docs/phase5c-interfaces.md "B"): when
+  the Compass is built for the object under the press (:func:`press_probes`), which picks
+  first select it (:func:`press_selects`) and the click that does it
+  (:func:`press_select_call`).
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ __all__ = (
     'ToolSlot', 'UV_MENU',
     'behaviour', 'context_menu_for_mode', 'drag_call', 'drag_threshold_px',
     'enum_cascade_action', 'is_drag', 'mode_menu', 'mode_slots', 'pick_action', 'pick_actions',
-    'press_select_call', 'press_selects', 'shows_compass', 'tap_call', 'tool_domain',
+    'press_probes', 'press_select_call', 'press_selects', 'shows_compass', 'tap_call', 'tool_domain',
     'view_delta',
 )
 
@@ -337,6 +338,14 @@ def press_selects(kind: str, mode: str | None, action: Action | None) -> bool:
     tool Compass act on the selection as before."""
     return (kind == KIND_CONTEXT and mode == 'OBJECT' and action is not None
             and action.kind == ACTION_OPERATOR and action.target in MODE_ITEM_TARGETS)
+
+
+def press_probes(kind: str, mode: str | None) -> bool:
+    """True when the context Compass is built for the object under the press point (the
+    one a mode pick selects first, :func:`press_selects`) rather than the active one: a
+    CONTEXT Compass in Object Mode. The operator finds it with the click itself and puts
+    the selection back (``ops.compass_rmb.object_at_press``)."""
+    return kind == KIND_CONTEXT and mode == 'OBJECT'
 
 
 def press_select_call(location: tuple[float, float]) -> tuple[str, dict[str, Any]]:

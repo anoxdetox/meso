@@ -1040,9 +1040,12 @@ def _terminal_source(state: Any, effect: Effect) -> tuple[Any, tuple]:
 
 
 def _run_terminal(op: Any, state: Any, effect: Effect,
-                  source: tuple[Any, tuple] | None = None) -> set[str]:
+                  source: tuple[Any, tuple] | None = None, pre: tuple = ()) -> set[str]:
     """Record, tear down, then run / hand off right before FINISHED (D3). ``source``:
-    ``(action, run record)`` given by the caller (a Compass pick) instead of the chain's."""
+    ``(action, run record)`` given by the caller (a Compass pick) instead of the chain's.
+    ``pre``: actions run first, after the teardown, one after the other while they finish
+    (a Compass's UV ▸ from Object Mode: enter Edit Mode; ``core.compass_rmb.pick_actions``);
+    one that does not finish stops there (``handoff_result`` is its result)."""
     hb = _plaza()
     session = state.menus
     action, where = source if source is not None else _terminal_source(state, effect)
@@ -1057,7 +1060,8 @@ def _run_terminal(op: Any, state: Any, effect: Effect,
     act = (action.kind, action.target, action.data_path) if action is not None else None
     session.run = where + (act,)
     hb._last.update(handoff=handoff, action=act, tapped=False,
-                    elapsed=time.perf_counter() - state.t0)
+                    elapsed=time.perf_counter() - state.t0,
+                    pre=[(a.kind, a.target, a.data_path) for a in pre])
     window_ptr = getattr(state, 'window_ptr', 0)
     area_index = getattr(state, 'area_index', None)
     hb._end(state, reason)
@@ -1073,6 +1077,16 @@ def _run_terminal(op: Any, state: Any, effect: Effect,
             _log_once(f"schedule:{reason}", f"scheduling the {reason} action failed", exc=True)
             hb._last['handoff_result'] = None
         return {'FINISHED'}
+    for step in pre:
+        try:
+            res = invoke.execute(step, window, area, region, area_type)
+        except Exception:
+            _log_once(f"execute:pre:{reason}", f"running the {reason} action failed", exc=True)
+            hb._last['handoff_result'] = None
+            return {'FINISHED'}
+        if 'FINISHED' not in (res.result or ()):
+            hb._last['handoff_result'] = res.result
+            return {'FINISHED'}
     try:
         res = invoke.execute(action, window, area, region, area_type)
         hb._last['handoff_result'] = res.result

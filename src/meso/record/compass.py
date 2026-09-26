@@ -436,7 +436,30 @@ def _multi_item(cells: tuple) -> DropdownItem:
                         action=modes.multi_action('EDIT'))
 
 
-def _context(context: Any, plaza: Any, prefs: Any, menu: str = '') -> cp.CompassModel:
+def _view_layer_object(context: Any, name_full: str) -> Any:
+    """The object of the view layer whose ``name_full`` is ``name_full`` (None: '' or not
+    there; a linked object's name alone is ambiguous)."""
+    if not name_full:
+        return None
+    try:
+        return next((o for o in context.view_layer.objects if o.name_full == name_full), None)
+    except Exception:
+        return None
+
+
+def _mode_switch_for(context: Any, obj: Any) -> Any:
+    """``record.builtin_menus.mode_switch_model`` for ``obj`` as if it were the active object
+    (``temp_override(active_object=, object=)``: the modes, their cells and the mode
+    switch's poll are the ones of the object a pick acts on); the active object's when
+    ``obj`` is None or already active."""
+    if obj is None or obj == getattr(context, 'active_object', None):
+        return builtin_menus.mode_switch_model(context)
+    with context.temp_override(active_object=obj, object=obj):
+        return builtin_menus.mode_switch_model(context)
+
+
+def _context(context: Any, plaza: Any, prefs: Any, menu: str = '',
+             target: str = '') -> cp.CompassModel:
     """``meso:context`` (local/docs/phase5b-interfaces.md "Content", local/docs/phase5c-
     interfaces.md "B"): the mode switch (``record.builtin_menus.mode_switch_model``) around
     the pointer (``core.compass_rmb.mode_slots``: Object Mode NE, the Edit Mode select-mode
@@ -445,8 +468,12 @@ def _context(context: Any, plaza: Any, prefs: Any, menu: str = '') -> cp.Compass
     are listed first), then the context menu ``menu`` (default: the mode's,
     ``core.compass_rmb.context_menu_for_mode``) recorded as the list. Only the current
     mode's own entry is disabled: in Edit Mode the cells and Multi switch the select mode,
-    as the header buttons do."""
-    switch = builtin_menus.mode_switch_model(context)
+    as the header buttons do. ``target``: the ``name_full`` of the object the modes are for
+    (the right-click Compass in Object Mode: the object under the press, which a mode pick
+    selects first); '' or not in the view layer: the active object. The context menu is
+    always the current selection's (its items act on it)."""
+    obj = _view_layer_object(context, target) or getattr(context, 'active_object', None)
+    switch = _mode_switch_for(context, obj)
     rows = switch.items if switch.coverage != COVERAGE_NATIVE else ()
     by_mode: dict[str, DropdownItem] = {}
     for row in rows:
@@ -455,7 +482,6 @@ def _context(context: Any, plaza: Any, prefs: Any, menu: str = '') -> cp.Compass
             by_mode[mode] = row
     edit = by_mode.get('EDIT')
     cells = edit.cells if edit is not None and edit.kind == DD_TOGGLE_ROW else ()
-    obj = getattr(context, 'active_object', None)
     mesh = getattr(obj, 'type', None) == 'MESH'
     placed, overflow = rmb.mode_slots(list(by_mode), len(cells), mesh=mesh)
     slots: dict[str, DropdownItem | None] = {}
@@ -543,11 +569,13 @@ MENU_BUILTINS = frozenset({'context'})
 
 
 def build_compass(context: Any, info: Any, value: str, plaza: Any = None,
-                  prefs: Any = None, menu: str = '') -> cp.CompassModel | None:
+                  prefs: Any = None, menu: str = '', target: str = ''
+                  ) -> cp.CompassModel | None:
     """The Compass of the slot ``value`` in the invoking area (``info``: a
     ``record.rows.InvokeInfo``; ``plaza``: the running Plaza's model, for the Tool Settings
     Compass; ``prefs``: the add-on preferences; ``menu``: the context menu of the
-    :data:`MENU_BUILTINS` (``meso:context``; '' = the mode's)). None when the slot is empty,
+    :data:`MENU_BUILTINS` (``meso:context``; '' = the mode's); ``target``: the ``name_full``
+    of the object their modes are for ('' = the active object)). None when the slot is empty,
     the menu is missing or its poll fails, or the Compass has nothing to offer here. Never
     raises."""
     slot = zones.parse_slot(value)
@@ -558,7 +586,7 @@ def build_compass(context: Any, info: Any, value: str, plaza: Any = None,
             if slot.kind == zones.SLOT_BUILTIN:
                 builder = BUILDERS[slot.ident]
                 if slot.ident in MENU_BUILTINS:
-                    model = builder(ctx, plaza, prefs, menu)
+                    model = builder(ctx, plaza, prefs, menu, target)
                 else:
                     model = builder(ctx, plaza, prefs)
             else:

@@ -15,8 +15,9 @@
   Compass) picks or cancels; Esc cancels; the Space release cancels and goes on to the
   reducer (the Plaza finishes); TIMERs tick the gesture (the list dwell, an arrow row's
   scroll repeat: :func:`gesture_tick`) and go on to the modal (:data:`PASS_ON`, watchdog)
-  without reaching the reducer; the mouse wheel over the list scrolls it
-  (:func:`wheel_scroll`, Phase 5c); everything else is swallowed. A scroll never picks.
+  without reaching the reducer; the mouse wheel and a trackpad pan over the list scroll it
+  (:func:`wheel_scroll`, :func:`pan_scroll`, Phase 5c); everything else is swallowed. A
+  scroll never picks.
 
 A pick runs the item with its Phase 4 role (``core.dropdown_model.item_role``): ROLE_RUN /
 ROLE_HANDOFF end the Plaza through ``ops.dropdowns._run_terminal`` (D3: teardown, then the
@@ -24,7 +25,9 @@ call; file loads scheduled); ROLE_APPLY / ROLE_APPLY_CLOSE apply in place
 (``ops.invoke.apply_in_place``), the Tool Settings row is re-recorded (a preference or mode
 change re-records the whole Plaza), the Compass closes and the Plaza stays; a Plaza-label item
 (``ITEM_SOURCE_PLAZA_LABEL``) opens that label's own dropdown through the reducer (a click on
-the label); another submenu hands its menu off natively. Plain data only lives in
+the label); another submenu hands its menu off natively, after entering the mode its
+entries need (``core.compass_rmb.pick_actions``: UV ▸ of ``meso:context`` from Object Mode
+enters Edit Mode first, as on the right-click Compass). Plain data only lives in
 :class:`CompassSession`.
 """
 
@@ -37,6 +40,7 @@ from typing import Any
 
 from ..core import actions as core_actions
 from ..core import compass as cp
+from ..core import compass_rmb as rmb_core
 from ..core import dropdown_geometry as ddg
 from ..core import menubar, zones
 from ..core.dropdown_model import (
@@ -49,8 +53,9 @@ from ..core.rects import Rect
 from ..record import compass as rec_compass
 from . import invoke
 
-__all__ = ('CompassSession', 'NOT_OURS', 'PASS_ON', 'WHEEL_STEPS', 'close', 'gesture_move',
-           'gesture_tick', 'handle', 'hover_at', 'scroll_list', 'wheel_scroll')
+__all__ = ('CompassSession', 'NOT_OURS', 'PASS_ON', 'PAN_EVENTS', 'WHEEL_STEPS', 'close',
+           'gesture_move', 'gesture_tick', 'handle', 'hover_at', 'pan_scroll', 'scroll_list',
+           'wheel_scroll')
 
 NOT_OURS = object()     # the event goes on to the stroke / reducer as before
 PASS_ON = object()      # ours, but the modal keeps its own handling (TIMER watchdog)
@@ -59,12 +64,15 @@ PRESS_VALUES = frozenset({'PRESS', 'DOUBLE_CLICK'})
 MOUSE_MOVES = frozenset({'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'})
 # The wheel over the list scrolls it by one item (up: towards the first item).
 WHEEL_STEPS = {'WHEELUPMOUSE': -1, 'WHEELDOWNMOUSE': 1}
+# A two-finger trackpad pan over the list scrolls it too (``pan_scroll``), as Blender's menus.
+PAN_EVENTS = frozenset({'TRACKPADPAN'})
 
 
 @dataclass(eq=False)
 class CompassSession:
     """The open Compass (plain data): ``model`` / ``layout`` (core.compass), ``gesture``
-    (``CompassState``), the ``zone`` and ``button`` that opened it, the last ``pointer``."""
+    (``CompassState``), the ``zone`` and ``button`` that opened it, the last ``pointer``;
+    ``pan``: the trackpad pan gathered towards the next scroll step (``core.compass.pan_steps``)."""
 
     model: cp.CompassModel
     layout: cp.CompassLayout
@@ -72,6 +80,7 @@ class CompassSession:
     zone: str
     button: str
     pointer: tuple[float, float]
+    pan: float = 0.0
 
 
 def _dd():
@@ -170,13 +179,15 @@ def warp_cursor(window: Any, xy: tuple[float, float]) -> None:
 def hover_at(cs: CompassSession, x: float, y: float) -> dict[str, Any]:
     """The ``core.compass.compass_step`` 'move' keywords for the pointer at ``(x, y)``:
     ``slot`` (the direction, through the list), ``path`` (the visible list item),
-    ``in_dead``, ``on_list`` and ``arrow`` (the scroll arrow row: -1 / 0 / 1)."""
+    ``in_dead``, ``on_list``, ``arrow`` (the scroll arrow row: -1 / 0 / 1), ``xy`` and
+    ``still_r`` (the list's rest: ``LIST_STILL_PX`` times the UI scale)."""
     lay = cs.layout
     cx, cy = lay.centre
     return {'slot': cp.pick_slot(lay, x, y, through_list=True),
             'path': cp.list_path_at(lay, x, y),
             'in_dead': math.hypot(x - cx, y - cy) < lay.dead_r,
-            'on_list': cp.on_list(lay, x, y), 'arrow': cp.scroll_arrow_at(lay, x, y)}
+            'on_list': cp.on_list(lay, x, y), 'arrow': cp.scroll_arrow_at(lay, x, y),
+            'xy': (x, y), 'still_r': cp.LIST_STILL_PX * lay.metrics.scale}
 
 
 def _hover(cs: CompassSession, x: float, y: float) -> tuple[int | None, Any, bool]:
@@ -234,6 +245,28 @@ def wheel_scroll(cs: CompassSession, event: Any, now: float) -> bool:
     return scroll_list(cs, n, now)
 
 
+def pan_scroll(cs: CompassSession, event: Any, now: float) -> bool:
+    """A :data:`PAN_EVENTS` event (a two-finger trackpad pan) over the list: its vertical pan
+    gathered into wheel steps as Blender's menus do (``core.compass.pan_steps``, one item per
+    ``PAN_UNIT_PX`` times the UI scale; a swipe up scrolls towards the first item), each one
+    scrolled as the wheel's (callers swallow every pan while a Compass is open). The pan is
+    ``mouse_prev_y - mouse_y``, Blender's absolute delta without the "scroll inverted" flag,
+    which Python cannot read (a system's inverted scrolling then scrolls the other way than
+    Blender's menus). True when the list moved (redraw)."""
+    if getattr(event, 'type', '') not in PAN_EVENTS:
+        return False
+    x, y = float(event.mouse_x), float(event.mouse_y)
+    if not cp.on_list(cs.layout, x, y):
+        cs.pan = 0.0
+        return False
+    dy = float(getattr(event, 'mouse_prev_y', y)) - y
+    cs.pan, n = cp.pan_steps(cs.pan, dy, cp.PAN_UNIT_PX * cs.layout.metrics.scale)
+    if not n:
+        return False
+    cs.pointer = (x, y)
+    return scroll_list(cs, n, now)
+
+
 def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
     """One modal event (module doc): a modal result set, :data:`NOT_OURS` or
     :data:`PASS_ON`. Never raises (a failure closes the Compass, logged once)."""
@@ -263,6 +296,10 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
             return {'RUNNING_MODAL'}
         if etype in WHEEL_STEPS:
             if wheel_scroll(cs, event, now):
+                _redraw(state, before)
+            return {'RUNNING_MODAL'}
+        if etype in PAN_EVENTS:
+            if pan_scroll(cs, event, now):
                 _redraw(state, before)
             return {'RUNNING_MODAL'}
         if etype == 'ESC':
@@ -326,7 +363,10 @@ def _pick(op: Any, state: Any, context: Any, cs: CompassSession, effect: cp.Pick
             return {'RUNNING_MODAL'}
         if item.kind == DD_SUBMENU and item.submenu:
             action = native_menu_action(item.submenu)
-            return dd._run_terminal(op, state, Handoff(action), source=(action, source[1]))
+            # A menu whose entries need a mode (UV ▸): enter it first, then the hand-off.
+            pre = rmb_core.pick_actions(item, dd._context_mode(context))[:-1]
+            return dd._run_terminal(op, state, Handoff(action), source=(action, source[1]),
+                                    pre=pre)
     return {'RUNNING_MODAL'}
 
 

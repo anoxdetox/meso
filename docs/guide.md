@@ -84,12 +84,15 @@ while the Compass is open.
 
 The direction picks: a short flick toward a box is enough, without looking, and it doesn't
 matter how far you go or whether you end on the box. Even a flick that ends on the list picks
-the box in that direction. To pick from the list, stop on it for a moment and let go on the
-item. Let go in the ring to cancel. A quick middle or right click leaves the Compass open; then
-click a box or a list item. A left click on empty space still just closes an open menu.
+the box in that direction, and so does a slow stroke across it. To pick from the list, hold
+the pointer still on it for a moment, then move to the item and let go. A flick toward a
+greyed-out box picks nothing. Let go in the ring to cancel. A quick middle or right click
+leaves the Compass open; then click a box or a list item. A left click on empty space still
+just closes an open menu.
 
-A list too long for the window shows arrows at its ends. Turn the mouse wheel over the list, or
-rest on an arrow, to scroll it. Scrolling never picks anything.
+A list too long for the window shows arrows at its ends. Turn the mouse wheel or swipe the
+trackpad over the list, or hold still on an arrow, to scroll it. Scrolling never picks
+anything.
 
 The defaults, all with the left button:
 
@@ -124,14 +127,18 @@ object has them, and the other modes on the diagonals. In Edit Mode the select m
 available, as the header buttons are; only the mode you are in is greyed out.
 
 Right-click, flick, done: the Compass doesn't have to draw first. A flick north-east is Object
-Mode, a flick south is Face. Stop on the list for a moment to pick a context menu item instead.
+Mode, a flick south is Face. Hold still on the list for a moment to pick a context menu item
+instead.
 
 The Compass stays where you pressed, even at the edge of the window (its list moves above or
 beside it and scrolls when it is long), and the pointer is never moved. The press point counts:
-in Object Mode, picking a mode first selects the object under the press, as a click there
-would, and then switches that object's mode. So right-click an object, flick south, and you
-are editing its faces. Nothing under the press keeps the selection. The context menu items act
-on the selection as before, and in Edit Mode the press selects nothing.
+in Object Mode the Compass is for the object under the press, so it offers that object's modes
+(right-click an empty or a camera and there is only Object Mode), and picking a mode first
+selects that object, as a click there would, then switches its mode. So right-click a mesh,
+flick south, and you are editing its faces, whichever object was active. Nothing under the
+press: the active object's modes, and the selection stays. If the mode change cannot run, the
+selection change is its own undo step. The context menu items act on the selection as before,
+and in Edit Mode the press selects nothing.
 
 ![The Shift+right-click tool Compass in Object Mode](images/compass_rmb_tools.png)
 
