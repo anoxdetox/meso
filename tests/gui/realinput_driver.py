@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI regression suite with REAL input: key auto-repeat during the pre-drag holds.
+"""GUI regression suite with REAL input: key auto-repeat during the pre-drag holds, and
+real-hand Plaza menu exits.
 
 The long-hold bug (docs/spikes/meso-hold-long-press.md): holding X (or C, V, J) longer than
 the OS auto-repeat delay before a drag moved nothing, because the hold consumed its key repeats
@@ -71,16 +72,29 @@ with no axis constraint, and the cube moved off a single world axis. A key repea
 the Transform Modal Map (X = AXIS_X) would still move the cube, only along X. There is no
 keyboard translate to test in the Meso keymap: it is Industry Compatible's, where G is Repeat
 Last and W picks the Move tool (the drags above are the translates).
+
+Plaza sticky exits (user report 2026-09-26, "menus still do close"; review follow-up: the
+simulated ``hover_sticky_exits`` must raise the rest, a starved simulating driver pauses its
+hand):
+
+- ``ri_plaza_sticky_exits``: Space held for real, the shipped hover-open defaults (the rest a
+  crossed label needs is the 0.05 s ``hover_open_delay``). From Object ▸ Apply, File ▸ Import /
+  Export, hand walks (``scenarios_hover.exit_paths``: down, sideways, diagonal across other
+  rows' dropdown labels) run from a thread with its own X connection at 125 Hz, so a busy
+  frame never pauses the hand: the menu is kept over the viewport and nothing else opens.
+  Stopping on a crossed label switches after the default rest; the switched menu stays open.
 """
 
 import ctypes
 import faulthandler
 import importlib
+import importlib.util
 import json
 import os
 import pathlib
 import sys
 import tempfile
+import threading
 import time
 import traceback
 
@@ -961,6 +975,329 @@ MULTI_SCENARIOS = [
 ]
 
 
+
+# ------------------------------------------------------------------------------ Plaza sticky exits
+#
+# User report 2026-09-26 ("menus still do close"), review follow-up: the simulated GUI check
+# (scenarios_hover.hover_sticky_exits) must raise the rest a crossed label needs to 0.3 s,
+# because a hover redraw can starve the simulating driver (a bpy timer) for ~80 ms while the
+# watchdog TIMER runs. Here the hand is real: XTEST motions from a thread with its own X
+# connection keep their 125 Hz pace while Blender's main loop is busy, as a mouse does, and
+# the rest stays at the shipped default hover_open_delay.
+
+def hover_scenarios():
+    """tests/gui/scenarios_hover.py (EXIT_CHAINS, exit_paths, HAND_STEP / HAND_FRAME)."""
+    path = ROOT / "tests" / "gui" / "scenarios_hover.py"
+    spec = importlib.util.spec_from_file_location("meso_ri_scenarios_hover", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class HandWalk(threading.Thread):
+    """One XTEST motion every ``frame`` s along ``points`` (Blender window coordinates), on
+    this thread's own X connection: never touches Blender. ``gap``: the longest real gap
+    between two motions (a real hand never pauses on a label)."""
+
+    def __init__(self, points, frame):
+        super().__init__(daemon=True)
+        self.points, self.frame = list(points), frame
+        self.gap, self.error, self.i = 0.0, None, 0
+
+    def run(self):
+        xt = None
+        try:
+            xt = XTest()
+            xt.origin, xt.win_h = XT.origin, XT.win_h
+            due, last = time.perf_counter(), None
+            for n, xy in enumerate(self.points):
+                self.i = n
+                t = time.perf_counter()
+                if last is not None:
+                    self.gap = max(self.gap, t - last)
+                last = t
+                xt.move_win(xy)
+                due += self.frame
+                time.sleep(max(0.0, due - time.perf_counter()))
+        except Exception:
+            self.error = traceback.format_exc()
+        finally:
+            if xt is not None:
+                xt.x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+                xt.x11.XCloseDisplay(xt.dpy)
+
+
+def rect_mid(rect):
+    return (int(rect.x + rect.w // 2), int(rect.y + rect.h // 2))
+
+
+def dd_keys(st):
+    chain = st.dropdowns if st is not None else None
+    return [p.key for p in chain.panels] if chain is not None else []
+
+
+def dd_xy(st, path):
+    placed = st.menus.chain.item(tuple(path)) if st.menus.chain is not None else None
+    return rect_mid(placed.rect) if placed is not None else None
+
+
+def label_hold(got, crossed, last_in):
+    """The longest time the Plaza modal saw the pointer standing on one of the ``crossed``
+    labels after it left the chain (``last_in``: the last walk point in a panel): from the
+    motion that put it there to the next one. With motion arriving as the hand sends it
+    (every HAND_FRAME s) this stays far below the rest; the nested session sometimes holds
+    motion back for ~150 ms (a real, if unwanted, rest)."""
+    ddg = importlib.import_module(ADDON_MODULE + ".core.dropdown_geometry")
+    st = importlib.import_module(ADDON_MODULE + ".ops.plaza").current_state()
+    if st is None or st.layout is None:
+        return 0.0
+    hold, want = 0.0, set(crossed)
+    for (t, i, xy), (t1, _i1, _xy1) in zip(got, got[1:]):
+        if i + 1 < last_in:                     # pts[i + 1]: still inside the chain
+            continue
+        if ddg.resolve_hit(st.layout, st.menus.chain, *xy).label_id in want:
+            hold = max(hold, t1 - t)
+    return hold
+
+
+def root_opens(st):
+    """How many root dropdowns this session opened (submenus log ``None``)."""
+    return sum(1 for by in st.menus.opened_by if by is not None)
+
+
+def hand(case, points, frame, st=None):
+    """Walk ``points`` from the hand thread; the driver only polls (every 4 ms) until the
+    last point reached the Plaza modal. Returns the motions as the modal got them:
+    ``[(t, hand index, xy)]`` from the hand's start (a motion held back on its way through the
+    nested compositor / Xwayland, or by a busy Blender frame, shows as a gap; Blender merges
+    queued moves, so the pointer then jumps; ``loop_stalls`` tells a busy frame apart)."""
+    walk = HandWalk(points, frame)
+    t0 = time.perf_counter()
+    walk.start()
+    last, stall, xy0 = None, 0.0, None
+    arrivals = []
+    target = tuple(points[-1]) if points else None
+    while True:
+        t = time.perf_counter()
+        if last is not None:
+            stall = max(stall, t - last)        # Blender's main loop was busy this long
+        last = t
+        xy = st.menus.last_xy if st is not None and st.menus is not None else None
+        if xy != xy0:
+            xy0 = xy                            # a motion reached the Plaza modal
+            arrivals.append((round(t - t0, 4), walk.i, tuple(int(v) for v in xy)))
+        if not walk.is_alive() and (st is None or xy0 is None
+                                    or tuple(int(v) for v in xy0) == target
+                                    or t - t0 > 10.0):
+            break
+        yield 0.004
+    case.setdefault("hand_gaps", []).append(round(walk.gap, 4))
+    if walk.error:
+        case.setdefault("hand_errors", []).append(walk.error)
+    case.setdefault("loop_stalls", []).append(round(stall, 3))
+    return arrivals
+
+
+WALK_TRIES = 6      # walks per exit kind until one had no motion gap as long as the rest
+
+
+def sc_plaza_sticky_exits(rec):
+    """Space held (real key, auto-repeat on), the shipped hover-open defaults. Object ▸ Apply
+    (then File ▸ Import / Export for a kind Object lacks) is hover-opened and entered; for
+    each exit kind (down / sideways / diagonal, ``scenarios_hover.exit_paths``) a real hand
+    walk (HAND_STEP px every HAND_FRAME s) from the submenu out to the viewport across other
+    rows' dropdown labels, then a rest there of twice the close delay.
+
+    The nested session can hold the pointer's motion back for ~150 ms on its way through
+    KWin and Xwayland while Blender's loop keeps running (measured: ``motion_gaps`` against
+    ``loop_stalls``); the modal then truly sees no motion over a label for longer than the
+    rest, which a switch rightly answers. So each walk measures its motion gap: a walk
+    without a gap as long as the rest (``clean``) must keep the open label (no root dropdown
+    opened), and each kind needs one clean walk within WALK_TRIES. Every walk, clean or not,
+    must leave a menu open (the user report: "menus still do close"). Then stopping on a
+    crossed label switches to it after the default rest, the switched menu stays open over
+    the viewport, an empty click closes it and the Space release ends the Plaza."""
+    case = {"modals_seen": []}
+    rec["case"] = case
+    hv = hover_scenarios()
+    plaza = importlib.import_module(ADDON_MODULE + ".ops.plaza")
+    mb = importlib.import_module(ADDON_MODULE + ".core.menubar")
+    dm = importlib.import_module(ADDON_MODULE + ".core.dropdown_model")
+    ddg = importlib.import_module(ADDON_MODULE + ".core.dropdown_geometry")
+    prefs = bpy.context.preferences.addons[ADDON_MODULE].preferences
+    check(rec, "default_prefs", prefs.hover_open
+          and abs(prefs.hover_open_delay - mb.DEFAULT_HOVER_OPEN_DELAY) < 1e-6,
+          [prefs.hover_open, prefs.hover_open_delay])
+    close_wait = 2 * (prefs.hover_close_delay + 0.05)
+    open_wait = 0.35
+    XT.autorepeat(True)
+    a = area3d()
+    r = region(a)
+    centre = (r.x + r.width // 2, r.y + r.height // 2)
+    st = None
+    # Shortcut hints off: a submenu recorded while the hand thread runs can lose the GIL for
+    # a switch interval inside a shortcut lookup, which then blows its 1 ms budget and logs
+    # (the hints are not what this scenario checks).
+    old_shortcuts = prefs.show_shortcuts
+    prefs.show_shortcuts = False
+    try:
+        tool("builtin.select_box")
+        XT.move_win(centre)
+        yield 0.3
+        XT.key("space", True)
+        yield 0.5
+        st = plaza.current_state()
+        check(rec, "plaza_open", st is not None and plaza.is_running()
+              and st.layout is not None and st.menus is not None)
+        if st is None or st.menus is None:
+            return
+        bar = st.menus.bar
+        rest = mb.switch_rest(bar)
+        check(rec, "delay_snapshot", bar.hover_open
+              and abs(rest - mb.DEFAULT_HOVER_OPEN_DELAY) < 1e-6,
+              [bar.hover_open, bar.hover_open_delay, rest])
+
+        def esc():
+            XT.key("Escape", True)
+            yield 0.05
+            XT.key("Escape", False)
+            yield 0.2
+
+        def enter(label_id, submenu):
+            """Hover-open ``label_id`` (Esc first when another menu is open), open and enter
+            ``submenu``: the chain keys, or None (recorded in ``enter_failures``)."""
+            if st.dropdowns is not None and st.open_label != label_id:
+                yield from esc()
+            if st.open_label != label_id:
+                box = st.layout.item(label_id)
+                if box is None:
+                    case.setdefault("enter_failures", []).append([label_id, "unplaced"])
+                    return None
+                XT.move_win(rect_mid(box.rect))
+                yield open_wait
+            models = list(st.menus.models)
+            idx = next((i for i, it in enumerate(models[0].items) if it.kind == dm.DD_SUBMENU
+                        and it.submenu == submenu), None) if models else None
+            if st.open_label != label_id or idx is None or dd_xy(st, (idx,)) is None:
+                case.setdefault("enter_failures", []).append(
+                    [label_id, st.open_label, idx])
+                return None
+            XT.move_win(dd_xy(st, (idx,)))
+            yield open_wait
+            first = dd_xy(st, (idx, 0))
+            if first is not None:
+                XT.move_win(first)
+                yield 0.15
+            keys = dd_keys(st)
+            if keys[1:] != [submenu] or not st.menus.bar.sticky:
+                case.setdefault("enter_failures", []).append(
+                    [label_id, keys, st.menus.bar.sticky])
+                return None
+            return keys
+
+        done, rest_case, walks = {}, None, []
+        case["walks"] = walks
+        kinds = {"down", "sideways", "diagonal"}
+        for name, label_id, submenu in hv.EXIT_CHAINS:
+            if set(done) >= kinds:
+                break
+            keys = yield from enter(label_id, submenu)
+            check(rec, f"{name}_entered", keys is not None, case.get("enter_failures"))
+            if keys is None:
+                continue
+            paths = hv.exit_paths(st, ADDON_MODULE)
+            case.setdefault("exit_paths", {})[name] = {k: v[1] for k, v in paths.items()}
+            for kind, (pts, crossed, last_in) in sorted(paths.items()):
+                if kind in done:
+                    continue
+                tag = f"{name}_{kind}"
+                for attempt in range(WALK_TRIES):
+                    if dd_keys(st) != keys:     # a previous walk switched / closed Apply
+                        if (yield from enter(label_id, submenu)) is None:
+                            continue
+                    XT.move_win(pts[0])
+                    yield 0.15
+                    if dd_keys(st) != keys:
+                        continue
+                    roots = root_opens(st)
+                    got = yield from hand(case, pts[1:], hv.HAND_FRAME, st)
+                    yield close_wait
+                    switched = root_opens(st) != roots
+                    held = label_hold(got, crossed, last_in)
+                    clean = held < rest
+                    walks.append({"tag": tag, "attempt": attempt, "label_hold": round(held, 3),
+                                  "clean": clean, "switched": switched,
+                                  "open": st.open_label, "keys": dd_keys(st)})
+                    if switched or not clean:
+                        walks[-1]["motions"] = got
+                    check(rec, f"{tag}_{attempt}_menu_still_open", st.dropdowns is not None,
+                          walks[-1])
+                    # The Plaza switches only when it really saw the pointer rest on a
+                    # crossed label (no motion for the rest): real motion that reached
+                    # Blender is always handled before the watchdog TIMER that would switch.
+                    check(rec, f"{tag}_{attempt}_switch_only_after_a_rest",
+                          not switched or held >= rest, walks[-1])
+                    if not clean:
+                        continue
+                    check(rec, tag + "_label_kept", st.open_label == label_id
+                          and dd_keys(st)[:1] == keys[:1], walks[-1])
+                    check(rec, tag + "_no_switch", not switched, walks[-1])
+                    check(rec, tag + "_no_pending_switch", st.menus.bar.switch_wait is None,
+                          st.menus.bar.switch_wait)
+                    done[kind] = [name, crossed, attempt]
+                    rest_case = rest_case or (label_id, submenu, pts, crossed, last_in)
+                    break
+                check(rec, tag + "_clean_walk", kind in done, walks[-WALK_TRIES:])
+            if st.dropdowns is not None:     # (Esc on a closed bar would end the Plaza)
+                yield from esc()
+                check(rec, f"{name}_esc_closes", st.dropdowns is None, dd_keys(st))
+        case["exits"] = done
+        check(rec, "exit_kinds", set(done) == kinds, done)
+        check(rec, "hand_ran", not case.get("hand_errors"), case.get("hand_errors"))
+        check(rec, "hand_never_paused", max(case.get("hand_gaps", [0.0])) < rest,
+              case.get("hand_gaps"))
+        check(rec, "no_draw_error", not st.failed and st.error is None, st.error)
+        if rest_case is not None:
+            label_id, submenu, pts, crossed, last_in = rest_case
+            keys = yield from enter(label_id, submenu)
+            check(rec, "rest_entered", keys is not None, case.get("enter_failures"))
+            i = next(n for n in range(last_in, len(pts))
+                     if ddg.resolve_hit(st.layout, st.menus.chain, *pts[n]).label_id
+                     == crossed[0])
+            XT.move_win(pts[0])
+            yield 0.15
+            yield from hand(case, pts[1:i + 1], hv.HAND_FRAME, st)
+            yield 0.3                   # stop there: > the 0.05 s default rest + a tick
+            check(rec, "rest_switches", st.open_label == crossed[0],
+                  [crossed[0], st.open_label, dd_keys(st)])
+            check(rec, "switched_is_sticky", st.menus.bar.sticky,
+                  [st.menus.bar.opened_by, st.menus.bar.entered])
+            XT.move_win(pts[-1])
+            yield close_wait
+            check(rec, "switched_kept_over_viewport", st.open_label == crossed[0],
+                  [st.open_label, dd_keys(st)])
+            XT.button(1, True)
+            yield 0.1
+            XT.button(1, False)
+            yield 0.4
+            check(rec, "empty_click_closes", st.dropdowns is None, dd_keys(st))
+        check(rec, "plaza_still_open", plaza.is_running())
+        XT.key("space", False)
+        yield 0.4
+        check(rec, "space_release_ends", not plaza.is_running())
+        last = plaza.last_session() or {}
+        check(rec, "ended_by_release", last.get("end") == "finish", last.get("end"))
+        check(rec, "no_handoff", last.get("handoff") is None, last.get("handoff"))
+    finally:
+        XT.release_all()
+        yield 0.3
+        if plaza.is_running():
+            check(rec, "plaza_left_running", False)
+        p = bpy.context.preferences.addons.get(ADDON_MODULE)
+        if p is not None:
+            p.preferences.show_shortcuts = old_shortcuts
+
+
 SCENARIOS = [
     ("ri_x_tweak_long", x_drag("tweak", LONG)),
     ("ri_x_move_drag_long", x_drag("move_drag", LONG)),
@@ -971,7 +1308,9 @@ SCENARIOS = [
     ("ri_v_tweak_long", sc_v_tweak_long),
     ("ri_c_tweak_long", sc_c_tweak_long),
     ("ri_j_tweak_long", sc_j_tweak_long),
-] + MULTI_SCENARIOS + D_SCENARIOS
+] + MULTI_SCENARIOS + D_SCENARIOS + [
+    ("ri_plaza_sticky_exits", sc_plaza_sticky_exits),
+]
 _ONLY = [p for p in os.environ.get("MESO_GUI_ONLY", "").split(",") if p]
 if _ONLY:
     SCENARIOS = [(n, f) for n, f in SCENARIOS if any(p in n for p in _ONLY)]
