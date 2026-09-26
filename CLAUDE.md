@@ -25,8 +25,9 @@ click/modifier conventions.
 ## Commands
 ```
 $PY -m unittest discover -s tests/unit -t .                          # pure tests (no bpy)
-BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
-$B --command extension validate src/meso                          # positional path
+NODESK="env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS"  # prefix of EVERY non-GUI Blender launch
+$NODESK BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
+$NODESK $B --command extension validate src/meso                  # positional path
 timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules + a real-input session; ~5-8 min)
 timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Keymap restart check (real start-ups, temp config)
 $PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate docs/inventory_5_2.json (subprocesses)
@@ -85,6 +86,9 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   timers don't fire; NEVER call `popup_menu`/popover/`call_panel` in `-b` (segfaults), nor
   `_bpy._wm_capabilities()` (segfaults; `rna_keymap_ui.draw_kmi` calls it for an expanded item). Never open the
   keymap-choice dialog under `-b`.
+- EVERY headless / `--command` Blender launch strips the desktop: `env -u DISPLAY -u WAYLAND_DISPLAY -u
+  DBUS_SESSION_BUS_ADDRESS` (`$NODESK` above). With them set, `-b` still connects to the desktop compositor (GPU
+  init for the offscreen tests; seen 2026-09-26); the offscreen tests pass without a display.
 - EVERY Blender launch (headless, GUI, validate, spikes) runs under `ulimit -c 0` (the runners set it; prefix ad-hoc
   commands): with cores enabled a test crash reaches the desktop crash handler (DrKonqi), which pops up on the user's
   session and offers to restart Blender there.
