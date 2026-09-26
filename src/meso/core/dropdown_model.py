@@ -31,7 +31,7 @@ from .model import (
     ACTION_SET_VALUE, ACTION_TOGGLE, ACTION_TOGGLE_FLAG, KIND_CASCADE, KIND_MENU, KIND_TOGGLE,
     Action, Item, item_action,
 )
-from .tables import C_ONLY_MENUS, MODE_SWITCH_MENU
+from .tables import BUILT_MENUS, C_ONLY_MENUS
 
 Path = tuple[int, ...]
 
@@ -80,10 +80,13 @@ COVERAGE_KINDS = (COVERAGE_CUSTOM, COVERAGE_MORE, COVERAGE_NATIVE)
 NATIVE_SUFFIX = '…'
 MORE_LABEL = 'More' + NATIVE_SUFFIX     # translate with pgettext_iface('More') + NATIVE_SUFFIX
 
-# Menus that keep their Phase 3 native hand-off even though they are Python classes:
-# MESO_MT_mode_switch draws operator_enum('object.mode_set', 'mode'), whose items are
-# context-dependent (C itemf) and cannot be listed from Python.
-NATIVE_ONLY_MENUS = frozenset({MODE_SWITCH_MENU})
+# Menus that keep a native hand-off even though they are Python classes (none since the mode
+# switcher became a built dropdown, ``core.tables.BUILT_MENUS``; kept for future cases).
+NATIVE_ONLY_MENUS: frozenset[str] = frozenset()
+
+# DropdownItem.source of the items of the built menus (``record.builtin_menus``).
+ITEM_SOURCE_MODE = 'mode_switch'        # a mode of the mode switcher (DD_RADIO)
+ITEM_SOURCE_RECENT = 'recent_file'      # a file of Open Recent (DD_OP wm.open_mainfile)
 
 # DropdownItem.source of an inline DD_RADIO drawn by recorded popover content
 # (``record.popover.panel_items``: Snap Base in the Snapping panel): a pick keeps the panel
@@ -272,8 +275,8 @@ def strip_native_suffix(label: str) -> str:
 
 def has_arrow(item: DropdownItem | None) -> bool:
     """True when ``item`` is drawn with the '▸' arrow: :data:`CASCADE_KINDS`, and a
-    DD_NATIVE submenu hand-off (``source`` in :data:`NATIVE_CASCADE_SOURCES`: File ▸ Open
-    Recent, a native child menu)."""
+    DD_NATIVE submenu hand-off (``source`` in :data:`NATIVE_CASCADE_SOURCES`: Edit ▸ Undo
+    History, a native child menu)."""
     if item is None:
         return False
     return item.kind in CASCADE_KINDS or (item.kind == DD_NATIVE
@@ -286,7 +289,8 @@ def label_source(item: Item | None) -> DropdownSource | None:
     - None, disabled items or ``payload['coverage'] == COVERAGE_NATIVE`` -> None.
     - ``KIND_MENU`` / ``KIND_CASCADE`` with ``payload['menu']`` -> SOURCE_MENU of that idname,
       unless it is a C-only menu (``core.tables.C_ONLY_MENUS``) or in
-      :data:`NATIVE_ONLY_MENUS` (the mode switcher) -> None.
+      :data:`NATIVE_ONLY_MENUS` -> None. A built menu (``core.tables.BUILT_MENUS``: the mode
+      switcher, Open Recent) is always SOURCE_MENU, C-only or not.
     - ``KIND_CASCADE`` with ``payload['data_path']`` and / or ``payload['panel']`` (the Tool
       Settings cascades of ``record.header_controls``) -> SOURCE_TOOL keyed by ``item.id``.
     - Anything else -> None.
@@ -299,7 +303,7 @@ def label_source(item: Item | None) -> DropdownSource | None:
     menu = payload.get('menu')
     if item.kind in (KIND_MENU, KIND_CASCADE) and menu:
         menu = str(menu)
-        if menu in C_ONLY_MENUS or menu in NATIVE_ONLY_MENUS:
+        if menu not in BUILT_MENUS and (menu in C_ONLY_MENUS or menu in NATIVE_ONLY_MENUS):
             return None
         return DropdownSource(SOURCE_MENU, menu)
     if item.kind == KIND_CASCADE:
@@ -318,8 +322,8 @@ def label_role(item: Item | None) -> str:
     - :func:`label_source` not None -> ROLE_DROPDOWN.
     - ``KIND_TOGGLE`` whose action kind is in :data:`IN_PLACE_ACTIONS` -> ROLE_APPLY (Phase 4:
       Tool Settings toggles keep the Plaza open).
-    - Everything else (native '…' menus, the mode switcher, workspaces, Recent Commands,
-      Meso Settings) -> ROLE_HANDOFF.
+    - Everything else (native '…' menus, workspaces, Recent Commands, Meso Settings) ->
+      ROLE_HANDOFF.
     """
     action = item_action(item)
     if action is None:

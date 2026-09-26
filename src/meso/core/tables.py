@@ -65,6 +65,8 @@ UI_TYPE_LABELS: dict[str, str] = {
 # Centre-line side boxes (translated with pgettext_iface by record.rows).
 RECENT_LABEL = 'Recent Commands'
 CONTROLS_LABEL = 'Meso Settings'
+# The 'Recent Files' box left of Recent Commands: opens OPEN_RECENT_MENU as a custom dropdown.
+RECENT_FILES_LABEL = 'Recent Files'
 
 
 def ordered_workspaces(names: Iterable[str]) -> list[str]:
@@ -210,13 +212,32 @@ DYNAMIC_TEMPLATES = frozenset({
 ORIENTATION_BUILTINS: tuple[str, ...] = (
     'GLOBAL', 'LOCAL', 'NORMAL', 'GIMBAL', 'VIEW', 'CURSOR', 'PARENT')
 
-# Contextual-row mode switcher (VIEW_3D only). The mode enum cannot be recorded (D4); a click
-# hands off to this registered menu (ops/invoke.py), which draws
-# ``layout.operator_enum('object.mode_set', 'mode')`` natively. MODE_SWITCH_PIE is the native
-# Ctrl+Tab pie, the alternative if the menu does not behave in the GUI check.
+# Contextual-row mode switcher (VIEW_3D only): a custom dropdown built by
+# ``record.builtin_menus`` (the modes ``object.mode_set``'s C itemf offers for the active
+# object, as the native header menu lists them). The registered menu (ops/invoke.py, which
+# draws ``layout.operator_enum('object.mode_set', 'mode')``) is the native fallback when the
+# dropdown session fails. MODE_SWITCH_PIE is the native Ctrl+Tab pie.
 MODE_SWITCH_MENU = 'MESO_MT_mode_switch'
 MODE_SWITCH_PIE = 'VIEW3D_MT_object_mode_pie'
 MODE_SWITCH_FALLBACK_LABEL = 'Object Mode'
+
+# File > Open Recent (C-only: ``recent_files_menu_draw`` in space_topbar.cc, drawn with
+# ``template_recent_files``, which Python cannot record).
+OPEN_RECENT_MENU = 'TOPBAR_MT_file_open_recent'
+
+# Menus the Plaza builds itself (``record.builtin_menus``) instead of recording them: their
+# content comes from a C itemf / C template, so the recorder cannot list it. Wherever one of
+# them appears (a row label, a submenu of a recorded menu) it is a custom dropdown; the
+# native hand-off (``wm.call_menu``) stays the fallback of a failed session.
+BUILT_MENUS = frozenset({MODE_SWITCH_MENU, OPEN_RECENT_MENU})
+
+# Operators that load a .blend (they replace the window manager's handlers: the Plaza modal
+# must have returned first). A terminal item running one goes through the D3 timer fallback
+# (``ops.invoke.schedule``) instead of being called inside ``modal()``.
+FILE_LOAD_OPERATORS = frozenset({
+    'wm.open_mainfile', 'wm.revert_mainfile', 'wm.read_homefile', 'wm.read_factory_settings',
+    'wm.recover_last_session', 'wm.recover_auto_save',
+})
 
 
 def editor_menus_for(area_type: str | None, ui_type: str | None,

@@ -59,6 +59,7 @@ ROWS_LAST = (ROW_WORKSPACE,)
 # --- fixed item ids ---
 CENTER_ID = 'center'
 RECENT_ID = 'recent'
+RECENT_FILES_ID = 'recent_files'        # 'Recent Files' box, left of Recent Commands
 CONTROLS_ID = 'controls'
 WORKSPACE_ID_PREFIX = 'workspace:'      # workspace item id = prefix + workspace name
 CONTEXTUAL_ID_PREFIX = 'ctx:'           # contextual row: 'ctx:' + menu idname
@@ -147,7 +148,7 @@ class Item:
     ``id`` is unique within a :class:`PlazaModel` (``PlazaModel`` raises ValueError on a
     duplicate) and is what ``core.geometry.hit_test`` returns: menu items use the MenuType
     idname (``'TOPBAR_MT_file'``), workspaces :func:`workspace_item_id`, the centre-line boxes
-    :data:`CENTER_ID` / :data:`RECENT_ID` / :data:`CONTROLS_ID`.
+    :data:`CENTER_ID` / :data:`RECENT_FILES_ID` / :data:`RECENT_ID` / :data:`CONTROLS_ID`.
 
     ``payload`` is kind-specific plain data (see the KIND_* comments); treat it as read-only.
     It takes part in ``==`` but not in ``hash()`` (dicts are unhashable).
@@ -201,16 +202,20 @@ class PlazaModel:
     ROWS_ABOVE order, whatever their order here) and the rest below (in this order, then the
     :data:`ROWS_LAST` keys at the very bottom).
     ``center``: the centre box item (kind :data:`KIND_CENTER`). ``recent`` / ``controls``:
-    the centre-line side boxes (left / right), None = not shown.
+    the centre-line side boxes (left / right), None = not shown. ``files``: the 'Recent
+    Files' box (a KIND_MENU of ``core.tables.OPEN_RECENT_MENU``), left of ``recent`` on the
+    centre line, None = not shown.
 
     ``__post_init__`` normalises ``rows`` to a tuple and raises ValueError on duplicate item
-    ids (across rows and the three centre-line items) or duplicate row keys.
+    ids (across rows and the centre-line items) or duplicate row keys. Rebuild a model with
+    ``dataclasses.replace`` so no centre-line item is dropped.
     """
 
     rows: tuple[Row, ...]
     center: Item
     recent: Item | None = None
     controls: Item | None = None
+    files: Item | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.rows, tuple):
@@ -226,10 +231,11 @@ class PlazaModel:
 
     def items(self) -> Iterator[Item]:
         """Every item, deterministic order: rows in model order (items left->right), then
-        ``recent``, ``center``, ``controls`` (the non-None ones)."""
+        ``files``, ``recent``, ``center``, ``controls`` (the non-None ones; the centre line
+        left -> right)."""
         for row in self.rows:
             yield from row.items
-        for item in (self.recent, self.center, self.controls):
+        for item in (self.files, self.recent, self.center, self.controls):
             if item is not None:
                 yield item
 
@@ -271,6 +277,7 @@ def item_action(item: Item | None) -> Action | None:
 
 
 def make_model(rows: Iterable[Row], center: Item, recent: Item | None = None,
-               controls: Item | None = None) -> PlazaModel:
-    """Convenience constructor (tests): ``PlazaModel(tuple(rows), center, recent, controls)``."""
-    return PlazaModel(tuple(rows), center, recent, controls)
+               controls: Item | None = None, files: Item | None = None) -> PlazaModel:
+    """Convenience constructor (tests): ``PlazaModel(tuple(rows), center, recent, controls,
+    files)``."""
+    return PlazaModel(tuple(rows), center, recent, controls, files)

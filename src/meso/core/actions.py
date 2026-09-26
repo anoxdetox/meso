@@ -29,6 +29,7 @@ from .model import (
     ACTION_PROP_ENUM_MENU, ACTION_REPEAT_HISTORY, ACTION_SET_ENUM, ACTION_SET_VALUE,
     ACTION_TOGGLE, ACTION_TOGGLE_FLAG, Action,
 )
+from .tables import FILE_LOAD_OPERATORS
 
 # The one custom setter (ops/actions.py MESO_OT_toggle_flag).
 TOGGLE_FLAG_OPERATOR = 'meso.toggle_flag'
@@ -162,6 +163,16 @@ def with_click_modifiers(action: Action | None, *, shift: bool = False,
             props['use_expand'] = True
         return replace(action, props=props) if props != dict(action.props) else action
     return action
+
+
+def loads_file(action: Action | None) -> bool:
+    """True when ``action`` runs an operator that loads a .blend
+    (``core.tables.FILE_LOAD_OPERATORS``: File > Open Recent entries, Revert, New, Recover).
+    A file load removes every window handler, the running Plaza modal's included, so such
+    a terminal action must run after the modal has returned (``ops.invoke.schedule``, the
+    D3 timer fallback), never inside ``modal()``."""
+    return (action is not None and action.kind == ACTION_OPERATOR
+            and normalize_op_idname(action.target) in FILE_LOAD_OPERATORS)
 
 
 def describe(call: OpCall | None) -> tuple[str, dict[str, Any]] | None:

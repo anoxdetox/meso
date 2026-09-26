@@ -11,11 +11,13 @@ docs/phase2-interfaces.md):
 - each row is ONE flat strip with its labels laid out left to right inside it; strips are
   centred horizontally on the anchor x and have different widths;
 - top -> bottom: Root, Contextual, Tool Settings strips, then the CENTRE LINE
-  (``recent`` box | centre box | ``controls`` box), then every other row (Workspace, ...);
+  (``files`` box | ``recent`` box | centre box | ``controls`` box), then every other row
+  (Workspace, ...);
 - the centre box (height ``center_h``, taller than a strip) is centred on the anchor; the
   side boxes are one-label strips vertically centred on the centre line, aligned to the
   outer edge of the widest neighbouring line (the nearest line above and below the centre
-  line) but never closer than ``side_gap`` to the centre box;
+  line) but never closer than ``side_gap`` to the centre box; the ``files`` box ('Recent
+  Files') sits left of the ``recent`` box, ``gap_x`` apart;
 - four short 45-degree ticks lie on the diagonals through the centre box's centre, just
   outside the Plaza (they mark the N/S/E/W Compass-menu zone borders, Phase 5);
 - empty rows are skipped (no strip, no gap); a row wider than the bounds (or than the soft
@@ -35,8 +37,8 @@ import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from .model import (CENTER_ID, CONTROLS_ID, KIND_SEPARATOR, KIND_TOGGLE, RECENT_ID, ROWS_ABOVE, ROWS_LAST,
-                    PlazaModel, Item)
+from .model import (CENTER_ID, CONTROLS_ID, KIND_SEPARATOR, KIND_TOGGLE, RECENT_FILES_ID, RECENT_ID,
+                    ROWS_ABOVE, ROWS_LAST, PlazaModel, Item)
 from .rects import Rect, bounding_box
 
 TextWidthFn = Callable[[str], float]
@@ -201,7 +203,8 @@ class ItemBox:
 
     item_id: str
     kind: str
-    row_key: str            # Row.key, or 'center' / 'recent' / 'controls' for the centre line
+    row_key: str            # Row.key, or 'center' / 'recent' / 'recent_files' / 'controls'
+                            # for the centre line
     rect: Rect
     highlight: Rect
     text_x: int
@@ -247,7 +250,7 @@ class Layout:
     """Result of :func:`layout`. Immutable; everything in window coords after the shift.
 
     - ``strips``: draw order = row lines top -> bottom, then the centre line left -> right
-      (recent, center, controls).
+      (files, recent, center, controls).
     - ``items``: every placed item in the same order (hit-test order).
     - ``plaza_rect``: bbox of all strips (excludes ticks); ``extent``: bbox of strips and
       ticks (renderer culling).
@@ -256,6 +259,7 @@ class Layout:
     - ``window_bounds``: the bounds given to :func:`layout` (dim fill area), or None.
     - ``signature``: int computed once from the geometry + labels (batch-cache key; stable
       within a process only; not part of ``==``).
+    - ``files``: the placed 'Recent Files' box, or None.
     """
 
     metrics: Metrics
@@ -272,6 +276,7 @@ class Layout:
     shift: tuple[int, int]
     window_bounds: Rect | None
     signature: int = field(default=0, compare=False)
+    files: ItemBox | None = None
     _index: Mapping[str, ItemBox] = field(default_factory=dict, compare=False, repr=False)
 
     def item(self, item_id: str | None) -> ItemBox | None:
@@ -366,7 +371,10 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
        2*pad_x)``, ``h = row_h``, vertically centred on the centre box.
        ``recent.x = min(nx0, center.x - side_gap - w)`` where ``nx0`` = left edge of the
        widest of the nearest line above / below (term dropped when there are none);
-       ``controls.x1 = max(nx1, center.x1 + side_gap + w)`` likewise.
+       ``controls.x1 = max(nx1, center.x1 + side_gap + w)`` likewise. ``model.files``: the
+       same size rule, ``files.x1 = recent.x - gap_x`` (``center.x - side_gap`` without a
+       recent box, then aligned like it), so it never overlaps the recent box, the centre
+       box or a row strip (it lies within the centre box's height, between the rows).
     7. Clamp: ``inner = window_bounds`` inset by ``margin`` (the bounds themselves when that
        is empty). Per axis, the minimal int shift that puts ``plaza_rect`` inside ``inner``;
        if it is larger than ``inner``: x centred on ``inner`` (round_px), y top-aligned
@@ -428,14 +436,27 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     widest = max(neighbours, key=lambda r: r.w) if neighbours else None
     side_y = round_px(center_rect.y + (center_rect.h - m.row_h) / 2)
 
-    recent_box = controls_box = None
+    recent_box = controls_box = files_box = None
     line_boxes_c: list[tuple[Strip, ItemBox]] = []
+    recent_placed = None
     if model.recent is not None:
         w = math.ceil(widths[model.recent.id] + 2 * m.pad_x)
         x = center_rect.x - m.side_gap - w
         if widest is not None:
             x = min(widest.x, x)
-        recent_box = _box(model.recent, RECENT_ID, Rect(x, side_y, w, m.row_h), widths, m)
+        recent_placed = _box(model.recent, RECENT_ID, Rect(x, side_y, w, m.row_h), widths, m)
+    if model.files is not None:
+        w = math.ceil(widths[model.files.id] + 2 * m.pad_x)
+        if recent_placed is not None:
+            x = recent_placed.rect.x - m.gap_x - w
+        else:
+            x = center_rect.x - m.side_gap - w
+            if widest is not None:
+                x = min(widest.x, x)
+        files_box = _box(model.files, RECENT_FILES_ID, Rect(x, side_y, w, m.row_h), widths, m)
+        line_boxes_c.append((_strip_for(files_box, ROLE_SIDE), files_box))
+    if recent_placed is not None:
+        recent_box = recent_placed
         line_boxes_c.append((_strip_for(recent_box, ROLE_SIDE), recent_box))
     center_box = _box(model.center, CENTER_ID, center_rect, widths, m)
     line_boxes_c.append((_strip_for(center_box, ROLE_CENTER), center_box))
@@ -462,6 +483,7 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     center_box = index[model.center.id]
     recent_box = index[model.recent.id] if model.recent is not None else None
     controls_box = index[model.controls.id] if model.controls is not None else None
+    files_box = index[model.files.id] if model.files is not None else None
     cr = center_box.rect
     origin = (cr.x + cr.w / 2, cr.y + cr.h / 2)
 
@@ -479,7 +501,7 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
         metrics=m, strips=strips_t, items=boxes_t, center=center_box, recent=recent_box,
         controls=controls_box, ticks=ticks, plaza_rect=plaza, extent=extent,
         anchor=(round_px(ax), round_px(ay)), origin=origin, shift=(dx, dy),
-        window_bounds=window_bounds, signature=signature, _index=index)
+        window_bounds=window_bounds, signature=signature, files=files_box, _index=index)
 
 
 def _wrap(items: tuple[Item, ...], widths: Mapping[str, float], m: Metrics,

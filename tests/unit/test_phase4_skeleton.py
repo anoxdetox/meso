@@ -95,14 +95,25 @@ class TestDropdownModel(unittest.TestCase):
                                      payload={'menu': 'TOPBAR_MT_file', 'coverage': dm.COVERAGE_NATIVE})
         self.assertIsNone(dm.label_source(native))
         self.assertEqual(dm.label_role(native), dm.ROLE_HANDOFF)
-        c_only = next(iter(tables.C_ONLY_MENUS))
-        conly = model.Item('ctx:' + c_only, 'x', model.KIND_MENU, {'menu': c_only})
-        self.assertIsNone(dm.label_source(conly))
+        for c_only in set(tables.C_ONLY_MENUS) - tables.BUILT_MENUS:
+            conly = model.Item('ctx:' + c_only, 'x', model.KIND_MENU, {'menu': c_only})
+            self.assertIsNone(dm.label_source(conly), c_only)
+        # The built menus (mode switcher, Open Recent: C-only natively) open custom dropdowns.
         mode = model.Item(model.MODE_SWITCH_ID, 'Object Mode', model.KIND_CASCADE,
                           {'menu': tables.MODE_SWITCH_MENU}, cascade=True,
                           action=A(model.ACTION_MENU, target=tables.MODE_SWITCH_MENU))
-        self.assertIsNone(dm.label_source(mode))
-        self.assertEqual(dm.label_role(mode), dm.ROLE_HANDOFF)
+        self.assertEqual(dm.label_source(mode),
+                         dm.DropdownSource(dm.SOURCE_MENU, tables.MODE_SWITCH_MENU))
+        self.assertEqual(dm.label_role(mode), dm.ROLE_DROPDOWN)
+        self.assertEqual(dm.label_role(dataclasses.replace(mode, enabled=False)),
+                         dm.ROLE_PASSIVE)
+        files = model.Item(model.RECENT_FILES_ID, 'Recent Files', model.KIND_MENU,
+                           {'menu': tables.OPEN_RECENT_MENU},
+                           action=A(model.ACTION_MENU, target=tables.OPEN_RECENT_MENU))
+        self.assertIn(tables.OPEN_RECENT_MENU, tables.C_ONLY_MENUS)
+        self.assertEqual(dm.label_source(files),
+                         dm.DropdownSource(dm.SOURCE_MENU, tables.OPEN_RECENT_MENU))
+        self.assertEqual(dm.label_role(files), dm.ROLE_DROPDOWN)
         pivot = model.Item('ts:pivot:tool_settings.transform_pivot_point', 'Pivot',
                            model.KIND_CASCADE,
                            {'group': 'pivot', 'data_path': 'tool_settings.transform_pivot_point'},
