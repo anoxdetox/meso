@@ -16,8 +16,12 @@ operator and the content builders make from plain values:
   the cursor move the drag makes up for (:func:`view_delta`);
 - :func:`pick_action`: what a picked Compass item runs after the teardown;
 - the content tables: the context menu per mode keymap (:data:`CONTEXT_MENUS`), the mode's
-  main menu (:func:`mode_menu`), the radial of modes (:func:`mode_slots`) and the tool
-  radial per select mode (:data:`TOOL_SLOTS`).
+  main menu (:func:`mode_menu`), the radial of modes (:func:`mode_slots`; a mesh has the
+  reference layout's component modes, UV and Multi, Phase 5c) and the tool radial per
+  select mode (:data:`TOOL_SLOTS`);
+- the press point picks the object (Phase 5c, local/docs/phase5c-interfaces.md "B"): which
+  picks first select the object under the press (:func:`press_selects`) and the click that
+  does it (:func:`press_select_call`).
 """
 
 from __future__ import annotations
@@ -27,19 +31,24 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .actions import MODE_SELECT_OPERATOR
 from .dropdown_model import (
     DD_ENUM_CASCADE, DD_SUBMENU, DD_TOGGLE_ROW, PASSIVE_DD_KINDS, DropdownItem, label_row,
     native_menu_action,
 )
 from .model import ACTION_OPERATOR, ACTION_PROP_ENUM_MENU, ACTION_SET_ENUM, Action
+from .modes import MODE_OPERATOR_CONTEXT
 
 __all__ = (
     'BEHAVIOURS', 'BEHAVIOUR_COMPASS', 'BEHAVIOUR_CURSOR', 'COMPASS_DRAG_PX',
     'COMPASS_HOLD_DELAY', 'CONTEXT_MENUS', 'CONTEXT_MENUS_BY_MODE', 'IDNAME', 'KIND_CONTEXT',
-    'KIND_TOOLS', 'KINDS', 'OWNERS', 'OWNER_COMPASS', 'OWNER_CURSOR', 'ROLES', 'ROLE_CTRL_SHIFT',
-    'ROLE_PLAIN', 'ROLE_SHIFT', 'TOOL_SLOTS', 'ToolSlot', 'behaviour', 'context_menu_for_mode',
-    'drag_call', 'drag_threshold_px', 'enum_cascade_action', 'is_drag', 'mode_menu',
-    'mode_slots', 'pick_action', 'shows_compass', 'tap_call', 'tool_domain', 'view_delta',
+    'KIND_TOOLS', 'KINDS', 'MENU_MODES', 'MODE_ITEM_TARGETS', 'OWNERS', 'OWNER_COMPASS',
+    'OWNER_CURSOR', 'ROLES', 'ROLE_CTRL_SHIFT', 'ROLE_PLAIN', 'ROLE_SHIFT', 'TOOL_SLOTS',
+    'ToolSlot', 'UV_MENU',
+    'behaviour', 'context_menu_for_mode', 'drag_call', 'drag_threshold_px',
+    'enum_cascade_action', 'is_drag', 'mode_menu', 'mode_slots', 'pick_action', 'pick_actions',
+    'press_select_call', 'press_selects', 'shows_compass', 'tap_call', 'tool_domain',
+    'view_delta',
 )
 
 # --- operator properties -------------------------------------------------------------------
@@ -171,6 +180,24 @@ def enum_cascade_action(item: DropdownItem | None) -> Action | None:
     return None
 
 
+def pick_actions(item: DropdownItem | None, mode: str | None) -> tuple[Action, ...]:
+    """Everything a pick of ``item`` runs after the teardown, in order, with ``mode`` the
+    ``context.mode`` of the press: :func:`pick_action` (nothing for None / disabled /
+    passive items), preceded, for a submenu of :data:`MENU_MODES` picked outside the mode
+    its entries need (UV ▸ from Object Mode), by entering that mode as the mode switch does
+    (``object.mode_set`` INVOKE_REGION_WIN with the undo flag: its own 'Toggle Edit Mode'
+    step), so the menu opens on the edit mesh. The caller runs each one after the other
+    while they finish."""
+    action = pick_action(item)
+    if action is None:
+        return ()
+    need = MENU_MODES.get(item.submenu) if item.kind == DD_SUBMENU else None
+    if need is not None and mode != need[1]:
+        return (Action(ACTION_OPERATOR, target='object.mode_set', props={'mode': need[0]},
+                       operator_context=MODE_OPERATOR_CONTEXT, undo=True), action)
+    return (action,)
+
+
 def pick_action(item: DropdownItem | None) -> Action | None:
     """What a picked item of a right-click Compass runs after the teardown (every role: there
     is no Plaza to stay in): None for None / disabled / passive items; a DD_SUBMENU its menu
@@ -237,33 +264,90 @@ def mode_menu(mode: str | None, edit_type: str | None, has_object: bool) -> str:
 
 
 # ``meso:context`` directions: the mode switch's Object Mode, the Edit Mode label, the Edit
-# Mode's select-mode cells (mesh: Vertex W, Edge N, Face S, the reference layout) and the
+# Mode's select-mode cells (Vertex W, Edge N, Face S, the reference layout) and the
 # remaining modes in the switch's order.
 OBJECT_MODE_SLOT = 'NE'
 EDIT_MODE_SLOT = 'E'
 CELL_SLOTS = ('W', 'N', 'S')
 OTHER_MODE_SLOTS = ('SE', 'SW', 'NW')
+# A mesh (Phase 5c, local/docs/phase5c-interfaces.md "B"): the reference layout's component
+# modes. E the UV menu, SE Multi (the three select modes together), SW Edit Mode, NW the
+# first other mode (Sculpt Mode); the cells stay on W, N, S.
+MESH_EDIT_MODE_SLOT = 'SW'
+UV_SLOT = 'E'
+MULTI_SLOT = 'SE'
+MESH_OTHER_MODE_SLOTS = ('NW',)
+# Blender's UV unwrap menu, the 3D View header's "UV" menu in mesh Edit Mode (decision 92 a).
+UV_MENU = 'VIEW3D_MT_uv_map'
+# Menus whose entries need a mode: {menu: (the ``object.mode_set`` mode that enters it, the
+# ``context.mode`` it gives)}. A pick from another mode enters it first (:func:`pick_actions`).
+MENU_MODES: dict[str, tuple[str, str]] = {UV_MENU: ('EDIT', 'EDIT_MESH')}
+MESH_SELECT_CELLS = 3           # Vertex, Edge, Face: Multi needs all three
 
 
-def mode_slots(mode_ids: Sequence[str], edit_cells: int
+def mode_slots(mode_ids: Sequence[str], edit_cells: int, mesh: bool = False
                ) -> tuple[dict[str, tuple[str, Any]], tuple[str, ...]]:
     """Where the modes of the mode switch go on ``meso:context``: ``({direction: ('mode',
-    id) | ('cell', index)}, overflow ids)``. ``mode_ids``: the switch's modes in its order
-    ('OBJECT', 'EDIT', ...); ``edit_cells``: the number of select-mode cells of its Edit Mode
-    row. Object Mode on NE, Edit Mode on E, the first three cells on W, N, S, the other modes
-    on SE, SW, NW; modes past those three are the overflow (listed above the context menu)."""
+    id) | ('cell', index) | ('uv', menu) | ('multi', None)}, overflow ids)``. ``mode_ids``:
+    the switch's modes in its order ('OBJECT', 'EDIT', ...); ``edit_cells``: the number of
+    select-mode cells of its Edit Mode row; ``mesh``: the active object is a mesh.
+
+    - Every type: Object Mode on NE, the first three cells on W, N, S (mesh: Vertex W, Edge
+      N, Face S).
+    - A mesh (the reference layout): Edit Mode on SW, UV on E (:data:`UV_MENU`, with an Edit
+      Mode), Multi on SE (with the three mesh cells), the first other mode on NW (Sculpt
+      Mode); the other modes (the paint modes, Particle Edit) are the overflow.
+    - Any other type: Edit Mode on E, the other modes on SE, SW, NW, the rest the overflow.
+
+    The overflow is listed above the context menu."""
     out: dict[str, tuple[str, Any]] = {}
     ids = list(mode_ids)
+    cells = max(0, int(edit_cells))
     if 'OBJECT' in ids:
         out[OBJECT_MODE_SLOT] = ('mode', 'OBJECT')
     if 'EDIT' in ids:
-        out[EDIT_MODE_SLOT] = ('mode', 'EDIT')
-        for index, direction in enumerate(CELL_SLOTS[:max(0, int(edit_cells))]):
+        out[MESH_EDIT_MODE_SLOT if mesh else EDIT_MODE_SLOT] = ('mode', 'EDIT')
+        for index, direction in enumerate(CELL_SLOTS[:cells]):
             out[direction] = ('cell', index)
+        if mesh:
+            out[UV_SLOT] = ('uv', UV_MENU)
+            if cells >= MESH_SELECT_CELLS:
+                out[MULTI_SLOT] = ('multi', None)
     rest = [i for i in ids if i not in ('OBJECT', 'EDIT')]
-    for direction, ident in zip(OTHER_MODE_SLOTS, rest):
+    others = MESH_OTHER_MODE_SLOTS if mesh else OTHER_MODE_SLOTS
+    for direction, ident in zip(others, rest):
         out[direction] = ('mode', ident)
-    return out, tuple(rest[len(OTHER_MODE_SLOTS):])
+    return out, tuple(rest[len(others):])
+
+
+# --- the press point picks the object (Phase 5c, local/docs/phase5c-interfaces.md "B") -----
+
+# The actions of the mode items of ``meso:context``: a mode (``object.mode_set``), a
+# select-mode cell or Multi from another mode (``meso.mode_set_select``).
+MODE_ITEM_TARGETS = frozenset({'object.mode_set', MODE_SELECT_OPERATOR})
+PRESS_SELECT_OPERATOR = 'view3d.select'
+
+
+def press_selects(kind: str, mode: str | None, action: Action | None) -> bool:
+    """True when a right-click Compass pick first selects the object under the press point:
+    a CONTEXT Compass, in Object Mode (``context.mode`` 'OBJECT'), and a mode item's action
+    (:data:`MODE_ITEM_TARGETS`: a mode, a select-mode cell, Multi; ``action`` is the first of
+    :func:`pick_actions`, so UV ▸, which enters Edit Mode first, counts too). In an edit
+    mode the component modes act on the edited objects; the context menu's items and the
+    tool Compass act on the selection as before."""
+    return (kind == KIND_CONTEXT and mode == 'OBJECT' and action is not None
+            and action.kind == ACTION_OPERATOR and action.target in MODE_ITEM_TARGETS)
+
+
+def press_select_call(location: tuple[float, float]) -> tuple[str, dict[str, Any]]:
+    """``(operator id, kwargs)`` of the selection a click at ``location`` (the press point in
+    the WINDOW region's coordinates) makes: ``view3d.select(location=(x, y), extend=False,
+    deselect_all=False)``, run EXEC without the undo flag (the mode change pushes its own
+    steps). Only the object under the point is selected (and made active); nothing there
+    keeps the selection."""
+    x, y = location
+    return PRESS_SELECT_OPERATOR, {'location': (int(round(x)), int(round(y))),
+                                   'extend': False, 'deselect_all': False}
 
 
 @dataclass(frozen=True, slots=True)

@@ -14,12 +14,17 @@ CONTEXT, ``menu`` the context menu it displaces) and on Shift / Ctrl Shift RMB i
   Held :data:`core.compass_rmb.COMPASS_HOLD_DELAY` or moved past the drag distance
   (``core.compass_rmb.shows_compass``), the Compass shows at the PRESS point:
   ``record.compass.build_compass`` of ``meso:context`` / ``meso:tools`` in the invoking area,
-  placed with ``core.compass.place_compass`` (moved into the screen, the pointer warped to its
-  centre, as Phase 5), drawn by a ``view.draw_manager.HandlerSet`` on the :class:`RmbState`
-  (``layout`` None, ``compass`` set), and the Phase 5 gesture (``core.compass.open_state``,
-  ``compass_step``) runs it: moves hover, the button's release picks or cancels (a quick
-  release in the centre leaves it open for a click pick), Esc cancels. A Compass with nothing
-  to offer here falls back to the tap at the release.
+  placed with ``core.compass.place_compass(fixed=True)`` (Phase 5c: the radial never moves
+  and the pointer is never warped, the press point is what a mode pick acts on; only the
+  list is placed to fit, and a long one scrolls), drawn by a ``view.draw_manager.HandlerSet``
+  on the :class:`RmbState` (``layout`` None, ``compass`` set), and the Phase 5 gesture
+  (``core.compass.open_state``, ``compass_step``, through ``ops.compass.gesture_move`` /
+  ``gesture_tick``) runs it: moves hover (the direction wins while dragging; the list item
+  after a rest on the list), the button's release picks or cancels (a quick release in the
+  centre leaves it open for a click pick), Esc cancels, the mouse wheel over the list and a
+  rest on its arrow rows scroll it (never a pick). A release past the drag distance before
+  the Compass drew picks by the direction (marking ahead), never a tap. A Compass with
+  nothing to offer here falls back to the tap at the release.
 - **'cursor'**: Industry Compatible's two Shift RMB items: the press places the 3D cursor at
   once (``view3d.cursor3d``, its PRESS item); a drag past Blender's drag threshold (its
   CLICK_DRAG rule: ``core.compass_rmb.is_drag``) then moves it
@@ -32,11 +37,17 @@ CONTEXT, ``menu`` the context menu it displaces) and on Shift / Ctrl Shift RMB i
   then does not confirm (a click or Enter does; the native CLICK_DRAG item has the button).
 
 A pick runs after the teardown (``handlers`` and timer removed), right before FINISHED, with
-``ops.invoke.execute(core.compass_rmb.pick_action(item), window, area, region, 'VIEW_3D')``
-whatever the item's Phase 4 role: there is no Plaza to stay in. The chord's own modifiers
-are not click modifiers (a Shift+RMB pick never "extends"). Every native call goes through
-the seam :func:`run_native` (``ops.invoke.run_call``), every pick through
-``ops.invoke.execute``: tests stub them (never a popup under ``-b``).
+``ops.invoke.execute(action, window, area, region, 'VIEW_3D')`` for each action of
+``core.compass_rmb.pick_actions(item, mode)`` (``pick_action``; UV ▸ from Object Mode enters
+Edit Mode first) whatever the item's Phase 4 role: there is no Plaza to stay in. The chord's
+own modifiers are not click modifiers (a Shift+RMB pick never "extends"). In Object Mode a
+pick of a mode item of the context Compass (a mode, a select-mode cell, Multi, UV ▸:
+``core.compass_rmb.press_selects``) first selects the object under the press point, as a
+click there would (:func:`select_at_press`, ``view3d.select`` EXEC without the undo flag;
+nothing there keeps the selection), then the mode action runs on it. Every native call goes
+through the seam :func:`run_native` (``ops.invoke.run_call``), the press selection through
+:func:`select_at_press`, every pick through ``ops.invoke.execute``: tests stub them (never a
+popup under ``-b``; ``view3d.select`` segfaults there, the region has no view data).
 
 invoke passes the key on (PASS_THROUGH, so the native item after it runs) outside a 3D View
 WINDOW region with a window, while the Plaza runs (it owns RMB then: its zone Compasses) and
@@ -72,7 +83,7 @@ from . import compass as compass_ops
 from . import invoke
 
 __all__ = ('MESO_OT_compass_rmb', 'RmbState', 'current_state', 'is_running', 'last_session',
-           'run_native')
+           'run_native', 'select_at_press')
 
 TIMER_INTERVAL = 0.05       # s: the hold check and the watchdog
 # The operator's name as reported by ``Window.modal_operators`` (stale-session check).
@@ -108,7 +119,9 @@ class RmbState:
     Identity: ``window_ptr``, ``area_ptr`` / ``area_index`` (the invoking 3D View area) and
     the operator's ``kind`` / ``role`` / ``menu``; ``behaviour`` ('compass' / 'cursor');
     ``button`` (the pressed button: its RELEASE ends the press); ``press`` / ``t0`` (window
-    coords and ``time.perf_counter()`` of the press); ``scale`` (UI scale, 1 headless);
+    coords and ``time.perf_counter()`` of the press); ``press_region`` (the press in the
+    invoking WINDOW region's coordinates: where a mode pick selects the object under it);
+    ``scale`` (UI scale, 1 headless);
     ``drag_px`` (Blender's drag threshold of the button in whole pixels,
     ``core.compass_rmb.drag_threshold_px``: the cursor's drag); ``pointer``
     (the last pointer); ``shown`` (the show rule fired; ``compass`` stays None when the
@@ -126,6 +139,7 @@ class RmbState:
     button: str
     press: tuple[float, float]
     t0: float
+    press_region: tuple[int, int] = (0, 0)
     scale: float = 1.0
     drag_px: int = 3
     pointer: tuple[float, float] = (0.0, 0.0)
@@ -189,8 +203,10 @@ def last_session() -> dict[str, Any] | None:
     (the shown model key, or None), ``native`` (``core.actions.describe`` of every native call
     in order: the press placement, the tap, the drag), ``native_result`` (the last one's
     sorted result or None), ``pick`` (``(model key, where, label)``), ``action`` (``(kind,
-    target, data_path)`` of the pick's action, or None) and ``result`` (the pick's sorted
-    result or None)."""
+    target, data_path)`` of the pick's action, or None), ``actions`` (the same of every
+    action the pick runs, ``core.compass_rmb.pick_actions``), ``press_select``
+    (``(location, sorted result)`` of the object selection a mode pick made first, absent
+    otherwise) and ``result`` (the last run action's result or None)."""
     return dict(_last) if _last else None
 
 
@@ -198,6 +214,17 @@ def run_native(call: OpCall, window: Any, area: Any, region: Any) -> set[str] | 
     """Run a native call (the tap, the cursor placement / drag) under the invoking window /
     area / region: ``ops.invoke.run_call`` (looked up at call time). The seam tests stub."""
     return invoke.run_call(call, window, area, region)
+
+
+def select_at_press(window: Any, area: Any, region: Any,
+                    location: tuple[int, int]) -> set[str] | None:
+    """Select the object under ``location`` (the press point in the WINDOW ``region``'s
+    coordinates) as a click there would: ``core.compass_rmb.press_select_call``
+    (``view3d.select`` EXEC, ``extend`` / ``deselect_all`` off, no undo flag) through
+    ``ops.invoke.run_call`` under the invoking window / area / region. The seam tests stub:
+    under ``-b`` the call segfaults (the region has no view data)."""
+    op, kwargs = rmb.press_select_call(location)
+    return invoke.run_call(OpCall(op, 'EXEC_DEFAULT', None, kwargs), window, area, region)
 
 
 def _native(state: RmbState, op_idname: str, kwargs: dict[str, Any], undo: bool | None,
@@ -397,11 +424,13 @@ the pointer"""
                       else 'RIGHTMOUSE')
             drag_px = _drag_threshold(preferences, button, event, scale)
             press = (float(event.mouse_x), float(event.mouse_y))
+            press_region = (int(press[0]) - int(region.x), int(press[1]) - int(region.y))
             state = RmbState(window_ptr=window.as_pointer(), area_ptr=area.as_pointer(),
                              area_index=_area_index(window, area), kind=kind, role=role,
                              menu=menu, behaviour=behaviour, button=button, press=press,
-                             t0=time.perf_counter(), scale=scale, drag_px=drag_px,
-                             pointer=press, anchor=(int(press[0]), int(press[1])))
+                             t0=time.perf_counter(), press_region=press_region, scale=scale,
+                             drag_px=drag_px, pointer=press,
+                             anchor=(int(press[0]), int(press[1])))
             state.window, state.area, state.region = window, area, region
             _serial += 1
             state._serial = _serial
@@ -447,10 +476,9 @@ the pointer"""
                                               state.scale)):
                     self._show(context, state, now)
                 elif state.compass is not None:
-                    cs = state.compass
-                    before = compass_ops._extent(cs)
-                    cs.gesture, effects = cp.compass_step(cs.gesture, 'tick', now=now)
-                    if effects:
+                    # The list dwell and an arrow row's scroll repeat (Phase 5c).
+                    before = compass_ops._extent(state.compass)
+                    if compass_ops.gesture_tick(state.compass, now):
                         self._redraw(state, before)
                 return {'PASS_THROUGH'}         # timers are not ours to eat
             if etype == 'WINDOW_DEACTIVATE':
@@ -545,19 +573,14 @@ the pointer"""
                                      for a in window.screen.areas)
                         or Rect(0, 0, window.width, window.height))
         state.palette = theme.from_preferences(context, style, state.transparency, custom)
+        # Fixed at the press (Phase 5c): the radial never moves and the pointer is never warped
+        # (the press point is the object a mode pick acts on); only the list is placed to fit.
         layout = cp.place_compass(model, state.press, dm, state.bounds,
-                                  renderer.text_width_fn(dm.font_px))
+                                  renderer.text_width_fn(dm.font_px), fixed=True)
         pointer = state.pointer
-        if layout.shift != (0, 0):
-            # Moved to fit the screen: the pointer follows the centre, as a Blender pie warps it.
-            pointer = layout.centre
-            compass_ops.warp_cursor(window, pointer)
         cs = compass_ops.CompassSession(model, layout, cp.open_state(state.button, now), '',
                                         state.button, pointer)
-        slot, path, in_dead = compass_ops._hover(cs, *pointer)
-        cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                          in_dead=in_dead, now=now)
-        state.pointer = pointer
+        compass_ops.gesture_move(cs, pointer[0], pointer[1], now)
         state.compass = cs
         _last['compass'] = model.key
         state.handlers = HandlerSet()
@@ -578,11 +601,15 @@ the pointer"""
         before = compass_ops._extent(cs)
         if etype in MOUSE_MOVES:
             x, y = float(event.mouse_x), float(event.mouse_y)
-            slot, path, in_dead = compass_ops._hover(cs, x, y)
-            cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                              in_dead=in_dead, now=now)
-            cs.pointer = state.pointer = (x, y)
+            compass_ops.gesture_move(cs, x, y, now)
+            state.pointer = (x, y)
             self._redraw(state, before)
+            return {'RUNNING_MODAL'}
+        if etype in compass_ops.WHEEL_STEPS:
+            # Over the list the wheel scrolls it (never a pick); swallowed everywhere.
+            if compass_ops.wheel_scroll(cs, event, now):
+                state.pointer = cs.pointer
+                self._redraw(state, before)
             return {'RUNNING_MODAL'}
         if etype == 'ESC':
             if value == 'PRESS':
@@ -595,10 +622,11 @@ the pointer"""
             if value != 'RELEASE' and getattr(event, 'is_repeat', False):
                 return {'RUNNING_MODAL'}        # a held key's auto-repeat: still the press
             x, y = float(event.mouse_x), float(event.mouse_y)
-            slot, path, in_dead = compass_ops._hover(cs, x, y)
             if value == 'RELEASE':
-                cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                                  in_dead=in_dead, now=now)
+                # The mark's end decides (a flick may release before its last move arrives).
+                compass_ops.gesture_move(cs, x, y, now)
+                state.pointer = (x, y)
+            in_dead = compass_ops.hover_at(cs, x, y)['in_dead']
             kind = 'release' if value == 'RELEASE' else 'press'
             gesture, effects = cp.compass_step(cs.gesture, kind, now=now, button=etype,
                                                in_dead=in_dead)
@@ -609,33 +637,52 @@ the pointer"""
                 return {'RUNNING_MODAL'}
             effect = effects[0] if effects else cp.CancelCompass()
             if isinstance(effect, cp.Pick):
-                return self._pick(state, cs, effect)
+                return self._pick(context, state, cs, effect)
             _end(state, 'cancel')
             self._state = None
             return {'FINISHED'}
         return {'RUNNING_MODAL'}
 
-    def _pick(self, state: RmbState, cs: Any, effect: cp.Pick) -> set[str]:
-        """Run the picked slot / list item after the teardown (module doc)."""
+    def _pick(self, context: Any, state: RmbState, cs: Any, effect: cp.Pick) -> set[str]:
+        """Run the picked slot / list item after the teardown (module doc): the actions of
+        ``core.compass_rmb.pick_actions`` one after the other while they finish (UV ▸ from
+        Object Mode: enter Edit Mode, then the menu); a mode pick in Object Mode first
+        selects the object under the press point (``core.compass_rmb.press_selects``,
+        :func:`select_at_press`)."""
         if effect.slot is not None:
             item, where = cs.model.slots[effect.slot], ('slot', cp.DIRECTIONS[effect.slot])
         else:
             index = effect.path[-1] if effect.path else -1
             item = cs.model.items[index] if 0 <= index < len(cs.model.items) else None
             where = effect.path
-        action = rmb.pick_action(item)
+        mode = str(getattr(context, 'mode', '') or '')
+        actions = rmb.pick_actions(item, mode)
+        action = actions[-1] if actions else None
         _last['pick'] = (cs.model.key, where, item.label if item is not None else '')
         _last['action'] = ((action.kind, action.target, action.data_path)
                            if action is not None else None)
+        _last['actions'] = [(a.kind, a.target, a.data_path) for a in actions]
+        press_select = rmb.press_selects(state.kind, mode, actions[0] if actions else None)
         window, area, region = state.window, state.area, state.region
+        location = state.press_region
         _end(state, 'run')
         self._state = None
-        if action is not None:
+        if press_select:
             try:
-                res = invoke.execute(action, window, area, region, 'VIEW_3D')
+                res = select_at_press(window, area, region, location)
+                _last['press_select'] = (location, sorted(res) if res is not None else None)
+            except Exception:
+                _log_once('press_select', "selecting the object under the press failed",
+                          exc=True)
+        for step in actions:
+            try:
+                res = invoke.execute(step, window, area, region, 'VIEW_3D')
                 _last['result'] = res.result
             except Exception:
                 _log_once('pick', "running the Compass pick failed", exc=True)
+                break
+            if 'FINISHED' not in (res.result or ()):
+                break
         return {'FINISHED'}
 
     def cancel(self, context) -> None:

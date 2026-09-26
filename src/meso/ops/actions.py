@@ -9,7 +9,9 @@ The Plaza operator itself never has UNDO.
 :class:`MESO_OT_mode_set_select` (``{'INTERNAL'}``) is the Plaza mode switch's select-mode
 cell clicked from another mode: ``object.mode_set`` then the select mode of that mode
 (``core.modes``), nested, each followed by the undo step its native call pushes, so the pick
-leaves the two steps of the native mode menu then header button (see the class).
+leaves the two steps of the native mode menu then header button (see the class). The
+right-click Compass's Multi runs it too (``select='MULTI'``: the whole mesh select mode, from
+any mode; Phase 5c).
 
 :class:`MESO_OT_toggle_flag` (``{'UNDO','INTERNAL'}``, see the class) exists because
 ``wm.context_set_enum`` rejects flag enums ("expected a set, not a str") and assigning an
@@ -162,6 +164,38 @@ def _apply_select(context: Any, domains: modes.SelectDomains, ident: str, extend
     return {'FINISHED'} if old != ident else {'CANCELLED'}
 
 
+def _apply_all(context: Any, domains: modes.SelectDomains) -> set[str] | None:
+    """Turn every member of the flag domain ``domains`` on in the current mode (Multi), so
+    that ``state_path`` (``tool_settings.mesh_select_mode``) reads all True: each member
+    that is off is added as a Shift-click on its header button adds it (the operator, EXEC,
+    nested: ``use_extend`` on; it converts the selection of every edited object, where
+    assigning the property updates only the active one's), or, for a domain without
+    modifiers, the property is assigned. FINISHED when the value changed, CANCELLED when
+    every member was on already, None when it failed (logged once)."""
+    owner_path, prop = datapath.split(domains.state_path)
+    owner = datapath.context_value(context, owner_path) if owner_path else None
+    if owner is None:
+        return None
+    want = (True,) * len(domains.idents)
+    try:
+        old = tuple(bool(v) for v in getattr(owner, prop))
+        if old == want:
+            return {'CANCELLED'}
+        if domains.operator and domains.modifiers:
+            for ident, on in zip(domains.idents, old):
+                if not on:
+                    _call(domains.operator, modes.SUBMODE_OPERATOR_CONTEXT, None,
+                          {domains.op_prop: ident, 'use_extend': True, 'use_expand': False})
+        else:
+            setattr(owner, prop, want)
+        new = tuple(bool(v) for v in getattr(owner, prop))
+    except (AttributeError, TypeError, ValueError) as ex:
+        _log_once(f"select_all:{domains.state_path}",
+                  f"setting {domains.state_path} failed: {ex!r}")
+        return None
+    return {'FINISHED'} if new == want else None
+
+
 def push_step(name: str) -> None:
     """``ed.undo_push(message=name)``: a step exactly as an operator's own push names it
     (``ED_undo_push_op`` pushes ``ot->name``); it runs at any undo depth."""
@@ -219,7 +253,8 @@ class MESO_OT_mode_set_select(Operator):
     )
     select: StringProperty(
         name="Select Mode",
-        description="Select mode of that mode to set once it is entered",
+        description="Select mode of that mode to set once it is entered (MULTI: vertex, edge "
+                    "and face together)",
         default='',
         options={'SKIP_SAVE'},
     )
@@ -252,10 +287,18 @@ class MESO_OT_mode_set_select(Operator):
           pushes none when it changes nothing (the member was already the select mode;
           reported when setting it failed). The mode step stays.
 
+        ``select`` ``core.modes.SELECT_MULTI`` (the right-click Compass's Multi, Phase 5c):
+        every member at once (a flag domain, ``core.modes.multi_supported``: the mesh select
+        mode ``(True, True, True)``, :func:`_apply_all`); the same steps, the
+        'Select Mode' one only when the select mode changed. A radio domain (any other
+        object type) -> ``{'CANCELLED'}``.
+
         Both steps are pushed whatever the caller's undo flag (the Plaza passes it)."""
         obj = context.active_object
         domains = modes.select_domains(obj.type if obj is not None else None, self.mode)
-        if domains is None or self.select not in domains.idents:
+        multi = self.select == modes.SELECT_MULTI
+        if (domains is None or (multi and not modes.multi_supported(domains))
+                or (not multi and self.select not in domains.idents)):
             self.report({'WARNING'}, f"No select mode {self.select!r} in {self.mode!r}")
             return {'CANCELLED'}
         if obj.mode != self.mode:
@@ -269,7 +312,11 @@ class MESO_OT_mode_set_select(Operator):
                 self.report({'WARNING'}, f"Cannot enter {self.mode}")
                 return {'CANCELLED'}
             push_step(_mode_step_name(self.mode))
-        res = _apply_select(context, domains, self.select, self.use_extend, self.use_expand)
+        if multi:
+            res = _apply_all(context, domains)
+        else:
+            res = _apply_select(context, domains, self.select, self.use_extend,
+                                self.use_expand)
         if res is None:
             self.report({'WARNING'}, f"Cannot set the select mode {self.select}")
             return {'CANCELLED'}

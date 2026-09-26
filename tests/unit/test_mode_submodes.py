@@ -174,6 +174,22 @@ class TestSubmodeAction(unittest.TestCase):
                          ('meso.mode_set_select', 'INVOKE_REGION_WIN', True,
                           {'mode': 'SCULPT_CURVES', 'select': 'POINT'}))
 
+    def test_multi_turns_every_member_on(self):
+        """The right-click Compass's Multi (Phase 5c): only a flag domain (the mesh select
+        mode); always ``meso.mode_set_select``, no click modifiers."""
+        self.assertTrue(modes.multi_supported(modes.select_domains('MESH', 'EDIT')))
+        for key in (('GREASEPENCIL', 'EDIT'), ('CURVES', 'EDIT'), ('MESH', 'PARTICLE_EDIT')):
+            self.assertFalse(modes.multi_supported(modes.SELECT_DOMAINS[key]), key)
+        self.assertFalse(modes.multi_supported(None))
+        a = modes.multi_action('EDIT')
+        self.assertEqual((a.kind, a.target, dict(a.props), a.operator_context, a.undo),
+                         (md.ACTION_OPERATOR, actions.MODE_SELECT_OPERATOR,
+                          {'mode': 'EDIT', 'select': modes.SELECT_MULTI}, 'INVOKE_REGION_WIN',
+                          True))
+        self.assertEqual(modes.SELECT_MULTI, 'MULTI')
+        self.assertNotIn(modes.SELECT_MULTI, modes.select_domains('MESH', 'EDIT').idents)
+        self.assertIs(actions.with_click_modifiers(a, shift=True, ctrl=True), a)
+
 
 class TestClickModifiers(unittest.TestCase):
     """Shift extends, Ctrl expands, for the mesh select mode inside and outside Edit Mode;

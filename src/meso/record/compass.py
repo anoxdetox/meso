@@ -11,7 +11,9 @@ Phase 5b (local/docs/phase5b-interfaces.md "Content"): the right-click Compasses
 ``meso.compass_rmb``, ``meso:context`` (the modes around the pointer, the editor's context
 menu as the list; ``build_compass(menu=...)`` names that menu) and ``meso:tools`` (the most
 used tools of the mode / mesh select mode, the mode's tool menu as the list). Both are valid
-zone slot values too, never zone defaults.
+zone slot values too, never zone defaults. Phase 5c (local/docs/phase5c-interfaces.md "B"): a
+mesh's ``meso:context`` has the reference layout's component modes (Edge N, Vertex W, Face S,
+UV ▸ E, Multi SE, Edit Mode SW, Object Mode NE, Sculpt Mode NW).
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ import bpy
 
 from ..core import compass as cp
 from ..core import compass_rmb as rmb
-from ..core import zones
+from ..core import modes, zones
 from ..core.dropdown_model import (
     COVERAGE_NATIVE, DD_NATIVE, DD_OP, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE, DD_TOGGLE_ROW,
     DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_PLAZA_LABEL, PASSIVE_DD_KINDS, DropdownItem,
@@ -403,13 +405,47 @@ def _mode_item(row: DropdownItem) -> DropdownItem:
                         action=row.action, source=row.source)
 
 
+def _uv_item(context: Any, menu_id: str, edit: DropdownItem | None) -> DropdownItem | None:
+    """UV ▸ of a mesh: Blender's UV unwrap menu (``core.compass_rmb.UV_MENU``) as a
+    DD_SUBMENU handed off natively after the teardown, labelled as the 3D View header labels
+    it in mesh Edit Mode ("UV"); left out when the menu is missing. Its entries need the edit
+    mesh (in Object Mode every one's poll fails, verified headless 2026-09-26), so a pick
+    from another mode first enters Edit Mode (``core.compass_rmb.pick_actions``): enabled
+    there as the Edit Mode row (``edit``: the mode switch's poll), in Edit Mode by the
+    menu's own poll."""
+    cls = getattr(bpy.types, menu_id, None)
+    if cls is None:
+        return None
+    if str(getattr(context, 'mode', '') or '') == 'EDIT_MESH':
+        try:
+            enabled = bool(cls.poll(context)) if hasattr(cls, 'poll') else True
+        except Exception:
+            enabled = False
+    else:
+        enabled = edit is not None and bool(edit.enabled)
+    return DropdownItem(DD_SUBMENU, _iface('UV'), enabled=enabled, submenu=menu_id)
+
+
+def _multi_item(cells: tuple) -> DropdownItem:
+    """Multi of a mesh: vertex, edge and face select together
+    (``core.modes.multi_action``: ``meso.mode_set_select(mode='EDIT', select='MULTI')``,
+    entering Edit Mode when needed), enabled as the select-mode cells are (the mode switch's
+    poll from another mode, the header button's in Edit Mode)."""
+    enabled = bool(cells) and all(c.enabled for c in cells)
+    return DropdownItem(DD_OP, _iface('Multi'), enabled=enabled,
+                        action=modes.multi_action('EDIT'))
+
+
 def _context(context: Any, plaza: Any, prefs: Any, menu: str = '') -> cp.CompassModel:
-    """``meso:context`` (local/docs/phase5b-interfaces.md "Content"): the mode switch
-    (``record.builtin_menus.mode_switch_model``) around the pointer
-    (``core.compass_rmb.mode_slots``: Object Mode NE, the Edit Mode label E, its select-mode
-    cells W / N / S, the other modes SE / SW / NW; modes past those are listed first), then
-    the context menu ``menu`` (default: the mode's, ``core.compass_rmb.context_menu_for_mode``)
-    recorded as the list."""
+    """``meso:context`` (local/docs/phase5b-interfaces.md "Content", local/docs/phase5c-
+    interfaces.md "B"): the mode switch (``record.builtin_menus.mode_switch_model``) around
+    the pointer (``core.compass_rmb.mode_slots``: Object Mode NE, the Edit Mode select-mode
+    cells W / N / S; a mesh: UV ▸ E, Multi SE, the Edit Mode label SW, Sculpt Mode NW;
+    another type: the Edit Mode label E, the other modes SE / SW / NW; the modes past those
+    are listed first), then the context menu ``menu`` (default: the mode's,
+    ``core.compass_rmb.context_menu_for_mode``) recorded as the list. Only the current
+    mode's own entry is disabled: in Edit Mode the cells and Multi switch the select mode,
+    as the header buttons do."""
     switch = builtin_menus.mode_switch_model(context)
     rows = switch.items if switch.coverage != COVERAGE_NATIVE else ()
     by_mode: dict[str, DropdownItem] = {}
@@ -419,15 +455,21 @@ def _context(context: Any, plaza: Any, prefs: Any, menu: str = '') -> cp.Compass
             by_mode[mode] = row
     edit = by_mode.get('EDIT')
     cells = edit.cells if edit is not None and edit.kind == DD_TOGGLE_ROW else ()
-    placed, overflow = rmb.mode_slots(list(by_mode), len(cells))
+    obj = getattr(context, 'active_object', None)
+    mesh = getattr(obj, 'type', None) == 'MESH'
+    placed, overflow = rmb.mode_slots(list(by_mode), len(cells), mesh=mesh)
     slots: dict[str, DropdownItem | None] = {}
     for direction, (what, ref) in placed.items():
         if what == 'mode':
             slots[direction] = _mode_item(by_mode[ref])
-        else:
+        elif what == 'cell':
             cell = cells[ref]
             slots[direction] = DropdownItem(DD_OP, cell.label, enabled=cell.enabled,
                                             action=cell.action)
+        elif what == 'uv':
+            slots[direction] = _uv_item(context, ref, edit)
+        elif what == 'multi':
+            slots[direction] = _multi_item(cells)
     listed: list[DropdownItem | None] = [_mode_item(by_mode[m]) for m in overflow]
     menu = menu or rmb.context_menu_for_mode(str(getattr(context, 'mode', '') or ''))
     menu_items = _menu_items(context, menu)

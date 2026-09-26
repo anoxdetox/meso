@@ -224,6 +224,28 @@ class TestContent(unittest.TestCase):
         self.assertEqual(rmb.mode_menu('OBJECT', None, False), 'VIEW3D_MT_object')
 
     def test_mode_slots_of_a_mesh(self):
+        """The reference layout (Phase 5c): N Edge, W Vertex, S Face, NE Object Mode, E UV,
+        SE Multi, SW Edit Mode, NW the first other mode; the rest is listed."""
+        ids = ('OBJECT', 'EDIT', 'SCULPT', 'VERTEX_PAINT', 'WEIGHT_PAINT', 'TEXTURE_PAINT')
+        slots, overflow = rmb.mode_slots(ids, 3, mesh=True)
+        self.assertEqual(slots, {'NE': ('mode', 'OBJECT'), 'SW': ('mode', 'EDIT'),
+                                 'W': ('cell', 0), 'N': ('cell', 1), 'S': ('cell', 2),
+                                 'E': ('uv', 'VIEW3D_MT_uv_map'), 'SE': ('multi', None),
+                                 'NW': ('mode', 'SCULPT')})
+        self.assertEqual(rmb.UV_MENU, 'VIEW3D_MT_uv_map')
+        self.assertEqual(overflow, ('VERTEX_PAINT', 'WEIGHT_PAINT', 'TEXTURE_PAINT'))
+        slots, overflow = rmb.mode_slots(ids + ('PARTICLE_EDIT',), 3, mesh=True)
+        self.assertEqual(overflow[-1], 'PARTICLE_EDIT')
+        self.assertEqual(len(slots), 8, "every direction taken")
+
+    def test_mode_slots_of_a_mesh_without_edit_mode_or_cells(self):
+        slots, overflow = rmb.mode_slots(('OBJECT',), 0, mesh=True)
+        self.assertEqual((slots, overflow), ({'NE': ('mode', 'OBJECT')}, ()))
+        slots, _ = rmb.mode_slots(('OBJECT', 'EDIT'), 0, mesh=True)
+        self.assertEqual(slots, {'NE': ('mode', 'OBJECT'), 'SW': ('mode', 'EDIT'),
+                                 'E': ('uv', 'VIEW3D_MT_uv_map')}, "Multi needs the cells")
+
+    def test_mode_slots_of_another_type_are_unchanged(self):
         ids = ('OBJECT', 'EDIT', 'SCULPT', 'VERTEX_PAINT', 'WEIGHT_PAINT', 'TEXTURE_PAINT')
         slots, overflow = rmb.mode_slots(ids, 3)
         self.assertEqual(slots, {'NE': ('mode', 'OBJECT'), 'E': ('mode', 'EDIT'),
@@ -231,6 +253,52 @@ class TestContent(unittest.TestCase):
                                  'SE': ('mode', 'SCULPT'), 'SW': ('mode', 'VERTEX_PAINT'),
                                  'NW': ('mode', 'WEIGHT_PAINT')})
         self.assertEqual(overflow, ('TEXTURE_PAINT',))
+        self.assertEqual(rmb.mode_slots(ids, 3, mesh=False), (slots, overflow))
+        gp = ('OBJECT', 'EDIT', 'PAINT_GREASE_PENCIL', 'SCULPT_GREASE_PENCIL',
+              'WEIGHT_GREASE_PENCIL', 'VERTEX_GREASE_PENCIL')
+        slots, overflow = rmb.mode_slots(gp, 3)
+        self.assertNotIn('multi', {v[0] for v in slots.values()})
+        self.assertEqual(overflow, ('VERTEX_GREASE_PENCIL',))
+
+    def test_press_selects_only_mode_picks_in_object_mode(self):
+        def op(target, **kw):
+            return A(model.ACTION_OPERATOR, target=target, props=kw)
+        mode = op('object.mode_set', mode='EDIT')
+        cell = op('meso.mode_set_select', mode='EDIT', select='EDGE')
+        multi = op('meso.mode_set_select', mode='EDIT', select='MULTI')
+        for action in (mode, cell, multi):
+            self.assertTrue(rmb.press_selects('CONTEXT', 'OBJECT', action), action.target)
+            self.assertFalse(rmb.press_selects('CONTEXT', 'EDIT_MESH', action),
+                             "an edit mode selects nothing")
+            self.assertFalse(rmb.press_selects('TOOLS', 'OBJECT', action), "the tool Compass")
+        for action in (op('object.shade_smooth'), op('wm.call_menu', name='VIEW3D_MT_uv_map'),
+                       op('mesh.select_mode', type='EDGE'), None,
+                       A(model.ACTION_PROP_ENUM_MENU, data_path='object.mode')):
+            self.assertFalse(rmb.press_selects('CONTEXT', 'OBJECT', action), action)
+
+    def test_pick_actions_enter_the_uv_menus_mode_first(self):
+        uv = I(dm.DD_SUBMENU, 'UV', submenu=rmb.UV_MENU)
+        menu = rmb.pick_action(uv)
+        self.assertEqual(rmb.pick_actions(uv, 'EDIT_MESH'), (menu,))
+        enter, handoff = rmb.pick_actions(uv, 'OBJECT')
+        self.assertEqual(handoff, menu)
+        self.assertEqual((enter.kind, enter.target, dict(enter.props), enter.operator_context,
+                          enter.undo),
+                         (model.ACTION_OPERATOR, 'object.mode_set', {'mode': 'EDIT'},
+                          'INVOKE_REGION_WIN', True))
+        self.assertTrue(rmb.press_selects('CONTEXT', 'OBJECT', enter), "a mode entry")
+        other = I(dm.DD_SUBMENU, 'Apply', submenu='VIEW3D_MT_object_apply')
+        self.assertEqual(len(rmb.pick_actions(other, 'OBJECT')), 1)
+        self.assertEqual(rmb.pick_actions(I(dm.DD_SUBMENU, 'UV', submenu=rmb.UV_MENU,
+                                            enabled=False), 'OBJECT'), ())
+        self.assertEqual(rmb.pick_actions(None, 'OBJECT'), ())
+        plain = I(dm.DD_OP, 'Join', action=A(model.ACTION_OPERATOR, target='object.join'))
+        self.assertEqual(rmb.pick_actions(plain, 'OBJECT'), (plain.action,))
+
+    def test_press_select_call_is_a_plain_click(self):
+        self.assertEqual(rmb.press_select_call((120.4, 33.6)),
+                         ('view3d.select', {'location': (120, 34), 'extend': False,
+                                            'deselect_all': False}))
 
     def test_mode_slots_of_an_armature_and_of_nothing(self):
         slots, overflow = rmb.mode_slots(('OBJECT', 'EDIT', 'POSE'), 0)

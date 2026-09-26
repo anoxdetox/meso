@@ -82,9 +82,14 @@ quarters split by the corner ticks, or the centre box) and that zone's Compass o
 pointer: up to eight boxes around a small ring, and a list under them. The Plaza steps aside
 while the Compass is open.
 
-Drag toward a box and let go to pick it, without looking. Let go in the ring to cancel. A quick
-middle or right click leaves the Compass open; then click a box. A left click on empty space
-still just closes an open menu.
+The direction picks: a short flick toward a box is enough, without looking, and it doesn't
+matter how far you go or whether you end on the box. Even a flick that ends on the list picks
+the box in that direction. To pick from the list, stop on it for a moment and let go on the
+item. Let go in the ring to cancel. A quick middle or right click leaves the Compass open; then
+click a box or a list item. A left click on empty space still just closes an open menu.
+
+A list too long for the window shows arrows at its ends. Turn the mouse wheel over the list, or
+rest on an arrow, to scroll it. Scrolling never picks anything.
 
 The defaults, all with the left button:
 
@@ -108,9 +113,25 @@ them in the add-on preferences, under Compass menus.
 ![The right-click Compass in Object Mode](images/compass_rmb_context.png)
 
 With the Meso Keymap, hold or drag the right mouse button in the 3D View for a Compass of the
-modes: Edge north, Vertex west, Face south, Object Mode north-east, Edit Mode east, the other
-modes on the diagonals. The context menu is the list under it. A quick click still opens the
-context menu as before.
+modes, with the context menu as the list under it. A quick click still opens the context menu
+as before.
+
+For a mesh: Edge north, Vertex west, Face south, Object Mode north-east, **UV ▸** east (Blender's
+UV unwrap menu; from Object Mode it enters Edit Mode first), **Multi** south-east (vertex, edge and face select together), Edit Mode
+south-west (with the current select mode) and Sculpt Mode north-west. The paint modes head the
+list. For other objects: Object Mode north-east, Edit Mode east, the select modes where the
+object has them, and the other modes on the diagonals. In Edit Mode the select modes stay
+available, as the header buttons are; only the mode you are in is greyed out.
+
+Right-click, flick, done: the Compass doesn't have to draw first. A flick north-east is Object
+Mode, a flick south is Face. Stop on the list for a moment to pick a context menu item instead.
+
+The Compass stays where you pressed, even at the edge of the window (its list moves above or
+beside it and scrolls when it is long), and the pointer is never moved. The press point counts:
+in Object Mode, picking a mode first selects the object under the press, as a click there
+would, and then switches that object's mode. So right-click an object, flick south, and you
+are editing its faces. Nothing under the press keeps the selection. The context menu items act
+on the selection as before, and in Edit Mode the press selects nothing.
 
 ![The Shift+right-click tool Compass in Object Mode](images/compass_rmb_tools.png)
 

@@ -66,26 +66,45 @@ def select_mode(vert, edge, face):
 class TestContextCompass(unittest.TestCase):
 
     def test_object_mode(self):
+        """A mesh (the factory Cube): the reference layout (Phase 5c) — N Edge, W Vertex,
+        S Face, NE Object Mode, E UV ▸, SE Multi, SW Edit Mode, NW Sculpt Mode."""
         model = build('meso:context', 'VIEW3D_MT_object_context_menu')
         self.assertIsNotNone(model)
         self.assertEqual(model.key, 'meso:context')
         slots = by_direction(model)
-        props = {d: dict(s.action.props) for d, s in slots.items()}
+        self.assertEqual(set(slots), {'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'})
+        props = {d: dict(s.action.props) for d, s in slots.items() if s.action is not None}
         self.assertEqual(props['NE'], {'mode': 'OBJECT'})
         self.assertFalse(slots['NE'].enabled, "the current mode")
-        self.assertEqual(props['E'], {'mode': 'EDIT'})
-        self.assertTrue(slots['E'].enabled)
+        self.assertEqual(props['SW'], {'mode': 'EDIT'})
+        self.assertEqual(slots['SW'].action.target, 'object.mode_set')
+        self.assertTrue(slots['SW'].enabled)
         # The Edit Mode row's select-mode cells: Vertex W, Edge N, Face S (enter + set).
-        self.assertEqual([(slots[d].action.target, slots[d].label) for d in ('W', 'N', 'S')],
-                         [('meso.mode_set_select', 'Vertex'), ('meso.mode_set_select', 'Edge'),
-                          ('meso.mode_set_select', 'Face')])
-        self.assertEqual([props[d]['mode'] for d in ('SE', 'SW', 'NW')],
-                         ['SCULPT', 'VERTEX_PAINT', 'WEIGHT_PAINT'])
-        self.assertTrue(all(s.kind == 'op' for s in slots.values()), "every slot a DD_OP")
-        # The overflow mode first, then the context menu as the list.
-        first = model.items[0]
-        self.assertEqual(dict(first.action.props), {'mode': 'TEXTURE_PAINT'})
-        self.assertEqual(model.items[1].kind, 'separator')
+        self.assertEqual([(slots[d].action.target, slots[d].label, props[d]['select'])
+                          for d in ('W', 'N', 'S')],
+                         [('meso.mode_set_select', 'Vertex', 'VERT'),
+                          ('meso.mode_set_select', 'Edge', 'EDGE'),
+                          ('meso.mode_set_select', 'Face', 'FACE')])
+        self.assertTrue(all(slots[d].enabled for d in ('W', 'N', 'S')))
+        # UV: Blender's UV unwrap menu, handed off (a pick from Object Mode enters Edit Mode
+        # first: its entries need the edit mesh).
+        uv = slots['E']
+        self.assertEqual((uv.kind, uv.submenu, uv.label, uv.enabled),
+                         ('submenu', 'VIEW3D_MT_uv_map', 'UV', True))
+        # Multi: vertex + edge + face select, entering Edit Mode.
+        multi = slots['SE']
+        self.assertEqual((multi.kind, multi.label, multi.action.target, props['SE'],
+                          multi.enabled),
+                         ('op', 'Multi', 'meso.mode_set_select',
+                          {'mode': 'EDIT', 'select': 'MULTI'}, True))
+        self.assertEqual(props['NW'], {'mode': 'SCULPT'})
+        self.assertTrue(all(s.kind == 'op' for d, s in slots.items() if d != 'E'),
+                        "every other slot a DD_OP")
+        # The remaining modes first, then the context menu as the list.
+        self.assertEqual([dict(i.action.props) for i in model.items[:3]],
+                         [{'mode': 'VERTEX_PAINT'}, {'mode': 'WEIGHT_PAINT'},
+                          {'mode': 'TEXTURE_PAINT'}])
+        self.assertEqual(model.items[3].kind, 'separator')
         self.assertIn('object.shade_smooth', targets(model.items))
 
     def test_default_menu_is_the_modes(self):
@@ -93,16 +112,27 @@ class TestContextCompass(unittest.TestCase):
         self.assertIn('object.shade_smooth', targets(model.items))
 
     def test_edit_mesh(self):
+        """In Edit Mode only the current mode's own entry is disabled: the cells and Multi
+        switch the select mode, as the header buttons do; UV ▸ opens the unwrap menu."""
         with in_mode(None, 'EDIT'), select_mode(True, False, False):
             model = build('meso:context', 'VIEW3D_MT_edit_mesh_context_menu')
             slots = by_direction(model)
             self.assertTrue(slots['NE'].enabled, "Object Mode from Edit Mode")
-            self.assertFalse(slots['E'].enabled, "the current mode")
+            self.assertFalse(slots['SW'].enabled, "the current mode")
+            self.assertEqual(dict(slots['SW'].action.props), {'mode': 'EDIT'})
             w, n, s = (slots[d] for d in ('W', 'N', 'S'))
             self.assertEqual([(x.action.target, dict(x.action.props).get('type'))
                               for x in (w, n, s)],
                              [('mesh.select_mode', 'VERT'), ('mesh.select_mode', 'EDGE'),
                               ('mesh.select_mode', 'FACE')])
+            self.assertTrue(all(x.enabled for x in (w, n, s)), "the cells stay enabled")
+            uv, multi = slots['E'], slots['SE']
+            self.assertEqual((uv.kind, uv.submenu, uv.enabled),
+                             ('submenu', 'VIEW3D_MT_uv_map', True))
+            self.assertEqual((multi.action.target, dict(multi.action.props), multi.enabled),
+                             ('meso.mode_set_select', {'mode': 'EDIT', 'select': 'MULTI'},
+                              True))
+            self.assertTrue(slots['NW'].enabled, "Sculpt Mode from Edit Mode")
             listed = targets(model.items)
             self.assertTrue(any(t.startswith('mesh.') for t in listed), listed[:10])
             self.assertNotIn('object.shade_smooth', listed)
@@ -217,8 +247,15 @@ class _RmbCase(unittest.TestCase):
         self.dm = _mod("view.draw_manager")
         self.area = area_of('VIEW_3D')
         self.region = region_of(self.area)
-        self.native, self.executed, self.warps = [], [], []
+        self.native, self.executed, self.warps, self.selects = [], [], [], []
         self.clock = [100.0]
+
+        def fake_select(window, area, region, location):
+            # Never the real view3d.select under -b: it segfaults (no region view data).
+            self.selects.append({'location': tuple(location), 'running': rmb.is_running(),
+                                 'executed': len(self.executed), 'area': area,
+                                 'region': region, 'mode': bpy.context.mode})
+            return {'FINISHED'}
 
         def fake_native(call, window, area, region):
             self.native.append({'call': call, 'running': rmb.is_running(),
@@ -234,6 +271,7 @@ class _RmbCase(unittest.TestCase):
 
         for mod, name, fake in (
                 (rmb, 'run_native', fake_native), (inv, 'execute', fake_execute),
+                (rmb, 'select_at_press', fake_select),
                 (oc, 'warp_cursor', lambda window, xy: self.warps.append(xy)),
                 (rmb, 'time', SimpleNamespace(perf_counter=lambda: self.clock[0]))):
             self.addCleanup(setattr, mod, name, getattr(mod, name))
@@ -580,6 +618,370 @@ class TestCompassRmbOperator(_RmbCase):
         self.assertEqual(self.hold(op), {'CANCELLED'})
         self.assertFalse(self.rmb.is_running())
         self.assertEqual(self.rmb.last_session()['end'], 'watchdog')
+
+
+class TestCompassRmbPhase5c(_RmbCase):
+    """Phase 5c (local/docs/phase5c-interfaces.md "B"): the radial never moves (no shift, no
+    warp), the gesture wins over the list, a long list scrolls, and a mode pick in Object
+    Mode first selects the object under the press point (the ``select_at_press`` seam)."""
+
+    def show(self, op=None, xy=None):
+        op = op or _op()
+        self.press(op, xy)
+        self.hold(op)
+        cs = self.rmb.current_state().compass
+        self.assertIsNotNone(cs)
+        return op, cs
+
+    def pick_toward(self, op, direction):
+        target = self.toward(direction)
+        self.ev(op, 'MOUSEMOVE', xy=target)
+        self.clock[0] += 0.1
+        return self.ev(op, 'RIGHTMOUSE', 'RELEASE', target)
+
+    def mid(self, rect):
+        return int(rect.x + rect.w // 2), int(rect.y + rect.h // 2)
+
+    def region_xy(self, xy):
+        return int(xy[0]) - self.region.x, int(xy[1]) - self.region.y
+
+    def long_list(self, n=80):
+        """``build_compass`` stubbed: a slot in every direction (mode items) and ``n`` list
+        items, more than a window holds."""
+        cpm, dmm, mm = _mod("core.compass"), _mod("core.dropdown_model"), _mod("core.model")
+        A = mm.Action
+        slots = tuple(dmm.DropdownItem(dmm.DD_OP, d, action=A(
+            mm.ACTION_OPERATOR, target='object.mode_set', props={'mode': 'EDIT'}))
+            for d in cpm.DIRECTIONS)
+        items = tuple(dmm.DropdownItem(dmm.DD_OP, f'Item {i}', action=A(
+            mm.ACTION_OPERATOR, target='object.item', props={'index': i})) for i in range(n))
+        model = cpm.CompassModel('meso:context', 'List', slots, items)
+        rc = _mod("record.compass")
+        self.addCleanup(setattr, rc, 'build_compass', rc.build_compass)
+        rc.build_compass = lambda *args, **kwargs: model
+        return model
+
+    # --- the fixed anchor ------------------------------------------------------------------
+
+    def test_the_radial_stays_at_the_press_near_every_edge(self):
+        r = self.region
+        for xy in ((r.x + 12, r.y + 12), (r.x + r.width - 12, r.y + 12),
+                   (r.x + 12, r.y + r.height - 12), (r.x + r.width - 12, r.y + r.height - 12)):
+            with self.subTest(xy=xy):
+                op, cs = self.show(xy=xy)
+                lay = cs.layout
+                self.assertTrue(lay.fixed)
+                self.assertEqual(lay.shift, (0, 0))
+                self.assertEqual(lay.centre, (float(xy[0]), float(xy[1])), "never moved")
+                self.assertEqual(cs.pointer, (float(xy[0]), float(xy[1])))
+                self.assertEqual(self.warps, [], "the pointer is never warped")
+                panel = lay.panel
+                self.assertIsNotNone(panel, "the context menu is the list")
+                bounds = self.rmb.current_state().bounds
+                self.assertTrue(bounds.x <= panel.rect.x and panel.rect.x1 <= bounds.x1
+                                and bounds.y <= panel.rect.y and panel.rect.y1 <= bounds.y1,
+                                (panel.rect, bounds))
+                self.assertEqual(self.ev(op, 'ESC', 'PRESS'), {'FINISHED'})
+
+    def test_a_press_near_the_bottom_puts_the_list_above_or_beside(self):
+        r = self.region
+        xy = (r.x + r.width // 2, r.y + 40)
+        _op_, cs = self.show(xy=xy)
+        lay = cs.layout
+        self.assertEqual(lay.centre, (float(xy[0]), float(xy[1])))
+        s_box = next(b for b in lay.boxes if b.direction == 'S')
+        self.assertLess(s_box.rect.y, r.y, "the S box goes past the edge (drawn clipped)")
+        self.assertGreaterEqual(lay.panel.rect.y, self.rmb.current_state().bounds.y)
+
+    # --- the gesture wins -------------------------------------------------------------------
+
+    def test_a_flick_south_over_the_list_picks_face(self):
+        op, cs = self.show()
+        panel = cs.layout.panel
+        target = (int(cs.layout.centre[0]), int(panel.rect.y + panel.rect.h // 2))
+        self.assertTrue(_mod("core.compass").on_list(cs.layout, *target), "on the list")
+        self.ev(op, 'MOUSEMOVE', xy=target)
+        self.clock[0] += 0.1                            # < LIST_DWELL
+        self.assertEqual(self.ev(op, 'RIGHTMOUSE', 'RELEASE', target), {'FINISHED'})
+        run = self.executed[0]['action']
+        self.assertEqual((run.target, dict(run.props)['select']),
+                         ('meso.mode_set_select', 'FACE'), "the direction, never the list")
+
+    def test_a_rest_on_the_list_picks_a_context_item_and_selects_nothing(self):
+        op, cs = self.show()
+        model = cs.model
+        index = next(i for i, it in enumerate(model.items)
+                     if it.action is not None and it.action.target == 'object.shade_smooth')
+        placed = next((it for it in cs.layout.panel.items if it.path[-1] == index), None)
+        self.assertIsNotNone(placed, "Shade Smooth is visible")
+        xy = self.mid(placed.rect)
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        self.clock[0] += 0.4                            # > LIST_DWELL
+        self.ev(op, 'TIMER')
+        self.assertEqual(self.rmb.current_state().compass.gesture.hover_path, placed.path)
+        self.assertEqual(self.ev(op, 'RIGHTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual(self.executed[0]['action'].target, 'object.shade_smooth')
+        self.assertEqual(self.selects, [], "a context menu item acts on the selection")
+
+    def test_mark_ahead_release_picks_by_direction(self):
+        """A release past the drag distance before the Compass drew (no hold, no move): the
+        mark's direction picks, it is never a tap."""
+        op = _op()
+        x, y = self.centre()
+        self.press(op, (x, y))
+        self.clock[0] += 0.05                           # < COMPASS_HOLD_DELAY
+        self.assertEqual(self.ev(op, 'RIGHTMOUSE', 'RELEASE', (x, y - 60)), {'FINISHED'})
+        self.assertEqual(self.native, [], "no tap")
+        run = self.executed[0]['action']
+        self.assertEqual(dict(run.props).get('select'), 'FACE')
+        self.assertEqual(self.selects[0]['location'], self.region_xy((x, y)))
+        self.assertEqual(self.rmb.last_session()['pick'][1], ('slot', 'S'))
+
+    # --- scrolling --------------------------------------------------------------------------
+
+    def test_the_wheel_scrolls_a_long_list_and_never_picks(self):
+        self.long_list()
+        op, cs = self.show()
+        lay = cs.layout
+        self.assertTrue(lay.scrolls)
+        row = lay.panel.items[3]
+        xy = self.mid(row.rect)
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        self.assertEqual(self.ev(op, 'WHEELDOWNMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
+        cs = self.rmb.current_state().compass
+        self.assertEqual(cs.layout.scroll, 1)
+        self.ev(op, 'WHEELDOWNMOUSE', 'PRESS', xy)
+        self.assertEqual(cs.layout.scroll, 2)
+        self.ev(op, 'WHEELUPMOUSE', 'PRESS', xy)
+        self.assertEqual(cs.layout.scroll, 1)
+        off = self.toward('N')
+        self.assertEqual(self.ev(op, 'WHEELDOWNMOUSE', 'PRESS', off), {'RUNNING_MODAL'})
+        self.assertEqual(cs.layout.scroll, 1, "off the list the wheel is swallowed")
+        self.assertEqual((self.executed, self.selects), ([], []), "a scroll never picks")
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        self.clock[0] += 0.4
+        self.ev(op, 'TIMER')
+        path = cs.gesture.hover_path
+        self.assertEqual(path, (3,), "the item under the pointer after the scroll")
+        self.assertEqual(self.ev(op, 'RIGHTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual(dict(self.executed[0]['action'].props), {'index': 3})
+
+    def test_an_arrow_row_scrolls_on_the_ticks_and_a_release_there_cancels(self):
+        self.long_list()
+        op, cs = self.show()
+        down = cs.layout.arrow_down
+        self.assertIsNotNone(down)
+        xy = self.mid(down)
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        repeat = _mod("core.compass").SCROLL_REPEAT
+        self.clock[0] += 2 * repeat + 0.01
+        self.assertEqual(self.ev(op, 'TIMER'), {'PASS_THROUGH'})
+        self.assertEqual(self.rmb.current_state().compass.layout.scroll, 2)
+        self.clock[0] += 0.01
+        self.assertEqual(self.ev(op, 'RIGHTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual((self.executed, self.selects), ([], []))
+        self.assertEqual(self.rmb.last_session()['end'], 'cancel')
+
+    # --- the press point picks the object ---------------------------------------------------
+
+    def test_a_mode_pick_selects_the_object_under_the_press_first(self):
+        xy = self.centre()
+        op, cs = self.show(xy=xy)
+        self.assertEqual(self.pick_toward(op, 'N'), {'FINISHED'})           # Edge
+        self.assertEqual(len(self.selects), 1)
+        sel = self.selects[0]
+        self.assertEqual(sel['location'], self.region_xy(xy), "the press, in region coords")
+        self.assertEqual((sel['running'], sel['executed'], sel['mode']), (False, 0, 'OBJECT'),
+                         "after the teardown, before the mode action")
+        self.assertEqual((sel['area'], sel['region']), (self.area, self.region))
+        run = self.executed[0]['action']
+        self.assertEqual((run.target, dict(run.props)['select']),
+                         ('meso.mode_set_select', 'EDGE'))
+        self.assertEqual(self.rmb.last_session()['press_select'],
+                         (self.region_xy(xy), ['FINISHED']))
+
+    def test_every_mode_item_selects_first(self):
+        for direction, target in (('SW', 'object.mode_set'), ('NW', 'object.mode_set'),
+                                  ('SE', 'meso.mode_set_select'),
+                                  ('W', 'meso.mode_set_select')):
+            with self.subTest(direction=direction):
+                self.selects.clear()
+                self.executed.clear()
+                op, _cs = self.show()
+                self.assertEqual(self.pick_toward(op, direction), {'FINISHED'})
+                self.assertEqual(self.executed[0]['action'].target, target)
+                self.assertEqual(len(self.selects), 1)
+
+    def test_an_overflow_mode_in_the_list_selects_first(self):
+        op, cs = self.show()
+        first = cs.layout.panel.items[0]
+        self.assertEqual(dict(cs.model.items[first.path[-1]].action.props),
+                         {'mode': 'VERTEX_PAINT'})
+        xy = self.mid(first.rect)
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        self.clock[0] += 0.4
+        self.ev(op, 'TIMER')
+        self.assertEqual(self.ev(op, 'RIGHTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual(self.executed[0]['action'].target, 'object.mode_set')
+        self.assertEqual(len(self.selects), 1)
+
+    def test_uv_from_object_mode_enters_edit_mode_then_opens_the_menu(self):
+        op, _cs = self.show()
+        self.assertEqual(self.pick_toward(op, 'E'), {'FINISHED'})
+        self.assertEqual([(e['action'].kind, e['action'].target, dict(e['action'].props),
+                           e['running']) for e in self.executed],
+                         [('operator', 'object.mode_set', {'mode': 'EDIT'}, False),
+                          ('menu', 'VIEW3D_MT_uv_map', {}, False)],
+                         "Edit Mode, then the menu handed off (wm.call_menu)")
+        self.assertEqual(self.executed[0]['action'].operator_context, 'INVOKE_REGION_WIN')
+        self.assertEqual(len(self.selects), 1, "entering Edit Mode: the object under the press")
+        self.assertEqual(self.selects[0]['executed'], 0)
+        self.assertEqual([a[1] for a in self.rmb.last_session()['actions']],
+                         ['object.mode_set', 'VIEW3D_MT_uv_map'])
+
+    def test_a_failed_step_stops_the_pick(self):
+        inv = _mod("ops.invoke")
+        tried = []
+
+        def refuse(action, window, area, region, area_type=None):
+            tried.append(action.target)
+            return inv.ExecResult(('fake', {}), ['CANCELLED'], True)
+        inv.execute = refuse                    # setUp's cleanup restores the original
+        op, _cs = self.show()
+        self.assertEqual(self.pick_toward(op, 'E'), {'FINISHED'})
+        self.assertEqual(tried, ['object.mode_set'], "no menu without Edit Mode")
+
+    def test_in_edit_mode_the_press_selects_nothing(self):
+        with in_mode(None, 'EDIT'), select_mode(True, False, False):
+            op, _cs = self.show()
+            self.assertEqual(self.pick_toward(op, 'N'), {'FINISHED'})
+            run = self.executed[0]['action']
+            self.assertEqual((run.target, dict(run.props)), ('mesh.select_mode',
+                                                             {'type': 'EDGE'}))
+            op, _cs = self.show()
+            self.assertEqual(self.pick_toward(op, 'E'), {'FINISHED'})
+            self.assertEqual(len(self.executed), 2, "Edit Mode already: only the menu")
+            run = self.executed[1]['action']
+            self.assertEqual((run.kind, run.target), ('menu', 'VIEW3D_MT_uv_map'),
+                             "UV handed off")
+            self.assertEqual(self.selects, [], "component modes act on the edited objects")
+
+    def test_the_tool_compass_selects_nothing(self):
+        op, _cs = self.show(_op(kind='TOOLS', menu='', role='SHIFT'))
+        self.assertEqual(self.pick_toward(op, 'N'), {'FINISHED'})
+        self.assertEqual(self.executed[0]['action'].target, 'object.join')
+        self.assertEqual(self.selects, [])
+
+    def test_the_seam_is_a_plain_click_without_undo(self):
+        inv = _mod("ops.invoke")
+        calls = []
+        self.addCleanup(setattr, inv, 'run_call', inv.run_call)
+        inv.run_call = lambda call, window, area, region: calls.append(
+            (call, window, area, region)) or {'FINISHED'}
+        real = type(self)._real_select
+        self.assertEqual(real(_window(), self.area, self.region, (40, 50)), {'FINISHED'})
+        call, window, area, region = calls[0]
+        self.assertEqual((call.op_idname, call.operator_context, call.undo, call.kwargs),
+                         ('view3d.select', 'EXEC_DEFAULT', None,
+                          {'location': (40, 50), 'extend': False, 'deselect_all': False}))
+        self.assertEqual((window, area, region), (_window(), self.area, self.region))
+
+    @classmethod
+    def setUpClass(cls):
+        cls._real_select = staticmethod(_mod("ops.compass_rmb").select_at_press)
+
+
+class TestMultiSelect(unittest.TestCase):
+    """``meso.mode_set_select(select='MULTI')`` (Phase 5c): vertex + edge + face select for
+    a mesh, entering Edit Mode when needed, with the native steps ('Edit Mode', then
+    'Select Mode' when the select mode changed); CANCELLED for any other type. Called as the
+    Compass pick calls it (``INVOKE_REGION_WIN`` with the undo flag: no REGISTER operator,
+    its nested calls run without the flag, so this works in ``-b``)."""
+
+    def pick(self, **props):
+        from tests.blender.test_header import quiet
+        with override(area_of('VIEW_3D')), quiet():
+            return bpy.ops.meso.mode_set_select('INVOKE_REGION_WIN', True, **props)
+
+    def marker(self):
+        from tests.blender.test_actions import push_base
+        with override(area_of('VIEW_3D')):
+            return push_base()
+
+    def steps(self, marker):
+        from tests.blender.test_actions import steps_since
+        return steps_since(marker)
+
+    def test_from_object_mode(self):
+        with select_mode(True, False, False), in_mode(None, 'OBJECT'):
+            marker = self.marker()
+            self.assertEqual(self.pick(mode='EDIT', select='MULTI'), {'FINISHED'})
+            self.assertEqual(bpy.context.mode, 'EDIT_MESH')
+            self.assertEqual(tuple(bpy.context.tool_settings.mesh_select_mode),
+                             (True, True, True))
+            self.assertEqual(self.steps(marker), ['Edit Mode', 'Select Mode'])
+            with override(area_of('VIEW_3D')):
+                self.assertEqual(bpy.ops.ed.undo(), {'FINISHED'})
+                self.assertEqual((bpy.context.mode,
+                                  tuple(bpy.context.tool_settings.mesh_select_mode)),
+                                 ('EDIT_MESH', (True, False, False)), "the old select mode")
+                self.assertEqual(bpy.ops.ed.undo(), {'FINISHED'})
+                self.assertEqual(bpy.context.mode, 'OBJECT')
+                self.assertEqual(bpy.ops.ed.redo(), {'FINISHED'})
+                self.assertEqual(bpy.ops.ed.redo(), {'FINISHED'})
+                self.assertEqual(tuple(bpy.context.tool_settings.mesh_select_mode),
+                                 (True, True, True))
+
+    def test_in_edit_mode(self):
+        with in_mode(None, 'EDIT'), select_mode(False, True, False):
+            marker = self.marker()
+            self.assertEqual(self.pick(mode='EDIT', select='MULTI'), {'FINISHED'})
+            self.assertEqual(tuple(bpy.context.tool_settings.mesh_select_mode),
+                             (True, True, True))
+            self.assertEqual(self.steps(marker), ['Select Mode'])
+            marker = self.marker()
+            self.assertEqual(self.pick(mode='EDIT', select='MULTI'), {'CANCELLED'},
+                             "already all three: no step, as the native button")
+            self.assertEqual(self.steps(marker), [])
+
+    def test_every_edited_mesh_gets_it(self):
+        """Several meshes in Edit Mode: each edit mesh's own select mode is all three (the
+        header buttons' operator, not the tool setting alone, which updates the active)."""
+        import bmesh
+        with select_mode(True, False, False), in_mode('MESH', 'OBJECT') as other:
+            cube = bpy.data.objects['Cube']
+            cube.select_set(True)
+            self.assertEqual(self.pick(mode='EDIT', select='MULTI'), {'FINISHED'})
+            self.assertEqual(bpy.context.mode, 'EDIT_MESH')
+            for obj in (other, cube):
+                with self.subTest(obj=obj.name):
+                    self.assertEqual(obj.mode, 'EDIT')
+                    self.assertEqual(bmesh.from_edit_mesh(obj.data).select_mode,
+                                     {'VERT', 'EDGE', 'FACE'})
+
+    def test_other_types_cancel(self):
+        for kind, mode in (('ARMATURE', 'EDIT'), ('GREASEPENCIL', 'EDIT'), ('CURVES', 'EDIT')):
+            with self.subTest(kind=kind), in_mode(kind, 'OBJECT'):
+                self.assertEqual(self.pick(mode=mode, select='MULTI'), {'CANCELLED'})
+                self.assertEqual(bpy.context.mode, 'OBJECT')
+        with in_mode(None, 'OBJECT'):
+            self.assertEqual(self.pick(mode='SCULPT', select='MULTI'), {'CANCELLED'})
+            self.assertEqual(bpy.context.mode, 'OBJECT')
+
+    def test_the_compass_item_runs_it(self):
+        """The context Compass's Multi, run as a pick runs it (``ops.invoke.execute``)."""
+        with select_mode(True, False, False), in_mode(None, 'OBJECT'):
+            multi = by_direction(build('meso:context'))['SE']
+            action = _mod("core.compass_rmb").pick_action(multi)
+            area = area_of('VIEW_3D')
+            from tests.blender.test_header import quiet
+            with quiet():
+                res = _mod("ops.invoke").execute(action, _window(), area, region_of(area),
+                                                 'VIEW_3D')
+            self.assertEqual(list(res.result), ['FINISHED'])
+            self.assertEqual((bpy.context.mode,
+                              tuple(bpy.context.tool_settings.mesh_select_mode)),
+                             ('EDIT_MESH', (True, True, True)))
 
 
 class TestDrawWithoutPlaza(unittest.TestCase):

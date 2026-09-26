@@ -21,6 +21,8 @@ sculpt / paint modes have none (the Grease Pencil sculpt / vertex paint selectio
 and the mesh paint masks are independent toggles, not select modes).
 :func:`submode_action` is the Action of one member: the native header button's call in
 that mode, else :data:`core.actions.MODE_SELECT_OPERATOR` (enter the mode, then set it).
+:func:`multi_action` turns every member of a flag domain on (:data:`SELECT_MULTI`, the
+right-click Compass's Multi, Phase 5c).
 
 Pure Python (no bpy): unit-tested with the bundled interpreter.
 """
@@ -205,4 +207,27 @@ def submode_action(domains: SelectDomains, mode: str, ident: str,
     if domains.modifiers:
         props.update(use_extend=False, use_expand=False)
     return Action(ACTION_OPERATOR, target=MODE_SELECT_OPERATOR, props=props,
+                  operator_context=MODE_OPERATOR_CONTEXT, undo=True)
+
+
+# Every member of a flag domain at once (the right-click Compass's Multi: vertex, edge and
+# face select together; local/docs/phase5c-interfaces.md "B"): the ``select`` value of
+# ``meso.mode_set_select`` that turns every member on.
+SELECT_MULTI = 'MULTI'
+
+
+def multi_supported(domains: SelectDomains | None) -> bool:
+    """True when ``domains`` can have every member on at once (a :data:`DOMAIN_FLAG`
+    domain: the mesh select mode); the radio domains cannot."""
+    return domains is not None and domains.kind == DOMAIN_FLAG
+
+
+def multi_action(mode: str) -> Action:
+    """The Multi pick of ``mode`` (a mode whose domains are :func:`multi_supported`):
+    ``Action(ACTION_OPERATOR, MODE_SELECT_OPERATOR, props={'mode': mode, 'select':
+    SELECT_MULTI}, operator_context='INVOKE_REGION_WIN')`` with the undo flag, from any mode
+    (the header has no one-click call for it: the operator enters the mode when needed, then
+    turns every member on, with the native steps 'Edit Mode' and 'Select Mode')."""
+    return Action(ACTION_OPERATOR, target=MODE_SELECT_OPERATOR,
+                  props={'mode': mode, 'select': SELECT_MULTI},
                   operator_context=MODE_OPERATOR_CONTEXT, undo=True)
