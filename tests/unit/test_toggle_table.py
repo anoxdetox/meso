@@ -116,6 +116,23 @@ class TestModel(unittest.TestCase):
                                                   (AP, AP), ()))
         self.assertEqual(dm.model_cell_roles(None), ())
 
+    def test_row_label_cell(self):
+        it = importlib.import_module(_PKG + ".icon_toggles")
+        self.assertEqual(it.label_column(it.RowShape('Mesh', ('RESTRICT_SELECT', 'HIDE'))), 1)
+        self.assertEqual(it.label_column(it.RowShape('Mesh', ('HIDE', 'RESTRICT_SELECT'))), 0)
+        self.assertIsNone(it.label_column(it.RowShape('Mesh', ('RESTRICT_SELECT',
+                                                               'RESTRICT_RENDER'))))
+        r = dataclasses.replace(row('Mesh'), label_cell=1)
+        self.assertEqual(dm.row_label_cell(r), 1)
+        self.assertIsNone(dm.row_label_cell(row('Mesh')), "no label cell recorded")
+        for bad in (2, -1, '1'):
+            self.assertIsNone(dm.row_label_cell(dataclasses.replace(row('Mesh'),
+                                                                    label_cell=bad)), bad)
+        labelled = dataclasses.replace(row('Mesh'), label_cell=1, action=cell('x').action)
+        self.assertIsNone(dm.row_label_cell(labelled), "a label row is its own pick")
+        self.assertIsNone(dm.row_label_cell(HEADER))
+        self.assertIsNone(dm.row_label_cell(None))
+
     def test_item_cell(self):
         r = row('Mesh')
         self.assertEqual(dm.item_cell(r, 1).label, 'Mesh Visible')

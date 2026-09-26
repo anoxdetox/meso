@@ -103,8 +103,8 @@ from ..core.dropdown_model import (
     DD_VALUE, DROPDOWN_OPERATOR_CONTEXT, ROLE_PASSIVE, SOURCE_MENU, SOURCE_TOOL, ZONE_ITEM,
     ZONE_LABEL, ZONE_NONE, ZONE_PANEL, DropdownModel, cell_role, enum_child_model, item_at,
     item_cell, item_role, label_role, label_row, label_source, model_cell_roles,
-    model_label_rows, native_label, native_menu_action, row_label_role, same_opener,
-    valid_depth,
+    model_label_rows, native_label, native_menu_action, row_label_cell, row_label_role,
+    same_opener, valid_depth,
 )
 from ..core.menubar import (
     Cancel, Changed, CloseChain, Effect, Esc, Event, Finish, HoverItem, HoverLabel,
@@ -326,7 +326,8 @@ def target_for(session: MenuSession, state: Any, hit: Hit) -> Target:
     """``core.menubar.Target`` of ``hit``: ZONE_LABEL -> ``label_role(model.find(id))`` +
     ``item_action``; ZONE_ITEM -> ``item_role(item_at(models, path))`` + ``item.action``
     (a DD_TOGGLE_ROW: the hit cell's ``cell_role`` + action + ``cell``; on the row label
-    ``row_label_role`` + the row's action, ROLE_PASSIVE on a plain row's); other zones ->
+    ``row_label_role`` + the row's action; on a table row's label its ``row_label_cell``,
+    the Vis cell, as if that cell were hit; ROLE_PASSIVE on a plain row's); other zones ->
     passive targets."""
     if hit.zone == ZONE_LABEL:
         item = state.model.find(hit.label_id) if state.model is not None else None
@@ -334,13 +335,16 @@ def target_for(session: MenuSession, state: Any, hit: Hit) -> Target:
     if hit.zone == ZONE_ITEM:
         item = _chain_item(session, hit.path)
         if item is not None and item.kind == DD_TOGGLE_ROW:
-            c = item_cell(item, hit.cell)
+            cell = hit.cell
+            if cell is None:
+                cell = row_label_cell(item)     # the Vis cell: the type label toggles it
+            c = item_cell(item, cell)
             if c is None:
                 role = row_label_role(item)
                 return Target(ZONE_ITEM, None, hit.path, role,
                               item.action if role != ROLE_PASSIVE else None)
             role = cell_role(c) if item.enabled else ROLE_PASSIVE
-            return Target(ZONE_ITEM, None, hit.path, role, c.action, cell=hit.cell)
+            return Target(ZONE_ITEM, None, hit.path, role, c.action, cell=cell)
         return Target(ZONE_ITEM, None, hit.path, item_role(item),
                       item.action if item is not None else None)
     return Target(hit.zone or ZONE_NONE)

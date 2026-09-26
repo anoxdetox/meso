@@ -139,6 +139,20 @@ def column_title(family: str, name: str = '') -> str:
     return ICON_FAMILY_TITLES.get(family or '', '') or short_title(name)
 
 
+# The icon family whose toggle a click on a table row's label runs (user feedback 2026-09-26:
+# "the type label toggles visibility"): the label is a bigger target for the eye column.
+LABEL_FAMILY = 'HIDE'
+
+
+def label_column(shape: RowShape) -> int | None:
+    """The column of :data:`LABEL_FAMILY` in ``shape`` (the cell a click on the row label
+    runs), None when the row has no such column."""
+    try:
+        return shape.families.index(LABEL_FAMILY)
+    except ValueError:
+        return None
+
+
 def column_titles(shape: RowShape, names: Sequence[str] = ()) -> tuple[str, ...]:
     """The header title of each column of a tabular row, in draw order; ``names[i]`` is the
     fallback name of column ``i`` (:func:`column_title`)."""
@@ -146,6 +160,7 @@ def column_titles(shape: RowShape, names: Sequence[str] = ()) -> tuple[str, ...]
                  for i, family in enumerate(shape.families))
 
 
-__all__ = ('ICON_FAMILY_MEANINGS', 'ICON_FAMILY_TITLES', 'MIN_TABLE_ROWS', 'RowShape',
-           'SHORT_TITLE_MAX', 'column_title', 'column_titles', 'icon_family', 'icon_meaning',
+__all__ = ('ICON_FAMILY_MEANINGS', 'ICON_FAMILY_TITLES', 'LABEL_FAMILY', 'MIN_TABLE_ROWS',
+           'RowShape', 'SHORT_TITLE_MAX', 'column_title', 'column_titles', 'icon_family',
+           'icon_meaning', 'label_column',
            'row_toggle_label', 'short_title', 'table_runs')

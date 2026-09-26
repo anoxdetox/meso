@@ -191,6 +191,10 @@ class DropdownItem:
     - ``cells``: DD_TOGGLE_ROW: one :class:`DropdownCell` per table column, in draw order
       (``label`` is the row label; ``action`` None: a click on the row itself does nothing,
       else the label row's own pick).
+    - ``label_cell``: DD_TOGGLE_ROW of a toggle table: the index of the cell a click on the
+      row label runs (the Vis cell of the Selectability & Visibility table:
+      ``core.icon_toggles.label_column``), None = the label does nothing (or is the label
+      row's own pick). :func:`row_label_cell`.
     - ``columns``: DD_COLUMN_HEADER: the column titles, in draw order ('Sel', 'Vis').
     """
 
@@ -207,6 +211,7 @@ class DropdownItem:
     source: str = ''
     cells: tuple[DropdownCell, ...] = ()
     columns: tuple[str, ...] = ()
+    label_cell: int | None = None
 
     def __post_init__(self) -> None:
         for name in ('children', 'cells', 'columns'):
@@ -317,6 +322,17 @@ def label_row(item: DropdownItem | None) -> bool:
     ``action``: the mode switch row of a mode with select modes); a plain toggle-table row's
     label does nothing."""
     return item is not None and item.kind == DD_TOGGLE_ROW and item.action is not None
+
+
+def row_label_cell(item: DropdownItem | None) -> int | None:
+    """The cell index a click on the label of the DD_TOGGLE_ROW ``item`` stands for
+    (``DropdownItem.label_cell``: the row acts as if that cell were clicked, modifiers,
+    role and hover included), None for a label row (:func:`label_row`, its own pick), for
+    other kinds, and for an index outside ``cells``."""
+    if item is None or item.kind != DD_TOGGLE_ROW or label_row(item):
+        return None
+    i = item.label_cell
+    return i if isinstance(i, int) and 0 <= i < len(item.cells) else None
 
 
 def row_label_role(item: DropdownItem | None) -> str:

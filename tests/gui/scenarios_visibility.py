@@ -79,6 +79,17 @@ def scenarios(drv):
             now = cells_of(st, mesh)
             drv.check(rec, "sel_check_updated", now is not None and now[0] == (not sel_before),
                       now)
+            # The type label stands for the Vis cell (user feedback 2026-09-26): a click on
+            # "Mesh" toggles Mesh visibility back, in place, the Vis cell hovered.
+            vis_now = space.show_object_viewport_mesh
+            yield from drv.press_click(drv.dd_label_xy(st, (mesh,)))
+            drv.check(rec, "label_toggles_vis", space.show_object_viewport_mesh != vis_now,
+                      [vis_now, space.show_object_viewport_mesh])
+            drv.check(rec, "label_keeps_sel", space.show_object_select_mesh != sel_before)
+            drv.check(rec, "dropdown_open_after_label", len(drv.dd_models(st)) == 1
+                      and st.open_label == item.id, (len(drv.dd_models(st)), st.open_label))
+            drv.check(rec, "label_hovers_vis_cell", (st.dropdown_hover, st.dropdown_hover_cell)
+                      == ((mesh,), 1), (st.dropdown_hover, st.dropdown_hover_cell))
             yield from drv.release_space(xy)
             drv.check_ended(rec, "final")
         finally:

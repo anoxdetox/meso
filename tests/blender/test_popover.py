@@ -425,6 +425,29 @@ class TestToggleTable(unittest.TestCase):
                          m.native_panel_action("VIEW3D_PT_object_type_visibility"))
         assert_unique_siblings(self, model.items)
 
+    def test_type_label_stands_for_the_vis_cell(self):
+        """User feedback 2026-09-26: "the type label toggles visibility". Every row's
+        ``label_cell`` is its Vis cell, and a hit on the label targets that cell exactly as a
+        hit on the cell does (same role, action and cell index)."""
+        import types
+        m = dm()
+        dd = _mod("ops.dropdowns")
+        ddg = _mod("core.dropdown_geometry")
+        model = visibility_cascade()
+        session = types.SimpleNamespace(models=(model,))
+        for index, item in enumerate(model.items):
+            if item.kind != m.DD_TOGGLE_ROW:
+                continue
+            self.assertEqual(m.row_label_cell(item), 1, item.label)
+            self.assertTrue(item.cells[1].label.endswith("Visible"), item.label)
+            on_label = dd.target_for(session, None, ddg.Hit(m.ZONE_ITEM, None, (index,), 1, None))
+            on_cell = dd.target_for(session, None, ddg.Hit(m.ZONE_ITEM, None, (index,), 1, 1))
+            self.assertEqual((on_label.role, on_label.action, on_label.cell),
+                             (on_cell.role, on_cell.action, on_cell.cell), item.label)
+            self.assertEqual(on_label.action.data_path, item.cells[1].action.data_path)
+            on_sel = dd.target_for(session, None, ddg.Hit(m.ZONE_ITEM, None, (index,), 1, 0))
+            self.assertEqual(on_sel.cell, 0, "the Sel cell is still its own target")
+
     def test_checked_active_and_toggle(self):
         m = dm()
         info = view3d_info()

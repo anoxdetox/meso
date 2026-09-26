@@ -111,7 +111,8 @@ from ..core.dropdown_model import (
     DropdownModel, native_label, native_menu_action, native_panel_action,
 )
 from ..core.icon_toggles import (
-    RowShape, column_titles, icon_family, icon_meaning, row_toggle_label, table_runs,
+    RowShape, column_titles, icon_family, icon_meaning, label_column, row_toggle_label,
+    table_runs,
 )
 from ..core.model import (
     ACTION_OPERATOR, ACTION_SET_ENUM, ACTION_TOGGLE, ACTION_TOGGLE_FLAG, KIND_MENU,
@@ -775,7 +776,8 @@ class Converter:
                                            c.action) for c in cells)
             out.append(DropdownItem(DD_TOGGLE_ROW, shape.label,
                                     enabled=any(c.enabled for c in row_cells),
-                                    cells=row_cells, source=ITEM_SOURCE_TOGGLE_TABLE))
+                                    cells=row_cells, source=ITEM_SOURCE_TOGGLE_TABLE,
+                                    label_cell=label_column(shape)))
         return out
 
     def record(self, rec: Record) -> list[DropdownItem]:
