@@ -244,8 +244,10 @@ def schedule(action: Action, window_ptr: int, area_index: int | None,
 
 
 class MESO_MT_mode_switch(Menu):
-    """The contextual row's mode switcher popup: the native mode enum of the active object
-    (``layout.operator_enum('object.mode_set', 'mode')``). ``core.tables.MODE_SWITCH_MENU``."""
+    """The mode switcher's native popup: the mode enum of the active object
+    (``layout.operator_enum('object.mode_set', 'mode')``). ``core.tables.MODE_SWITCH_MENU``.
+    The Plaza draws its own dropdown for it (``record.builtin_menus``); this menu is the
+    hand-off of a session without dropdowns and the container of that dropdown."""
 
     bl_idname = MODE_SWITCH_MENU
     bl_label = 'Mode'

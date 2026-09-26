@@ -20,12 +20,13 @@ Report (printed; ``--json`` writes the same numbers, sorted keys, no timestamps)
    Spreadsheet) - recursively through DD_SUBMENU items: counts and % of COVERAGE_CUSTOM /
    COVERAGE_MORE / COVERAGE_NATIVE (``record.dropdown.build_dropdown``, poll on unless
    ``--no-poll``). A menu reached in several contexts counts once, with its worst coverage
-   (native > more > custom). C-only children (Open Recent, ...) and the mode switcher count
-   as native.
+   (native > more > custom). C-only children (Undo History, ...) count as native; the built
+   menus (``core.tables.BUILT_MENUS``: the mode switcher, Open Recent) are custom
+   (``record.builtin_menus``).
 2. **All Menu classes**: every ``bpy.types.Menu`` subclass (not the ``Menu`` base, not
    Meso Mode's own) recorded in its matched editor context (the
    ``tests/blender/test_recorder.py`` sweep, its poll ignored like there) plus the 9 C-only
-   MenuTypes (native): the same three percentages. Phase 4 acceptance: fully custom
+   MenuTypes (native, except the built Open Recent): the same three percentages. Phase 4 acceptance: fully custom
    >= ~63% of the verified-facts §4 denominator (432/685 = 63.1% "fully static"): the
    registered Python Menu classes INCLUDING the 2 ``core.tables.SKIP_MENUS`` (counted as
    native) and without the 9 C-only MenuTypes; compared unrounded against
@@ -207,7 +208,7 @@ def acceptance(data) -> tuple[float, int, int]:
     counts = everything.get("counts", {})
     total = sum(counts.get(c, 0) for c in COVERAGES)
     base = total - everything.get("c_only", 0) + everything.get("skipped", 0)
-    custom = counts.get("custom", 0)
+    custom = counts.get("custom", 0) - everything.get("c_only_custom", 0)
     return _pct(custom, base), custom, base
 
 
@@ -510,7 +511,10 @@ class _Sweep:
                 for name in idnames:
                     start = time.perf_counter()
                     static = dd._static_native(name)
-                    if static is not None:
+                    if name in tables.BUILT_MENUS:
+                        model, cause = dd.build_in_context(ctx, name, poll=False)
+                        results[name] = (model.coverage, cause)
+                    elif static is not None:
                         results[name] = static
                     else:
                         recording = rec.record_menu(name, ctx, call_poll=False)
@@ -534,9 +538,12 @@ class _Sweep:
             elif coverage == "more":
                 more.setdefault(cause.partition(':')[2] or cause, []).append(name)
         c_only = sum(1 for name in results if name in tables.C_ONLY_MENUS)
+        c_only_custom = sum(1 for name, (coverage, _c) in results.items()
+                            if name in tables.C_ONLY_MENUS and coverage == "custom")
         skipped = sum(1 for name in tables.SKIP_MENUS if rec.menu_class(name) is not None)
         return {"counts": counts, "native_causes": native, "more_causes": more,
-                "total": len(results), "c_only": c_only, "skipped": skipped}
+                "total": len(results), "c_only": c_only, "c_only_custom": c_only_custom,
+                "skipped": skipped}
 
     def timing(self):
         out = {}
