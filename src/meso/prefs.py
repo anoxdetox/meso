@@ -508,6 +508,7 @@ def _draw_presets(layout, prefs) -> None:
 def _draw_editors(layout, prefs) -> None:
     """``plaza_editors`` as a grid of toggles (one per ``core.tables.PLAZA_EDITORS`` id)."""
     box = layout.box()
+    box.use_property_split = False      # the buttons name the editors: no label column
     box.label(text="Open the Plaza over")
     grid = box.grid_flow(row_major=True, columns=3, even_columns=True, align=True)
     for key in tables.PLAZA_EDITORS:
