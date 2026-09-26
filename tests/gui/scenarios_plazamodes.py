@@ -14,7 +14,7 @@ only.
 - ``pm_submode_pick`` (edit submodes, user request 2026-09-26): from Object Mode, 'Edit Mode
   ▸' opens on hover (after the submenu delay); 'Edge' enters Edit Mode with the Edge select
   mode in the native header's TWO undo steps ('Edit Mode', then 'Select Mode': round-5
-  decision "submode undo steps"), the Plaza stays open and re-recorded (Tool Settings Edges checked), the chain closed. Inside Edit Mode the submenu
+  decision 63), the Plaza stays open and re-recorded (Tool Settings Edges checked), the chain closed. Inside Edit Mode the submenu
   shows Edge checked: Shift+click Face extends (``mesh.select_mode`` use_extend, its own
   'Select Mode' step) and the submenu stays open with the checks updated; Ctrl+click Vertex
   expands; a plain click is exclusive. After the Plaza, one undo (``ed.undo``) per step

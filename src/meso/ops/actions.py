@@ -199,13 +199,14 @@ class MESO_OT_mode_set_select(Operator):
 
     bl_idname = MODE_SELECT_OPERATOR
     bl_label = 'Set Object Mode and Select Mode'
-    # The native header's two undo steps (round-5 decision "submode undo steps"): the mode
+    # The native header's two undo steps (decision 63): the mode
     # menu's pick pushes its mode toggle's step ('Edit Mode', holding the old select mode),
     # then the header button pushes its own ('Select Mode'). A single step would lose the old
     # select mode: undo would land on the memfile step before it, which keeps the current
     # tool settings. The nested object.mode_set / select-mode calls run without the undo
     # flag (REGISTER operators with it, the mode toggle and mesh.select_mode, segfault in
-    # -b, so that could never be tested headless) and execute() pushes both steps by hand
+    # -b under an area override, docs/verified-facts-5.2.md, so that could never be tested
+    # headless) and execute() pushes both steps by hand
     # under the native names (ed.undo_push, what an operator's own push does). No UNDO flag
     # (it would push a third step), no REGISTER (like object.mode_set: no redo panel).
     bl_options = {'INTERNAL'}

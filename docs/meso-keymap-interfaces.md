@@ -437,15 +437,14 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     `start_hold`: the overlay's snapshot is taken after the switch (the tool settings are the scene's, the same in
     every mode, so the release restores exactly), and a hold with an immediate gizmo drag already runs in Object
     Mode. `execute` (a menu, a script: a tap) switches the same way. Under `-b` the call runs without the undo push
-    (an undo push under the tests' area/region override segfaults there, verified 5.2.2: `docs/verified-facts-5.2.md`;
-    the one undo step in the GUI is covered only by G19 `edit_d_undo_back_in_edit_mode`, not run in round 5).
+    (with the undo flag `object.mode_set`'s nested mode toggle, a REGISTER operator, segfaults under the tests' area
+    override there, verified 5.2.2: `docs/verified-facts-5.2.md`; the one undo step in the GUI is covered only by G19 `edit_d_undo_back_in_edit_mode`, not run in round 5).
   - **A stale one-shot** (armed by an Object Mode tap, then Tab into another mode, where nothing shows it and a
     transform there leaves it armed, decision 39) ends at the switch (`end_once`, the user's value back), so the
-    press is a fresh D in Object Mode: a tap arms (never cancels), a hold runs from the user's value (decision "D
-    outside Object Mode: a stale one-shot"). In Object Mode a tap while armed still cancels.
+    press is a fresh D in Object Mode: a tap arms (never cancels), a hold runs from the user's value (decision 62). In Object Mode a tap while armed still cancels.
   - **When the switch cannot run** (`object.mode_set.poll()` fails, or the mode stays after the call) D reports a
     warning and returns CANCELLED: nothing is written, and the shadowed native D item after it does not run in its
-    place (decision "D outside Object Mode: a failed switch"). An auto-repeat never switches, nor a press while a
+    place (decision 57). An auto-repeat never switches, nor a press while a
     foreign modal runs (PASS_THROUGH, as in Object Mode).
   - **Where D is bound** (`PIVOT_KEYMAPS`, 19 keymaps; audit of the installed `industry_compatible_data.py`, which
     takes the Grease Pencil maps from `blender_default.py`): 'Object Mode', 'Mesh', 'Curve' (also Surface), 'Curves',
@@ -458,12 +457,12 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     items are in 'Grease Pencil', key modifier D, untouched).
   - **Not bound:** 'Font' (text editing: D types; forbidden keymap; `mode_plan('EDIT_TEXT')` is None, so the poll
     fails too) and **'Sculpt'**: IC's D / Shift D step the multires level up / down (repeating), a pair with no
-    sensible second home, so D keeps it there (reported; decision "D outside Object Mode: Sculpt"). The operator
+    sensible second home, so D keeps it there (reported; decision 58). The operator
     polls True in Sculpt Mode, so a user can add the item there in the keymap editor.
   - **D + LMB** in another mode: the D press has switched to Object Mode, so an LMB drag off the gizmo draws the
     annotation in Object Mode (Blender's 'Grease Pencil' keymap, as before); annotating without leaving the mode is
     the Annotate tool (Ctrl Alt D).
-  - **Insert** (`meso.pivot_toggle`) stays Object Mode only (decision "D outside Object Mode: Insert").
+  - **Insert** (`meso.pivot_toggle`) stays Object Mode only (decision 60).
   - `core/pivot_once.py`: `OBJECT_MODE`, `SWITCH_MODES`, `D_MODES`, `mode_plan` (`HERE` / `SWITCH` / None);
     `core/meso_bindings.py`: `PIVOT_KEYMAPS`, `pivot_once` items in all of them and its `displaces` (11 Annotate
     items, 1 GP direction toggle), `reloc_gp_weight_direction`, four GP `KEYMAP_SPACES` entries, the descriptions;
@@ -1494,72 +1493,66 @@ anything in Phase 5+.
     only, so opening the Plaza over the left third of a viewport, or at the centre of a 1280 px window at 2x,
     shifted the centre box off the pointer. The right side (beside Meso Settings) was measured too: the same
     imbalance mirrored.
-
-### Decision (round 5, D outside Object Mode: a failed switch)
-(DEFAULT in force: a.) D in another mode when `object.mode_set` cannot run (its poll fails, or the mode stays): (a)
-**in force:** a warning report and CANCELLED: nothing is written and the key does nothing, so D never means two things
-(the shadowed native item, the Annotate tool in most modes, stays on Ctrl Alt D); (b) PASS_THROUGH, so the native D
-item after it (Annotate, the GP direction toggle) runs instead.
-
-### Decision (round 5, D outside Object Mode: Sculpt)
-(DEFAULT in force: a; reported.) Sculpt Mode: (a) **in force:** no Meso D item; IC's D / Shift D keep stepping the
-multires level up / down (a repeating pair with no sensible second home); the operator polls True there, so a user
-can add D in the keymap editor; (b) D switches to Object Mode there too, and the multires step up moves to another
-key (Shift D would stay the step down).
-
-### Decision (round 5, D outside Object Mode: Grease Pencil Weight Paint)
-(DEFAULT in force: a.) IC's (Blender's) D there toggles the weight brush direction: (a) **in force:** D switches to
-Object Mode as in every other mode, the direction toggle moves to Ctrl Alt D (`reloc_gp_weight_direction`; Ctrl +
-drag and the tool settings' Direction stay); (b) no Meso D there (D keeps the toggle), as in Sculpt.
-
-### Decision (round 5, D outside Object Mode: Insert)
-(DEFAULT in force: a.) Insert in another mode: (a) **in force:** stays Object Mode only (nothing happens elsewhere):
-it is a persistent setting, not a gesture, and a key that silently leaves Edit Mode to flip an option that only
-works in Object Mode is a surprise; the header and the Plaza keep the checkbox; (b) Insert switches to Object Mode
-first too, like D (trivial: the same `to_object_mode` and the items in `PIVOT_KEYMAPS`).
-
-### Decision (round 5, D outside Object Mode: D + drag)
-(DEFAULT in force: a; report.) D + LMB drag off the gizmo in another mode: (a) **in force:** the D press switches to
-Object Mode, then Blender's D + LMB annotate draws the stroke there as in Object Mode; annotating without leaving the
-mode is the Annotate tool (Ctrl Alt D); (b) wait with the switch until a transform starts (the press would then no
-longer be "the moment of the switch", and a hold + an immediate gizmo drag would miss the Object Mode gizmo).
-
-### Decision (round 5, D outside Object Mode: a stale one-shot)
-(DEFAULT in force: a; review fix.) A D press in another mode while a one-shot armed earlier in Object Mode is still
-pending (nothing outside Object Mode shows it; an Edit Mode transform leaves it armed, decision 39): (a) **in
-force:** the switch ends the stale one-shot first, so the press is a fresh D in Object Mode: a tap arms it (the
-INFO "armed" report), a hold runs from the user's value; only a tap in Object Mode cancels; (b) end the armed
-one-shot whenever the user leaves Object Mode (decision 39 (b)); (c) a tap after the switch cancels it (the first
-round-5 behaviour: the user lands in Object Mode with origin editing off, the opposite of the press).
-- **Decision (round 5, submode undo steps) (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus",
-  Submodes**).** A select mode picked in the mode switch from another mode (Object Mode ▸ Edit Mode ▸ Edge):
-  (a) **in force:** the native header's two undo steps, 'Edit Mode' then 'Select Mode', exactly what the header's
-  mode menu and its select-mode button push one after the other: `meso.mode_set_select` (`{'INTERNAL'}`) runs
-  `object.mode_set` and the button's call without the undo flag and pushes each native step by hand
-  (`ed.undo_push` with the operator's name, what its own push does). One Ctrl Z gives the old select mode back
-  in Edit Mode, a second goes back to Object Mode with the old select mode kept, so the next Tab enters it
-  (measured headless against the native pair: `TestModeSetSelectUndo`; an unchanged select mode leaves the
-  'Edit Mode' step only, as the native button pushes none); (b) one step 'Set Object Mode and Select Mode'
-  (the wrapper with UNDO, the nested calls without steps): one Ctrl Z undoes the whole pick, but it lands on
-  the memfile step before it, which keeps the current tool settings, so the old select mode is lost (Object
-  Mode, Face kept: the next Tab enters Face mode; IC's 1 / 2 / 3 keys, `object.mode_set_with_submode`, lose it
-  the same way); (c) the two steps from the nested calls with the undo flag and no UNDO on the wrapper (as
-  decision 44): the same steps as (a) pushed by the native operators themselves, but with the undo flag the
-  REGISTER mode toggle and `mesh.select_mode` segfault in `-b`, so it could only be checked in the GUI.
-- **Decision (round 5, submode picks keep the submenu) (DEFAULT in force: a).** (a) **In force:** a mesh select
-  mode picked inside Edit Mode keeps the submenu open (plain, Shift and Ctrl clicks alike, as every flag-enum
-  member of the toggle cascades: Snap To ▸ Vertex), the checks update; a Grease Pencil / Curves / Particle
-  member (a radio) closes its submenu only, the mode dropdown stays; a pick that changes the mode re-records
-  the Plaza and closes the chain (decision 52); (b) every submode pick closes the mode dropdown; (c) a
-  Shift / Ctrl pick from another mode reopens the submenu after the mode change (panels would move under the
-  pointer: the rows are laid out anew).
-- **Decision (round 5, the Edit Mode row opens its submenu) (DEFAULT in force: a).** (a) **In force:** 'Edit
-  Mode ▸' is a cascade like every submenu row: hover or click opens it, its first row 'Edit Mode' enters the
-  mode with the current select mode (entering Edit Mode is one row further than before); (b) a click on 'Edit
-  Mode ▸' enters the mode at once and only hover opens the submenu (a split row, which no native menu has).
-- **Decision (round 5, which modes have submodes) (DEFAULT in force: a).** (a) **In force:** exactly the modes
-  whose native 3D View header draws a select-mode control: mesh Edit Mode, Particle Edit (Path / Point / Tip;
-  not named in the request, the header treats it as the select mode), hair Curves Edit and Sculpt Mode, Grease
-  Pencil Edit Mode; the Grease Pencil sculpt / vertex paint selection masks and the mesh paint masks are
-  independent toggles and stay in the Tool Settings row; (b) also those masks as submenus; (c) without
-  Particle Edit. The mode label stays the mode name, as the native header's mode menu.
+57. **New in round 5, D outside Object Mode: a failed switch (DEFAULT in force: a).** D in another mode when
+    `object.mode_set` cannot run (its poll fails, or the mode stays): (a) **in force:** a warning report and
+    CANCELLED: nothing is written and the key does nothing, so D never means two things (the shadowed native item, the
+    Annotate tool in most modes, stays on Ctrl Alt D); (b) PASS_THROUGH, so the native D item after it (Annotate, the
+    GP direction toggle) runs instead.
+58. **New in round 5, D outside Object Mode: Sculpt (DEFAULT in force: a; reported).** Sculpt Mode: (a) **in force:**
+    no Meso D item; IC's D / Shift D keep stepping the multires level up / down (a repeating pair with no sensible
+    second home); the operator polls True there, so a user can add D in the keymap editor; (b) D switches to Object
+    Mode there too, and the multires step up moves to another key (Shift D would stay the step down).
+59. **New in round 5, D outside Object Mode: Grease Pencil Weight Paint (DEFAULT in force: a).** IC's (Blender's) D
+    there toggles the weight brush direction: (a) **in force:** D switches to Object Mode as in every other mode, the
+    direction toggle moves to Ctrl Alt D (`reloc_gp_weight_direction`; Ctrl + drag and the tool settings' Direction
+    stay); (b) no Meso D there (D keeps the toggle), as in Sculpt.
+60. **New in round 5, D outside Object Mode: Insert (DEFAULT in force: a).** Insert in another mode: (a) **in force:**
+    stays Object Mode only (nothing happens elsewhere): it is a persistent setting, not a gesture, and a key that
+    silently leaves Edit Mode to flip an option that only works in Object Mode is a surprise; the header and the Plaza
+    keep the checkbox; (b) Insert switches to Object Mode first too, like D (trivial: the same `to_object_mode` and
+    the items in `PIVOT_KEYMAPS`).
+61. **New in round 5, D outside Object Mode: D + drag (DEFAULT in force: a; report).** D + LMB drag off the gizmo in
+    another mode: (a) **in force:** the D press switches to Object Mode, then Blender's D + LMB annotate draws the
+    stroke there as in Object Mode; annotating without leaving the mode is the Annotate tool (Ctrl Alt D); (b) wait
+    with the switch until a transform starts (the press would then no longer be "the moment of the switch", and a hold
+    + an immediate gizmo drag would miss the Object Mode gizmo).
+62. **New in round 5, D outside Object Mode: a stale one-shot (DEFAULT in force: a; review fix).** A D press in
+    another mode while a one-shot armed earlier in Object Mode is still pending (nothing outside Object Mode shows it;
+    an Edit Mode transform leaves it armed, decision 39): (a) **in force:** the switch ends the stale one-shot first,
+    so the press is a fresh D in Object Mode: a tap arms it (the INFO "armed" report), a hold runs from the user's
+    value; only a tap in Object Mode cancels; (b) end the armed one-shot whenever the user leaves Object Mode
+    (decision 39 (b)); (c) a tap after the switch cancels it (the first round-5 behaviour: the user lands in Object
+    Mode with origin editing off, the opposite of the press).
+63. **New in round 5, submode undo steps (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus",
+    Submodes**).** A select mode picked in the mode switch from another mode (Object Mode ▸ Edit Mode ▸ Edge):
+    (a) **in force:** the native header's two undo steps, 'Edit Mode' then 'Select Mode', exactly what the header's
+    mode menu and its select-mode button push one after the other: `meso.mode_set_select` (`{'INTERNAL'}`) runs
+    `object.mode_set` and the button's call without the undo flag and pushes each native step by hand
+    (`ed.undo_push` with the operator's name, what its own push does). One Ctrl Z gives the old select mode back
+    in Edit Mode, a second goes back to Object Mode with the old select mode kept, so the next Tab enters it
+    (measured headless against the native pair: `TestModeSetSelectUndo`; an unchanged select mode leaves the
+    'Edit Mode' step only, as the native button pushes none); (b) one step 'Set Object Mode and Select Mode'
+    (the wrapper with UNDO, the nested calls without steps): one Ctrl Z undoes the whole pick, but it lands on
+    the memfile step before it, which keeps the current tool settings, so the old select mode is lost (Object
+    Mode, Face kept: the next Tab enters Face mode; IC's 1 / 2 / 3 keys, `object.mode_set_with_submode`, lose it
+    the same way); (c) the two steps from the nested calls with the undo flag and no UNDO on the wrapper (as
+    decision 44): the same steps as (a) pushed by the native operators themselves, but with the undo flag the
+    REGISTER mode toggle and `mesh.select_mode` segfault in `-b` under an area override, so it could only be
+    checked in the GUI.
+64. **New in round 5, submode picks keep the submenu (DEFAULT in force: a).** (a) **In force:** a mesh select
+    mode picked inside Edit Mode keeps the submenu open (plain, Shift and Ctrl clicks alike, as every flag-enum
+    member of the toggle cascades: Snap To ▸ Vertex), the checks update; a Grease Pencil / Curves / Particle
+    member (a radio) closes its submenu only, the mode dropdown stays; a pick that changes the mode re-records
+    the Plaza and closes the chain (decision 52); (b) every submode pick closes the mode dropdown; (c) a
+    Shift / Ctrl pick from another mode reopens the submenu after the mode change (panels would move under the
+    pointer: the rows are laid out anew).
+65. **New in round 5, the Edit Mode row opens its submenu (DEFAULT in force: a).** (a) **In force:** 'Edit
+    Mode ▸' is a cascade like every submenu row: hover or click opens it, its first row 'Edit Mode' enters the
+    mode with the current select mode (entering Edit Mode is one row further than before); (b) a click on 'Edit
+    Mode ▸' enters the mode at once and only hover opens the submenu (a split row, which no native menu has).
+66. **New in round 5, which modes have submodes (DEFAULT in force: a).** (a) **In force:** exactly the modes
+    whose native 3D View header draws a select-mode control: mesh Edit Mode, Particle Edit (Path / Point / Tip;
+    not named in the request, the header treats it as the select mode), hair Curves Edit and Sculpt Mode, Grease
+    Pencil Edit Mode; the Grease Pencil sculpt / vertex paint selection masks and the mesh paint masks are
+    independent toggles and stay in the Tool Settings row; (b) also those masks as submenus; (c) without
+    Particle Edit. The mode label stays the mode name, as the native header's mode menu.

@@ -8,8 +8,8 @@ the built menus of core.tables.BUILT_MENUS; docs/phase4-interfaces.md "Built men
 - a pick on the factory cube through the live modal (real builders) switches to Edit Mode in
   place with the native call (INVOKE_REGION_WIN, the undo flag), keeps the Plaza open and
   re-records every row for the new mode (the undo step itself is a GUI check: with the undo
-  flag ``object.mode_set`` pushes its step under the test's area/region override, which
-  segfaults in ``-b``, docs/verified-facts-5.2.md, so the headless ``run_call`` drops the flag);
+  flag ``object.mode_set``'s nested mode toggle, a REGISTER operator, segfaults in ``-b``
+  under the test's area override, docs/verified-facts-5.2.md, so the headless ``run_call`` drops the flag);
 - Recent Files: a fixture ``recent-files.txt`` (written ONLY into this run's temp
   ``BLENDER_USER_CONFIG``, restored afterwards) is listed in order, capped like native, with
   file names, the ``wm.open_mainfile`` calls, More... and Clear Recent Files List...; the

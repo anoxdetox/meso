@@ -704,9 +704,10 @@ def to_object_mode(context):
     otherwise): its own undo step, registered as the last operator, and every object of a
     multi-object edit leaves the mode, as with Tab. From the keymap (``meso.pivot_once`` has no
     UNDO flag, so the undo depth is 0) the push runs; nested in an operator called from Python
-    without ``undo=True`` it pushes no step. Under ``-b`` without the undo push: an undo push
-    with an area/region context override segfaults there (verified 5.2.2; the headless tests
-    call ``invoke`` under such an override), with no override or a window-only one it works.
+    without ``undo=True`` it pushes no step. Under ``-b`` without the undo flag: with it the
+    nested mode toggle (REGISTER + UNDO) segfaults there under an area context override
+    (verified 5.2.2, docs/verified-facts-5.2.md; the headless tests call ``invoke`` under such an
+    override); with no override or a window-only one it works.
     The one-undo-step claim is covered only by the GUI scenario G19
     (``edit_d_undo_back_in_edit_mode``). Mode changes are no ``tool_settings`` write, and the
     caller has checked that no foreign modal runs. Returns ``po.HERE`` (Object Mode already),
@@ -748,8 +749,7 @@ class MESO_OT_pivot_once(_HoldMixin, Operator):
         """Object Mode now (switched if needed); False with a warning when the switch failed.
         After a switch a one-shot still armed from an earlier Object Mode tap ends first (the
         user's value back), so the press is a fresh D in Object Mode: a tap arms, never cancels
-        (nothing outside Object Mode shows the one-shot; decision "D outside Object Mode: a
-        stale one-shot")."""
+        (nothing outside Object Mode shows the one-shot; decision 62)."""
         plan = to_object_mode(context)
         if plan is None:
             self.report({'WARNING'}, f"Edit Origins: cannot leave {context.mode} for Object Mode")

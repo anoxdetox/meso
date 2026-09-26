@@ -9,7 +9,7 @@ docs/phase4-interfaces.md "Built menus", "Submodes").
   VIEW3D_MT_edit_mesh_select_mode menu), the current state checked; every other mode and
   type stays a plain radio;
 - picks through the live modal (real builders; ``run_call`` headless without the undo flag:
-  with it the REGISTER header operators segfault in ``-b``): from Object Mode a select mode
+  with it the REGISTER header operators segfault in ``-b`` under an area override): from Object Mode a select mode
   enters the mode and sets it (one ``meso.mode_set_select`` call; the Plaza stays open and is
   re-recorded, the chain closes); inside the mode only the select mode changes with the
   native header call (mesh flags keep the submenu open, radios close it: Grease Pencil,
@@ -284,7 +284,7 @@ class TestModeSetSelectUndo(unittest.TestCase):
     """The undo steps of a pick from another mode, called as the Plaza calls it
     (``INVOKE_REGION_WIN`` with the undo flag). The native pair (the mode menu's pick, then
     the header button) cannot run with the undo flag in ``-b`` (REGISTER operators segfault
-    there), so it is reproduced with the steps those operators push: ``object.mode_set`` +
+    there under an area override, docs/verified-facts-5.2.md), so it is reproduced with the steps those operators push: ``object.mode_set`` +
     ``ed.undo_push('Edit Mode')``, then the button's call + ``ed.undo_push(<its name>)``.
     Steps are counted after a uniquely named marker (docs/phase3-interfaces.md, headless undo
     counting); undo never goes past it."""
