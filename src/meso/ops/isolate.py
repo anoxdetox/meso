@@ -9,21 +9,24 @@
   the native local view of the objects in the mode; one that is (Object Mode Ctrl 1, Shift I)
   is taken over. The next Ctrl 1 writes the recorded hide flags back, so exactly what was
   hidden before stays hidden (never the native reveal, which unhides everything), and gives the
-  whole scene back: it leaves the local view of its 3D View and every local view an element
-  isolate entered or took over (round 6: the isolations stack), staying in the edit mode.
+  whole scene back: it leaves every local view an element isolate entered or took over (round 6:
+  the isolations stack, so an Object Mode Ctrl 1 local view under the isolate goes too), staying
+  in the edit mode. A local view the isolate never took stays, also in the 3D View Ctrl 1 is
+  pressed in.
 
 The records hold plain flags keyed by (object session uid, data session uid, kind) in module
 memory, so a rename keeps them; no RNA pointer outlives the operator call. They survive mode
 switches (the flags live in the data) and are dropped on file load. A restore deselects what it
 hides, as the native hide does (a hidden and selected mesh element crashes the next transform).
-The local views an element isolate entered or took over are kept as the address of the 3D
-View's local-view data (``SpaceView3D.local_view.as_pointer()``): a plain int, only compared,
-never dereferenced. It follows the space through an area reorder, a maximize (Ctrl Space moves
-the space into a temporary screen), an area type round trip and a screen rename, where a
-(screen name, area index) key went stale. It is dropped when no 3D View holds that local view
-any more and on file load. A local view on a screen no window shows (another workspace) cannot
-be left from here (no cross-screen override): it is left once a window shows it again (a
-timer). Native hide keys and Shift I local view are untouched.
+The local views an element isolate entered or took over are kept as the addresses of the 3D
+View space and of its local-view data (``view_id``): plain ints, only compared, never
+dereferenced. They follow the space through an area reorder, a maximize (Ctrl Space moves the
+space into a temporary screen), an area type round trip and a screen rename, where a (screen
+name, area index) key went stale; the space's address keeps a reused local-view address of
+another 3D View from matching. They are dropped when no 3D View holds that local view any more
+and on file load. A local view on a screen no window shows (another workspace) cannot be left
+from here (no cross-screen override): it is left once a window shows it again (a timer), or by
+a Ctrl 1 there before that. Native hide keys and Shift I local view are untouched.
 """
 
 from __future__ import annotations
@@ -41,13 +44,15 @@ from ..core import isolate as iso
 # (object session uid, data session uid, kind) -> iso.Record
 _records: dict[tuple[int, int, str], iso.Record] = {}
 
-# Local-view data addresses of the 3D Views whose local view an element isolate entered or took
-# over (``view_id``).
-_local_views: set[int] = set()
+# ``view_id`` of the 3D Views whose local view an element isolate entered or took over.
+_local_views: set[tuple[int, int]] = set()
+
+# The ones of ``_local_views`` it took over (the local view was there before the isolate).
+_adopted: set[tuple[int, int]] = set()
 
 # The ones a restore could not leave (their screen was not shown in any window): left by
-# ``_leave_pending`` once a window shows them.
-_pending: set[int] = set()
+# ``_leave_pending`` once a window shows them, or by a Ctrl 1 there.
+_pending: set[tuple[int, int]] = set()
 
 PENDING_INTERVAL = 0.25
 
@@ -64,9 +69,14 @@ def pending_exits() -> set:
     return _pending
 
 
+def adopted_views() -> set:
+    return _adopted
+
+
 def clear_records() -> None:
     _records.clear()
     _local_views.clear()
+    _adopted.clear()
     _pending.clear()
 
 
@@ -313,19 +323,22 @@ def _tag_redraw(context):
 # ------------------------------------------------------------------------------ local view
 
 
-def view_id(space) -> int | None:
-    """The local view of a 3D View space as a plain int (its address), None when the space is
-    not in a local view. Only compared, never dereferenced; a local view left and entered again
-    can get the same address back (then it is taken as ours: known limit)."""
+def view_id(space) -> tuple[int, int] | None:
+    """The local view of a 3D View space as plain ints (the addresses of the space and of its
+    local-view data), None when the space is not in a local view. Only compared, never
+    dereferenced. The allocator hands a freed local view's address to the next one entered in
+    any 3D View, so the space's address is part of the id (another 3D View never matches); a
+    local view left by hand in the same 3D View and entered again with Shift I before the next
+    Ctrl 1 can still get the same id back (then it is taken as ours: known limit)."""
     local = getattr(space, 'local_view', None)
-    return local.as_pointer() if local is not None else None
+    return (space.as_pointer(), local.as_pointer()) if local is not None else None
 
 
 def _window_region(area):
     return next((r for r in area.regions if r.type == 'WINDOW'), None)
 
 
-def _existing_view_ids() -> set[int]:
+def _existing_view_ids() -> set[tuple[int, int]]:
     """Every local view any 3D View space of any screen holds (read only)."""
     found = set()
     for screen in bpy.data.screens:
@@ -343,7 +356,14 @@ def _prune_local_views() -> None:
     Mode, an undo, the area gone)."""
     existing = _existing_view_ids()
     _local_views.intersection_update(existing)
+    _adopted.intersection_update(existing)
     _pending.intersection_update(existing)
+
+
+def _forget(vid) -> None:
+    _local_views.discard(vid)
+    _adopted.discard(vid)
+    _pending.discard(vid)
 
 
 def shown_areas(context):
@@ -391,27 +411,23 @@ def _enter_local_view(context, frame: bool) -> bool:
     return True
 
 
-def _leave_here(context) -> None:
-    """Leave the local view of the 3D View Ctrl 1 runs in (whoever entered it)."""
+def _exit_local_views(context, *, here: bool = False) -> None:
+    """The whole scene back: leave every local view an element isolate entered or took over
+    that a window shows (the one of this 3D View first; also one a restore left pending); the
+    ones on a screen no window shows are left by ``_leave_pending`` once one does. ``here``:
+    also leave this 3D View's local view whoever entered it (nothing to isolate in a local view:
+    Ctrl 1 leaves it, as in Object Mode); otherwise a local view the isolate never took stays."""
     vid = view_id(context.space_data)
-    if vid is None:
-        return
-    _local_views.discard(vid)
-    _pending.discard(vid)
-    bpy.ops.view3d.localview(frame_selected=False)
-
-
-def _exit_local_views(context) -> None:
-    """The whole scene back: leave the local view of this 3D View, then every local view an
-    element isolate entered or took over that a window shows; the ones on a screen no window
-    shows are left by ``_leave_pending`` once one does."""
-    _leave_here(context)
+    if vid is not None and (here or vid in _local_views or vid in _pending):
+        _forget(vid)
+        bpy.ops.view3d.localview(frame_selected=False)
     _prune_local_views()
     for window, area in list(shown_areas(context)):
         vid = view_id(area.spaces.active)
         if vid in _local_views:
-            _local_views.discard(vid)
+            _forget(vid)
             _leave(window, area)
+    _adopted.clear()
     if _local_views:
         _pending.update(_local_views)
         _local_views.clear()
@@ -467,13 +483,15 @@ elements and show only the edited objects); again to go back to exactly what was
     def _local_view(self, context):
         vid = view_id(context.space_data)
         if vid is not None:
-            _local_views.discard(vid)
-            _pending.discard(vid)
+            _forget(vid)
             return bpy.ops.view3d.localview(frame_selected=False)
         if not context.selected_objects:
             self.report({'INFO'}, iso.MSG_NOTHING_SELECTED)
             return {'CANCELLED'}
-        return bpy.ops.view3d.localview(frame_selected=_frame(context))
+        _prune_local_views()
+        result = bpy.ops.view3d.localview(frame_selected=_frame(context))
+        _forget(view_id(context.space_data))    # the user's: never ours, also on a reused id
+        return result
 
     # -- element hide --------------------------------------------------------------------------
     def _elements(self, context, kind):
@@ -488,8 +506,11 @@ elements and show only the edited objects); again to go back to exactly what was
                 _records[key] = iso.rebase(record, now)   # bones renamed / reordered
         _prune_local_views()
         vid = view_id(context.space_data)
+        # a local view a restore left pending still looks isolated: this Ctrl 1 leaves it
         plan = iso.edit_plan([(_records.get(k), c) for k, c in zip(keys, current)],
-                             in_local_view=vid is not None, ours=vid in _local_views)
+                             in_local_view=vid is not None,
+                             ours=vid in _local_views or vid in _pending,
+                             adopted=vid in _adopted)
         if plan.action == iso.RESTORE:
             return self._restore(context, kind, objects, keys, current, plan)
         anything = any(any_selected(o, kind) for o in objects)
@@ -512,13 +533,17 @@ elements and show only the edited objects); again to go back to exactly what was
             self.report({'INFO'}, iso.MSG_NOTHING_SELECTED)
             return {'CANCELLED'}
         if step == iso.VIEW_EXIT:            # in a local view with nothing to isolate
-            _exit_local_views(context)
+            _exit_local_views(context, here=True)
             _tag_redraw(context)
             return {'FINISHED'}
         if step == iso.VIEW_ADOPT:
+            _pending.discard(vid)
             _local_views.add(vid)
+            _adopted.add(vid)
         elif _enter_local_view(context, _frame(context)):
-            _local_views.add(view_id(context.space_data))
+            vid = view_id(context.space_data)
+            _forget(vid)
+            _local_views.add(vid)
         elif not stored:
             self.report({'INFO'}, iso.MSG_NOTHING_TO_ISOLATE)
             return {'CANCELLED'}
@@ -531,15 +556,16 @@ elements and show only the edited objects); again to go back to exactly what was
             if decision == iso.SKIP:
                 continue
             record = _records[key]
-            if decision == iso.RESTORE_TOPOLOGY_CHANGED:
-                keys_now = position_keys(obj, kind) if any(record.anchors) else ()
-                target, missed = iso.match_anchors(record.anchors, keys_now, now)
+            topology = decision == iso.RESTORE_TOPOLOGY_CHANGED
+            keys_now = position_keys(obj, kind) if topology and any(record.anchors) else ()
+            target, missed = iso.restore_target(decision, record, now, keys_now)
+            if topology:
                 write_flags(obj, kind, close_hidden(obj, kind, target))
                 del _records[key]
                 fallback = fallback or any(record.anchors)
                 unmatched += missed
             else:
-                write_flags(obj, kind, iso.restore_target(decision, record, now))
+                write_flags(obj, kind, target)
                 _records[key] = iso.after_restore(record)
         _exit_local_views(context)
         if unmatched:

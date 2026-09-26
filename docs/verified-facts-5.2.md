@@ -388,7 +388,9 @@ probes, 5.2.2, 2026-09-26):**
 - `SpaceView3D.local_view.as_pointer()` is the same across an area type round trip (the 3D View space stays in
   `area.spaces`), a screen rename and a maximize: `screen.screen_full_area` moves the space into the temporary
   screen `<name>-nonnormal` (one area; the same `SpaceView3D` and local-view addresses), `screen.back_to_previous`
-  moves it back. A local view left and entered again gets the same address back (allocator reuse).
+  moves it back. A local view left and entered again gets the same address back (allocator reuse), also when the
+  next one is entered in another 3D View (fresh-process probe: the Layout 3D View leaves its local view, a second
+  area made a 3D View enters one: the same `local_view` address, a different `SpaceView3D` address).
 - Headless only: `screen.region_quadview` (window + area + region override on the factory Layout 3D View) segfaults
   when it is the first screen operation of the test process (it passed once after other screen operators had run);
   `screen.back_to_previous` from a maximized 3D View in Edit Mode drops Edit Mode (context.mode OBJECT) and Blender

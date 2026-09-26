@@ -41,8 +41,9 @@ G1, G3-G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
   Compatible's again; Pose Mode round trip (local view of the armature only).
 - G5b ``mk_isolate_stacked`` (round 6, the user's flow): Object Mode Ctrl 1, 3 (Edit Mode, face
   mode), a face, Ctrl 1, Ctrl 1: no local view any more (the sphere shows again), still Edit Mode in face
-  mode, the face hidden before stays hidden; the next pair isolates and leaves again; the same
-  out of a quad view quadrant and out of a maximized 3D View.
+  mode, the face hidden before stays hidden; the next pair isolates and leaves again; in a
+  local view of the user's own, Ctrl 1 then Ctrl Z, then the pair isolates in it again and
+  leaves; the same out of a quad view quadrant and out of a maximized 3D View.
 - G6 ``mk_properties_cycle``: Ctrl A cycles Object > Data > Modifiers > Material for the cube,
   skips Modifiers and Material for the camera; with the 3D View maximized it shows the sidebar
   on its Item tab (also from another tab, and stays there); Sculpt Ctrl A still opens the mask
@@ -1344,7 +1345,9 @@ def scenarios(drv):
         """Round 6, the user's flow: Object Mode Ctrl 1, Edit Mode in face mode (3, Industry
         Compatible's key for it), a face selected, Ctrl 1, Ctrl 1: the whole scene is back (no
         local view: the sphere shows again), still Edit Mode in face mode, the face hidden
-        before stays hidden; the next Ctrl 1 pair isolates and leaves again (no trap). Then
+        before stays hidden; the next Ctrl 1 pair isolates and leaves again (no trap). In a
+        local view of the user's own (Shift I) Ctrl 1 takes it over, Ctrl Z gives the faces
+        back and the next Ctrl 1 isolates in that local view again (not leaving it). Then
         the same out of a quad view quadrant and out of a maximized 3D View (the old (screen,
         area index) key went stale there)."""
         import bmesh
@@ -1429,6 +1432,24 @@ def scenarios(drv):
             drv.check(rec, "st_sphere_shown", sphere.visible_get(viewport=space))
             # never trapped: the next pair isolates and goes out again
             yield from ctrl_1_pair("st_again", v3d, space)
+
+            # -- Ctrl Z of an isolate that took a local view over: Ctrl 1 isolates in it again
+            with v3d_ctx():
+                bpy.ops.view3d.localview(frame_selected=False)   # the user's own (Shift I)
+            yield 0.3
+            select_face(1)
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "st_adopt_isolated",
+                      sum(1 for h in mesh_hidden(cube)[2] if not h) == 1
+                      and space.local_view is not None, mesh_hidden(cube)[2])
+            yield from key(v3d, 'Z', ctrl=True)
+            yield 0.4
+            drv.check(rec, "st_adopt_undone", mesh_hidden(cube) == before
+                      and space.local_view is not None, mesh_hidden(cube)[2])
+            select_face(1)
+            yield 0.2
+            yield from ctrl_1_pair("st_adopt_again", v3d, space)
 
             # -- quad view: Ctrl 1 over a quadrant ------------------------------------------
             with v3d_ctx():

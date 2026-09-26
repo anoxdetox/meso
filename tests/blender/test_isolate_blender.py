@@ -726,16 +726,29 @@ class TestStackedIsolate(IsolateCase):
 
     def test_in_a_local_view_without_an_isolate_ctrl_1_never_traps(self):
         """In a local view with no element isolate active (the isolate was left another way:
-        the hide undone, Alt H), Ctrl 1 isolates the elements and takes the local view over;
-        the next Ctrl 1 leaves both."""
+        the hide undone, Alt H): a local view the isolate took over is the user's again, so
+        Ctrl 1 isolates in it as the first press did; one the isolate entered is left. Every
+        press either isolates (and the next one leaves both) or leaves."""
         self._object_mode_isolate(self.obj)
         self._tab_into_faces(prehide=())
         before = self._state()
         self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
-        run(bpy.ops.mesh.reveal, select=False)           # left another way (Alt H)
+        run(bpy.ops.mesh.reveal, select=False)           # left another way (Alt H, Ctrl Z)
         self._select_faces((5,))
         self.assertEqual(self._state(), before)
-        # nothing to restore (current == before) but our local view: Ctrl 1 leaves it
+        # nothing to restore (current == before) in the local view it took over: isolate again
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(sum(not f for f in self._hidden()[2]), 1)
+        self.assertEqual(self._in_local_view(), [self.obj.name])
+        self.assertEqual(ops_iso().local_views(), {ops_iso().view_id(self.space)})
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(tuple(level[0] for level in before))
+        self.assertEqual(self._state(), before)
+        # the local view the isolate entered, the hide left another way: Ctrl 1 leaves it
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertIsNotNone(self.space.local_view)
+        run(bpy.ops.mesh.reveal, select=False)
+        self._select_faces((5,))
         self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
         self.assert_whole_scene_back(tuple(level[0] for level in before))
         # a local view entered by hand (Shift I) with no isolate: Ctrl 1 isolates, then out
@@ -746,6 +759,18 @@ class TestStackedIsolate(IsolateCase):
         self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
         self.assert_whole_scene_back(None)
         self.assertEqual(self._state(), before)
+
+    def test_nothing_to_isolate_in_a_taken_over_local_view_leaves_it(self):
+        """Taken over, the hide undone, nothing selected: Ctrl 1 leaves the local view (never
+        a trap)."""
+        self._object_mode_isolate(self.obj)
+        self._tab_into_faces(prehide=())
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        run(bpy.ops.mesh.reveal, select=False)
+        self._select_faces(())
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(None)
+        self.assertFalse(any(self._hidden()[2]))
 
     # -- changes while isolated -----------------------------------------------------------
     def test_selection_changed_while_isolated(self):
@@ -875,9 +900,7 @@ class TestStackedIsolate(IsolateCase):
 
     def test_restore_in_another_3d_view_leaves_the_taken_over_local_view(self):
         """Object Mode Ctrl 1 and the element isolate in the first 3D View, the restore in a
-        second one: the first leaves its local view too; a local view of the second that the
-        isolate never touched is left only because the restore runs there (the whole scene
-        of the view Ctrl 1 is pressed in comes back)."""
+        second one (not in a local view): the first leaves its local view too."""
         self._object_mode_isolate(self.obj)
         self._tab_into_faces()
         hidden_before = self._hidden()
@@ -889,19 +912,54 @@ class TestStackedIsolate(IsolateCase):
         self.assert_whole_scene_back(hidden_before)
         self.assertIsNone(second.spaces.active.local_view)
 
-    def test_a_local_view_elsewhere_that_the_isolate_never_took_stays(self):
-        """Shift I in a second 3D View (not the isolate's): the restore in the first leaves
-        only the first's local view."""
+    def test_restore_pressed_in_a_local_view_the_isolate_never_took(self):
+        """The user's own local view in a second 3D View (the sphere, Object Mode Ctrl 1
+        there), the isolate in the first: the restore pressed in the second gives the first
+        its whole scene back and keeps the second's local view (the isolate never took it)."""
+        w, second, region2 = self._second_3d_view()
+        for o in bpy.context.view_layer.objects:
+            o.select_set(o is self.other)
+        bpy.context.view_layer.objects.active = self.other
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle('INVOKE_DEFAULT'), {'FINISHED'})
+        self.assertEqual(self._in_local_view(second.spaces.active), [self.other.name])
         self._object_mode_isolate(self.obj)
         self._tab_into_faces()
-        w, second, region2 = self._second_3d_view()
+        hidden_before = self._hidden()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})              # takes over the first's
+        self.assertEqual(ops_iso().local_views(), {ops_iso().view_id(self.space)})
         with bpy.context.temp_override(window=w, area=second, region=region2):
-            bpy.ops.view3d.localview()
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        self.assert_whole_scene_back(hidden_before)
+        self.assertEqual(self._in_local_view(second.spaces.active), [self.other.name])
+
+    def test_a_reused_local_view_address_in_another_3d_view_is_not_ours(self):
+        """The isolate's local view left by hand, then the user's own local view in a second
+        3D View: its local-view data can get the same address back (the allocator reuses it),
+        but it is another 3D View, so it is not the isolate's: the restore keeps it, and
+        Ctrl 1 there isolates in it."""
+        self._tab_into_faces()
+        hidden_before = self._hidden()
+        w, second, region2 = self._second_3d_view()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})              # enters the first's
+        run(bpy.ops.view3d.localview)                                # left by hand
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            bpy.ops.view3d.localview()                               # the user's own
         self.assertIsNotNone(second.spaces.active.local_view)
-        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
-        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
-        self.assert_whole_scene_back(None)
+        self.assertNotIn(ops_iso().view_id(second.spaces.active), ops_iso().local_views())
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})              # restore in the first
+        self.assertEqual(self._hidden(), hidden_before)
         self.assertIsNotNone(second.spaces.active.local_view)
+        self._select_faces((5,))
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})   # isolates there
+        self.assertEqual(sum(not f for f in self._hidden()[2]), 1)
+        self.assertIsNotNone(second.spaces.active.local_view)
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        self.assertEqual(self._hidden(), hidden_before)
+        self.assertIsNone(second.spaces.active.local_view)
+        self.assertEqual(ops_iso().local_views(), set())
 
     def test_maximized_while_isolated(self):
         """Ctrl Space moves the 3D View's space into a temporary screen ('<name>-nonnormal'):
@@ -985,6 +1043,44 @@ class TestStackedIsolate(IsolateCase):
         self.assertEqual(ops_iso().pending_exits(), set())
         if bpy.app.timers.is_registered(ops_iso()._leave_pending):
             bpy.app.timers.unregister(ops_iso()._leave_pending)
+
+    def test_ctrl_1_in_a_pending_local_view_leaves_it(self):
+        """The restore could not reach the second 3D View's local view (not shown); shown
+        again, before the timer ticks (or while a modal holds it off), the user presses Ctrl 1
+        there with a face selected: the view still looks isolated, so the press leaves it, and
+        the timer has nothing left to leave (it never leaves a local view taken over since)."""
+        self._tab_into_faces()
+        hidden_before = self._hidden()
+        w, second, region2 = self._second_3d_view()
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        vid = ops_iso().view_id(second.spaces.active)
+        real = ops_iso().shown_areas
+        second_ptr = second.as_pointer()
+        ops_iso().shown_areas = lambda c: ((wi, a) for wi, a in real(c)
+                                           if a.as_pointer() != second_ptr)
+        try:
+            self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        finally:
+            ops_iso().shown_areas = real
+        self.addCleanup(lambda: bpy.app.timers.is_registered(ops_iso()._leave_pending)
+                        and bpy.app.timers.unregister(ops_iso()._leave_pending))
+        self.assertEqual(ops_iso().pending_exits(), {vid})
+        self.assertEqual(self._hidden(), hidden_before)
+        self._select_faces((5,))
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        self.assertIsNone(second.spaces.active.local_view)
+        self.assertEqual(self._hidden(), hidden_before)
+        self.assertEqual(ops_iso().pending_exits(), set())
+        self.assertEqual(ops_iso().local_views(), set())
+        self.assertIsNone(ops_iso()._leave_pending())
+        # the next press there isolates afresh and the timer never takes it away
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        self.assertIsNone(ops_iso()._leave_pending())
+        self.assertIsNotNone(second.spaces.active.local_view)
+        self.assertEqual(sum(not f for f in self._hidden()[2]), 1)
 
 
 class TestCurve(IsolateCase):

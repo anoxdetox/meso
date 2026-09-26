@@ -106,10 +106,10 @@ class TestDecide(unittest.TestCase):
 
     def test_restore_target(self):
         rec = iso.Record(BEFORE, AFTER)
-        self.assertEqual(iso.restore_target(iso.RESTORE, rec, AFTER), BEFORE)
+        self.assertEqual(iso.restore_target(iso.RESTORE, rec, AFTER), (BEFORE, 0))
         grown = F("10110", "011010", "110")
         target = iso.restore_target(iso.RESTORE_TOPOLOGY_CHANGED, rec, grown)
-        self.assertEqual(target, grown.revealed())
+        self.assertEqual(target, (grown.revealed(), 0))
 
 
 class TestPlan(unittest.TestCase):
@@ -215,16 +215,19 @@ class TestEditPlan(unittest.TestCase):
         p = iso.edit_plan([(None, BEFORE)], in_local_view=True, ours=False)
         self.assertEqual(p, iso.EditPlan(iso.ISOLATE, (iso.ISOLATE,), iso.VIEW_ADOPT))
 
-    def test_restore_leaves_the_local_view_whoever_entered_it(self):
-        """The user's case: Object Mode Ctrl 1, then the element isolate, then Ctrl 1: the
-        restore leaves the local view too (it was 'kept' before round 6: a trap)."""
+    def test_an_element_to_restore_always_restores(self):
+        """The user's case: Object Mode Ctrl 1, then the element isolate (it takes the local
+        view over), then Ctrl 1: RESTORE, VIEW_EXIT (the local view was 'kept' before round 6:
+        a trap). Wherever Ctrl 1 is pressed (the bpy side leaves the local views ours only)."""
         rec = iso.Record(BEFORE, AFTER)
         for ours in (True, False):
             for in_lv in (True, False):
-                with self.subTest(ours=ours, in_local_view=in_lv):
-                    p = iso.edit_plan([(rec, AFTER)], in_local_view=in_lv, ours=ours)
-                    self.assertEqual(p, iso.EditPlan(iso.RESTORE, (iso.RESTORE,),
-                                                     iso.VIEW_EXIT))
+                for adopted in (True, False):
+                    with self.subTest(ours=ours, in_local_view=in_lv, adopted=adopted):
+                        p = iso.edit_plan([(rec, AFTER)], in_local_view=in_lv, ours=ours,
+                                          adopted=adopted)
+                        self.assertEqual(p, iso.EditPlan(iso.RESTORE, (iso.RESTORE,),
+                                                         iso.VIEW_EXIT))
 
     def test_our_local_view_alone_toggles_back(self):
         """Nothing to restore in the elements (the hide was undone, or every element was
@@ -236,6 +239,17 @@ class TestEditPlan(unittest.TestCase):
                 self.assertEqual(p.action, iso.RESTORE)
                 self.assertEqual(p.view, iso.VIEW_EXIT)
                 self.assertEqual(p.decisions, tuple(iso.SKIP for _e in entries))
+
+    def test_a_taken_over_local_view_with_nothing_to_restore_isolates_again(self):
+        """The element isolate undone (or revealed) in a local view it took over: the scene is
+        as before the isolate, so Ctrl 1 isolates in that local view again (VIEW_ADOPT), never
+        leaving the user's own local view; ``isolate_view`` still leaves it when there is
+        nothing to isolate."""
+        rec = iso.Record(BEFORE, AFTER)
+        for entries in ([(rec, BEFORE)], [(None, BEFORE)]):
+            with self.subTest(entries=entries):
+                p = iso.edit_plan(entries, in_local_view=True, ours=True, adopted=True)
+                self.assertEqual(p, iso.EditPlan(iso.ISOLATE, (iso.ISOLATE,), iso.VIEW_ADOPT))
 
     def test_topology_change_restore_keeps_its_decision(self):
         rec = iso.Record(BEFORE, AFTER)
@@ -333,10 +347,16 @@ class TestMatchAnchors(unittest.TestCase):
         grown = F("11110", "011010", "110")
         keys = (('v9', 'v0', 'v1', 'v2', 'v3'), tuple('e%d' % i for i in range(6)),
                 ('f0', 'f1', 'f2'))
-        target = iso.restore_target(iso.RESTORE_TOPOLOGY_CHANGED, rec, grown, keys)
+        target, missed = iso.restore_target(iso.RESTORE_TOPOLOGY_CHANGED, rec, grown, keys)
         self.assertEqual(target.bits, (bytes((0, 1, 0, 0, 0)), bytes(6), bytes((1, 0, 0))))
+        self.assertEqual(missed, 0)
         self.assertEqual(iso.restore_target(iso.RESTORE_TOPOLOGY_CHANGED,
-                                            iso.Record(BEFORE, AFTER), grown), grown.revealed())
+                                            iso.Record(BEFORE, AFTER), grown),
+                         (grown.revealed(), 0))
+        # an anchor no element matches is counted (the operator's warning)
+        gone = iso.Record(BEFORE, AFTER, anchors=(('v7',), (), ()))
+        self.assertEqual(iso.restore_target(iso.RESTORE_TOPOLOGY_CHANGED, gone, grown,
+                                            keys)[1], 1)
 
     def test_anchors_survive_restore_and_rebase_and_are_not_compared(self):
         rec = iso.Record(BEFORE, AFTER, anchors=(('x',),))

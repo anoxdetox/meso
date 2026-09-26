@@ -8,7 +8,8 @@ toggle back by writing the recorded hide flags, so the previous hidden state com
 objects: the 3D View enters the native local view of the objects in the mode, or, when it is in
 a local view already (Object Mode Ctrl 1, Shift I), the element isolate takes that local view
 over. The isolations stack: the Ctrl 1 that restores the elements gives the whole scene back, so
-it also leaves that local view, whoever entered it (``edit_plan``, ``isolate_view``, round 6).
+it also leaves that local view (``edit_plan``, ``isolate_view``, round 6); a local view the
+isolate never took stays.
 
 The bpy side (``ops/isolate.py``) reads the hide flags of each object into ``Flags`` (plain
 tuples and bytes, no RNA), keeps one ``Record`` per (object session uid, data session uid,
@@ -151,24 +152,29 @@ class EditPlan:
     #                                  RESTORE: VIEW_EXIT
 
 
-def edit_plan(entries, *, in_local_view: bool, ours: bool) -> EditPlan:
+def edit_plan(entries, *, in_local_view: bool, ours: bool, adopted: bool = False) -> EditPlan:
     """Ctrl 1 in an element mode: the element decisions of ``plan()`` plus the object isolate.
 
     ``in_local_view``: the 3D View is in a local view; ``ours``: it is a local view an element
     isolate entered or took over (a local view entered otherwise, e.g. Shift I or Ctrl 1 in
-    Object Mode, and not isolated in since, is not).
+    Object Mode, and not isolated in since, is not); ``adopted``: ours because an element
+    isolate took it over (it was there before).
 
-    - an element to restore, or our local view here -> RESTORE: the elements with a record
-      restore (the rest are skipped), and the whole scene comes back: the local view of this 3D
-      View is left, whoever entered it (the isolations stack: an Object Mode Ctrl 1 local view
-      under an element isolate goes too), and so is every other local view an element isolate
-      entered or took over (VIEW_EXIT);
+    - an element to restore -> RESTORE: the elements with a record restore (the rest are
+      skipped), and the whole scene comes back: every local view an element isolate entered or
+      took over is left (the isolations stack: an Object Mode Ctrl 1 local view under an
+      element isolate goes too); a local view the isolate never took stays (VIEW_EXIT);
+    - nothing to restore, in our local view that an element isolate entered (the hide was
+      undone or revealed) -> RESTORE with every object skipped: the local view is left;
+    - nothing to restore, in a local view an element isolate took over -> ISOLATE (VIEW_ADOPT):
+      the elements are back as before the isolate and the local view was the user's, so Ctrl 1
+      does what it did then (an undo of the isolate never costs the user that local view);
     - otherwise ISOLATE: every object hides its unselected elements, and the 3D View enters the
       local view of the objects in the mode (VIEW_ENTER) or, in a local view already, takes it
       over (VIEW_ADOPT: there is no nested local view); ``isolate_view`` gives the final step.
     """
     action, decisions = plan(entries)
-    if action == RESTORE or (in_local_view and ours):
+    if action == RESTORE or (in_local_view and ours and not adopted):
         return EditPlan(RESTORE, tuple(SKIP if d == ISOLATE else d for d in decisions),
                         VIEW_EXIT)
     return EditPlan(ISOLATE, decisions, VIEW_ADOPT if in_local_view else VIEW_ENTER)
@@ -191,14 +197,17 @@ def isolate_view(view: str, *, anything_selected: bool, hid: bool) -> str:
     return VIEW_ENTER if anything_selected else NOTHING_SELECTED
 
 
-def restore_target(decision: str, record: Record, current: Flags, keys=None) -> Flags:
-    """The flags to write for a RESTORE / RESTORE_TOPOLOGY_CHANGED decision.
+def restore_target(decision: str, record: Record, current: Flags,
+                   keys=()) -> tuple[Flags, int]:
+    """``(flags to write, unmatched)`` for a RESTORE / RESTORE_TOPOLOGY_CHANGED decision (what
+    the operator writes for each restored object).
 
-    ``keys``: the position keys of the current elements per level (``match_anchors``); only
-    needed for a topology change when ``record.anchors`` holds something."""
+    RESTORE: ``record.before`` exactly, 0. RESTORE_TOPOLOGY_CHANGED: ``match_anchors`` (by
+    position); ``keys``: the position keys of the current elements per level, only needed
+    when ``record.anchors`` holds something."""
     if decision == RESTORE_TOPOLOGY_CHANGED:
-        return match_anchors(record.anchors, keys or (), current)[0]
-    return record.before
+        return match_anchors(record.anchors, keys or (), current)
+    return record.before, 0
 
 
 def anchors_of(flags: Flags, keys) -> tuple:
