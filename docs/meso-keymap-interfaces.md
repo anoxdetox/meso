@@ -427,6 +427,32 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     reading the overlay, while armed, with Insert on, Insert while held, with an X hold, the redo, the watcher, every
     teardown, the saved file) and `TestAnnotateWhileDHeld`; GUI G13 (simulated hold) and G18 (real input).
 
+- **Round 6 implemented: the isolate stack** (user report of 2026-09-26: "let's say we are in face isolated mode
+  (ctrl1) going out of ctrl1 should restore everything around us not just the object (we should stay in face mode
+  but see everything that is not hidden)", and the flow "the isolate is in object mode isolate -> change to edit
+  face -> isolate further ctrl 1 gets you back in local mode forever"):
+  - **Cause** (reproduced headless first: `TestStackedIsolate.test_the_users_flow_object_isolate_then_face_isolate`
+    fails on the old code): the element isolate treated a local view that was already there (the Object Mode Ctrl 1
+    one) as the user's: it never recorded it, the restore never left it, and every later Edit Mode Ctrl 1 was a new
+    element isolate. Also found: the (screen name, area index) key went stale on a maximize, a screen rename and an
+    area reorder, so the restore left no local view there either.
+  - **Fix:** the element isolate takes a local view that is there over (VIEW_ADOPT); the restore leaves the local
+    view of its 3D View whoever entered it plus every local view an element isolate entered or took over
+    (`_exit_local_views`, all shown screens; a screen no window shows: `_leave_pending` once shown); in a local view
+    with nothing to isolate Ctrl 1 leaves it; local views are identified by `view_id` (the local-view data address);
+    a topology change restores by position (`match_anchors`) instead of revealing everything. Edit Mode, the select
+    mode and the selection of what stays visible are kept (native `view3d.localview` exit keeps the edit mode:
+    verified headless, also for a local view entered in Object Mode and for a multi-object edit).
+  - **Tests:** unit `TestEditPlan`, `TestIsolateView` (every press in a local view either takes it over, then the
+    next restores and leaves, or leaves), `TestMatchAnchors`; headless `TestStackedIsolate` (the user's flow, two
+    objects in the object isolate, a local view without an isolate, selection changed, select mode switched vertex
+    to face, Tab out and back in, Object Mode Ctrl 1 inside the stack, multi-object edit, Pose Mode, the restore from
+    another 3D View, a local view elsewhere the isolate never took stays, maximized while isolated, an area type
+    round trip plus a screen rename, a screen no window shows) and the topology rows (subdivide, extrude + delete,
+    sort, a bone added, a curve point deleted); GUI (written, py_compile only) G5b `mk_isolate_stacked`: the user's
+    flow with real keys, a quad view quadrant, a maximized 3D View. Quad view is GUI only: headless
+    `screen.region_quadview` segfaults (verified facts).
+
 - **Round 5 implemented: D outside Object Mode** (user request of 2026-09-26: "tapping d or hold d in non object mode
   should yank you to object mode"; "hold d (in object mode) works great", so Object Mode is unchanged):
   - **The D press in another 3D View mode switches to Object Mode first**, then it is exactly D in Object Mode (tap
@@ -951,26 +977,50 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
 - **LOCAL_VIEW**: if `space_data.local_view` is set → `view3d.localview()` (exit, selection kept). Else with a
   selection → `view3d.localview(frame_selected=pref)`; with nothing selected → INFO "Nothing selected" and CANCELLED.
   Lights and cameras that are not selected are left out, as natively (a nested isolate that keeps them is backlog).
-- **Element kinds, objects (step 5, user decision 2 of 2026-09-25)**: Ctrl 1 also isolates the objects, like the
-  Object Mode local view. `edit_plan(entries, in_local_view=, ours=, ours_elsewhere=)` returns `EditPlan(action,
-  decisions, enter_local_view, exit_local_view)`:
+- **Element kinds, objects (step 5, user decision 2 of 2026-09-25; round 6: the isolations stack)**: Ctrl 1 also
+  isolates the objects, like the Object Mode local view, and the Ctrl 1 that leaves the isolate gives the **whole
+  scene** back ("going out of ctrl1 should restore everything around us not just the object (we should stay in face
+  mode but see everything that is not hidden)"). `edit_plan(entries, in_local_view=, ours=)` returns
+  `EditPlan(action, decisions, view)`; for ISOLATE, `isolate_view(view, anything_selected=, hid=)` gives the final
+  local-view step once the hide ran:
 
   | Situation | Result |
   |---|---|
-  | `plan()` says ISOLATE, the 3D View not in a local view | hide the unselected elements, then enter the native local view of `context.objects_in_mode` (frame per `isolate_frame_selected`); the area key is recorded as ours |
-  | `plan()` says ISOLATE, the 3D View already in a local view (Shift I, Object Mode Ctrl 1: not ours) | hide the elements only; the local view is kept (no nested local view) and is not left by the restore |
-  | `plan()` says RESTORE, or the 3D View is in our local view | RESTORE: the elements with a record restore (the others are skipped) and every local view of this screen that an element isolate entered is left |
-  | nothing selected | INFO "Nothing selected", CANCELLED (neither part) |
-  | every visible element selected | the objects still isolate (FINISHED, no element record); only when the view is in a local view already: INFO "Nothing to isolate", CANCELLED |
+  | `plan()` says ISOLATE, the 3D View not in a local view, something selected | hide the unselected elements, then enter the native local view of `context.objects_in_mode` (frame per `isolate_frame_selected`); recorded as ours (VIEW_ENTER) |
+  | `plan()` says ISOLATE, the 3D View already in a local view (Object Mode Ctrl 1, Shift I), the hide changed something | hide the elements; the local view is kept (no nested local view) and **taken over**: recorded as ours, so the restore leaves it (VIEW_ADOPT) |
+  | `plan()` says RESTORE, or the 3D View is in our local view | RESTORE (VIEW_EXIT): the elements with a record restore (the others are skipped); the local view of **this** 3D View is left, whoever entered it, and so is every other local view an element isolate entered or took over (on any window's shown screen); the objects stay in the edit mode with the same select mode |
+  | in a local view, nothing to isolate (nothing selected, or every visible element selected) | leave the local view (VIEW_EXIT), as Ctrl 1 does in Object Mode: FINISHED, no element change. Before round 6 this was INFO "Nothing to isolate" / "Nothing selected", CANCELLED: with Ctrl 1 in Object Mode first, Edit Mode could never leave the local view |
+  | not in a local view, nothing selected | INFO "Nothing selected", CANCELLED (neither part) |
+  | not in a local view, every visible element selected | the objects still isolate (FINISHED, no element record) |
 
+  **The user's case (round 6, reproduced headless on the old code):** Object Mode Ctrl 1 (native local view), Tab,
+  face mode, a face, Ctrl 1: the view was in a local view already, so the isolate did not enter one and did not
+  record it (the old row "a local view that was there stays"); Ctrl 1 restored the faces and kept the local view;
+  every later Ctrl 1 in Edit Mode only toggled the faces again (no local view of ours, no element to restore: the
+  ISOLATE row), so Edit Mode could never leave it. Also stale in the old code: the (screen name, area index) key of
+  our local views went wrong after a maximize (Ctrl Space moves the 3D View's space into the temporary screen
+  `<name>-nonnormal`), a screen rename and any area reorder, and the restore then left no local view at all.
+
+  **Which local views are ours:** the address of the 3D View's local-view data, `SpaceView3D.local_view.as_pointer()`
+  (`ops.isolate.view_id`): a plain int, only compared, never dereferenced. It follows the space through an area
+  reorder, a maximize (verified headless: the same address in the temporary screen), an area type round trip and a
+  screen rename; it is pruned when no 3D View space of any screen holds it (read from `bpy.data.screens`), and cleared
+  on `load_post`. A local view left and entered again by hand before the next Ctrl 1 can get the same address back
+  (verified: the allocator reuses it) and is then taken as ours (known limit, as before).
+  **A local view no window shows** (the isolate in the Layout workspace, the restore in another): no cross-screen
+  override, so the restore moves it to a pending set, and a `bpy.app.timers` function (`_leave_pending`, 0.25 s, only
+  while something is pending; never while that window runs a modal operator) leaves it once a window shows it again.
+  Headless the window's workspace switch never applies (the event loop does it), so the test hides the area from
+  `shown_areas` instead. Object Mode Ctrl 1 still toggles the native local view (and forgets the key).
+  **Selection:** the restore keeps the selection of what stays visible (also a selection changed while isolated) and
+  brings the revealed elements back unselected, as `mesh.reveal(select=False)`; what it hides is deselected (a hidden
+  and selected mesh element crashes the next transform). Leaving the local view keeps the object selection (native).
   Pose Mode: the native local view takes the selected objects there (edit modes take the objects in the mode), so
   unselected posed armatures are selected for the call and deselected after it, then `local_view_set` makes the
   set exactly the objects in the mode (after `view_layer.update()`; before it, `local_view_set` does nothing).
   Undo: an edit-mode undo gives the hide flags back but not the local view (screen data), so the next Ctrl 1 leaves
   the local view (our-local-view row); a memfile undo (Object / Pose Mode) past the step leaves the local view by
-  itself (verified headless). An area key whose area left the local view by other means (Shift I, Object Mode Ctrl
-  1, which also forgets the key) is pruned; a local view left and entered again by hand before the next Ctrl 1 is
-  taken as ours (known limit).
+  itself (verified headless).
 - **Element kinds** — flags read into `Flags(counts, bits)` (plain tuples/bytes; no RNA kept):
 
   | Kind | Flags (order) | Isolate op | Restore write |
@@ -986,7 +1036,11 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
   so a normal flip keeps it): a sort or any reorder that keeps the counts is a topology change, never a restore of
   per-index bits onto other elements.
 - **Records** (module dict, key `(object session_uid, data session_uid, kind)`, so a rename keeps the record):
-  `Record(before: Flags, after: Flags)`. Bones: before `decide`, `rebase(record, current)` re-expresses the record in
+  `Record(before: Flags, after: Flags, active, anchors)`. `anchors` (round 6, not compared): per level, the position
+  keys (`ops.isolate.position_keys`) of the elements hidden in `before`, taken only when something was hidden: mesh
+  vertex positions (rounded to 5 decimals; an edge / face: its sorted vertex positions), curve point positions (a
+  spline: its type and points), bone names, metaball type and position. Hidden elements cannot be edited, so these
+  stay valid while isolated. Bones: before `decide`, `rebase(record, current)` re-expresses the record in
   the current bone order when the bone names were only reordered or renamed (`remap`: names first, then each renamed
   bone by its unique head/tail signature); a bone added or removed keeps the topology-change row.
   `decide(record, current)`:
@@ -994,7 +1048,7 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
   | Situation | Result |
   |---|---|
   | no record | ISOLATE: snapshot `before`, run the isolate op, snapshot `after`, store |
-  | record, `current.counts != before.counts` (topology changed while isolated) | RESTORE_TOPOLOGY_CHANGED: the native reveal (`select=False`), WARNING "Topology changed while isolated: revealed everything" (DEFAULT), drop the record |
+  | record, `current.counts != before.counts` (topology changed while isolated) | RESTORE_TOPOLOGY_CHANGED (round 6): restore **by position** (`match_anchors`): the elements whose position key matches one hidden before the isolate stay hidden, everything else is shown; mesh flags closed as the native hide leaves them (`close_hidden`); WARNING "... what was hidden before stays hidden (matched by position)", or "... N element(s) hidden before could not be matched and are shown"; nothing hidden before: the plain reveal, which is exact (no warning); drop the record; the local view is left as for every restore |
   | record, `current == before` (e.g. the hide was undone) | ISOLATE again (the old record is replaced) |
   | record, otherwise | RESTORE: write `before` exactly (also when the user hid more while isolated), keep the record inactive (step 2, deviation 2) |
   | inactive record, `current == after` (the restore was undone) | RESTORE again; any other state → ISOLATE (step 2) |
@@ -1071,7 +1125,8 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   own-key press consumed; own-key repeat passes through in every phase; the OS repeat pattern of a long hold, step 6);
   the still-held check and the learned repeat timing (`TestStillHeld`, `TestRepeatTiming`, step 8);
   `foreign_above` with `None` entries, own ids, Plaza.
-- `test_isolate.py`: `ISOLATE_KIND_BY_MODE`; `decide` rows; Flags equality; `edit_plan` rows (step 5).
+- `test_isolate.py`: `ISOLATE_KIND_BY_MODE`; `decide` rows; Flags equality; `edit_plan` rows (step 5; round 6:
+  `view`), `isolate_view` (never a trap in a local view), `match_anchors` / `anchors_of` (round 6).
 - `test_properties_cycle.py`: `parse` (unknown, duplicate, empty); `next_tab` wrap, skip missing (camera, empty, none
   active), current outside the order; `pick_area` mouse / largest / tie / none.
 - Keep `test_core_pure.py` passing (no bpy imports in the new core modules).
@@ -1105,8 +1160,9 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   nothing selected → CANCELLED). Review fixes: isolate → `reveal(select=True)` → restore leaves nothing hidden and
   selected (mesh in each select mode, then a translate; curve; edit and pose bones); a rename of the object/mesh or
   of a bone while isolated still restores exactly; edit bones reordered by a mode switch restore by name; a bone
-  added while isolated reveals; `sort_elements` while isolated → reveal + warning; a delete and refill → exact or
-  reveal, never other faces; a flip keeps the restore; a spline fully hidden by the isolate gets `Spline.hide` back.
+  added while isolated keeps the bone hidden before (round 6: by name); `sort_elements`, subdivide, extrude + delete
+  while isolated → restore by position (round 6); a delete and refill → exact, never other faces; a flip keeps the
+  restore; a spline fully hidden by the isolate gets `Spline.hide` back. Round 6 `TestStackedIsolate`: see Status.
 - `test_meso_keymap.py` `TestShiftRmbStaysNative`: with every binding on, on both keyconfigs, no Meso/Plaza item on
   RIGHTMOUSE with Shift (any value); IC's `view3d.cursor3d` (PRESS) and cursor `transform.translate` (CLICK_DRAG) fire
   first.
@@ -1146,6 +1202,9 @@ Selection, isolate, Properties, Apply:
 - G5 Ctrl+1 object (local view in/out), edit mesh with pre-hidden elements (exact restore; step 5: local view of the
   cube only, left by the restore; Ctrl Z then Ctrl 1 leaves it), pose (local view of the armature only); Ctrl+Alt+1
   expands.
+- G5b (round 6) `mk_isolate_stacked`: Object Mode Ctrl 1, 3 (Edit Mode, face mode), a face, Ctrl 1, Ctrl 1: no local
+  view, the sphere shown, Edit Mode in face mode, the face hidden before still hidden; the next pair again; a quad
+  view quadrant; a maximized 3D View.
 - G6 Ctrl+A cycles Object → Data → Modifiers → Material with a mesh; skips for a camera; maximized 3D View → sidebar
   Item; Sculpt Ctrl+A still opens the mask pie. The previews are rendered first (`previews_ready`), and no preview job
   runs during the cycle (`no_preview_job`), see "Preview render race" in `docs/verified-facts-5.2.md`.
@@ -1283,6 +1342,12 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
   `reloc_gp_weight_direction`, GP `KEYMAP_SPACES`), `ops/snap_hold.py` (`to_object_mode`, `MESO_OT_pivot_once`),
   `keymap_prefs.py` (the Pivot hint), the tests above, `tests/gui/scenarios_snap_hold.py` (G19, `mk_pivot`),
   `tests/gui/realinput_driver.py` (G19 real input), README.
+
+### Step (round 6) — the isolate stack: leaving an edit-mode isolate gives the whole scene back (✅ implemented, see Status; user report of 2026-09-26)
+- Files: `core/isolate.py` (`EditPlan.view`, `isolate_view`, `Record.anchors`, `anchors_of`, `match_anchors`),
+  `ops/isolate.py` (`view_id`, `_exit_local_views`, `_leave_pending`, `position_keys`, `close_hidden`),
+  `tests/unit/test_isolate.py`, `tests/blender/test_isolate_blender.py`, `tests/gui/scenarios_meso_keymap.py` (G5b),
+  README, `docs/verified-facts-5.2.md`.
 
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
@@ -1556,3 +1621,24 @@ anything in Phase 5+.
     Pencil Edit Mode; the Grease Pencil sculpt / vertex paint selection masks and the mesh paint masks are
     independent toggles and stay in the Tool Settings row; (b) also those masks as submenus; (c) without
     Particle Edit. The mode label stays the mode name, as the native header's mode menu.
+- **Decision (round 6, isolate stacking) (DEFAULT in force: a).** The Ctrl 1 that leaves an element isolate: (a)
+  **in force:** leaves the local view of the 3D View it is pressed in whoever entered it (an Object Mode Ctrl 1,
+  Shift I, the isolate), plus every local view an element isolate entered or took over; a local view in another 3D
+  View that the isolate never took stays; (b) leave only the local views an element isolate or an Object Mode Ctrl 1
+  entered (a Shift I local view under the isolate stays): needs every Object Mode entry tracked, and a stale or
+  missed key traps the user again; (c) the pre-round-6 rule (only a local view the element isolate entered), the
+  reported trap.
+- **Decision (round 6, nothing to isolate in a local view) (DEFAULT in force: a).** Ctrl 1 in an edit mode inside a
+  local view with nothing to isolate (nothing selected, or every visible element selected): (a) **in force:** leaves
+  the local view, as in Object Mode, so a select-all Ctrl 1 always gets out; (b) INFO and CANCELLED (the old rows).
+- **Decision (round 6, topology change) (DEFAULT in force: a).** A restore after the element structure changed
+  while isolated (extrude, subdivide, delete, sort): (a) **in force:** by position: what was hidden before stays
+  hidden (matched by rounded vertex / point positions, bone names), the rest is shown, a WARNING says so (and counts
+  the unmatched); (b) reveal everything with the warning (before round 6). Both leave the local view.
+- **Decision (round 6, selection on the restore) (DEFAULT in force: a).** (a) **In force (the existing contract,
+  now written down):** the selection of what stays visible is kept, the revealed elements come back unselected
+  (`mesh.reveal(select=False)`), what is hidden is deselected; (b) select the revealed elements, as the native
+  reveal's default (`select=True`, Alt H): the selection made for the isolate would grow on the way out.
+- **Decision (round 6, a local view no window shows) (DEFAULT in force: a).** The isolate's local view sits on a
+  screen no window shows at the restore (another workspace): (a) **in force:** left by a timer as soon as a window
+  shows it again; (b) left only by the next Ctrl 1 there (it is still ours) or Object Mode Ctrl 1.

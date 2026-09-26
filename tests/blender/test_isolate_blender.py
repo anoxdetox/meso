@@ -2,10 +2,11 @@
 
 Runs inside Blender via tests/run_tests.py. Exact round trips per kind (mesh in the three select
 modes with elements already hidden, bezier / NURBS path / NURBS surface, edit bones, pose bones,
-metaball), the undo rows, the topology-change reveal, nothing selected, local view in Object
-Mode and in an edit mode without an element hide, the object isolate of the element modes
-(local view of the objects in the mode, left again by the restore), and the Ctrl 1 / Ctrl Alt 1
-keymap items.
+metaball), the undo rows, the topology-change restore by position, nothing selected, local
+view in Object Mode and in an edit mode without an element hide, the object isolate of the
+element modes (local view of the objects in the mode, left again by the restore), the isolate
+stack of round 6 (``TestStackedIsolate``: leaving an element isolate gives the whole scene back,
+also an Object Mode Ctrl 1 local view under it), and the Ctrl 1 / Ctrl Alt 1 keymap items.
 """
 
 import importlib
@@ -213,6 +214,7 @@ class TestMesh(IsolateCase):
         position: faces 0 and 1 (hidden before) stay hidden, everything the isolate hid comes
         back, the local view is left."""
         obj = self._grid()
+        run(bpy.ops.mesh.select_mode, type='FACE')
         self._prehide(obj)
         hidden_before = self._hidden_centres(obj)
         self.assertEqual(len(hidden_before), 2)
@@ -923,10 +925,12 @@ class TestStackedIsolate(IsolateCase):
             self.assertEqual(self._hidden(), hidden_before)
             self.assertEqual(bpy.context.mode, 'EDIT_MESH')
         finally:
+            # headless, back_to_previous from a maximized view in Edit Mode drops Edit Mode
+            # and leaks the edit data at exit (Blender's; docs/verified-facts-5.2.md)
+            run(bpy.ops.object.mode_set, mode='OBJECT')
             w2, big, big_region = view3d()
             with bpy.context.temp_override(window=w2, area=big, region=big_region):
                 bpy.ops.screen.back_to_previous()
-        # headless, back_to_previous from the maximized view leaves Edit Mode (Blender's)
         self.space = view3d()[1].spaces.active
         self.assertIsNone(self.space.local_view)
         self.assertEqual(ops_iso().local_views(), set())
@@ -1057,6 +1061,23 @@ class TestCurve(IsolateCase):
         self.assertEqual(after, before)
         run(bpy.ops.object.mode_set, mode='OBJECT')
         self.assertEqual([s.hide for s in obj.data.splines], [False, False])
+
+    def test_point_deleted_while_isolated_keeps_the_hidden_point(self):
+        """A topology change (a point deleted while isolated): the point hidden before stays
+        hidden (matched by position), the isolate's points come back, the local view goes."""
+        obj = self.add(bpy.ops.curve.primitive_bezier_circle_add, location=(0, 0, 30))
+        self.edit(obj)
+        self._select(obj, (0,))
+        run(bpy.ops.curve.hide, unselected=False)
+        hidden_co = tuple(self._points(obj)[0].co)
+        self._select(obj, (2,))
+        self.assertEqual(toggle(), {'FINISHED'})
+        run(bpy.ops.curve.delete, type='VERT')
+        self.assertEqual(len(self._points(obj)), 3)
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual([tuple(p.co) for p in self._points(obj) if p.hide], [hidden_co])
+        self.assertEqual(sum(p.hide for p in self._points(obj)), 1)
+        self.assert_objects_restored()
 
     def test_bezier(self):
         self._round_trip(bpy.ops.curve.primitive_bezier_circle_add, 'EDIT_CURVE')

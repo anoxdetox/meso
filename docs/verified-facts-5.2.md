@@ -379,6 +379,24 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   `keymodifier` D; simulated ones never do), LMB on the Move gizmo drags the gizmo, LMB elsewhere starts
   `gpencil.annotate` (IC includes Blender's 'Grease Pencil' keymap with the `key_modifier: 'D'` annotate items).
 
+**Meso Keymap, round 6: the isolate stack (headless `test_isolate_blender.py` `TestStackedIsolate`, fresh-process
+probes, 5.2.2, 2026-09-26):**
+- `view3d.localview` exit in Edit Mesh keeps Edit Mesh and the select mode, also for a local view entered in Object
+  Mode before the Tab and for a multi-object edit (every object stays in Edit Mode). `mesh.select_mode` (vertex to
+  face) changes no hide flag. In a quad view, `view3d.localview` enters and leaves from any of the four WINDOW
+  regions (the local view is per space).
+- `SpaceView3D.local_view.as_pointer()` is the same across an area type round trip (the 3D View space stays in
+  `area.spaces`), a screen rename and a maximize: `screen.screen_full_area` moves the space into the temporary
+  screen `<name>-nonnormal` (one area; the same `SpaceView3D` and local-view addresses), `screen.back_to_previous`
+  moves it back. A local view left and entered again gets the same address back (allocator reuse).
+- Headless only: `screen.region_quadview` (window + area + region override on the factory Layout 3D View) segfaults
+  when it is the first screen operation of the test process (it passed once after other screen operators had run);
+  `screen.back_to_previous` from a maximized 3D View in Edit Mode drops Edit Mode (context.mode OBJECT) and Blender
+  reports "Not freed memory blocks" at exit (Object Mode first: no leak); an area type round trip of the factory 3D
+  View (`area.type` IMAGE_EDITOR and back) leaves its tool header unsized for the rest of the process (the same
+  effect as the sidebar toggle in step 2). Setting `window.workspace` changes nothing under `-b` (the switch is
+  applied by the event loop): `window.screen` stays 'Layout'.
+
 **Meso Keymap, step 9: the D tap (Affect Only Origins for one transform; headless `TestPivotOnce`, GUI G13
 simulated and G17 real X11 input in the nested session, 5.2.2):**
 - `WindowManager.operators` tells a confirmed transform from a cancelled one: a Move-gizmo drag, a Tweak-tool drag

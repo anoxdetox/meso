@@ -39,6 +39,10 @@ G1, G3-G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
   and leaves the local view; after Ctrl Z the next Ctrl 1 leaves the local view; Ctrl Alt 1 is
   the relocated vertex select mode with expand; with the binding off Ctrl 1 is Industry
   Compatible's again; Pose Mode round trip (local view of the armature only).
+- G5b ``mk_isolate_stacked`` (round 6, the user's flow): Object Mode Ctrl 1, 3 (Edit Mode, face
+  mode), a face, Ctrl 1, Ctrl 1: no local view any more (the sphere shows again), still Edit Mode in face
+  mode, the face hidden before stays hidden; the next pair isolates and leaves again; the same
+  out of a quad view quadrant and out of a maximized 3D View.
 - G6 ``mk_properties_cycle``: Ctrl A cycles Object > Data > Modifiers > Material for the cube,
   skips Modifiers and Material for the camera; with the 3D View maximized it shows the sidebar
   on its Item tab (also from another tab, and stays there); Sculpt Ctrl A still opens the mask
@@ -1330,6 +1334,182 @@ def scenarios(drv):
             back_to_blender()
             yield 0.3
 
+    # ------------------------------------------------------------------------------ G5b
+
+    def region_centres(area):
+        return [(r.x + r.width // 2, r.y + r.height // 2)
+                for r in area.regions if r.type == 'WINDOW' and r.width > 2 and r.height > 2]
+
+    def sc_isolate_stacked(rec):
+        """Round 6, the user's flow: Object Mode Ctrl 1, Edit Mode in face mode (3, Industry
+        Compatible's key for it), a face selected, Ctrl 1, Ctrl 1: the whole scene is back (no
+        local view: the sphere shows again), still Edit Mode in face mode, the face hidden
+        before stays hidden; the next Ctrl 1 pair isolates and leaves again (no trap). Then
+        the same out of a quad view quadrant and out of a maximized 3D View (the old (screen,
+        area index) key went stale there)."""
+        import bmesh
+        scene = bpy.context.scene
+        cube = bpy.data.objects.get("Cube")
+        sphere = None
+        quad = maximized = False
+        saved_select_mode = tuple(scene.tool_settings.mesh_select_mode)
+        iso_ops = importlib.import_module(drv.ADDON_MODULE + ".ops.isolate")
+        try:
+            choose('MESO')
+            yield 0.3
+            with v3d_ctx():
+                bpy.ops.mesh.primitive_uv_sphere_add(location=(4.0, 0.0, 0.0))
+            sphere = bpy.context.view_layer.objects.active
+            select_only(cube)
+            v3d = drv.center_of("VIEW_3D")
+            space = drv.area_by("VIEW_3D").spaces.active
+            drv.sim('MOUSEMOVE', 'NOTHING', v3d)
+            yield 0.2
+            # -- Object Mode Ctrl 1, Tab, face mode, a face ------------------------------------
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "st_object_local_view", in_local_view(space) == ["Cube"],
+                      in_local_view(space))
+            # Industry Compatible: 3 in Object Mode is Edit Mode in face select mode
+            yield from key(v3d, 'THREE')
+            yield 0.4
+            drv.check(rec, "st_edit_mode", bpy.context.mode == 'EDIT_MESH', bpy.context.mode)
+            drv.check(rec, "st_face_mode",
+                      tuple(scene.tool_settings.mesh_select_mode) == (False, False, True),
+                      tuple(scene.tool_settings.mesh_select_mode))
+
+            def select_face(index):
+                bm = bmesh.from_edit_mesh(cube.data)
+                bm.faces.ensure_lookup_table()
+                for f in bm.faces:
+                    f.select_set(False)
+                bm.faces[index].select_set(True)
+                bm.select_flush_mode()
+                bmesh.update_edit_mesh(cube.data)
+
+            select_face(0)
+            with v3d_ctx():
+                bpy.ops.mesh.hide(unselected=False)      # the user's own hidden face
+            select_face(1)
+            yield 0.2
+            before = mesh_hidden(cube)
+            drv.check(rec, "st_prehidden", before[2][0] and sum(before[2]) == 1, before[2])
+
+            def ctrl_1_pair(prefix, xy, sp):
+                yield from key(xy, 'ONE', ctrl=True)
+                yield 0.3
+                drv.check(rec, f"{prefix}_isolated",
+                          sum(1 for h in mesh_hidden(cube)[2] if not h) == 1
+                          and sp.local_view is not None and in_local_view(sp) == ["Cube"],
+                          [mesh_hidden(cube)[2], in_local_view(sp)])
+                yield from key(xy, 'ONE', ctrl=True)
+                yield 0.3
+                drv.check(rec, f"{prefix}_whole_scene_back",
+                          sp.local_view is None and not iso_ops.local_views(),
+                          [sp.local_view is None, len(iso_ops.local_views())])
+                drv.check(rec, f"{prefix}_exact_restore", mesh_hidden(cube) == before,
+                          mesh_hidden(cube)[2])
+                drv.check(rec, f"{prefix}_still_face_edit",
+                          bpy.context.mode == 'EDIT_MESH' and tuple(
+                              scene.tool_settings.mesh_select_mode) == (False, False, True),
+                          [bpy.context.mode, tuple(scene.tool_settings.mesh_select_mode)])
+                drv.check(rec, f"{prefix}_sphere_shown", sphere.visible_get(viewport=sp))
+
+            # the element isolate on top of the Object Mode local view: one Ctrl 1 goes out
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "st_isolated", sum(1 for h in mesh_hidden(cube)[2] if not h) == 1
+                      and in_local_view(space) == ["Cube"], mesh_hidden(cube)[2])
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "st_whole_scene_back", space.local_view is None)
+            drv.check(rec, "st_exact_restore", mesh_hidden(cube) == before, mesh_hidden(cube)[2])
+            drv.check(rec, "st_still_face_edit", bpy.context.mode == 'EDIT_MESH' and tuple(
+                scene.tool_settings.mesh_select_mode) == (False, False, True))
+            drv.check(rec, "st_sphere_shown", sphere.visible_get(viewport=space))
+            # never trapped: the next pair isolates and goes out again
+            yield from ctrl_1_pair("st_again", v3d, space)
+
+            # -- quad view: Ctrl 1 over a quadrant ------------------------------------------
+            with v3d_ctx():
+                bpy.ops.screen.region_quadview()
+            quad = True
+            yield 0.5
+            centres = region_centres(drv.area_by("VIEW_3D"))
+            drv.check(rec, "st_quad_regions", len(centres) == 4, centres)
+            if centres:
+                corner = max(centres, key=lambda c: (c[1], c[0]))
+                drv.sim('MOUSEMOVE', 'NOTHING', corner)
+                yield 0.2
+                yield from ctrl_1_pair("st_quad", corner, space)
+            area = drv.area_by("VIEW_3D")
+            with bpy.context.temp_override(window=drv.win(), area=area,
+                                           region=[r for r in area.regions
+                                                   if r.type == 'WINDOW'][-1]):
+                bpy.ops.screen.region_quadview()
+            quad = False
+            yield 0.5
+
+            # -- maximized while isolated: isolate, Ctrl Space, Ctrl 1 --------------------------
+            v3d = drv.center_of("VIEW_3D")
+            drv.sim('MOUSEMOVE', 'NOTHING', v3d)
+            yield 0.2
+            yield from key(v3d, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "st_max_isolated", space.local_view is not None)
+            with v3d_ctx():
+                bpy.ops.screen.screen_full_area()
+            maximized = True
+            yield 0.5
+            big = drv.area_by("VIEW_3D")
+            v3d_max = drv.center_of("VIEW_3D")
+            drv.sim('MOUSEMOVE', 'NOTHING', v3d_max)
+            yield 0.2
+            yield from key(v3d_max, 'ONE', ctrl=True)
+            yield 0.3
+            drv.check(rec, "st_max_whole_scene_back", big.spaces.active.local_view is None
+                      and mesh_hidden(cube) == before and not iso_ops.local_views(),
+                      mesh_hidden(cube)[2])
+            with v3d_ctx():
+                bpy.ops.screen.back_to_previous()
+            maximized = False
+            yield 0.5
+            space = drv.area_by("VIEW_3D").spaces.active
+            drv.check(rec, "st_max_back_no_local_view", space.local_view is None,
+                      bpy.context.mode)
+        finally:
+            try:
+                if maximized:
+                    with v3d_ctx():
+                        bpy.ops.screen.back_to_previous()
+                area = drv.area_by("VIEW_3D")
+                if quad:
+                    with bpy.context.temp_override(window=drv.win(), area=area,
+                                                   region=[r for r in area.regions
+                                                           if r.type == 'WINDOW'][-1]):
+                        bpy.ops.screen.region_quadview()
+                if bpy.context.mode == 'EDIT_MESH':
+                    with v3d_ctx():
+                        bpy.ops.mesh.reveal(select=False)
+                if bpy.context.mode != 'OBJECT':
+                    drv.set_mode('OBJECT')
+            except Exception:
+                pass
+            space = drv.area_by("VIEW_3D").spaces.active
+            if space.local_view is not None:
+                with v3d_ctx():
+                    bpy.ops.view3d.localview()
+            if sphere is not None and sphere.name in bpy.data.objects:
+                data = sphere.data
+                bpy.data.objects.remove(sphere)
+                if data is not None and data.users == 0:
+                    bpy.data.meshes.remove(data)
+            scene.tool_settings.mesh_select_mode = saved_select_mode
+            if cube is not None:
+                select_only(cube)
+            back_to_blender()
+            yield 0.3
+
     # ------------------------------------------------------------------------------ G6
 
     PIE = {"n": 0}
@@ -1484,5 +1664,6 @@ def scenarios(drv):
         ("mk_alt_d_console", sc_alt_d_console),
         ("mk_apply_menu", sc_apply_menu),
         ("mk_isolate", sc_isolate),
+        ("mk_isolate_stacked", sc_isolate_stacked),
         ("mk_properties_cycle", sc_properties_cycle),
     ]
