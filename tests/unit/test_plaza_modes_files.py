@@ -35,6 +35,7 @@ def _load_core(name="_meso_core"):
 
 PKG = _load_core()
 rf = importlib.import_module(PKG + ".recent_files")
+modes = importlib.import_module(PKG + ".modes")
 g = importlib.import_module(PKG + ".geometry")
 md = importlib.import_module(PKG + ".model")
 dm = importlib.import_module(PKG + ".dropdown_model")
@@ -204,6 +205,43 @@ class TestBuiltMenus(unittest.TestCase):
         call = actions.plan_call(radio.action)
         self.assertEqual((call.op_idname, call.operator_context, call.undo, call.kwargs),
                          ('object.mode_set', 'INVOKE_REGION_WIN', True, {'mode': 'EDIT'}))
+
+
+# rna_enum_object_mode_items order (5.2.2).
+RNA_ORDER = ('OBJECT', 'EDIT', 'POSE', 'SCULPT', 'VERTEX_PAINT', 'WEIGHT_PAINT', 'TEXTURE_PAINT',
+             'PARTICLE_EDIT', 'EDIT_GPENCIL', 'SCULPT_GREASE_PENCIL', 'PAINT_GREASE_PENCIL',
+             'WEIGHT_GREASE_PENCIL', 'VERTEX_GREASE_PENCIL', 'SCULPT_CURVES')
+
+
+class TestCompatibleModes(unittest.TestCase):
+    def test_per_type(self):
+        cases = {
+            'MESH': ['OBJECT', 'EDIT', 'SCULPT', 'VERTEX_PAINT', 'WEIGHT_PAINT',
+                     'TEXTURE_PAINT'],
+            'ARMATURE': ['OBJECT', 'EDIT', 'POSE'],
+            'CURVES': ['OBJECT', 'EDIT', 'SCULPT_CURVES'],
+            'GREASEPENCIL': ['OBJECT', 'EDIT', 'SCULPT_GREASE_PENCIL', 'PAINT_GREASE_PENCIL',
+                             'WEIGHT_GREASE_PENCIL', 'VERTEX_GREASE_PENCIL'],
+            'EMPTY': ['OBJECT'], 'CAMERA': ['OBJECT'], 'LIGHT': ['OBJECT'],
+            'VOLUME': ['OBJECT'], None: ['OBJECT'],
+        }
+        for kind in ('CURVE', 'SURFACE', 'FONT', 'META', 'POINTCLOUD', 'LATTICE'):
+            cases[kind] = ['OBJECT', 'EDIT']
+        for kind, want in cases.items():
+            with self.subTest(kind=kind):
+                self.assertEqual(modes.compatible_modes(kind, RNA_ORDER), want)
+
+    def test_particle_edit_only_for_meshes_that_support_it(self):
+        self.assertEqual(modes.compatible_modes('MESH', RNA_ORDER, True)[-1], 'PARTICLE_EDIT')
+        self.assertNotIn('PARTICLE_EDIT', modes.compatible_modes('CURVE', RNA_ORDER, True))
+        self.assertTrue(modes.particle_edit_supported(True, ()))
+        self.assertTrue(modes.particle_edit_supported(False, ('SUBSURF', 'CLOTH')))
+        self.assertTrue(modes.particle_edit_supported(False, ('SOFT_BODY',)))
+        self.assertFalse(modes.particle_edit_supported(False, ('SUBSURF', 'PARTICLE_INSTANCE')))
+
+    def test_follows_the_given_order(self):
+        self.assertEqual(modes.compatible_modes('ARMATURE', ('POSE', 'EDIT', 'OBJECT')),
+                         ['POSE', 'EDIT', 'OBJECT'])
 
 
 class TestLoadsFile(unittest.TestCase):

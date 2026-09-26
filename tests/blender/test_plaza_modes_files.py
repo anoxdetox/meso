@@ -86,6 +86,20 @@ def native_mode_labels():
     return [(dict(it.action.props)['mode'], it.label) for it in items]
 
 
+def itemf_ids():
+    """What ``object_mode_set_itemf`` itself offers here: headless, the TypeError of a bogus
+    assignment to the last-used properties lists the filtered result (in the GUI modal it
+    lists the unfiltered enum, which is why live code uses ``core.modes``)."""
+    header_controls = _mod("record.header_controls")
+    with _mod("record.dropdown").invoking_context(bpy.context, _info()) as ctx:
+        last = ctx.window_manager.operator_properties_last('object.mode_set')
+        try:
+            last.mode = '\x01meso-bogus'
+        except TypeError as ex:
+            return header_controls._parse_enum_ids(str(ex))
+    return None
+
+
 # object kind (test_header.MAKERS, None = the factory Cube) -> the modes object_mode_set_itemf
 # offers (mode_compat_test, object_modes.cc), in the RNA order.
 EXPECTED_MODES = {
@@ -135,12 +149,26 @@ class TestModeSwitchModel(unittest.TestCase):
                 model = mode_model()
                 self.assertEqual(model.coverage, D().COVERAGE_CUSTOM)
                 self.assertEqual(mode_ids(model), expected)
+                self.assertEqual(mode_ids(model), itemf_ids(), "core.modes == the C itemf")
                 self.assertEqual([(i, it.label) for i, it in zip(mode_ids(model), model.items)],
                                  native_mode_labels())
                 self.assertTrue(all(it.kind == D().DD_RADIO and it.enabled
                                     for it in model.items))
                 self.assertEqual([it.checked for it in model.items],
                                  [m == 'OBJECT' for m in expected])
+
+    def test_cloth_or_soft_body_mesh_offers_particle_edit(self):
+        for modifier in ('CLOTH', 'SOFT_BODY'):
+            with self.subTest(modifier=modifier):
+                obj = new_object('MESH')
+                obj.modifiers.new('meso_test_' + modifier.lower(), modifier)
+                try:
+                    with active(obj):
+                        model = mode_model()
+                        self.assertEqual(mode_ids(model), EXPECTED_MODES['PARTICLES'])
+                        self.assertEqual(mode_ids(model), itemf_ids())
+                finally:
+                    bpy.data.objects.remove(obj)
 
     def test_object_only_types(self):
         for kind, make in OBJECT_ONLY.items():
@@ -152,6 +180,7 @@ class TestModeSwitchModel(unittest.TestCase):
                         model = mode_model()
                         self.assertEqual(obj.type, kind)
                         self.assertEqual(mode_ids(model), ['OBJECT'])
+                        self.assertEqual(itemf_ids(), ['OBJECT'])
                         self.assertEqual(model.items[0].label, 'Object Mode')
                         self.assertTrue(model.items[0].checked)
                 finally:

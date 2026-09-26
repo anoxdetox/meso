@@ -11,8 +11,10 @@ invalidated after in-place changes).
 
 - **Mode switcher** (:data:`core.tables.MODE_SWITCH_MENU`; the native 3D View header menu is
   ``operator_menu_enum("object.mode_set", "mode")``, space_view3d.py): one DD_RADIO per mode
-  the operator's C itemf (``object_mode_set_itemf``: ``mode_compat_test`` of the active object)
-  offers, in the RNA order, labelled with the translated enum names; the active object's mode
+  the operator's C itemf (``object_mode_set_itemf``: ``mode_compat_test`` of the active object,
+  :func:`core.modes.compatible_modes`) offers, in the RNA order, labelled with the translated
+  enum names (the itemf cannot be asked from the GUI modal: a bogus assignment's TypeError
+  lists the unfiltered enum there, headless the filtered one); the active object's mode
   is the checked row. A pick runs ``object.mode_set(mode=...)`` in place, INVOKE_REGION_WIN
   with the undo flag (the native header button: the mode toggle operators it calls push their
   own undo step, 'Toggle Edit Mode'). Rows are greyed when the operator's poll fails
@@ -40,7 +42,7 @@ from typing import Any
 
 import bpy
 
-from ..core import recent_files
+from ..core import modes, recent_files
 from ..core.dropdown_model import (
     COVERAGE_CUSTOM, COVERAGE_NATIVE, DD_LABEL, DD_OP, DD_RADIO, DD_SEPARATOR,
     DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_MODE, ITEM_SOURCE_RECENT, SOURCE_MENU,
@@ -48,7 +50,7 @@ from ..core.dropdown_model import (
 )
 from ..core.model import ACTION_OPERATOR, Action
 from ..core.tables import BUILT_MENUS, MODE_SWITCH_MENU, OPEN_RECENT_MENU
-from . import header_controls, recorder
+from . import recorder
 
 MODE_OPERATOR = 'object.mode_set'
 MODE_PROP = 'mode'
@@ -122,21 +124,23 @@ def _op_poll(op_idname: str, operator_context: str) -> bool:
 
 
 def mode_ids(context: Any) -> list[str]:
-    """The ``object.mode_set`` ``mode`` ids its C itemf offers in ``context`` (the modes of
-    the active object's type; Object Mode only without one): the id list of the TypeError of
-    a bogus assignment to the last-used operator properties (the stored value is unchanged,
-    as ``record.dropdown.Converter._itemf_ids`` does for any operator enum). [] when unknown.
-    Never raises."""
+    """The ``object.mode_set`` ``mode`` ids the native menu lists in ``context``: the modes
+    of the active object's type (``core.modes.compatible_modes``; Particle Edit for a mesh
+    with particles / Cloth / Soft Body; Object Mode only without an active object), in the
+    RNA order. Never raises ([] on failure)."""
     try:
-        last = context.window_manager.operator_properties_last(MODE_OPERATOR)
-        if last is None:
-            return []
-        setattr(last, MODE_PROP, '\x01meso-bogus')
-    except TypeError as ex:
-        return header_controls._parse_enum_ids(str(ex))
-    except Exception:
-        pass
-    return []
+        obj = getattr(context, 'active_object', None)
+        particle = False
+        obj_type = None
+        if obj is not None:
+            obj_type = obj.type
+            if obj_type == 'MESH':
+                particle = modes.particle_edit_supported(
+                    len(obj.particle_systems) > 0, (m.type for m in obj.modifiers))
+        return modes.compatible_modes(obj_type, mode_names(), particle)
+    except Exception as ex:
+        _log_once('mode_ids', f"listing the modes failed: {ex!r}")
+        return []
 
 
 def mode_names() -> dict[str, str]:
@@ -154,11 +158,8 @@ def mode_switch_model(context: Any,
     mode checked, ``Action(ACTION_OPERATOR, 'object.mode_set', props={'mode': id},
     operator_context='INVOKE_REGION_WIN', undo=True)``; ``enabled`` = the operator's poll."""
     names = mode_names()
-    offered = set(mode_ids(context))
-    ids = [ident for ident in names if ident in offered] if offered else []
+    ids = mode_ids(context)
     obj = getattr(context, 'active_object', None)
-    if not ids:
-        ids = ['OBJECT'] if obj is None else []
     if not ids:
         return _native(MODE_SWITCH_MENU, operator_context, 'unlistable_enum')
     current = getattr(obj, 'mode', None) if obj is not None else None
