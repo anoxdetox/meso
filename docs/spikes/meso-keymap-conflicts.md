@@ -339,3 +339,117 @@ Mode, Mesh, Curve, Armature, Pose, Particle, UV and Graph. Meso adds the exact-r
    under `-b`, where popups segfault.
 6. Every protected feature in `docs/roadmap.md` is still reachable with the Meso Keymap on, including local view on Shift+I,
    the Cursor tool and Shift+RMB cursor.
+
+## Annotate relocation
+Status: audit only (2026-09-26), no source changed. Context: the user's item C. **D tap** = one-shot pivot edit
+(Affect Only Origins for the next transform only, then back to the user's value; a second D tap before a transform
+cancels it). **Insert tap** = persistent toggle. No D hold. IC's D (Annotate tool cycle) needs a new key that is
+close to D and is not the reference DCC's.
+
+Method: the same headless dump as above, re-run on 5.2.2 with IC and BL loaded through `bpy.utils.keyconfig_set`
+(280 keymaps each; IC has 2734 items, BL 3228). It covers every non-modal item on D, S, F, E, R, X, C and W with
+every Ctrl/Shift/Alt combination (and `any`) in the keymaps that run in a region where D annotates:
+- the 12 annotate keymaps
+- '3D View', '3D View Generic', 'Image Generic', 'Window', 'Screen', 'Frames', 'User Interface', 'Grease Pencil'
+- the other 3D View mode maps
+- every '3D View Tool:', 'Image Editor Tool:' and 'Generic Tool:' keymap
+
+The click logic was checked in the 5.2 source (`wm_event_system.cc`, `wm_handlers_do`, the ISKEYBOARD_OR_BUTTON
+branch; `wm_event_query.cc`, `WM_event_drag_threshold`).
+
+### Where D annotates in IC (verified)
+- **The tool cycle:** `wm.tool_set_by_id(name='builtin.annotate', cycle=True)` on D PRESS in 12 keymaps: 'Object Mode',
+  'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves' (listed twice), 'Sculpt Curves', 'Image Paint', 'Vertex Paint',
+  'Weight Paint', 'Image' and 'UV Editor' (IC:122 `_template_items_basic_tools`, IC:640, 1104, 2809, 2869, 2923, 3425,
+  3465).
+- **Not in** 'Sculpt' (D = subdivision +1), 'Grease Pencil Weight Paint' (D = toggle direction), Pose, Lattice, Particle,
+  Point Cloud, Grease Pencil Edit Mode, the Clip Editor or the Sequencer.
+- **D + drag** is not a D item. It is the 'Grease Pencil' keymap (BL:3943 `km_annotate`, reused by IC with
+  `use_key_activate_tools` off). That keymap is a region default handler that runs after the gizmos and before the tool
+  and mode keymaps. Its `gpencil.annotate` items fire on LMB/RMB PRESS with `key_modifier: 'D'`:
+  - LMB = draw
+  - Shift LMB = draw
+  - Alt LMB = straight line
+  - Shift Alt LMB = poly line
+  - RMB = eraser
+- **The annotate tools' own keymaps** ('Generic Tool: Annotate', '... Line', '... Polygon', '... Eraser') use LMB/MMB and
+  Ctrl LMB/MMB (eraser) only. They add no keyboard key.
+
+### Candidates (IC; "free" = no item in any of the keymaps listed under Method)
+| Key | IC in those keymaps | Meso table | Reference DCC | Verdict |
+|---|---|---|---|---|
+| Shift D | 'Grease Pencil Edit Mode' duplicate-move; 'Sculpt' subdivision −1. Elsewhere: 'Clip Editor' / 'Clip Graph Editor' disable markers | — | **yes**: duplicate with transform (the gap analysis lists it as a missing feature to add later) | **no** |
+| Ctrl Shift D | 'Sculpt' voxel size / dyntopo detail edit. Also 'Text' uncomment | — | probably (duplicate with options, from general knowledge; not in the project notes) | **no** |
+| Shift Alt D | **free** in every IC keymap (no non-modal item on it at all) | — | probably (history deletion, from general knowledge; not in the project notes) | fallback |
+| **Ctrl Alt D** | **free** in all of those keymaps. Elsewhere only in editors without D annotate: 'Outliner' delete drivers, 'NLA Editor' / 'Sequencer' linked duplicate. BL: 'User Interface' driver removal (not a WINDOW-region map) | 'Clip Editor' Show Disabled (another keymap, so no clash in `table_items`) | no default known | **recommended** |
+| Ctrl Shift Alt D | free everywhere | — | none known | free, but a four-key chord |
+| Alt D / Ctrl D | UI driver removal / duplicate-move in every edit mode | Alt D = Deselect All | — | **no** |
+| Near keys that are free: Alt F, Ctrl Shift F, Shift Alt F, Shift C, Ctrl Shift C, Shift Alt C, Shift Alt E, Ctrl Alt E, Ctrl Alt R / Ctrl Shift R / Shift Alt R, Ctrl Shift X, Shift Alt X, Ctrl Alt X, Ctrl Shift W, Ctrl Alt W | free | — | not in the project notes | not related to D; C and X are Meso hold keys |
+
+Taken: Shift S and Ctrl S (IC keying / save), Shift F (view centre pick), Shift E / Shift R / Shift W (keyframe insert
+by name), Shift X (snap pie), Ctrl Alt F (radial control in Image and Weight Paint), Ctrl Alt C (copy data path).
+
+### Recommendation: Ctrl Alt D = Annotate tool cycle
+- It fits Meso's existing pattern for relocated native actions: Ctrl Alt A = Apply, Ctrl Alt 1 = vertex expand,
+  Ctrl Alt D = Clip Editor Show Disabled.
+- It is free in every keymap that reaches the regions where D annotates, including 'User Interface', 'Window' and 'Screen'.
+- It displaces nothing and adds no conflict with the Meso table. The Clip Editor use is a different keymap. Item F (Alt D
+  over the 'User Interface' driver item) does not touch Ctrl Alt D.
+- Suggested binding, e.g. `reloc_annotate` (`follows='pivot_edit'` or whatever the new D id is):
+  - `wm.tool_set_by_id(name='builtin.annotate', cycle=True)` on Ctrl Alt D PRESS
+  - in all 12 IC annotate keymaps, so one key works everywhere, not only where D changes meaning
+  - D itself stays native (the annotate cycle) outside 'Object Mode'
+  - the Object Mode `Displaced` entry for D moves from `NOW_TAP` to this binding
+  - rebindable and switchable in the Meso keyconfig like every table item
+- **Risks, not verifiable headless:**
+  - Some Linux desktops bind Ctrl Alt D to "show desktop" (Xfce's default, from general knowledge). Meso's Clip Editor
+    Show Disabled already shares that exposure.
+  - With the Annotate tool active, keeping Ctrl held after the chord turns LMB into the tool's Ctrl LMB eraser. Every
+    Ctrl chord has this; Shift Alt D would give the Shift Alt LMB poly line instead.
+- **Fallback:** Shift Alt D, which is free in all 280 IC keymaps, if the user prefers to avoid the Xfce overlap and accepts
+  that it is probably a reference-DCC default.
+
+### D tap vs D + drag annotate vs the gizmo (verified in source; GUI re-check needed)
+- **`keymodifier` is not affected by keymap items.** `wm_event_add_ghostevent` sets it for every held non-modifier key
+  and clears it on release, whatever the keymap items do with the key. So Meso's D item never stops D + LMB annotate:
+  the pivot-hold spike showed a Meso D PRESS modal that passes LMB through leaves annotate native.
+- **Blender's own CLICK rule already means "a tap with nothing in between".** A key RELEASE becomes KM_CLICK only when
+  all of these hold:
+  - the PRESS was not handled (`wm_action_not_handled`)
+  - it was not a repeat
+  - `prev_press_type` is still that key: any mouse button or key pressed in between moves `prev_press_type` on, so
+    D + LMB annotate is never a click
+  - the pointer is still within `U.drag_threshold` of the press. That is the keyboard threshold (Preferences ▸ Input
+    "Drag Threshold"), not the mouse one, times the UI scale.
+- **Auto-repeats do not break a long D hold with no other input:** they neither set the click flag again nor change
+  `prev_press_type`, so it is still a click.
+- **Two ways to get the D tap:**
+  1. **(recommended; keeps the table's "shadow, never remove" rule)** Keep a D **PRESS** Meso item in 'Object Mode', so
+     IC's D PRESS annotate cycle stays shadowed and switching the Meso item off gives D back. Its modal arms or cancels
+     the one-shot on the D release only when the CLICK rule above holds. It passes every other event through (LMB for
+     annotate and gizmos) and ignores own-key repeats (the long-hold fix). No `tool_settings` write happens until the
+     release.
+  2. A D **CLICK** item. This is simpler, but it only works if IC's Object Mode D PRESS annotate item is made inactive in
+     the Meso keyconfig: a handled PRESS clears `event_queue_check_click`, so no CLICK follows. That breaks "switching the
+     Meso item off gives the key back" (the IC item would have to be re-enabled too) and needs a change to the shadow test.
+- **Gizmo and tools after a tap:** D is up by the time the user drags, so the D + LMB annotate items cannot match
+  (`keymodifier` is cleared).
+  - A drag on the Move gizmo, a Tweak/Move tool drag on an object, or a G/W-style keyboard transform is "the one
+    transform" and edits the origin.
+  - A box-select drag or a click-select is not a transform, so the one-shot stays armed.
+  - The spike already showed the gizmo handler running ahead of the 'Grease Pencil' keymap.
+- **Needs a GUI case (XTEST, nested only):**
+  - D tap then gizmo drag, then a second drag: the second drag must be normal again
+  - D tap, D tap: cancelled
+  - D + LMB in empty space: annotates and arms nothing
+  - D held for more than 1 s with no input: counts as a tap
+  - D held while the mouse moves past the drag threshold: not a tap (decide whether that is wanted; see the questions)
+  - Ctrl Alt D: switches to the Annotate tool, and cycles its sub-tools on repeated presses
+
+### Edit modes (report only, nothing to add)
+- `use_transform_data_origin` stays Object Mode only (`VIEW3D_PT_tools_object_options_transform`, `.objectmode`,
+  space_view3d_toolbar.py:100-118).
+- Pose Mode's only "Affect Only" option is `use_transform_pivot_point_align` (Locations, :233). That is not a pivot edit.
+- The nearest edit-mode analogue is a temporary 3D-cursor pivot: `transform_pivot_point = 'CURSOR'` plus placing the
+  cursor, then back to the user's pivot after one transform. It is a candidate for a later decision and is **not** part
+  of item C. So D keeps IC's annotate cycle in every edit and paint mode, and Ctrl Alt D is only an extra key there.
