@@ -41,8 +41,11 @@ checks which drags snapped, that nothing was written while a transform ran, and 
 restore after the release:
 
 - ``ri_x_multi_tweak`` / ``ri_x_multi_gizmo``: three drags snap, one after the release is free.
-- ``ri_x_multi_short``: a short hold, two fast drags (ending before the 0.6 s repeat delay) and a
-  normal one snap; after the release, free.
+- ``ri_x_multi_short``: a short hold, two fast drags and a normal one snap; after the release,
+  free. Drag 1 ends before the 0.6 s repeat delay; drag 2 starts after the first repeat.
+- ``ri_x_drag_in_the_check``: drag 2 starts while drag 1's still-held check runs and before the
+  first repeat (checked: ``drag_started_inside_the_check``), so the check re-arms on drag 2 and
+  the key is proved down only after it; all three drags snap, the one after the release not.
 - ``ri_x_up_during_drag`` / ``ri_x_up_after_drag``: the drag after the release is free.
 - ``ri_x_multi_modifiers``: Shift during drag 1 and Ctrl during drag 2 keep drags 2 and 3 snapped.
 - ``ri_x_multi_still``: 1.2 s without pointer motion between two snapped drags.
@@ -750,6 +753,8 @@ def _d_tap_twice(rec, case):
 def _d_cancel_keeps(rec, case):
     yield from d_press(case)
     d = yield from p_drag(case, "cancelled", cancel=True)
+    # the drag must really have started a translate: else "in place, still armed" is trivial
+    check(rec, "cancelled_drag_transformed", d["transformed"], d)
     check(rec, "cancelled_in_place", not d["moved"], d)
     check(rec, "cancel_keeps_it_armed", d["armed_after"] and d["value_after"] is True, d)
     d = yield from p_drag(case, "drag")
@@ -792,11 +797,14 @@ def track(case, seconds):
         yield min(0.01, left)
 
 
-def multi_drag(case, label, path, key='x', fast=False, key_up_at=None, mod_mid=None):
+def multi_drag(case, label, path, key='x', fast=False, key_up_at=None, mod_mid=None,
+               settle=0.12):
     """One LMB drag at the cube (``path`` 'tweak': the Tweak tool or whatever tool is active,
     'gizmo': the Move gizmo centre). ``fast``: 3 quick moves (the drag ends within 0.2 s);
     ``key_up_at``: release the hold key at that move; ``mod_mid``: hold that modifier key from
-    the 2nd move to the one before the last."""
+    the 2nd move to the one before the last; ``settle``: the wait at the cube before the press.
+    Records whether the hold's still-held check ran at the press and how many own-key repeats
+    came before it."""
     cube = bpy.data.objects["Cube"]
     start = [round(v, 4) for v in cube.location]
     c = to_win(cube.location)
@@ -804,8 +812,11 @@ def multi_drag(case, label, path, key='x', fast=False, key_up_at=None, mod_mid=N
         XT.move_win((c[0] - 3, c[1] - 3))
         yield from track(case, 0.1)
     XT.move_win(c)
-    yield from track(case, 0.12)
-    d = {"label": label, "start": start, "t_down": now()}
+    yield from track(case, settle)
+    d = {"label": label, "start": start, "t_down": now(),
+         "checking_at_press": key.upper() in hold_mod().checking_keys(),
+         "repeats_before": sum(1 for e in TRACE[case.get("t0", 0):]
+                               if e["type"] == key.upper() and e["is_repeat"])}
     n_tr = len(case["transforms"])
     XT.button(1, True)
     yield from track(case, 0.04 if fast else 0.12)
@@ -832,9 +843,11 @@ def multi_drag(case, label, path, key='x', fast=False, key_up_at=None, mod_mid=N
     case["drags"].append(d)
 
 
-def multi(steps, expect, tool_id="builtin.select"):
+def multi(steps, expect, tool_id="builtin.select", in_check=None):
     """A G16 scenario: ``steps`` of ('key', True/False), ('wait', s), ('drag', kwargs),
-    ('tap', keysym); ``expect`` = which drags snap, in order."""
+    ('tap', keysym); ``expect`` = which drags snap, in order. ``in_check``: the index of a drag
+    that must start while the still-held check of the previous drag runs, before any repeat
+    (the check then re-arms on that drag and is proved only after it)."""
     def run(rec):
         case = {"modals_seen": [], "transforms": [], "drags": []}
         rec["case"] = case
@@ -850,7 +863,7 @@ def multi(steps, expect, tool_id="builtin.select"):
             set_user()
             XT.move_win(to_win(cube.location))
             yield 0.4
-            t0 = len(TRACE)
+            t0 = case["t0"] = len(TRACE)
             for kind, arg in steps:
                 if kind == "key":
                     XT.key("x", arg)
@@ -893,6 +906,13 @@ def multi(steps, expect, tool_id="builtin.select"):
               all(d["states"] == [case.get("overlay") if want else user_state()]
                   for d, want in zip(drags, expect)),
               [(d["label"], d["states"]) for d in drags])
+        if in_check is not None:
+            d = drags[in_check] if len(drags) > in_check else {}
+            check(rec, "drag_started_inside_the_check", d.get("checking_at_press") is True
+                  and d.get("repeats_before") == 0,
+                  [(x["label"], x["checking_at_press"], x["repeats_before"],
+                    round(x["t_down"] - case["transforms"][0]["start"], 3)
+                    if case["transforms"] else None) for x in drags])
         check(rec, "restored", case["after"] == user_state(), case["after"])
         check(rec, "hold_ended", case["holds_after"] == [], case["holds_after"])
         check(rec, "repeats_passed_through",
@@ -916,6 +936,11 @@ MULTI_SCENARIOS = [
         [("key", True), ("wait", 0.05), ("drag", {"fast": True}), ("wait", 0.1),
          ("drag", {"fast": True}), ("wait", 0.6), ("drag", {}), ("wait", 0.3),
          ("key", False), ("wait", 0.4), ("drag", AFTER)], [True, True, True, False])),
+    ("ri_x_drag_in_the_check", multi(
+        [("key", True), ("drag", {"fast": True, "settle": 0.04}), ("wait", 0.04),
+         ("drag", {"fast": True, "settle": 0.04}), ("wait", 0.8), ("drag", {}),
+         ("wait", 0.3), ("key", False), ("wait", 0.4), ("drag", AFTER)],
+        [True, True, True, False], in_check=1)),
     ("ri_x_up_during_drag", multi(
         [("key", True), ("wait", LONG), ("drag", {"key_up_at": 3}), ("wait", 0.6),
          ("drag", AFTER)], [True, False])),
