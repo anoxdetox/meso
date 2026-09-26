@@ -95,6 +95,30 @@ class TestHoldStep(unittest.TestCase):
         st, _ = run_steps([(0.05, sh.EV_OTHER_KEY)])
         self.assertTrue(st.used and st.blind)
 
+    def test_after_another_key_the_next_foreign_modal_ends_the_hold(self):
+        """The documented limit (README D row, step 11, decision 49): after another repeating
+        key (W for the Move tool) the hold ends when the next foreign modal of any kind ends,
+        an orbit as well as a transform, not only after a transform; a modifier instead keeps
+        the hold going (the still-held check runs)."""
+        before = [(0.6, sh.EV_OWN_REPEAT), (1.0, sh.EV_OTHER_KEY), (1.5, sh.EV_MOUSE_PRESS),
+                  (1.6, sh.EV_FOREIGN_ON)]
+        st, effs = run_steps(before + [(2.0, sh.EV_FOREIGN_OFF)])      # an MMB orbit
+        self.assertTrue(all(e == sh.NOTHING for e in effs[:-1]))
+        self.assertEqual(st.phase, sh.ENDED)
+        self.assertEqual((effs[-1].release, effs[-1].tap), (True, False))
+        # the gizmo drag that follows finds the modal ended: it is not an origin edit
+        _st, eff = po.hold_step(st, sh.EV_FOREIGN_ON, 2.5)
+        self.assertEqual(eff, sh.NOTHING)
+        # a key that starts a transform: the same, that transform is the last one of the hold
+        st, effs = run_steps([(0.6, sh.EV_OWN_REPEAT), (1.0, sh.EV_OTHER_KEY),
+                              (1.0, sh.EV_FOREIGN_ON), (1.8, sh.EV_FOREIGN_OFF)])
+        self.assertEqual((st.phase, effs[-1].release), (sh.ENDED, True))
+        # a modifier (Shift for a box select extend) does not blind the hold
+        st, effs = run_steps([(0.6, sh.EV_OWN_REPEAT), (1.0, po.EV_MODIFIER),
+                              (1.5, sh.EV_FOREIGN_ON), (2.0, sh.EV_FOREIGN_OFF)])
+        self.assertEqual(effs[-1], sh.NOTHING)
+        self.assertTrue(st.phase == sh.HELD and st.checking)
+
     def test_repeats_pass_through_in_every_phase(self):
         for events in ([], [(0.1, sh.EV_FOREIGN_ON)], [(0.1, sh.EV_OWN_RELEASE)],
                        [(0.1, sh.EV_FOREIGN_ON), (0.5, sh.EV_FOREIGN_OFF)]):
