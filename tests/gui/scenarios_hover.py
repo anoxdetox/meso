@@ -230,8 +230,9 @@ def scenarios(drv):
 
     # -------------------------------------------------------------------------- (c)
     def sc_ineligible_never_open(rec):
-        """The Snap toggle, a workspace tab, Recent Commands, Meso Settings and the mode
-        switcher only hover: nothing opens, nothing runs, nothing hands off."""
+        """The Snap toggle, a workspace tab, Recent Commands and Meso Settings only hover:
+        nothing opens, nothing runs, nothing hands off. (The mode switcher and Recent Files
+        are built dropdowns: they hover-open like the row menus.)"""
         ts = bpy.context.scene.tool_settings
         snap0 = bool(ts.use_snap)
         ws0 = bpy.context.window.workspace.name
@@ -243,7 +244,7 @@ def scenarios(drv):
         drv.check(rec, "snap_toggle_found", snap is not None)
         ids = [snap.id] if snap is not None else []
         ids += [i.id for i in st.model.row(M.ROW_WORKSPACE).items if not i.checked][:1]
-        ids += [M.RECENT_ID, M.CONTROLS_ID, M.MODE_SWITCH_ID]
+        ids += [M.RECENT_ID, M.CONTROLS_ID]
         for item_id in ids:
             p = label_xy(st, item_id)
             drv.check(rec, f"placed:{item_id}", p is not None)

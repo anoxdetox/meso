@@ -10,7 +10,7 @@ data, selection, preferences) in ``finally``, so the order does not matter. They
 empty space closes the dropdown only; (c) Object > Apply > Scale through a hover-opened
 submenu, compared with the native operator; (d) Add > Mesh > Cube by drag-release from the
 label; (e) the Snap cascade (flag toggle keeps it open) and a popover 'More…' hand-off;
-(f) File > Open Recent (C-only) hands off natively; View > Sidebar applies in place (the
+(f) Edit > Undo History (C-only) hands off natively; View > Sidebar applies in place (the
 deferred re-record after the region animation); (g) ``execute_on_release`` True / False;
 (h) ESC closes the chain, a second ESC cancels; Edit > Undo through the dropdown (open
 question 6). The Snap toggle, the Pivot radio cascade and the orientation More… are the
@@ -476,17 +476,18 @@ def scenarios(drv):
 
     # -------------------------------------------------------------------------- (f)
     def sc_native_item(rec):
-        """File > Open Recent is C-only: a DD_NATIVE 'Open Recent' row (drawn as a cascade,
+        """Edit > Undo History is C-only: a DD_NATIVE 'Undo History' row (drawn as a cascade,
         '▸' and no '…') whose click (on the RELEASE) hands the menu off with wm.call_menu and
-        ends the Plaza."""
+        ends the Plaza. (File > Open Recent, C-only too, is a built custom submenu:
+        scenarios_plazamodes.py.)"""
         xy = drv.center_of("VIEW_3D")
         st = yield from drv.open_plaza(xy)
-        if st is None or st.layout is None or not (yield from drv.open_dropdown(rec, st, FILE)):
+        if st is None or st.layout is None or not (yield from drv.open_dropdown(rec, st, EDIT)):
             yield from drv.close_plaza(xy, rec)
             return
         idx = drv.dd_find(st, 0, lambda it: it.kind == D().DD_NATIVE
                           and it.action is not None
-                          and it.action.target == "TOPBAR_MT_file_open_recent")
+                          and it.action.target == "TOPBAR_MT_undo_history")
         drv.check(rec, "native_row", idx is not None,
                   [(it.kind, it.label) for it in drv.dd_models(st)[0].items])
         if idx is None:
@@ -505,7 +506,7 @@ def scenarios(drv):
         ls = drv.last()
         drv.check(rec, "ended_by_handoff", ls.get("end") == "handoff", ls.get("end"))
         drv.check(rec, "handoff_cmd", ls.get("handoff") == (
-            "wm.call_menu", {"name": "TOPBAR_MT_file_open_recent"}), ls.get("handoff"))
+            "wm.call_menu", {"name": "TOPBAR_MT_undo_history"}), ls.get("handoff"))
         res = ls.get("handoff_result") or []
         drv.check(rec, "handoff_result", "INTERFACE" in res or "FINISHED" in res, res)
         drv.check_ended(rec)

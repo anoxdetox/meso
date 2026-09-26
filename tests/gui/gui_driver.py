@@ -1804,36 +1804,39 @@ def sc_p3_click_object_menu(rec):
 
 
 def sc_p3_mode_switch(rec):
-    """Click the mode switcher: MESO_MT_mode_switch opens natively (wm.call_menu) in the
-    hovered 3D View, and picking 'Edit Mode' (its accelerator 'E') switches the mode."""
+    """Click the mode switcher: the custom mode dropdown opens (a built menu; no hand-off,
+    no native popup), one radio row per mode of the cube, the native labels, Object Mode
+    checked; ESC closes the chain only and the Space release finishes. The pick itself
+    (Edit Mode in place, the rows re-recorded) is ``pm_mode_pick``
+    (scenarios_plazamodes.py)."""
     md = model_mod()
+    D = dd_model_mod()
     xy = center_of("VIEW_3D")
     st = yield from open_plaza(xy)
     if st is None or st.layout is None or st.layout.item(md.MODE_SWITCH_ID) is None:
         check(rec, "layout", False, row_ids(st, md.ROW_CONTEXTUAL))
         return
-    fxy = rect_mid(st.layout.item(md.MODE_SWITCH_ID).rect)
-    try:
-        ls = yield from click_item(rec, st, md.MODE_SWITCH_ID)
-        check(rec, "handoff_cmd", ls.get("handoff") == ("wm.call_menu",
-                                                        {"name": "MESO_MT_mode_switch"}),
-              ls.get("handoff"))
-        check(rec, "handoff_result", "INTERFACE" in (ls.get("handoff_result") or []),
-              ls.get("handoff_result"))
-        check(rec, "popup_open", not (yield from canary_ok(fxy)))
-        sim('E', 'PRESS', fxy, unicode='e')
-        yield 0.05
-        sim('E', 'RELEASE', fxy)
-        yield 0.5
-        mode = bpy.context.view_layer.objects.active.mode
-        check(rec, "edit_mode", mode == 'EDIT', mode)
-        check(rec, "menu_closed", (yield from canary_ok(fxy)))
-        yield from close_popups(fxy)
-        yield from release_space(xy)
-        check_ended(rec, "final")
-    finally:
-        set_mode('OBJECT')
-        yield 0.3
+    if not (yield from open_dropdown(rec, st, md.MODE_SWITCH_ID)):
+        yield from close_plaza(xy, rec)
+        return
+    items = dd_models(st)[0].items
+    check(rec, "radio_rows", items and all(it.kind == D.DD_RADIO for it in items),
+          [(it.kind, it.label) for it in items])
+    check(rec, "cube_modes", [it.label for it in items] == [
+        "Object Mode", "Edit Mode", "Sculpt Mode", "Vertex Paint", "Weight Paint",
+        "Texture Paint"], [it.label for it in items])
+    check(rec, "object_checked", [it.label for it in items if it.checked] == ["Object Mode"])
+    sim('ESC', 'PRESS', xy)
+    yield 0.2
+    check(rec, "esc_closed_chain", st.dropdowns is None and plaza().is_running(),
+          dd_keys(st))
+    yield from release_space(xy)
+    check_ended(rec, "final")
+    ls = last()
+    check(rec, "ended_by_release", ls.get("end") == "finish", ls.get("end"))
+    check(rec, "no_handoff", ls.get("handoff") is None, ls.get("handoff"))
+    check(rec, "menus_opened", ls.get("menus_opened") == ["MESO_MT_mode_switch"],
+          ls.get("menus_opened"))
 
 
 def sc_p3_apply_scale(rec):
@@ -2417,4 +2420,6 @@ def tick():
     return max(0.01, float(delay or 0.04))
 
 
-bpy.app.timers.register(tick, first_interval=1.0)
+# Persistent: a scenario may load a .blend (Open Recent through the Plaza); the driver must
+# survive it.
+bpy.app.timers.register(tick, first_interval=1.0, persistent=True)
