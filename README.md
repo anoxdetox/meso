@@ -94,7 +94,7 @@ add-on, so its preferences reset once. Remove the old development link from
 ```
 B=~/.local/share/blender/blender
 PY=~/.local/share/blender/5.2/python/bin/python3.13
-bl() { ( ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
+bl() { ( ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
 
 $PY -m unittest discover -s tests/unit -t .                            # pure tests (no bpy)
 bl -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]

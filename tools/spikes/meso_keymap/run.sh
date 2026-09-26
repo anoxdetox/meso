@@ -102,7 +102,9 @@ keyconfig)
     cp -r "$HERE/keyconfig_ext" "$T/ext/user_default/meso_kcspike"
     find "$T/ext/user_default/meso_kcspike" -name __pycache__ -prune -exec rm -rf {} +
     kc_headless() {  # $1 phase, $2 out name, $3 extra env (VAR=value ...)
-        rc=0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS ${3:-} MESO_KC_PHASE=$1 \
+        mkdir -p -m 700 "$T/run-headless"
+        rc=0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-headless" \
+            ${3:-} MESO_KC_PHASE=$1 \
             MESO_KC_OUT="$OUT/kc_$2.json" TMPDIR="$T/tmp" BLENDER_USER_CONFIG="$T/cfg" \
             BLENDER_USER_EXTENSIONS="$T/ext" timeout 180 "$B" -b --python-exit-code 1 \
             --python "$HERE/keyconfig_phase.py" > "$T/kc_$2.log" 2>&1 || rc=$?
