@@ -437,7 +437,12 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     `start_hold`: the overlay's snapshot is taken after the switch (the tool settings are the scene's, the same in
     every mode, so the release restores exactly), and a hold with an immediate gizmo drag already runs in Object
     Mode. `execute` (a menu, a script: a tap) switches the same way. Under `-b` the call runs without the undo push
-    (there is no undo stack; a nested `undo=True` call segfaults there, verified 5.2.2).
+    (an undo push under the tests' area/region override segfaults there, verified 5.2.2: `docs/verified-facts-5.2.md`;
+    the one undo step in the GUI is covered only by G19 `edit_d_undo_back_in_edit_mode`, not run in round 5).
+  - **A stale one-shot** (armed by an Object Mode tap, then Tab into another mode, where nothing shows it and a
+    transform there leaves it armed, decision 39) ends at the switch (`end_once`, the user's value back), so the
+    press is a fresh D in Object Mode: a tap arms (never cancels), a hold runs from the user's value (decision "D
+    outside Object Mode: a stale one-shot"). In Object Mode a tap while armed still cancels.
   - **When the switch cannot run** (`object.mode_set.poll()` fails, or the mode stays after the call) D reports a
     warning and returns CANCELLED: nothing is written, and the shadowed native D item after it does not run in its
     place (decision "D outside Object Mode: a failed switch"). An auto-repeat never switches, nor a press while a
@@ -470,7 +475,8 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     manager: a hold from Edit Mesh with the exact restore and no switch back, a tap from Pose arming the one-shot
     and a second tap cancelling it, every 3D View mode of the header table, Sculpt and Esc, a multi-object edit, the
     `execute` tap, no switch on a repeat or under a foreign modal, a failed switch, `to_object_mode`, an armed
-    one-shot cancelled from Edit Mode), `TestDKeymaps` (D first in every `PIVOT_KEYMAPS` keymap, not in Sculpt / Font
+    one-shot still armed from Object Mode: a tap from Edit Mode arms again, a hold, `execute`, `end_once`),
+    `TestDKeymaps` (D first in every `PIVOT_KEYMAPS` keymap, not in Sculpt / Font
     / Text / Console / '3D View', GP Ctrl Alt D, the five D + mouse annotate items), the updated shadow, Ctrl Alt D
     and poll tests; GUI (written, not run this round) G19 `mk_d_from_modes` (simulated) and `ri_d_edit_*` (real
     input), and `mk_pivot`'s Edit Mode checks (Ctrl Alt D, Insert).
@@ -1113,7 +1119,7 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   orbit, with an X hold, the watcher's reset keeps it, `transform.translate` moves only the origin, load /
   unregister / save; `execute`), Insert while armed (also with an X hold); step 11 `TestPivotHold` (the D hold
   through the running modal: see Status step 11) and `TestAnnotateWhileDHeld`; `TestAnnotateRelocation` (Ctrl Alt D is the only active item on the key in the 12 keymaps, the Meso D
-  item first in Object Mode, IC's D first elsewhere, nothing on Ctrl Alt D in '3D View', '3D View Generic', 'Image
+  item first in every `PIVOT_KEYMAPS` keymap (round 5), IC's D first in 'Image' and 'UV Editor', nothing on Ctrl Alt D in '3D View', '3D View Generic', 'Image
   Generic', 'Window', 'Screen', 'Frames', 'User Interface', 'Grease Pencil' or a tool keymap; the item switches to
   the Annotate tool).
 - `test_properties_cycle_blender.py`: `pick_area` inputs from the factory screen; `TypeError` skip on an unavailable
@@ -1517,3 +1523,11 @@ first too, like D (trivial: the same `to_object_mode` and the items in `PIVOT_KE
 Object Mode, then Blender's D + LMB annotate draws the stroke there as in Object Mode; annotating without leaving the
 mode is the Annotate tool (Ctrl Alt D); (b) wait with the switch until a transform starts (the press would then no
 longer be "the moment of the switch", and a hold + an immediate gizmo drag would miss the Object Mode gizmo).
+
+### Decision (round 5, D outside Object Mode: a stale one-shot)
+(DEFAULT in force: a; review fix.) A D press in another mode while a one-shot armed earlier in Object Mode is still
+pending (nothing outside Object Mode shows it; an Edit Mode transform leaves it armed, decision 39): (a) **in
+force:** the switch ends the stale one-shot first, so the press is a fresh D in Object Mode: a tap arms it (the
+INFO "armed" report), a hold runs from the user's value; only a tap in Object Mode cancels; (b) end the armed
+one-shot whenever the user leaves Object Mode (decision 39 (b)); (c) a tap after the switch cancels it (the first
+round-5 behaviour: the user lands in Object Mode with origin editing off, the opposite of the press).

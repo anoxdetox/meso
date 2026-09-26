@@ -198,10 +198,17 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   (a sidebar Location X with drivers on X and Y: both; a Principled BSDF socket value: its driver in the
   material's node tree) and pushes the native "Remove Driver" undo step (undo, redo, undo identical to native). A
   nested call without `undo=True` pushes no undo step. Headless the native returns CANCELLED (no hovered button).
-- A nested operator call with `undo=True` segfaults under `-b` when the operator would push an undo step: there
-  is no undo stack (`bpy.ops.ed.undo.poll()` is False). Measured with `object.mode_set('EXEC_DEFAULT', True,
-  mode='OBJECT')` from Edit Mesh (5.2.2, 2026-09-26); the plain call works. `ops/snap_hold.to_object_mode` passes
-  `undo=not bpy.app.background`.
+- **An undo push with an area/region context override segfaults under `-b`.** An operator call that pushes an
+  undo step (top-level with `undo=True`, or nested at undo depth 0: inside an operator that was itself called with
+  `undo=True` or from a keymap without the UNDO flag) crashes (rc 139) when `temp_override` sets `window` + `area`
+  + `region`; with no override, or a window-only one, the same call works (`FINISHED`). A call nested in an
+  operator that was called from Python without `undo=True` pushes no step at all (the undo depth is above 0), so
+  it never crashes, with or without the override. Nesting is not the trigger, and neither is the missing undo
+  stack (`bpy.ops.ed.undo.poll()` is False headless in every case). Measured with `object.mode_set('EXEC_DEFAULT',
+  True, mode='OBJECT')` from Edit Mesh, five probes (5.2.2, 2026-09-26). The headless tests call `invoke` under a
+  full area/region override, so `ops/snap_hold.to_object_mode` passes `undo=not bpy.app.background`; its one
+  undo step in the GUI (keymap invoke, depth 0, the real area/region) is covered only by the GUI scenario G19
+  (`edit_d_undo_back_in_edit_mode`, written, not run in round 5).
 - **Info's selection can be read back** with `info.report_copy` (it copies the selected reports to the clipboard;
   nothing selected gives an empty clipboard), in an Info area override (GUI, `mk_select_keys`).
 - The Sequencer in 5.x shows the workspace's `sequencer_scene` (None in the factory file): strips added to

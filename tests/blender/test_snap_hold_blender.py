@@ -1446,16 +1446,74 @@ class TestDOutsideObjectMode(HoldCase):
             self.assertEqual(mod.to_object_mode(bpy.context), po.SWITCH)
             self.assertEqual(bpy.context.mode, 'OBJECT')
 
-    def test_armed_then_d_in_edit_mode_cancels(self):
+    def arm_in_object_mode(self):
+        """A one-shot armed by an Object Mode tap, still armed after Tab into Edit Mode (an
+        Edit Mode transform leaves it armed, decision 39)."""
         with ctx():
             self.assertEqual(hold().tap_once(bpy.context), 'ARM')
+        self.assertTrue(hold().once_armed() and ts().use_transform_data_origin)
+
+    def test_armed_then_d_tap_in_edit_mode_arms(self):
+        """Round 5 review: the switch ends the stale one-shot, so the tap arms (it used to
+        cancel it: Object Mode with origin editing off, the opposite of the press)."""
+        self.arm_in_object_mode()
         with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):
+            op = d_op()
+            self.d_down(op)
+            self.d_up(op, ago=0.0)
+            self.assertEqual(op.reports, [(('INFO',), hold()._ONCE_REPORTS['ARM'])])
+            self.assertEqual(bpy.context.mode, 'OBJECT')
+            self.assertTrue(hold().once_armed() and ts().use_transform_data_origin)
+            # now in Object Mode (no switch): a second tap cancels, the user's value back
             op = d_op()
             self.d_down(op)
             self.d_up(op, ago=0.0)
             self.assertEqual(op.reports, [(('INFO',), hold()._ONCE_REPORTS['CANCEL'])])
             self.assertEqual(state(), USER)
-            self.assertEqual(bpy.context.mode, 'OBJECT')
+            self.assertFalse(hold().session().active)
+
+    def test_armed_then_d_hold_in_edit_mode(self):
+        self.arm_in_object_mode()
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):
+            op = d_op()
+            result, mode, _c = self.d_down(op)
+            self.assertEqual((result, mode), ({'RUNNING_MODAL'}, 'OBJECT'))
+            self.assertFalse(hold().once_armed())
+            self.assertEqual(hold().pivot_keys(), ('D',))
+            self.assertTrue(ts().use_transform_data_origin)
+            self.assertEqual(self.d_up(op, ago=1.0), {'FINISHED'})
+            self.assertEqual(state(), USER)                 # exact restore
+            self.assertFalse(hold().once_armed() or hold().session().active)
+            self.assertEqual(op.reports, [])
+
+    def test_armed_then_exec_in_edit_mode_arms(self):
+        self.arm_in_object_mode()
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):
+            with ctx():
+                self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})
+                self.assertEqual(bpy.context.mode, 'OBJECT')
+            self.assertTrue(hold().once_armed() and ts().use_transform_data_origin)
+            with ctx():
+                self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})   # Object Mode: cancel
+            self.assertEqual(state(), USER)
+
+    def test_armed_then_d_tap_in_object_mode_still_cancels(self):
+        self.arm_in_object_mode()
+        op = d_op()
+        self.d_down(op)
+        self.d_up(op, ago=0.0)
+        self.assertEqual(op.reports, [(('INFO',), hold()._ONCE_REPORTS['CANCEL'])])
+        self.assertEqual(state(), USER)
+
+    def test_end_once(self):
+        mod = hold()
+        with ctx():
+            self.assertFalse(mod.end_once(bpy.context))
+        self.arm_in_object_mode()
+        with ctx():
+            self.assertTrue(mod.end_once(bpy.context))
+        self.assertEqual(state(), USER)
+        self.assertFalse(mod.once_armed() or mod.session().active)
 
 
 class TestDKeymaps(MesoKeymapCase):

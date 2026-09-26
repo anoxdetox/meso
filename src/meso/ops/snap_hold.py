@@ -30,10 +30,12 @@ snapping and pivot"; rules in ``core/snap_hold.py`` and ``core/pivot_once.py``).
   mode for Object Mode the native way (``to_object_mode``: ``object.mode_set(mode='OBJECT')`` with
   its own undo step, every object of a multi-object edit leaves it as with Tab), then it is D in
   Object Mode: the hold's snapshot is taken after the switch, and the user stays in Object Mode
-  after the release. When the switch cannot run (its poll fails, or the mode stays) D reports it
-  and does nothing (CANCELLED: the native D item after it never runs instead, so D never means
-  two things). Only a real press switches: an auto-repeat never does, nor a press while a
-  foreign modal runs (PASS_THROUGH, as in Object Mode).
+  after the release. A one-shot still armed from an earlier Object Mode tap ends at the switch
+  (nothing outside Object Mode shows it), so a tap there arms, never cancels. When the switch
+  cannot run (its poll fails, or the mode stays) D reports it and does nothing (CANCELLED: the
+  native D item after it never runs instead, so D never means two things). Only a real press
+  switches: an auto-repeat never does, nor a press while a foreign modal runs (PASS_THROUGH, as
+  in Object Mode).
 - A native transform swallows every event while it runs, the key release too, so a read-only
   watcher timer reads ``Window.modal_operators``. When the transform (or any foreign modal) is
   gone the hold keeps the overlay and runs the still-held check (``core.snap_hold.step``): the
@@ -700,11 +702,16 @@ def to_object_mode(context):
 
     ``object.mode_set(mode='OBJECT')`` with ``undo=True`` (a Python call pushes no undo step
     otherwise): its own undo step, registered as the last operator, and every object of a
-    multi-object edit leaves the mode, as with Tab. Under ``-b`` without the undo push: there is
-    no undo stack (``ed.undo.poll()`` is False) and a nested ``undo=True`` call segfaults
-    (verified 5.2.2). Mode changes are no ``tool_settings`` write, and the caller has checked
-    that no foreign modal runs. Returns ``po.HERE`` (Object Mode already), ``po.SWITCH``
-    (switched now) or None (not a D mode, the poll fails, or the mode stays: nothing changed)."""
+    multi-object edit leaves the mode, as with Tab. From the keymap (``meso.pivot_once`` has no
+    UNDO flag, so the undo depth is 0) the push runs; nested in an operator called from Python
+    without ``undo=True`` it pushes no step. Under ``-b`` without the undo push: an undo push
+    with an area/region context override segfaults there (verified 5.2.2; the headless tests
+    call ``invoke`` under such an override), with no override or a window-only one it works.
+    The one-undo-step claim is covered only by the GUI scenario G19
+    (``edit_d_undo_back_in_edit_mode``). Mode changes are no ``tool_settings`` write, and the
+    caller has checked that no foreign modal runs. Returns ``po.HERE`` (Object Mode already),
+    ``po.SWITCH`` (switched now) or None (not a D mode, the poll fails, or the mode stays:
+    nothing changed)."""
     mode = getattr(context, 'mode', None)
     plan = po.mode_plan(mode)
     if plan != po.SWITCH:
@@ -738,11 +745,18 @@ class MESO_OT_pivot_once(_HoldMixin, Operator):
             self.report({'INFO'}, _ONCE_REPORTS[action])
 
     def _object_mode(self, context) -> bool:
-        """Object Mode now (switched if needed); False with a warning when the switch failed."""
-        if to_object_mode(context) is not None:
-            return True
-        self.report({'WARNING'}, f"Edit Origins: cannot leave {context.mode} for Object Mode")
-        return False
+        """Object Mode now (switched if needed); False with a warning when the switch failed.
+        After a switch a one-shot still armed from an earlier Object Mode tap ends first (the
+        user's value back), so the press is a fresh D in Object Mode: a tap arms, never cancels
+        (nothing outside Object Mode shows the one-shot; decision "D outside Object Mode: a
+        stale one-shot")."""
+        plan = to_object_mode(context)
+        if plan is None:
+            self.report({'WARNING'}, f"Edit Origins: cannot leave {context.mode} for Object Mode")
+            return False
+        if plan == po.SWITCH:
+            end_once(context)
+        return True
 
     def execute(self, context):
         if foreign_now(context) or not self._object_mode(context):
@@ -763,6 +777,17 @@ class MESO_OT_pivot_once(_HoldMixin, Operator):
         return _HoldMixin.invoke(self, context, event)
 
 
+def end_once(context=None) -> bool:
+    """End the armed one-shot now (the user's value back; queued while a foreign modal runs).
+    True if one was armed."""
+    if not once_armed():
+        return False
+    if _session.holds(po.ONCE_KEY):
+        release_key(po.ONCE_KEY, context)
+    _set_once(po.Once())
+    return True
+
+
 def toggle_origins(context) -> bool | None:
     """Flip Affect Only Origins, the persistent mode (the user value while a hold overlay owns
     it); with the D one-shot armed, make it persistent: on, and the one-shot ends. The new
@@ -770,10 +795,7 @@ def toggle_origins(context) -> bool | None:
     scene = context.scene
     if foreign_now(context):
         return None
-    if once_armed():
-        if _session.holds(po.ONCE_KEY):
-            release_key(po.ONCE_KEY, context)
-        _set_once(po.Once())
+    end_once(context)
     ts = scene.tool_settings
     name = 'use_transform_data_origin'
     holding = (_session.active and _session.scene == scene_key(scene)

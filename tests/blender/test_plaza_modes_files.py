@@ -7,8 +7,9 @@ the built menus of core.tables.BUILT_MENUS; docs/phase4-interfaces.md "Built men
   only without an active object;
 - a pick on the factory cube through the live modal (real builders) switches to Edit Mode in
   place with the native call (INVOKE_REGION_WIN, the undo flag), keeps the Plaza open and
-  re-records every row for the new mode (the undo step itself is a GUI check: headless has
-  no undo stack and the undo flag segfaults in ``-b``, so the headless ``run_call`` drops it);
+  re-records every row for the new mode (the undo step itself is a GUI check: an undo push
+  under an area/region override segfaults in ``-b``, docs/verified-facts-5.2.md, so the
+  headless ``run_call`` drops it);
 - Recent Files: a fixture ``recent-files.txt`` (written ONLY into this run's temp
   ``BLENDER_USER_CONFIG``, restored afterwards) is listed in order, capped like native, with
   file names, the ``wm.open_mainfile`` calls, More... and Clear Recent Files List...; the

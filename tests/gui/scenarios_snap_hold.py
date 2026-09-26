@@ -37,7 +37,8 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
 - G19 ``mk_d_from_modes`` (round 5: "tapping d or hold d in non object mode should yank you to
   object mode"): a D tap in Edit Mode switches to Object Mode (the native ``object.mode_set``,
   the last registered operator; Ctrl Z goes back to Edit Mode) and arms the one-shot; a second
-  tap from Edit Mode cancels it; a D hold in Edit Mode is in Object Mode at the press, a gizmo
+  tap from Edit Mode (still armed) arms it again (the switch ends the stale one-shot), a tap in
+  Object Mode cancels it; a D hold in Edit Mode is in Object Mode at the press, a gizmo
   drag while it is down edits the origin, the release restores and the user stays in Object
   Mode; in Sculpt D stays IC's (no switch); with the binding switched off D in Edit Mode is
   IC's Annotate tool again.
@@ -944,9 +945,15 @@ def scenarios(drv):
             cube = bpy.data.objects["Cube"]      # the undo may re-read the IDs
             drv.check(rec, "edit_d_undo_back_in_edit_mode", undo == {'FINISHED'}
                       and bpy.context.mode == 'EDIT_MESH', [undo, bpy.context.mode])
-            # a second tap, from Edit Mode again: Object Mode, the one-shot cancelled
+            # a second tap, from Edit Mode again (still armed, nothing there shows it): the
+            # switch ends the stale one-shot, so the tap arms again (never cancels)
             yield from key(c, 'D')
-            drv.check(rec, "edit_d_second_tap_cancels", bpy.context.mode == 'OBJECT'
+            drv.check(rec, "edit_d_tap_while_armed_arms_again", bpy.context.mode == 'OBJECT'
+                      and ts().use_transform_data_origin and hold_mod().once_armed(),
+                      [bpy.context.mode, state(), debug()])
+            # a tap in Object Mode (no switch) cancels it
+            yield from key(c, 'D')
+            drv.check(rec, "object_d_second_tap_cancels", bpy.context.mode == 'OBJECT'
                       and state() == USER and not hold_mod().once_armed(),
                       [bpy.context.mode, state(), debug()])
             # D hold in Edit Mode + a gizmo drag: Object Mode at the press, the drag edits the
