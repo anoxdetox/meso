@@ -354,6 +354,13 @@ every Ctrl/Shift/Alt combination (and `any`) in the keymaps that run in a region
 - the other 3D View mode maps
 - every '3D View Tool:', 'Image Editor Tool:' and 'Generic Tool:' keymap
 
+Regression test (review fix): `TestAnnotateRelocation.test_ctrl_alt_d_is_free_where_annotate_runs` no longer uses a
+fixed list; it checks every non-modal keymap of the 3D View, the Image Editor and every space-independent one
+('Object Non-modal', the paint selection masks, 'UV Sculpt', 'Paint Curve', ... all run alongside the annotate
+keymaps): no active Ctrl Alt D there but the Annotate items (IC's only other Ctrl Alt D items are in the Outliner,
+NLA and Sequencer keymaps, which never run in those regions). It also proves the audit catches an item added to
+'Object Non-modal'.
+
 The click logic was checked in the 5.2 source (`wm_event_system.cc`, `wm_handlers_do`, the ISKEYBOARD_OR_BUTTON
 branch; `wm_event_query.cc`, `WM_event_drag_threshold`).
 

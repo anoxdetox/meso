@@ -344,7 +344,10 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
   - **The wrapper** (`ops/driver_remove.py`): `meso.driver_button_remove` (label "Remove Driver", `INTERNAL`, no
     `UNDO`, Boolean `all` default True, `SKIP_SAVE`) runs `bpy.ops.anim.driver_button_remove('EXEC_DEFAULT', True,
     all=self.all)`: FINISHED → FINISHED; anything else → PASS_THROUGH (so the editor keymap's Alt D runs); a native
-    ERROR report → the same report and CANCELLED. It never reimplements the removal: the hovered button, arrays,
+    ERROR report → the same report and CANCELLED. Over a typing main region (`TYPING_SPACES`: the Python Console,
+    whose main region runs the 'User Interface' keymap too; the Text Editor for safety) it returns CANCELLED as
+    IC's item did: passed on, the key reached `console.insert`, which typed the "d" of the Alt D event (review fix,
+    `mk_alt_d_console`). It never reimplements the removal: the hovered button, arrays,
     node sockets behave natively, and the undo step is the native "Remove Driver" step (the nested call has
     `undo=True`; a plain nested call pushes none). A PASS_THROUGH pushes no step.
   - **The binding** `driver_remove_pass` (Selection, on): the wrapper on Alt D in 'User Interface', the only Meso
@@ -671,12 +674,13 @@ keymap recorded; another keymap picked while on Meso with the choice MESO → KE
   J = INCREMENT; several keys held = the union, DEFAULT). **J also sets Affect Move + Rotate + Scale** while held
   (DEFAULT, so step snapping works before R and S); X/C/V leave Affect as the user has it.
 - The D tap's one-shot (`ONCE_KEY`, element PIVOT): `use_transform_data_origin = True` (Object Mode only) until
-  the next confirmed transform (step 9; the D hold of steps 3–8 is gone).
+  the next transform that edits origins (step 9; the D hold of steps 3–8 is gone; review fixes below).
 
 ### HoldSession (module state, one per Blender session)
 ```python
 class HoldSession:
-    scene: str | None                    # scene name (a string, never a pointer)
+    scene: int | None                    # the scene's ID.session_uid (a plain int, never a pointer; survives a
+                                         # rename and a memfile undo: a D tap stays armed for any length of time)
     baseline: Snapshot | None            # the user's values, taken at the FIRST press
     held: list[tuple[str, str]]          # (hold key, element or 'PIVOT'), press order
     def press(self, key, element, scene, current: Snapshot) -> dict      # writes to apply
@@ -688,7 +692,11 @@ def restore_writes(target: Snapshot, current: Snapshot) -> tuple[tuple[str, obje
 ```
 The first press snapshots; the last release restores the baseline exactly; a release while other keys are still held
 writes the overlay of the remaining keys. Fields the user changed during the hold that Meso does not write are kept;
-fields Meso wrote go back to the baseline.
+fields Meso wrote go back to the baseline. `written` holds only the fields an overlay of the keys held **now** owns:
+a later press takes the other fields' current values into the baseline, and a release gives up the fields no key
+still held overlays (their baseline value was just written back). Without this an armed D tap, which keeps the
+session active for as long as it stays armed, made a later X/C/V/J release undo a snap change made in the header
+meanwhile (review fix).
 
 ### Hold operator reducer (`step`)
 State per running hold operator: `key`, `pressed_at`, `phase` (HELD / FOREIGN / ENDED), `used` (a mouse button or a
@@ -741,25 +749,46 @@ Events → effects:
 - **`tap(state, value_on, marker)`**: IDLE and the option off → ARMED (`ARM`: `HoldSession.press(ONCE_KEY, PIVOT)`
   writes it); IDLE and the option on (Insert's persistent mode, or the checkbox) → `ALREADY_ON`, nothing armed
   (decision 38); ARMED / TRANSFORM → IDLE (`CANCEL`: `release(ONCE_KEY)` writes the user's value back).
-- **`tick(state, transform, last, value_on)`**, every watcher tick (0.03 s) while armed. `transform` = a
+- **`tick(state, transform, last, value_on, moved)`**, every watcher tick (0.03 s) while armed. `transform` = a
   `TRANSFORM_OT_*` or a `TRANSFORM_MACROS` id in any window's `modal_operators`; `last` = `(marker, bl_idname)` of
   the newest `WindowManager.operators` entry (`marker = as_pointer()`, a plain int compared while both operators
-  are alive; `None` when the list is empty):
+  are alive; `None` when the list is empty); `moved` = origins were edited lately (the evidence below; kept in
+  `Once.moved` while a transform runs):
 
   | Phase | Input | Result |
   |---|---|---|
-  | ARMED | a transform runs | TRANSFORM, marker = the newest operator now (a running transform is not registered yet); if that newest one is itself a transform (one finished as the next began): USED |
-  | TRANSFORM | still running | — |
-  | TRANSFORM | gone, a newer registered operator, or no marker at all | IDLE, `USED`: restore (deferred while another foreign modal runs) |
+  | ARMED | a transform runs | TRANSFORM, marker = the newest operator now (a running transform is not registered yet); if that newest one is itself a transform and origins were edited (one finished as the next began): USED |
+  | TRANSFORM | still running | — (evidence kept) |
+  | TRANSFORM | gone, a newer registered operator or no marker at all, origins edited | IDLE, `USED`: restore (deferred while another foreign modal runs) |
+  | TRANSFORM | gone, a newer registered operator or no marker, no origin edited | ARMED, `OTHER`: a transform in another editor or mode (a Dope Sheet key drag, a UV or Edit Mode move), still armed |
   | TRANSFORM | gone, the same newest operator | ARMED, `KEPT`: the transform was cancelled (Esc / RMB), still armed (decision 36) |
   | ARMED | no transform, the option reads off | IDLE, `USER_OFF` (the user switched it off: the header checkbox, the Plaza) |
-  | ARMED | no transform, a newer operator that is a transform (it began and ended between two ticks) | IDLE, `USED` |
-  | ARMED | no transform, a newer other operator (a click select, a box select) | ARMED, marker moves on |
+  | ARMED | no transform, origins edited | IDLE, `USED`: a transform with no modal (Repeat Last, IC's G; a script) or one between two ticks |
+  | ARMED | no transform, a newer operator (a click select, a box select, a transform that edited no origin) | ARMED, marker moves on |
+
+- **The origin-edit evidence** (`Evidence`, fed by `ops/snap_hold._depsgraph_post` from `depsgraph_update_post`
+  while armed, `origin_updates`): Affect Only Origins moves the object and moves its data back, so the object gets
+  a pure transform update and its own data a geometry-only update. The GUI delivers them as separate depsgraph
+  updates (object transform, then object + mesh geometry), so they pair when both come within `PAIR_WINDOW`
+  (0.5 s) for the same data (`session_uid`). A plain move, a key drag or a sidebar value is transform-only; an Edit
+  Mode move is geometry-only; leaving Edit Mode or inserting a key updates the whole ID (the data then also flags
+  a transform, which data has none of): none of these pair. The evidence is cleared when a transform ends
+  (`USED`, `OTHER`, `KEPT`) and at a new tap. Known limit: a confirmed transform that moved nothing (a click on
+  the gizmo) edits no origin, so the tap stays armed.
+- **Adjust Last Operation** (the redo panel, F9, `ed.undo_redo`) undoes the transform and executes it again, and
+  the transform reads Affect Only Origins from the scene (no operator property: `translate_origin` is not it, it
+  moves the whole object in Object Mode; an undo keeps tool settings, verified facts): with the setting back to the
+  user's, the redone move moved the whole object. `_undo_post` (`undo_post`, which the redo's undo fires) switches
+  it on when the last registered operator is still the transform that used the tap (`_state['used']`: marker,
+  idname, scene key) and the one-shot is not armed again; `_redo_restore` (a 0 s timer, after the re-execution)
+  switches it back off. A plain Ctrl Z passes the same way: on and off with nothing in between. File load and
+  `unregister()` finish a pending restore (`finish_redo`).
 
   A confirmed transform registers (`OPTYPE_REGISTER`): verified for Move-gizmo drags, Tweak / Move tool drags and
   a `transform.translate` INVOKE in the GUI (G13, G17, and G14's `last_operator()`); headless `bpy.ops` calls do
-  not register (`wm.operators` stays empty under `-b`), so the headless tests give `last`. Orbit, pan, zoom, box
-  select and the Plaza are foreign but no transform: the one-shot stays armed through them (decision 39).
+  not register (`wm.operators` stays empty under `-b`), so the headless tests give `last` (and `moved`, or a real
+  `transform.translate` plus `view_layer.update()` for the evidence). Orbit, pan, zoom, box select and the Plaza
+  are foreign but no transform: the one-shot stays armed through them (decision 39).
 - **Holds together:** a snap hold (X) and the one-shot share the session and add up (D tap then X held: origins
   snap to the grid); each ends on its own. The watcher's vanished-operator reset (`MISSING_TICKS`) ends only the
   holds (`_end_vanished_holds`); an armed one-shot has no operator.
@@ -1241,9 +1270,10 @@ anything in Phase 5+.
     mode or the checkbox): (a) **in force:** nothing is armed, an INFO report says so; (b) turn it off for one
     transform.
 39. **New in step 9 (DEFAULT in force: a).** Orbit, pan, zoom, box or click select and the Plaza after a D tap: (a)
-    **in force:** they do not use the one-shot; only a transform does (TRANSFORM_OT_* and the duplicate-move
-    macros), in Object Mode or after Tab into an edit mode (the option has no effect there; the one-shot ends with
-    that transform); (b) also end it on a mode change.
+    **in force:** they do not use the one-shot; only a transform that edits origins does (review fix: the
+    origin-edit evidence, "D tap: one-shot pivot edit"): a transform in another editor or in an edit mode leaves
+    it armed (step 9 ended it with an edit-mode transform), and a transform with no modal (Repeat Last) uses it;
+    (b) also end it on a mode change.
 40. **New in step 9 (DEFAULT in force: a).** Where Ctrl Alt D picks the Annotate tool: (a) **in force:** in all 12
     keymaps where IC has it on D (one key everywhere; D also keeps it outside Object Mode); (b) only in Object Mode,
     the one place D changes meaning. Ctrl Alt D rather than Shift Alt D (the audit's fallback): some Linux desktops

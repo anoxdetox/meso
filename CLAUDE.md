@@ -70,7 +70,8 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   pass-through wrapper `meso.driver_button_remove` in 'User Interface', which replaces IC's Alt D driver removal
   (kept there switched off, `Displaced(off=True)`: a CANCELLED 'User Interface' item stops the key before the editor
   keymaps, so only a replacement can pass it on). It must stay exactly the native removal over a driven property and
-  PASS_THROUGH everywhere else; never add another item there.
+  PASS_THROUGH everywhere else, except CANCELLED over a typing region (the Console would type the key's text);
+  never add another item there.
 - Never write `tool_settings` while `Window.modal_operators` holds a foreign modal; hold restores wait for it.
 - Snap state is written as the `snap_elements` union, never base then individual (they clear each other).
 - Never keep `Area`/`Region`/`Screen`/RNA pointers after the modal ends or after undo/workspace changes; store
