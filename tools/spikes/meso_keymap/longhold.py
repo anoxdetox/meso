@@ -40,7 +40,7 @@ import bpy
 from bpy_extras import view3d_utils
 
 T0 = time.monotonic()
-DEADLINE = 170.0
+DEADLINE = 185.0
 ARGV = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 OUT = ARGV[ARGV.index("--out") + 1] if "--out" in ARGV else "longhold.json"
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -153,6 +153,15 @@ class XTest:
         w, rv = ctypes.c_ulong(), ctypes.c_int()
         self.x11.XGetInputFocus(self.dpy, ctypes.byref(w), ctypes.byref(rv))
         return hex(w.value)
+
+    def autorepeat_rate(self):
+        """The X server's auto-repeat delay and interval (XkbGetAutoRepeatRate, core keyboard)."""
+        d, i = ctypes.c_uint(), ctypes.c_uint()
+        fn = self.x11.XkbGetAutoRepeatRate
+        fn.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.POINTER(ctypes.c_uint),
+                       ctypes.POINTER(ctypes.c_uint)]
+        ok = fn(self.dpy, 0x0100, ctypes.byref(d), ctypes.byref(i))
+        return {"ok": ok, "delay_ms": d.value, "interval_ms": i.value}
 
     def xtest_version(self):
         a, b, c, d = (ctypes.c_int() for _ in range(4))
@@ -598,9 +607,379 @@ def run_pivot_case(name, path, hold, patched=False):
         yield 0.4
 
 
+# ------------------------------------------------------------------------------ multi-drag (hold X)
+#
+# MESO_SPIKE_SET=multidrag / multidrag_proto (run.sh multidrag / multidrag_proto): user item B of
+# 2026-09-26, docs/spikes/meso-feedback-3.md. While X stays down, a second and third drag must snap
+# too. The transform swallows the key release, so these cases record what reaches the window's
+# modal handlers AFTER a transform ends, with X still down or released during / after the drag:
+#   - an observer modal (mesospike.observe, PASS_THROUGH for everything) started right after the
+#     hold, so it sits in front of the hold operator and logs every event with its timing,
+#     is_repeat, type_prev / value_prev;
+#   - key-modifier probes: add-on keymap items with key_modifier='X' (mesospike.km_probe,
+#     PASS_THROUGH) on MOUSEMOVE in '3D View' and 'Window' and on LEFTMOUSE press in '3D View'.
+#     Blender's window event state keeps the held key (wmEvent.keymodifier) from the OS events,
+#     whatever the handlers did with them; Python cannot read it, a keymap item can match it.
+# multidrag_proto runs the same cases with a prototype still-held rule patched in-process (nothing
+# in src/ changes): after a transform the hold stays HELD (overlay kept) until an own-key repeat
+# proves the key down, its release is seen, or no repeat came by
+# max(transform end, press + REPEAT_DELAY) + REPEAT_GAP (then the overlay goes).
+
+OBS = []
+PROBE_HITS = []
+OBS_CTRL = {"gen": 0, "running": False}
+PROTO = {"on": False, "after": {}, "timeouts": [], "proven": [], "delay": 0.60, "gap": 0.15}
+
+
+class MESOSPIKE_OT_observe(bpy.types.Operator):
+    bl_idname = "mesospike.observe"
+    bl_label = "Observe events (spike)"
+    bl_options = {'INTERNAL'}
+
+    def invoke(self, context, event):
+        self._gen = OBS_CTRL["gen"]
+        context.window_manager.modal_handler_add(self)
+        OBS_CTRL["running"] = True
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if self._gen != OBS_CTRL["gen"]:
+            OBS_CTRL["running"] = False
+            return {'FINISHED', 'PASS_THROUGH'}
+        if event.type not in ('INBETWEEN_MOUSEMOVE', 'TIMER', 'TIMER_REPORT', 'TIMERREGION',
+                              'NONE'):
+            ids = modal_ids()
+            OBS.append((now(), event.type, event.value, int(bool(event.is_repeat)),
+                        event.type_prev, event.value_prev,
+                        next((i for i in ids if i and not i.startswith(("MESO", "MESOSPIKE"))),
+                             None)))
+        return {'PASS_THROUGH'}
+
+
+class MESOSPIKE_OT_km_probe(bpy.types.Operator):
+    bl_idname = "mesospike.km_probe"
+    bl_label = "Key-modifier probe (spike)"
+    bl_options = {'INTERNAL'}
+    tag: bpy.props.StringProperty(options={'SKIP_SAVE'})
+
+    def invoke(self, context, event):
+        PROBE_HITS.append((now(), self.tag, event.type, event.value))
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+        return {'PASS_THROUGH'}
+
+
+def own_observer():
+    """The observer is a modal operator too: make the hold rules treat it as their own (not a
+    foreign modal, which would put every hold in FOREIGN and block its writes). The ``own``
+    defaults are bound at definition time, so they are rebound here (this process only)."""
+    hm = hold_mod()
+    sh = hm.sh
+    own = sh.OWN_IDS | {"MESOSPIKE_OT_observe"}
+    for fn in (sh.foreign_ids, sh.foreign_above, sh.foreign_running):
+        fn.__defaults__ = (own,)
+    hm.foreign_now.__defaults__ = (None, own)
+    hm.end_all.__kwdefaults__ = {"own": own}
+    R["meta"]["own_ids"] = sorted(own)
+
+
+def register_multidrag():
+    own_observer()
+    bpy.utils.register_class(MESOSPIKE_OT_observe)
+    bpy.utils.register_class(MESOSPIKE_OT_km_probe)
+    kc = bpy.context.window_manager.keyconfigs.addon
+    items = []
+    for km_name, st, rt, etype, value, tag in (
+            ('3D View', 'VIEW_3D', 'WINDOW', 'MOUSEMOVE', 'ANY', 'v3d_move'),
+            ('3D View', 'VIEW_3D', 'WINDOW', 'LEFTMOUSE', 'PRESS', 'v3d_lmb'),
+            ('Window', 'EMPTY', 'WINDOW', 'MOUSEMOVE', 'ANY', 'win_move')):
+        km = kc.keymaps.new(km_name, space_type=st, region_type=rt)
+        kmi = km.keymap_items.new(MESOSPIKE_OT_km_probe.bl_idname, etype, value, key_modifier='X')
+        kmi.properties.tag = tag
+        items.append({"keymap": km_name, "type": etype, "value": value, "key_modifier": 'X',
+                      "tag": tag})
+    bpy.context.window_manager.keyconfigs.update()
+    R["meta"]["km_probes"] = items
+    try:
+        R["meta"]["x_autorepeat"] = XT.autorepeat_rate()
+    except Exception as ex:
+        R["meta"]["x_autorepeat"] = repr(ex)
+
+
+def start_observer():
+    OBS_CTRL["gen"] += 1
+    a = area3d()
+    with bpy.context.temp_override(window=win(), area=a, region=region(a)):
+        bpy.ops.mesospike.observe('INVOKE_DEFAULT')
+
+
+def stop_observer():
+    OBS_CTRL["gen"] += 1          # the running observer finishes on its next event
+
+
+# --- the prototype rule (multidrag_proto)
+
+def install_proto():
+    import dataclasses
+    hm = hold_mod()
+    sh = hm.sh
+    if getattr(sh.step, "_spike", False):
+        return
+    orig = sh.step
+
+    def step(state, event, now_=0.0, tap_threshold=0.2, others_held=False):
+        if not PROTO["on"]:
+            return orig(state, event, now_, tap_threshold, others_held)
+        key = state.key
+        t = time.monotonic()
+        if event in (sh.EV_OWN_REPEAT, sh.EV_OWN_PRESS) and key in PROTO["after"]:
+            PROTO["after"].pop(key, None)
+            PROTO["proven"].append((now(), key, event))
+        if (event == sh.EV_FOREIGN_OFF and state.phase == sh.FOREIGN
+                and not state.release_pending):
+            PROTO["after"][key] = t
+            return dataclasses.replace(state, phase=sh.HELD), sh.NOTHING
+        if event == "TIMEOUT":
+            PROTO["after"].pop(key, None)
+            return dataclasses.replace(state, phase=sh.ENDED), sh.Effect(release=True,
+                                                                         finish=True)
+        if event in (sh.EV_OWN_RELEASE, sh.EV_CANCEL, sh.EV_DEACTIVATE, sh.EV_ESC):
+            PROTO["after"].pop(key, None)
+        return orig(state, event, now_, tap_threshold, others_held)
+
+    step._spike = True
+    sh.step = step
+
+    def tick():
+        try:
+            if PROTO["on"] and PROTO["after"]:
+                t = time.monotonic()
+                for key, te in list(PROTO["after"].items()):
+                    st = hm._ops.get(key)
+                    if st is None:
+                        PROTO["after"].pop(key, None)
+                        continue
+                    deadline = max(te, st.pressed_at + PROTO["delay"]) + PROTO["gap"]
+                    if t >= deadline and not hm.foreign_now():
+                        PROTO["timeouts"].append((now(), key, round(t - te, 3)))
+                        hm._drive(key, "TIMEOUT", t)
+        except Exception:
+            R["errors"].append(traceback.format_exc())
+        return 0.01
+
+    bpy.app.timers.register(tick, first_interval=0.01, persistent=True)
+
+
+# --- one drag
+
+def track(case, seconds):
+    """wait() plus transform start/end times."""
+    end = time.monotonic() + seconds
+    while True:
+        ids = modal_ids()
+        running = 'TRANSFORM_OT_translate' in ids
+        tr = case["transforms"]
+        if running and (not tr or tr[-1][1] is not None):
+            tr.append([now(), None, snap_state()])
+        elif not running and tr and tr[-1][1] is None:
+            tr[-1][1] = now()
+        for i in ids:
+            if i not in case["modals_seen"]:
+                case["modals_seen"].append(i)
+        left = end - time.monotonic()
+        if left <= 0:
+            return
+        yield min(0.01, left)
+
+
+def one_drag(case, label, path, fast=False, x_up_at=None, mod_mid=None):
+    cube = bpy.data.objects["Cube"]
+    start = [round(v, 4) for v in cube.location]
+    c = to_win(cube.location)
+    if path == "gizmo":
+        XT.move_win((c[0] - 3, c[1] - 3))
+        yield from track(case, 0.1)
+    XT.move_win(c)
+    yield from track(case, 0.12)
+    d = {"label": label, "start": start, "t_down": now(), "snap_at_down": snap_state(),
+         "hold_ops_at_down": [i for i in modal_ids() if i and i.startswith("MESO_OT")]}
+    XT.button(1, True)
+    yield from track(case, 0.04 if fast else 0.12)
+    n, dx, dy, dt = (3, 34, -14, 0.025) if fast else (6, 17, -7, 0.05)
+    for i in range(1, n + 1):
+        XT.move_win((c[0] + dx * i, c[1] + dy * i))
+        if x_up_at == i:
+            XT.key("x", False)
+            d["t_x_up"] = now()
+        if mod_mid and i == 2:
+            XT.key(mod_mid, True)
+            d["t_mod_down"] = now()
+        if mod_mid and i == n - 1:
+            XT.key(mod_mid, False)
+            d["t_mod_up"] = now()
+        yield from track(case, dt)
+    XT.button(1, False)
+    d["t_up"] = now()
+    yield from track(case, 0.1)
+    d["end"] = [round(v, 4) for v in cube.location]
+    d["moved"] = d["end"] != start
+    d["on_grid"] = all(abs(v - round(v)) < 1e-4 for v in cube.location)
+    d["snapped"] = d["moved"] and d["on_grid"]
+    tr = case["transforms"]
+    d["transform"] = tr[-1][:2] if tr and tr[-1][0] >= d["t_down"] else None
+    d["snap_during"] = tr[-1][2] if d["transform"] else None
+    case["drags"].append(d)
+
+
+# --- the cases: (name, steps); a step is ('x', True/False), ('wait', s), ('drag', kwargs),
+# ('tap', keysym)
+
+MULTI = [
+    ("long_3drags", [("x", True), ("wait", 1.5), ("drag", {}), ("wait", 0.5), ("drag", {}),
+                     ("wait", 0.5), ("drag", {}), ("wait", 0.4), ("x", False), ("wait", 0.4),
+                     ("drag", {"label": "after_release"})]),
+    ("long_3drags_gizmo", [("tool", "builtin.move"), ("x", True), ("wait", 1.5),
+                           ("drag", {"path": "gizmo"}), ("wait", 0.5), ("drag", {"path": "gizmo"}),
+                           ("wait", 0.5), ("drag", {"path": "gizmo"}), ("wait", 0.4),
+                           ("x", False), ("wait", 0.4),
+                           ("drag", {"path": "gizmo", "label": "after_release"})]),
+    ("long_up_during_drag1", [("x", True), ("wait", 1.5), ("drag", {"x_up_at": 3}),
+                              ("wait", 0.6), ("drag", {"label": "after_release"})]),
+    ("long_up_after_drag1", [("x", True), ("wait", 1.5), ("drag", {}), ("wait", 0.3),
+                             ("x", False), ("wait", 0.4), ("drag", {"label": "after_release"})]),
+    ("short_fast_3drags", [("x", True), ("wait", 0.05), ("drag", {"fast": True}),
+                           ("wait", 0.1), ("drag", {"fast": True}), ("wait", 0.6), ("drag", {}),
+                           ("wait", 0.3), ("x", False), ("wait", 0.4),
+                           ("drag", {"label": "after_release"})]),
+    ("short_fast_up_during_drag1", [("x", True), ("wait", 0.05),
+                                    ("drag", {"fast": True, "x_up_at": 2}), ("wait", 0.1),
+                                    ("drag", {"fast": True, "label": "after_release_early"}),
+                                    ("wait", 0.6), ("drag", {"label": "after_release"})]),
+    ("long_shift_mid_drag", [("x", True), ("wait", 1.5), ("drag", {"mod_mid": "Shift_L"}),
+                             ("wait", 0.6), ("drag", {}), ("wait", 0.3), ("x", False),
+                             ("wait", 0.3)]),
+    ("long_ctrl_mid_drag", [("x", True), ("wait", 1.5), ("drag", {"mod_mid": "Control_L"}),
+                            ("wait", 0.6), ("drag", {}), ("wait", 0.3), ("x", False),
+                            ("wait", 0.3)]),
+    ("long_other_key_tap", [("x", True), ("wait", 1.2), ("tap", "w"), ("wait", 0.8),
+                            ("drag", {}), ("wait", 0.6), ("drag", {}), ("wait", 0.3),
+                            ("x", False), ("wait", 0.3)]),
+    ("long_still_mouse", [("x", True), ("wait", 1.5), ("drag", {}), ("still", 1.2),
+                          ("drag", {}), ("wait", 0.3), ("x", False), ("wait", 0.3)]),
+]
+
+
+def run_multi(name, steps, proto):
+    case = {"name": name, "proto": proto, "modals_seen": [], "transforms": [], "drags": [],
+            "x": []}
+    cube = bpy.data.objects["Cube"]
+    PROTO["on"] = proto
+    PROTO["after"].clear()
+    XT.x11.XAutoRepeatOn(XT.dpy)
+    XT.flush()
+    try:
+        hold_mod().end_all()
+        tool("builtin.select")
+        cube.location = (0.0, 0.0, 0.0)
+        for o in bpy.context.view_layer.objects:
+            o.select_set(o is cube)
+        bpy.context.view_layer.objects.active = cube
+        set_user()
+        XT.move_win(to_win(cube.location))
+        yield 0.4
+        case["snap_before"] = snap_state()
+        o0, p0, t0 = len(OBS), len(PROBE_HITS), len(TRACE)
+        n_to, n_pr = len(PROTO["timeouts"]), len(PROTO["proven"])
+        observer = False
+        for step in steps:
+            kind, arg = step
+            if kind == "tool":
+                tool(arg)
+                yield from track(case, 0.2)
+            elif kind == "x":
+                XT.key("x", arg)
+                case["x"].append((now(), "down" if arg else "up"))
+                if arg and not observer:
+                    yield from track(case, 0.08)
+                    start_observer()
+                    observer = True
+            elif kind == "wait":
+                yield from track(case, arg)
+            elif kind == "still":
+                yield from track(case, arg)          # no pointer motion at all
+            elif kind == "tap":
+                XT.key(arg, True)
+                yield from track(case, 0.06)
+                XT.key(arg, False)
+                case["x"].append((now(), f"tap {arg}"))
+                yield from track(case, 0.1)
+            elif kind == "drag":
+                kw = dict(arg)
+                label = kw.pop("label", f"drag{len(case['drags']) + 1}")
+                yield from one_drag(case, label, kw.pop("path", "tweak"), **kw)
+        yield from track(case, 0.3)
+        case["snap_after"] = snap_state()
+        case["restored"] = case["snap_after"] == case["snap_before"]
+        case["holds_running_after"] = [i for i in modal_ids() if i and i.startswith("MESO_OT")]
+        case["obs"] = OBS[o0:]
+        case["probe_hits"] = PROBE_HITS[p0:]
+        case["hold_trace"] = [{k: e[k] for k in ("t", "type", "value", "is_repeat", "result",
+                                                 "phase")} for e in TRACE[t0:]]
+        case["proto_timeouts"] = PROTO["timeouts"][n_to:]
+        case["proto_proven"] = PROTO["proven"][n_pr:]
+        case["summary"] = summarize(case)
+    except Exception:
+        case["error"] = traceback.format_exc()
+        traceback.print_exc()
+    finally:
+        stop_observer()
+        for k in list(XT.down):
+            XT.key(k, False)
+        PROTO["on"] = False
+        R["cases"].append(case)
+        s = case.get("summary", {})
+        log(f"CASE {name}{' PROTO' if proto else ''}: drags="
+            f"{[(d['label'], d['snapped'], d['moved']) for d in case['drags']]} "
+            f"restored={case.get('restored')} after={json.dumps(s.get('after_transform'))}")
+        flush()
+        yield 0.5
+
+
+def summarize(case):
+    """Per transform end: what reached the window after it (first X repeat, X release, first
+    probe hit, first event of any kind), in seconds after the transform end."""
+    out = []
+    ends = [tr[1] for tr in case["transforms"] if tr[1] is not None]
+    for i, te in enumerate(ends):
+        nxt = case["transforms"][i + 1][0] if i + 1 < len(case["transforms"]) else 1e9
+        win_obs = [e for e in case["obs"] if te - 0.03 <= e[0] < nxt]
+        rep = [e for e in win_obs if e[1] == 'X' and e[2] == 'PRESS' and e[3]]
+        rel = [e for e in win_obs if e[1] == 'X' and e[2] == 'RELEASE']
+        hits = [h for h in case["probe_hits"] if te - 0.03 <= h[0] < nxt]
+        lmb = [e for e in win_obs if e[1] == 'LEFTMOUSE' and e[2] == 'PRESS']
+        out.append({
+            "transform_end": te,
+            "first_event": round(win_obs[0][0] - te, 3) if win_obs else None,
+            "first_event_type": win_obs[0][1] if win_obs else None,
+            "first_x_repeat": round(rep[0][0] - te, 3) if rep else None,
+            "n_x_repeats": len(rep),
+            "repeat_gaps": sorted({round(b[0] - a[0], 3) for a, b in zip(rep, rep[1:])})[:3] +
+                           sorted({round(b[0] - a[0], 3) for a, b in zip(rep, rep[1:])})[-2:],
+            "x_release": round(rel[0][0] - te, 3) if rel else None,
+            "first_probe": ((round(hits[0][0] - te, 3), hits[0][1]) if hits else None),
+            "probe_tags": sorted({h[1] for h in hits}),
+            "next_lmb_prev": ([lmb[0][4], lmb[0][5]] if lmb else None),
+        })
+    return {"after_transform": out}
+
+
 SET = os.environ.get("MESO_SPIKE_SET", "longhold")
 CASES = []
-if SET == "pivot":
+MULTI_SET = SET in ("multidrag", "multidrag_proto")
+if MULTI_SET:
+    CASES.extend(MULTI)
+elif SET == "pivot":
     CASES.append(("d_tap", "tap", "none", False))
     for path in ("gizmo", "off_gizmo", "select_off_gizmo"):
         CASES.append((f"d_{path}_short", path, "short", False))
@@ -620,14 +999,23 @@ def flush():
 
 def main():
     yield from setup()
+    if MULTI_SET:
+        register_multidrag()
+        if SET == "multidrag_proto":
+            install_proto()
+            R["meta"]["proto"] = {k: PROTO[k] for k in ("delay", "gap")}
     log(f"META {json.dumps(R['meta'], default=repr)}")
     only = [p for p in os.environ.get("MESO_SPIKE_CASES", "").split(",") if p]
-    for name, path, hold, patched in CASES:
+    for case in CASES:
+        name = case[0]
         if only and not any(p in name for p in only):
             continue
         log(f"BEGIN {name}")
+        if MULTI_SET:
+            yield from run_multi(name, case[1], SET == "multidrag_proto")
+            continue
         runner = run_pivot_case if SET == "pivot" else run_case
-        yield from runner(name, path, hold, patched)
+        yield from runner(*case)
 
 
 GEN = main()
