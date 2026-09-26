@@ -1,6 +1,6 @@
 ## HEADER CONTROLS ROW: verified facts and design
 
-Status labels: **V** = VERIFIED (source and/or headless print), **R** = REFUTED, **U** = UNVERIFIABLE-HEADLESS. All `file:line` references are under `~/.local/share/blender/5.2/scripts/startup/bl_ui/`. "ts" means `scene.tool_settings`.
+Status labels: **V** = VERIFIED (source and/or headless print), **R** = REFUTED, **U** = UNVERIFIABLE-HEADLESS. All `file:line` references are under `<install>/5.2/scripts/startup/bl_ui/` (`<install>`: the Blender 5.2.2 install directory). "ts" means `scene.tool_settings`.
 
 ### 0. Where the "centre" controls actually live (V)
 

@@ -566,13 +566,13 @@
     "DISPLAY": ":1",
     "use_region_overlap": true,
     "argv": [
-     "$HOME/.local/share/blender/blender",
+     "$B",
      "--factory-startup",
      "--enable-event-simulate",
      "--gpu-backend",
      "vulkan",
      "--python",
-     "<repo>/tools/spikes/draw/probe.py"
+     "tools/spikes/draw/probe.py"
     ]
    },
    "spike6": {
@@ -4364,13 +4364,13 @@
     "DISPLAY": ":1",
     "use_region_overlap": true,
     "argv": [
-     "$HOME/.local/share/blender/blender",
+     "$B",
      "--factory-startup",
      "--enable-event-simulate",
      "--gpu-backend",
      "opengl",
      "--python",
-     "<repo>/tools/spikes/draw/probe.py"
+     "tools/spikes/draw/probe.py"
     ]
    },
    "spike6": {

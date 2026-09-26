@@ -5,8 +5,8 @@ set -u
 # No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
 # which would pop up on the user's session and offer to restart Blender there.
 prlimit --core=1 --pid $$ || ulimit -c 0   # 1 byte: the kernel drops the crash before systemd-coredump/DrKonqi (0 does not)
-B=~/.local/share/blender/blender
 HERE="$(cd "$(dirname "$0")" && pwd)"
+. "$HERE/../../env.sh"     # B, PY
 # This spike opens Blender windows on the CURRENT desktop (it predates the nested runners):
 # never run it by accident.
 if [ "${1:-}" != "--host" ]; then
@@ -27,7 +27,7 @@ for be in ${BACKENDS:-vulkan opengl}; do
   echo "$be exit=$rc log=$LOGDIR/draw_probe_$be.log"
   if [ $rc -ne 0 ]; then
     # Record the failed launch (e.g. timeout 124) so draw.json shows every attempted backend.
-    ~/.local/share/blender/5.2/python/bin/python3.13 - "$HERE/../../../docs/spikes/draw.json" "$be" "$rc" \
+    "$PY" - "$HERE/../../../docs/spikes/draw.json" "$be" "$rc" \
       "$LOGDIR/draw_probe_$be.log" <<'PY'
 import json, sys, pathlib
 out, be, rc, logf = pathlib.Path(sys.argv[1]), sys.argv[2].upper(), int(sys.argv[3]), pathlib.Path(sys.argv[4])

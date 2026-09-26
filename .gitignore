@@ -13,3 +13,6 @@ dist/
 /local/
 # Claude Code agent worktrees
 /.claude/worktrees/
+
+# machine-specific paths for tools/env.sh (B=..., PY=...)
+/local.env

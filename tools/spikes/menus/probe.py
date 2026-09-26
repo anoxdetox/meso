@@ -5,7 +5,7 @@ Run (GUI, event simulation, never saves prefs):
     tools/spikes/menus/run.sh RAW.json [SHOTS_DIR] [--host]     # nested virtual KWin by default
     python3 tools/spikes/menus/build_json.py RAW.json docs/spikes/menus.json
 
-or directly: BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 ~/.local/share/blender/blender \
+or directly: BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 "$B" \
         --factory-startup --enable-event-simulate --python tools/spikes/menus/probe.py \
         -- --out RAW.json [--shots DIR]
 

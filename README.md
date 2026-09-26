@@ -118,8 +118,7 @@ add-on, so its preferences reset once. Remove the old development link from
 
 ## Development
 ```
-B=~/.local/share/blender/blender
-PY=~/.local/share/blender/5.2/python/bin/python3.13
+. tools/env.sh      # B = blender on PATH (or set B=/path/to/blender in an untracked local.env), PY = its Python
 bl() { ( prlimit --core=1 --pid $BASHPID 2>/dev/null || ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
 
 $PY -m unittest discover -s tests/unit -t .                            # pure tests (no bpy)

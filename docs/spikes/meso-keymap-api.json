@@ -6,10 +6,10 @@
   },
   "d_keyconfig": {
    "preset_dirs": [
-    "$HOME/.local/share/blender-5.2.2-linux-x64/5.2/scripts/presets/keyconfig"
+    "<install>/5.2/scripts/presets/keyconfig"
    ],
-   "preset_find_Industry_Compatible": "$HOME/.local/share/blender-5.2.2-linux-x64/5.2/scripts/presets/keyconfig/Industry_Compatible.py",
-   "preset_find_Blender": "$HOME/.local/share/blender-5.2.2-linux-x64/5.2/scripts/presets/keyconfig/Blender.py",
+   "preset_find_Industry_Compatible": "<install>/5.2/scripts/presets/keyconfig/Industry_Compatible.py",
+   "preset_find_Blender": "<install>/5.2/scripts/presets/keyconfig/Blender.py",
    "preset_find_missing": null,
    "headless_initial": {
     "active": "Blender",

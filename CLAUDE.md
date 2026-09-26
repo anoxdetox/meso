@@ -11,9 +11,10 @@ Terminology: the Space overlay is the **Plaza** (`meso.plaza`); gesture/zone men
 click/modifier conventions.
 
 ## Environment
-- Blender 5.2.2 LTS: `B=~/.local/share/blender/blender` (always use the full path).
-- Bundled Python 3.13: `PY=~/.local/share/blender/5.2/python/bin/python3.13` — no pytest/ruff; use stdlib `unittest`.
-- Blender UI source (ground truth for menus/headers/keymaps): `~/.local/share/blender/5.2/scripts/startup/bl_ui/`,
+- `. tools/env.sh` sets `B` (Blender 5.2.2 LTS: the untracked, gitignored `local.env` at the repo root if it sets it,
+  else `blender` on PATH) and `PY` (its bundled Python 3.13: `<install>/5.2/python/bin/python3.13`, `<install>` = the
+  directory of the resolved binary) — no pytest/ruff; use stdlib `unittest`. Never commit machine paths: they go in `local.env`.
+- Blender UI source (ground truth for menus/headers/keymaps): `<install>/5.2/scripts/startup/bl_ui/`,
   `.../scripts/modules/_bpy_types.py`, `.../scripts/presets/keyconfig/keymap_data/blender_default.py`.
 - API reference (online, not stored locally): https://docs.blender.org/api/5.2/ (e.g. `.../bpy.types.UILayout.html`,
   `.../change_log.html`). Blender source for the 5.2 branch: https://projects.blender.org/blender/blender/src/branch/blender-v5.2-release

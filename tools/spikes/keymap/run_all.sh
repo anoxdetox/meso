@@ -12,8 +12,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
-B="$HOME/.local/share/blender/blender"
-PY="$HOME/.local/share/blender/5.2/python/bin/python3.13"
+. "$ROOT/tools/env.sh"     # B, PY
 OUT="${1:-$(mktemp -d)}"
 RUNS="${2:-2}"
 PAR="${3:-3}"

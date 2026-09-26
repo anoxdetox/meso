@@ -2,7 +2,7 @@
 
 GUI-only script, run as:
 
-    BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 ~/.local/share/blender/blender \
+    BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 "$B" \
         --factory-startup --enable-event-simulate --python tools/spikes/keymap/probe.py -- \
         --suite matrix --action PLAY --out /path/result.json
 

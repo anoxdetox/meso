@@ -19,7 +19,8 @@ set -u
 prlimit --core=1 --pid $$ || ulimit -c 0   # 1 byte: the kernel drops the crash before systemd-coredump/DrKonqi (0 does not)
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../../.." && pwd)
-BLENDER_BIN=$(readlink -f "${B:-$HOME/.local/share/blender/blender}")
+. "$ROOT/tools/env.sh"     # B, PY
+BLENDER_BIN=$(readlink -f "$(command -v "$B" || echo "$B")")
 MODE=widen
 RUNS=1
 ONLY=mk_properties_cycle

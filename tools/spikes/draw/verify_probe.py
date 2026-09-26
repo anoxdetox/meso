@@ -2,7 +2,7 @@
 
 Run (GUI; see run.sh for the env):
     vblank_mode=0 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 \
-        ~/.local/share/blender/blender --factory-startup --enable-event-simulate --gpu-backend vulkan \
+        "$B" --factory-startup --enable-event-simulate --gpu-backend vulkan \
         --python tools/spikes/draw/verify_probe.py
 
 V1  linear blending: Image editor WINDOW / Sequencer PREVIEW measured with the overlapping regions hidden

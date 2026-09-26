@@ -22,7 +22,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 # stalled the desktop compositor ("The main thread was hanging temporarily!", 2026-09-26).
 exec 9>"/tmp/meso-nested-gui-$(id -u).lock"
 flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
-B=${B:-$HOME/.local/share/blender/blender}
+. "$HERE/../../env.sh"     # B, PY
 T=$(mktemp -d)
 mkdir -p "$T/ext" "$T/cfg"
 SHOTARGS=""

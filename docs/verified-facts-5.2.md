@@ -1,6 +1,6 @@
 # VERIFIED FACTS & PLAN CORRECTIONS: Meso Mode on Blender 5.2.2 LTS
 
-Status tags: **V** means verified with the evidence given. **R** means the hypothesis was refuted, followed by the correct fact. **UH** means it can't be checked headless (see section 7). Unless noted, line references are under `~/.local/share/blender/5.2/scripts/`. I re-checked two disputed points myself: the temp_override `screen=` requirement and the order in which add-on keymap items are merged.
+Status tags: **V** means verified with the evidence given. **R** means the hypothesis was refuted, followed by the correct fact. **UH** means it can't be checked headless (see section 7). Unless noted, line references are under `<install>/5.2/scripts/` (`<install>`: the Blender 5.2.2 install directory, `tools/env.sh`). I re-checked two disputed points myself: the temp_override `screen=` requirement and the order in which add-on keymap items are merged.
 
 ---
 
@@ -8,8 +8,8 @@ Status tags: **V** means verified with the evidence given. **R** means the hypot
 
 | Item | Fact | Status |
 |---|---|---|
-| Binary | `~/.local/share/blender/blender` is Blender 5.2.2 LTS, hash d13f752e3b9c (it links to `blender-5.2.2-linux-x64`; `~/.local/bin/blender` points to the same place). Always call it by full path. | V |
-| Python | 3.13.13, bundled at `~/.local/share/blender/5.2/python/bin/python3.13`. `unittest`, `tomllib` and numpy 2.3.4 are present. There is no pytest, ruff or pyright. `import bpy` and `import mathutils` fail outside Blender. | V |
+| Binary | The official Linux x64 build of Blender 5.2.2 LTS, hash d13f752e3b9c (`blender-5.2.2-linux-x64`), found as `$B` (`tools/env.sh`: `local.env`, else `blender` on PATH). | V |
+| Python | 3.13.13, bundled at `<install>/5.2/python/bin/python3.13` (`$PY`). `unittest`, `tomllib` and numpy 2.3.4 are present. There is no pytest, ruff or pyright. `import bpy` and `import mathutils` fail outside Blender. | V |
 | Blender ignores PYTHONPATH | It is only read with `--python-use-system-env`, so scripts must adjust `sys.path` themselves. | V |
 | `bpy_types` | R: the module is now `_bpy_types` (`modules/_bpy_types.py`). Use `bpy.types.*` instead. | V |
 | Docs | The API reference is online: https://docs.blender.org/api/5.2/ (no local copy since 2026-09-25). `change_log.html` there contains only the "5.1 to 5.2" section. | V |
@@ -19,11 +19,11 @@ Status tags: **V** means verified with the evidence given. **R** means the hypot
 | `system.ui_scale` | It is 0.0 under `-b --factory-startup` (re-checked) and 1.0 under `-b` with user prefs. | V |
 | Keyconfig in background | The preset does not run: 108 keymaps with 12 items, and `active.preferences` is None. After `bpy.utils.keyconfig_set(<SCRIPTS>/presets/keyconfig/Blender.py)` there are 280 keymaps with 3228 items and `spacebar_action == 'PLAY'`. `keyconfigs.addon` ('Blender addon') exists. | V |
 | Global areas | TOPBAR and STATUSBAR are not in `screen.areas` headless. That only reflects background mode (no window exists), so it says nothing about the GUI. | UH |
-| Project | `<repo>` holds only `docs/`. It is not a git repo; git 2.55.0 is available. | V |
+| Project | At the start the project directory held only `docs/`. It was not a git repo yet; git 2.55.0 is available. | V |
 
 **Commands that work:**
 ```
-B=~/.local/share/blender/blender
+. tools/env.sh
 $B -b --factory-startup --python-exit-code 1 --python-expr "import bpy; print(...)"
 $B -b --factory-startup --python-expr "exec(open('/dev/stdin').read())" < <(cat <<'EOF' ... EOF)
 $B -b --factory-startup --gpu-backend {opengl|vulkan} ...      # pixel tests

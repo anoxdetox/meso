@@ -52,7 +52,8 @@ KEYCONFIGS = (tap.KC_BLENDER, tap.KC_BLENDER_27X, tap.KC_INDUSTRY, tap.KC_MESO, 
 ALL_AREAS = FRAMES_AREAS + tuple(sorted(tap.NO_FRAMES_AREAS)) + (None,)
 ALL_HITS = (None,) + tap.PAINT_MODE_KEYMAP_NAMES
 
-BLENDER_DEFAULT = (pathlib.Path.home() / ".local/share/blender/5.2/scripts/presets/keyconfig"
+# The bundled interpreter runs these tests: <install>/5.2/python/bin/python3.13.
+BLENDER_DEFAULT = (pathlib.Path(sys.executable).resolve().parents[2] / "scripts/presets/keyconfig"
                    / "keymap_data/blender_default.py")
 
 

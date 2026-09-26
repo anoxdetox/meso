@@ -1,7 +1,7 @@
 """Meso Mode Phase 0.5 GUI spike: DRAW group (spikes 4, 5, 6, 11, 12, 17).
 
 Run (GUI, one backend per process; see run.sh):
-    BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 ~/.local/share/blender/blender \
+    BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 "$B" \
         --factory-startup --enable-event-simulate --gpu-backend vulkan \
         --python tools/spikes/draw/probe.py
 

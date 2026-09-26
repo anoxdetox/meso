@@ -16,7 +16,7 @@ if [ "${_PANELS_INNER:-0}" != "1" ]; then     # the inner run (inside the nested
     exec 9>"/tmp/meso-nested-gui-$(id -u).lock"
     flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
 fi
-B=~/.local/share/blender/blender
+. "$HERE/../../env.sh"     # B, PY
 NESTED=0
 if [ "${1:-}" = "--nested" ]; then NESTED=1; shift; fi
 LOG=$1; shift

@@ -28,8 +28,7 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 # stalled the desktop compositor ("The main thread was hanging temporarily!", 2026-09-26).
 exec 9>"/tmp/meso-nested-gui-$(id -u).lock"
 flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
-B="${B:-$HOME/.local/share/blender/blender}"
-PY="${PY:-$HOME/.local/share/blender/5.2/python/bin/python3.13}"
+. "$ROOT/tools/env.sh"     # B, PY (local.env / blender on PATH)
 MODE=nested
 [ "${1:-}" = "--host" ] && MODE=host
 

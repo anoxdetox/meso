@@ -21,6 +21,7 @@ Output is deterministic: sorted keys, no timestamps, no temp paths, no memory ad
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -71,7 +72,7 @@ def _find_blender(explicit):
         return bpy.app.binary_path
     except ImportError:
         pass
-    return os.path.expanduser("~/.local/share/blender/blender")
+    return os.environ.get("B") or shutil.which("blender") or "blender"
 
 
 def _run_worker(blender, tmp, tag, extra):

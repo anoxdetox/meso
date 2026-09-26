@@ -11,7 +11,7 @@ Run through ``tests/gui/run_gui_tests.sh`` (nested ``kwin_wayland --virtual`` by
 directly:
 
     vblank_mode=0 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) \
-        timeout 640 ~/.local/share/blender/blender --factory-startup --enable-event-simulate \
+        timeout 640 "$B" --factory-startup --enable-event-simulate \
         --python tests/gui/gui_driver.py -- --out "$(mktemp)"
 
 Enables the add-on from an in-memory extension repo pointing at ``<repo>/src`` (the same

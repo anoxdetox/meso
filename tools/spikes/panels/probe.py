@@ -7,7 +7,7 @@ Run (GUI, needs --enable-event-simulate; the script quits Blender itself). Prefe
 
 (--nested = private `kwin_wayland --virtual`, needed while the desktop session is locked.) Direct form:
 
-    B=~/.local/share/blender/blender
+    . tools/env.sh
     BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 stdbuf -o0 -e0 \
         $B --factory-startup --enable-event-simulate --python tools/spikes/panels/probe.py \
         -- [--only 13,14,15,16] [--out results.json] [--dump-dir DIR]

@@ -42,6 +42,7 @@ acceptance share is below :data:`ACCEPTANCE_CUSTOM_PCT`.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -133,10 +134,10 @@ def _args(argv):
 def _find_blender(explicit):
     if explicit:
         return explicit
-    env = os.environ.get("BLENDER")
+    env = os.environ.get("BLENDER") or os.environ.get("B")
     if env:
         return env
-    return os.path.expanduser("~/.local/share/blender/blender")
+    return shutil.which("blender") or "blender"
 
 
 def run_driver(opts) -> int:

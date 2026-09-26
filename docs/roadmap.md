@@ -92,8 +92,8 @@ Mirror Blender's drag-toggle: press on a checkbox (DD_TOGGLE, or a toggle-table 
 
 ## Queued last before Phase 5 — generalize and rewrite history (user decisions 2026-09-25)
 Goal: nothing personal and no legacy-branding references (beyond the allowed referential README/docs uses) in **any** commit before the first GitHub push. The repo has never been pushed.
-1. **Generalize the tree:**
-   - Replace absolute `$HOME/...` paths (docs/verified-facts, spikes JSON, …) with repo-relative paths or `$HOME`.
+1. **Generalize the tree:** ✅ 2026-09-26 (`tools/env.sh` + untracked `local.env`; no personal path left in the tree)
+   - Replace absolute home-directory paths (docs/verified-facts, spikes JSON, …) with repo-relative paths or `$HOME`.
    - Replace the hard-coded install path `~/.local/share/blender/...` (20 files) with `${BLENDER:-blender}` and `${BLENDER_PY:-<derived from blender --version / bpy.app.binary_path>}`, used in CLAUDE.md, tests/gui/run_gui_tests.sh, tools/*, tools/spikes/*/run.sh and docs.
    - The user's own paths go into an untracked `local.env` (gitignored), which scripts source when present.
    - Also check screenshots, JSON dumps and logs for usernames or home paths.

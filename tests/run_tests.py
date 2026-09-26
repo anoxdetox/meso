@@ -1,7 +1,7 @@
 """In-Blender test runner for Meso Mode.
 
 Usage (from the repo root):
-    BLENDER_USER_EXTENSIONS=$(mktemp -d) ~/.local/share/blender/blender -b --factory-startup \
+    BLENDER_USER_EXTENSIONS=$(mktemp -d) "$B" -b --factory-startup \
         --python-exit-code 1 --python tests/run_tests.py -- [-k pattern] [-v]
 
 Steps (docs/verified-facts-5.2.md section 6, "Test harness"):

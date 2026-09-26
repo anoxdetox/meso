@@ -15,7 +15,7 @@
    "meso_prefs": null,
    "default_items": 12,
    "preset_paths": [
-    "$HOME/.local/share/blender-5.2.2-linux-x64/5.2/scripts/presets/keyconfig"
+    "<install>/5.2/scripts/presets/keyconfig"
    ],
    "menu": [
     [
@@ -51,7 +51,7 @@
    "meso_prefs": null,
    "default_items": 12,
    "preset_paths": [
-    "$HOME/.local/share/blender-5.2.2-linux-x64/5.2/scripts/presets/keyconfig",
+    "<install>/5.2/scripts/presets/keyconfig",
     "<tmp>/ext/user_default/meso_kcspike/presets/keyconfig"
    ],
    "menu": [
@@ -81,7 +81,7 @@
    "preset_remove_readonly": true,
    "other_preset_types_found": {
     "interface_theme": [
-     "$HOME/.local/share/blender-5.2.2-linux-x64/5.2/scripts/presets/interface_theme"
+     "<install>/5.2/scripts/presets/interface_theme"
     ],
     "keyconfig": [
      "<tmp>/ext/user_default/meso_kcspike/presets/keyconfig"

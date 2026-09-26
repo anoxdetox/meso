@@ -3,7 +3,7 @@
 Run (tools/spikes/meso_keymap/run.sh headless OUT_DIR does this):
 
     BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) \
-        ~/.local/share/blender/blender -b --factory-startup --python-exit-code 1 \
+        "$B" -b --factory-startup --python-exit-code 1 \
         --python tools/spikes/meso_keymap/headless.py -- --out OUT.json
 
 Sections (each writes one key of the JSON, errors are recorded, never raised):
