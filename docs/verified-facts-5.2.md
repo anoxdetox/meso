@@ -349,6 +349,26 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   `keymodifier` D; simulated ones never do), LMB on the Move gizmo drags the gizmo, LMB elsewhere starts
   `gpencil.annotate` (IC includes Blender's 'Grease Pencil' keymap with the `key_modifier: 'D'` annotate items).
 
+**Meso Keymap, step 9: the D tap (Affect Only Origins for one transform; headless `TestPivotOnce`, GUI G13
+simulated and G17 real X11 input in the nested session, 5.2.2):**
+- `WindowManager.operators` tells a confirmed transform from a cancelled one: a Move-gizmo drag, a Tweak-tool drag
+  and a Move-gizmo drag cancelled with Esc were told apart by whether a new `TRANSFORM_OT_translate` became the
+  newest entry (the cancelled drag left the newest entry as it was). A transform is not registered while it runs.
+  Under `-b` `bpy.ops` calls register nothing (`wm.operators` stays empty after `transform.translate`).
+- With `use_transform_data_origin` on, `bpy.ops.transform.translate(value=...)` (EXEC, headless) moves only the
+  object origin; the vertices stay where they are in world space.
+- A D press held 1.5 s with Xwayland's auto-repeat and no other input: the Meso D modal got the repeats (all
+  passed through) and the release; D + LMB drag in empty space with the Tweak tool still ran `GPENCIL_OT_annotate`
+  and added a stroke after the D modal ended on the mouse press (the held-key modifier is Blender's, not the
+  keymap's).
+- Industry Compatible puts `wm.tool_set_by_id(name='builtin.annotate', cycle=True)` on D PRESS in 'Object Mode',
+  'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves' (twice), 'Sculpt Curves', 'Image Paint', 'Vertex Paint',
+  'Weight Paint', 'Image' (IMAGE_EDITOR) and 'UV Editor'; its only Ctrl Alt D items are the Outliner's
+  `outliner.drivers_delete_selected`, `nla.duplicate` and `sequencer.duplicate_move_linked`.
+- Test harness: replacing `modal` on a registered operator class after registration (a trace wrapper in the
+  real-input driver, `def modal(self, context, event, _orig=orig)`) crashed Blender 5.2.2 at the first modal call (segfault, no Python frame); wrapping a plain
+  mixin's method or a module function the operator calls works.
+
 ## 4. Recorder
 
 **Coverage.** Headless, over 685 registered Menu subclasses:

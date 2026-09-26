@@ -19,7 +19,7 @@ code, assets, icons, colours or documentation, and it is not affiliated with Aut
 | Hold X / C / V to snap while dragging | Meso Keymap: hold X / C / V / J before a drag to snap (your settings come back after) | ✅ |
 | Isolate select (Ctrl+1) | Meso Keymap Ctrl+1 isolate (objects and components) | ✅ |
 | Attribute Editor / Channel Box (Ctrl+A) | Meso Keymap Ctrl+A: cycle Properties editor tabs | ✅ |
-| Hold D / Insert to edit the pivot | Meso Keymap: hold D (or Insert to toggle) edits origins only | ✅ |
+| Hold D / Insert to edit the pivot | Meso Keymap: tap D edits origins only for the next transform (no hold needed), Insert toggles it until Insert again | ✅ |
 
 The **Meso** keymap is Blender's **Industry Compatible** keymap (navigation, QWER tools, frame
 selected/all) plus Meso's bindings. It appears in Blender's keymap list and is customized in
