@@ -145,6 +145,20 @@ class MesoAddonPreferences(AddonPreferences):
                     "the centre box) opens that zone's Compass menu for the pressed button",
         default=True,
     )
+    # Phase 5b (docs/phase5b-interfaces.md "Preferences"): which one Shift+RMB opens under the
+    # Meso Keymap; the other one is on Ctrl+Shift+RMB (``core.compass_rmb.behaviour``).
+    shift_rmb_owner: EnumProperty(
+        name="Shift Right Click",
+        description="What Shift and the right mouse button do in the 3D View with the Meso "
+                    "keymap; the other one is on Ctrl Shift and the right mouse button",
+        items=(
+            ('COMPASS', "Tool Compass", "Shift Right Click: the tool Compass (a click places "
+                                        "the 3D cursor). Ctrl Shift Right Click: the 3D cursor"),
+            ('CURSOR', "3D Cursor", "Shift Right Click: the 3D cursor, as in Industry "
+                                    "Compatible. Ctrl Shift Right Click: the tool Compass"),
+        ),
+        default='COMPASS',
+    )
     submenu_delay: FloatProperty(
         name="Submenu Delay",
         description="Seconds the pointer rests on a dropdown item before its submenu opens "
@@ -368,7 +382,8 @@ _BUTTON_NAMES = {'L': "Left", 'M': "Middle", 'R': "Right"}
 
 
 def _draw_compass_slots(layout, prefs) -> None:
-    """The "Compass menus" section: the switch and the 15 zone / button slots as a grid."""
+    """The "Compass menus" section: the switch, the 15 zone / button slots as a grid, and
+    ``shift_rmb_owner`` with the line saying which chord has the 3D cursor."""
     box = layout.box()
     box.use_property_split = False
     box.prop(prefs, "compass_menus")
@@ -385,6 +400,19 @@ def _draw_compass_slots(layout, prefs) -> None:
     col.active = prefs.compass_menus
     col.label(text="A Blender menu or pie menu id (VIEW3D_MT_view_pie), or a built-in Compass:")
     col.label(text="  " + ", ".join(zones.BUILTIN_PREFIX + b for b in zones.BUILTIN_COMPASSES))
+    row = box.row()
+    row.label(text="Shift Right Click (Meso keymap):")
+    row.prop(prefs, "shift_rmb_owner", text="")
+    box.label(text=shift_rmb_hint(prefs.shift_rmb_owner))
+
+
+def shift_rmb_hint(owner: str) -> str:
+    """The prefs line under ``shift_rmb_owner``: which chord has the 3D cursor now."""
+    if owner == 'CURSOR':
+        return ("The 3D cursor stays on Shift Right Click; Ctrl Shift Right Click opens the "
+                "tool Compass")
+    return ("The 3D cursor is on Ctrl Shift Right Click (a Shift Right Click tap still places "
+            "it); Shift Right Click opens the tool Compass")
 
 
 # One slot per zone and mouse button (docs/phase5-interfaces.md "Preferences").

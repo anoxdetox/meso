@@ -102,7 +102,7 @@ class TestTable(unittest.TestCase):
     def test_no_duplicate_keymap_key_over_the_whole_table(self):
         pairs = mb.table_items(mb.BINDINGS)
         self.assertEqual(len(pairs), sum(len(b.items) for b in mb.BINDINGS))
-        self.assertEqual(len(pairs), 156)
+        self.assertEqual(len(pairs), 166)
         with self.assertRaises(ValueError):
             mb.table_items((mb.binding('select_all'), mb.binding('select_all')))
 
@@ -116,7 +116,7 @@ class TestTable(unittest.TestCase):
         for b in mb.BINDINGS:
             for d in b.displaces:
                 self.assertTrue(d.now == mb.NOW_TAP or d.now in ALL_IDS, (b.id, d.now))
-                self.assertRegex(d.native, r'^[a-z_]+\.[a-z_0-9]+\(.*\)$')
+                self.assertRegex(d.native, r'^[a-z_0-9]+\.[a-z_0-9]+\(.*\)$')
 
     def test_trio_and_extra_coverage(self):
         self.assertEqual(len(mb.TRIO_KEYMAPS), 24)
@@ -291,6 +291,115 @@ class TestTable(unittest.TestCase):
         self.assertEqual(mb.native_call('file.select_all'), "file.select_all()")
 
 
+class TestCompassMenus(unittest.TestCase):
+    """Phase 5b (docs/phase5b-interfaces.md "Bindings"): the right-click Compass in the eight
+    3D View mode keymaps, the Shift+right-click tool Compass and the cursor on Ctrl+Shift+RMB."""
+
+    CONTEXT_MENUS = {
+        'Object Mode': 'VIEW3D_MT_object_context_menu',
+        'Mesh': 'VIEW3D_MT_edit_mesh_context_menu',
+        'Curve': 'VIEW3D_MT_edit_curve_context_menu',
+        'Armature': 'VIEW3D_MT_armature_context_menu',
+        'Pose': 'VIEW3D_MT_pose_context_menu',
+        'Metaball': 'VIEW3D_MT_edit_metaball_context_menu',
+        'Lattice': 'VIEW3D_MT_edit_lattice_context_menu',
+        'Particle': 'VIEW3D_MT_particle_context_menu',
+    }
+
+    def test_group(self):
+        self.assertEqual(mb.GROUPS[-1], ('COMPASS', "Compass Menus"))
+        self.assertEqual(mb.group_label('COMPASS'), "Compass Menus")
+        self.assertEqual([b.id for b in mb.BINDINGS if b.group == 'COMPASS'],
+                         ['compass_context', 'compass_tools', 'reloc_cursor'])
+        for bid in ('compass_context', 'compass_tools', 'reloc_cursor'):
+            b = mb.binding(bid)
+            self.assertTrue(b.default_on, bid)
+            self.assertEqual(mb.operator_idnames(b), ('meso.compass_rmb',), bid)
+
+    def test_context_compass_items(self):
+        b = mb.binding('compass_context')
+        self.assertEqual(mb.COMPASS_CONTEXT_KEYMAPS, tuple(self.CONTEXT_MENUS))
+        self.assertEqual([(i.keymap, i.key, i.idname, i.props) for i in b.items],
+                         [(km, mb.Key('RIGHTMOUSE'), 'meso.compass_rmb',
+                           (('kind', 'CONTEXT'), ('menu', menu)))
+                          for km, menu in self.CONTEXT_MENUS.items()])
+        self.assertEqual(b.displaces, tuple(
+            mb.Displaced(km, mb.Key('RIGHTMOUSE'), f"wm.call_menu(name={menu!r})", mb.NOW_TAP)
+            for km, menu in self.CONTEXT_MENUS.items()))
+        self.assertIsNone(b.follows)
+        for km in b.items:
+            self.assertEqual(mb.KEYMAP_SPACES[km.keymap], ('EMPTY', 'WINDOW'))
+        # never the paint / sculpt modes, Font or a 2D editor (decision 86 a)
+        maps = {i.keymap for i in b.items}
+        for name in ('Sculpt', 'Vertex Paint', 'Weight Paint', 'Image Paint', 'Font',
+                     'Graph Editor', 'Node Editor', 'UV Editor', 'Outliner', '3D View'):
+            self.assertNotIn(name, maps)
+        self.assertIn("A quick click still opens", b.description)
+
+    def test_tool_compass_and_the_cursor(self):
+        tools = mb.binding('compass_tools')
+        self.assertEqual([(i.keymap, i.key, i.idname, i.props) for i in tools.items],
+                         [('3D View', mb.Key('RIGHTMOUSE', shift=True), 'meso.compass_rmb',
+                           (('kind', 'TOOLS'), ('role', 'SHIFT')))])
+        self.assertEqual(tools.displaces, (
+            mb.Displaced('3D View', mb.Key('RIGHTMOUSE', shift=True), 'view3d.cursor3d()',
+                         'reloc_cursor'),
+            mb.Displaced('3D View', mb.Key('RIGHTMOUSE', shift=True),
+                         'transform.translate(cursor_transform=True, release_confirm=True)',
+                         'reloc_cursor')))
+        self.assertIsNone(tools.follows)
+        cursor = mb.binding('reloc_cursor')
+        self.assertEqual([(i.keymap, i.key, i.idname, i.props) for i in cursor.items],
+                         [('3D View', mb.Key('RIGHTMOUSE', ctrl=True, shift=True),
+                           'meso.compass_rmb', (('kind', 'TOOLS'), ('role', 'CTRL_SHIFT')))])
+        self.assertEqual(cursor.follows, 'compass_tools')
+        self.assertEqual(cursor.displaces, ())
+        self.assertEqual(mb.home_label('reloc_cursor'),
+                         "Ctrl Shift Right Mouse (Ctrl Shift Right Click: 3D Cursor)")
+        self.assertEqual(mb.KEY_CURSOR.label(), 'Ctrl Shift Right Mouse')
+
+    def test_no_duplicate_chords_and_press_only(self):
+        rmb = [(i.keymap, i.key) for b in mb.BINDINGS for i in b.items
+               if i.key.type == 'RIGHTMOUSE']
+        self.assertEqual(len(rmb), 10)
+        self.assertEqual(len(set(rmb)), 10)
+        self.assertTrue(all(k.value == 'PRESS' for _km, k in rmb))
+        mb.table_items()                              # no ValueError
+        # no other binding uses the right mouse button
+        self.assertEqual({b.id for b in mb.BINDINGS for i in b.items
+                          if i.key.type == 'RIGHTMOUSE'},
+                         {'compass_context', 'compass_tools', 'reloc_cursor'})
+
+    def test_the_cursor_off_warns(self):
+        w = mb.warnings(live(off={'reloc_cursor'}))
+        self.assertEqual(len(w), 1, w)
+        self.assertIn("Shift Right Click: Tool Compass takes Shift Right Mouse from "
+                      "view3d.cursor3d() in 3D View", w[0])
+        self.assertIn("Ctrl Shift Right Mouse (Ctrl Shift Right Click: 3D Cursor), is off", w[0])
+        self.assertNotIn("more keymaps", w[0])       # both cursor items are in '3D View'
+        self.assertEqual(mb.warnings(live(off={'compass_tools', 'reloc_cursor'})), ())
+        # the context Compass keeps the menu on a tap: nothing to warn about
+        self.assertEqual(mb.warnings(live(off={'compass_tools'})), ())
+
+    def test_merge_puts_the_compass_items_first(self):
+        data = mb.merge_keyconfig_data(ic_like_data())
+        by_name = {name: content["items"] for name, _a, content in data}
+        view3d = [e for e in by_name['3D View'] if e[0] == 'meso.compass_rmb']
+        self.assertEqual(view3d, [
+            ('meso.compass_rmb', {"type": 'RIGHTMOUSE', "value": 'PRESS', "shift": True},
+             {"properties": [('kind', 'TOOLS'), ('role', 'SHIFT')]}),
+            ('meso.compass_rmb', {"type": 'RIGHTMOUSE', "value": 'PRESS', "ctrl": True,
+                                  "shift": True},
+             {"properties": [('kind', 'TOOLS'), ('role', 'CTRL_SHIFT')]})])
+        mesh = by_name['Mesh']
+        rmb = [e for e in mesh if e[0] == 'meso.compass_rmb']
+        self.assertEqual(rmb, [('meso.compass_rmb', {"type": 'RIGHTMOUSE', "value": 'PRESS'},
+                                {"properties": [('kind', 'CONTEXT'),
+                                                ('menu', 'VIEW3D_MT_edit_mesh_context_menu')]})])
+        self.assertLess(mesh.index(rmb[0]), mesh.index(next(e for e in mesh
+                                                            if e[0] == 'native.a')))
+
+
 class TestKeyconfigData(unittest.TestCase):
     def test_item_data(self):
         item = mb.binding('select_all').items[0]
@@ -305,7 +414,7 @@ class TestKeyconfigData(unittest.TestCase):
 
     def test_items_by_keymap_keeps_table_order(self):
         groups = mb.items_by_keymap()
-        self.assertEqual(sum(len(v) for v in groups.values()), 156)
+        self.assertEqual(sum(len(v) for v in groups.values()), 166)
         flat = [pair for pairs in groups.values() for pair in pairs]
         order = {id(item): n for n, (_bid, item) in enumerate(mb.table_items())}
         for pairs in groups.values():

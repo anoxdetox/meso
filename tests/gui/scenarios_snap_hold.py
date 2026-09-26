@@ -1050,15 +1050,18 @@ def scenarios(drv):
             region = drv.region_of(v3d_area(), 'WINDOW')
             corner = (region.x + region.width // 5, region.y + region.height // 5)
             c = drv.center_of("VIEW_3D")
-            # Shift RMB: place the 3D cursor
+            # Shift RMB tap: place the 3D cursor (Phase 5b: the tool Compass's tap, decision 88)
             drv.sim('MOUSEMOVE', 'NOTHING', corner)
             yield 0.1
             yield from key(corner, 'RIGHTMOUSE', shift=True)
             placed = tuple(scene.cursor.location)
             drv.check(rec, "shift_rmb_places_cursor", placed != cursor_before, placed)
-            # Shift RMB drag (the cursor drag): the same with every Meso binding off and on (under
-            # event_simulate Industry Compatible's PRESS cursor3d item may keep the drag from
-            # starting; what matters is that Meso changes nothing)
+            # Shift RMB drag (IC's cursor drag): the same with every Meso binding off and with
+            # every binding on but the two that own the cursor chords (compass_tools on Shift
+            # RMB, reloc_cursor on Ctrl Shift RMB: scenarios_compass_rmb drives those), so no
+            # other Meso item swallows it (under event_simulate Industry Compatible's PRESS
+            # cursor3d item may keep the drag from starting; what matters is that Meso changes
+            # nothing)
             def cursor_drag():
                 scene.cursor.location = placed
                 drv.sim('MOUSEMOVE', 'NOTHING', corner)
@@ -1071,40 +1074,43 @@ def scenarios(drv):
                 yield 0.4
                 return started, tuple(round(v, 4) for v in scene.cursor.location)
 
+            cursor_owners = ('compass_tools', 'reloc_cursor')
             for b in mb().BINDINGS:
                 mk().set_binding_active(b.id, False)
             yield 0.3
             native = yield from cursor_drag()
             for b in mb().BINDINGS:
-                mk().set_binding_active(b.id, True)
+                mk().set_binding_active(b.id, b.id not in cursor_owners)
             yield 0.3
             meso = yield from cursor_drag()
+            for bid in cursor_owners:
+                mk().set_binding_active(bid, True)
+            yield 0.3
             rec.setdefault("details", {})["shift_rmb_drag_native_vs_meso"] = [native, meso]
             drv.check(rec, "shift_rmb_drag_as_native", native == meso, [native, meso])
             # the drag above may never start under event simulation, so it cannot see a Meso
-            # item that swallows the drag: no add-on item may use Shift RMB (any value), and
-            # IC's own cursor items fire first on their keys (headless twin:
-            # test_meso_keymap.TestShiftRmbStaysNative)
+            # item that swallows the drag: on Shift RMB (any value) Meso has only the tool
+            # Compass and the Ctrl Shift RMB cursor, the Plaza nothing, and IC's own cursor
+            # items stay right after the Compass item (headless twin:
+            # test_meso_keymap.TestCompassRmbBindings)
             wm = bpy.context.window_manager
             ours = [kmi for _km, kmi, _item in mk().user_items()]
             ours += [kmi for km in wm.keyconfigs.addon.keymaps for kmi in km.keymap_items
                      if kmi.idname.startswith('meso.')]
-            shift_rmb = [(kmi.idname, kmi.value) for kmi in ours
-                         if kmi.active and kmi.type == 'RIGHTMOUSE'
-                         and (kmi.any or kmi.shift != 0)]
-            drv.check(rec, "shift_rmb_no_meso_item", bool(ours) and shift_rmb == [], shift_rmb)
+            shift_rmb = sorted((kmi.idname, kmi.value, bool(kmi.ctrl)) for kmi in ours
+                               if kmi.active and kmi.type == 'RIGHTMOUSE'
+                               and (kmi.any or kmi.shift != 0))
+            drv.check(rec, "shift_rmb_only_the_compass_items",
+                      shift_rmb == [('meso.compass_rmb', 'PRESS', False),
+                                    ('meso.compass_rmb', 'PRESS', True)], shift_rmb)
             wm.keyconfigs.update()
             km3d = wm.keyconfigs.user.keymaps.find('3D View', space_type='VIEW_3D',
                                                    region_type='WINDOW')
-            first = {}
-            for value in ('PRESS', 'CLICK_DRAG'):
-                hit = next((k for k in km3d.keymap_items if k.active
-                            and k.type == 'RIGHTMOUSE' and k.shift == 1 and not k.ctrl
-                            and not k.alt and k.value in (value, 'ANY')), None)
-                first[value] = hit.idname if hit is not None else None
-            drv.check(rec, "shift_rmb_native_first",
-                      first == {'PRESS': 'view3d.cursor3d',
-                                'CLICK_DRAG': 'transform.translate'}, first)
+            chord = [(k.idname, k.value) for k in km3d.keymap_items if k.active
+                     and k.type == 'RIGHTMOUSE' and k.shift == 1 and not k.ctrl and not k.alt]
+            drv.check(rec, "shift_rmb_compass_first_native_kept",
+                      chord[:3] == [('meso.compass_rmb', 'PRESS'), ('view3d.cursor3d', 'PRESS'),
+                                    ('transform.translate', 'CLICK_DRAG')], chord)
             scene.cursor.location = placed
             # RMB context menu, Tab search, Shift Tab Quick Favorites
             MENU["context"] = 0

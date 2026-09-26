@@ -165,6 +165,9 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
       binding off and on (a real-mouse check is listed for the user). Since that comparison cannot see a Meso item
       that swallows the drag, the sweep (`shift_rmb_no_meso_item`, `shift_rmb_native_first`) and the headless
       `TestShiftRmbStaysNative` also check the keymaps: no add-on item on Shift RMB, IC's cursor items first.
+      Phase 5b replaces them: the drag comparison runs with every binding on but `compass_tools` / `reloc_cursor`
+      (the chord owners), and `shift_rmb_only_the_compass_items`, `shift_rmb_compass_first_native_kept` and the
+      headless `TestCompassRmbBindings` check that the Compass item comes first with IC's two cursor items after it.
 
 - **Step 4 implemented** (user decision 1 of 2026-09-25: the Meso keyconfig): `presets/keyconfig/Meso.py` (shim),
   `meso_keymap.py` (rewritten: preset path, `load_keyconfig`, select / restore, watcher, reset), `core/meso_bindings.py`
@@ -658,9 +661,12 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 | `reloc_annotate` | Pivot | `ANNOTATE_KEYMAPS`: 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves', 'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Image', 'UV Editor' | Ctrl+Alt+D | `wm.tool_set_by_id(name='builtin.annotate', cycle=True)` | on, `follows='pivot_once'` | nothing (free in every keymap that runs there; audit in `docs/spikes/meso-keymap-conflicts.md`) |
 | `reloc_gp_weight_direction` | Pivot | 'Grease Pencil Weight Paint' | Ctrl+Alt+D | `grease_pencil.weight_toggle_direction` | on, `follows='pivot_once'` (round 5) | nothing (free there and in every keymap that runs there: the Ctrl Alt D audit, `TestAnnotateRelocation`) |
 | `pivot_toggle` | Pivot | 'Object Mode' | Insert | `meso.pivot_toggle` | **on** | nothing (Insert only bound in 'Text') |
+| `compass_context` | Compass Menus (Phase 5b) | `COMPASS_CONTEXT_KEYMAPS`: 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Pose', 'Metaball', 'Lattice', 'Particle' | RMB | `meso.compass_rmb(kind='CONTEXT', menu=<the keymap's IC context menu>)` | **on** | each keymap's IC RMB `wm.call_menu(name=<its context menu>)` → **a quick click** (the operator's tap opens the same menu); the menu is also the list under the Compass. Not the paint / sculpt modes (RMB shared with the stencil controls), 'Font' or the 2D editors (decision 86) |
+| `compass_tools` | Compass Menus | '3D View' | Shift+RMB | `meso.compass_rmb(kind='TOOLS', role='SHIFT')` | **on** | IC Shift+RMB `view3d.cursor3d()` (PRESS) and `transform.translate(cursor_transform=True, release_confirm=True)` (CLICK_DRAG) → `reloc_cursor` (Ctrl+Shift+RMB); a quick click still places the cursor (decision 88) |
+| `reloc_cursor` | Compass Menus | '3D View' | Ctrl+Shift+RMB | `meso.compass_rmb(kind='TOOLS', role='CTRL_SHIFT')` | on, `follows='compass_tools'` | nothing (free in IC 5.2.2: no Ctrl+Shift+RMB item in the 3D View keymaps) |
 
-Not bound, by design: hold-J snap inversion during a transform (API blocker, below); anything on Shift+RMB or
-Ctrl+Shift+RMB (Phase 5b); hold keys in the UV Editor, Grease Pencil modes and paint/sculpt modes (C11: the mode maps
+Not bound, by design: hold-J snap inversion during a transform (API blocker, below); the right-click Compass
+outside the eight 3D View mode keymaps above (Phase 5b, decision 86); hold keys in the UV Editor, Grease Pencil modes and paint/sculpt modes (C11: the mode maps
 there keep X/V/C native; D is bound there since round 5, except 'Sculpt'); Ctrl+A outside the 3D View (C8); any other item in 'User Interface' (step 10 replaces
 only IC's Alt+D driver removal there, with a wrapper that does exactly the same over a driven property).
 
@@ -682,7 +688,7 @@ silently erase a native action.
 | `properties_cycle_order` | String `"OBJECT,DATA,MODIFIER,MATERIAL"` | `core.properties_cycle.parse` keeps known ids in order, drops unknown/duplicates, empty → default. The prefs show the valid ids under the field |
 | `isolate_frame_selected` | Bool False | Passed to `view3d.localview(frame_selected=)` (DEFAULT: no framing, the view does not move) |
 | `hold_tap_threshold` | Float 0.20 s (0.0–1.0) | Shared by X / C / V / J and D (shown in the Snapping and the Pivot group). A hold key released within this time, with no mouse button and no foreign modal (a transform) in between, is a tap: X, C and V replay the native action (J has none); a D tap replays nothing and arms the one-shot instead (a second tap cancels it, step 9). For D, any other key press, a modifier too, also makes the press a hold (for X / C / V / J a modifier does not). Separate from the Plaza's `tap_threshold` |
-| `shift_rmb_owner` | **not added now** | Recorded design only (see "Shift+RMB") |
+| `shift_rmb_owner` | Enum `COMPASS` / `CURSOR`, default `COMPASS` (Phase 5b) | Which one Shift+RMB is under the Meso keymap: COMPASS the tool Compass (Ctrl+Shift+RMB the cursor), CURSOR the 3D cursor as in IC (Ctrl+Shift+RMB the tool Compass). It swaps what the two items do (`core.compass_rmb.behaviour`), never the items. Drawn in the "Compass menus" box with the line `prefs.shift_rmb_hint` (which chord has the cursor) and in the Compass Menus binding group; see "Right-click Compass menus" |
 
 Preferences never keep RNA pointers; the restore data for holds and isolate lives in module memory (below) and is
 never saved. The user's keymap edits live in Blender's own keymap preferences (the diff store in `userpref.blend`).
@@ -1092,11 +1098,21 @@ LOCAL_VIEW (no per-element hide exists; DEFAULT fallback to local view of the ob
   previews on the main thread first (`gui_driver.warm_previews()`), and G6 checks that no preview job starts while
   it cycles.
 
-## Shift+RMB (recorded only; nothing is bound)
-Meso binds nothing on Shift+RMB or Ctrl+Shift+RMB in this work; IC's `view3d.cursor3d` (PRESS) and cursor drag
-(CLICK_DRAG) stay native. Planned for Phase 5b: pref `shift_rmb_owner = COMPASS (default) | CURSOR` in the Compass
-menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two cursor items move to Ctrl+Shift+RMB
-(verified unbound in every IC keymap); with CURSOR nothing moves. Both states keep the cursor reachable and are tested.
+## Right-click Compass menus (Phase 5b; was "Shift+RMB, recorded only")
+Contract: `docs/phase5b-interfaces.md` "Bindings". The Compass Menus group binds `meso.compass_rmb` on the right mouse
+button (every item PRESS; the operator tells a tap from a hold or drag itself):
+- **RMB** in the eight 3D View mode keymaps (`compass_context`): a quick click opens IC's context menu of that keymap
+  (the item's `menu` property, the same `wm.call_menu` IC has there; `Displaced.now = NOW_TAP`), a hold or a drag
+  opens the mode Compass. Blender runs the mode keymaps before '3D View', so these items never meet the Shift ones.
+- **Shift+RMB** in '3D View' (`compass_tools`): the tool Compass; a quick click places the 3D cursor. It displaces
+  both IC Shift+RMB items (the PRESS cursor placement and the CLICK_DRAG cursor drag), listed under the Meso item's
+  PRESS key: the shadow test matches every value of a chord against it.
+- **Ctrl+Shift+RMB** in '3D View' (`reloc_cursor`, `follows='compass_tools'`): IC's cursor, exactly (place on the
+  press, drag past the drag threshold to move it). Free in IC 5.2.2 (verified headless 2026-09-26).
+- `shift_rmb_owner = CURSOR` swaps what the two Shift chords do (the items stay; `core.compass_rmb.behaviour`), so the
+  cursor is on Shift+RMB again and the tool Compass on Ctrl+Shift+RMB. The cursor stays reachable in both states, and
+  switching `compass_tools` off in the keymap editor gives Shift+RMB back to IC's own two items.
+- `warnings()` counts keymaps, not items: `compass_tools` on with `reloc_cursor` off is one message about '3D View'.
 
 ## CLAUDE.md rule updates needed (applied in step 1; rule 1 replaced in step 4 by the keyconfig rule in CLAUDE.md)
 1. Keymaps rule, add: "Exception, explicit consent only: `meso.keymap_choose` may call `bpy.utils.keyconfig_set` on
@@ -1174,9 +1190,11 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   added while isolated keeps the bone hidden before (round 6: by name); `sort_elements`, subdivide, extrude + delete
   while isolated → restore by position (round 6); a delete and refill → exact, never other faces; a flip keeps the
   restore; a spline fully hidden by the isolate gets `Spline.hide` back. Round 6 `TestStackedIsolate`: see Status.
-- `test_meso_keymap.py` `TestShiftRmbStaysNative`: with every binding on, on both keyconfigs, no Meso/Plaza item on
-  RIGHTMOUSE with Shift (any value); IC's `view3d.cursor3d` (PRESS) and cursor `transform.translate` (CLICK_DRAG) fire
-  first.
+- `test_meso_keymap.py` `TestCompassRmbBindings` (Phase 5b; replaces `TestShiftRmbStaysNative`): each Compass item
+  is first on its chord in the Meso and the user keyconfig with IC's items after it (the context menu; the cursor
+  place and drag), Ctrl+Shift+RMB unbound in IC, the items' properties (`kind`, `menu`, `role`), switching the three
+  bindings off gives the chords back, the cursor-off warning, `shift_rmb_owner` swapping the two chords
+  (`core.compass_rmb.behaviour`), no Plaza item on RIGHTMOUSE.
 - `test_snap_hold_blender.py`: the module-level paths without a modal (timers do not fire headless): press/release
   writes on the real `tool_settings` with a non-empty individual set; `save_pre`/`save_post` swap (saved file has the
   baseline); `load_pre` restore; `unregister()` restore; `pivot_toggle` in Object Mode; poll False in Sculpt and
@@ -1280,7 +1298,8 @@ Snapping and pivot (Xwayland):
   every gizmo handle, checked on the screen: the ray hits the cube, opposite each axis handle, outside the centre
   circle).
 
-Protected features (every Meso keymap PR, roadmap rule): Shift+I local view, Shift+RMB cursor place and drag, the
+Protected features (every Meso keymap PR, roadmap rule): Shift+I local view, the 3D cursor place and drag (Shift+RMB
+tap and Ctrl+Shift+RMB since Phase 5b), the
 Cursor and Annotate tools in the toolbar, box/lasso/circle select, context menus, search, Quick Favorites, playback,
 maximize area, and typing in text fields, the Text editor, the Console and 3D text edit with every binding on.
 After the GUI run: `git checkout -- docs/screenshots` unless a screenshot is a new intended reference.

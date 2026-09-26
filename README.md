@@ -101,6 +101,11 @@ Familiar workflows for artists coming from Autodesk Maya software. See
   Each of the 15 zone and button slots can hold any Blender menu or pie menu (a pie's items land
   in their pie directions) or a built-in Compass: set them in the add-on preferences.
 
+  With the Meso Keymap, hold or drag the right mouse button in the 3D View for a Compass of
+  modes, or Shift and the right button for the mode's tools. A quick click keeps Blender's own
+  action: the context menu, or placing the 3D cursor. The 3D cursor (click to place, drag to
+  move) is on Ctrl Shift right click; a preference puts it back on Shift right click.
+
 - **Tap Space:** in the 3D Viewport a tap toggles quad view, or maximizes the hovered
   Top/Front/Side view. Elsewhere a tap keeps Blender's own Space action (play, tools or search).
 
@@ -145,6 +150,9 @@ Industry Compatible or Blender also has applies there too.
 | Hold&nbsp;<kbd>X</kbd>&nbsp;/&nbsp;<kbd>C</kbd>&nbsp;/&nbsp;<kbd>V</kbd>&nbsp;/&nbsp;<kbd>J</kbd> | Snap while held: to the grid / edges / vertices / in increments. A tap does what the key does in Industry Compatible ([details](#snap-holds-x-c-v-j)) | 3D View: Object, Edit, Pose and Particle modes |
 | <kbd>D</kbd> | Edit origins: hold D for gizmo drags, tap D for the next transform ([details](#d-edit-origins)) | 3D View (not mesh Sculpt or text editing) |
 | <kbd>Insert</kbd> | Edit origins until Insert again (toggles Affect Only Origins: move origins, not the shapes) | Object Mode |
+| Hold&nbsp;<kbd>Right&nbsp;Mouse</kbd> | Compass of modes (Object Mode; Edit Mode with Vertex / Edge / Face; the other modes), the context menu as the list below it. A quick click opens the context menu as before | 3D View: Object Mode, Edit Mesh, Curve, Armature, Pose, Metaball, Lattice, Particle Edit |
+| Hold&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>Right&nbsp;Mouse</kbd> | Tool Compass of the mode (Object, Vertex, Edge, Face), the mode's menu as the list below it. A quick click still places the 3D cursor | 3D View |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>Right&nbsp;Mouse</kbd> | The 3D cursor: click to place, drag to move (Industry Compatible's Shift right click). The Shift Right Click preference swaps the two chords back | 3D View |
 
 In the other editors Ctrl A still selects all; in the 3D View select all is Ctrl Shift A.
 Shift I stays local view and Ctrl H / Shift H / Alt H keep hiding and revealing.

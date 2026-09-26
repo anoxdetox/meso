@@ -141,7 +141,14 @@ The pure decisions live in `core/compass_rmb.py` (`behaviour`, `shows_compass`, 
 
 ## Preferences (`prefs.py`)
 `shift_rmb_owner: EnumProperty(items=(('COMPASS', "Tool Compass", ...), ('CURSOR', "3D Cursor", ...)),
-default='COMPASS')`, drawn in the "Compass menus" box with one line saying which chord has the cursor.
+default='COMPASS')` (name "Shift Right Click"), drawn in the "Compass menus" box with one line saying which chord has
+the cursor (`prefs.shift_rmb_hint(owner)`), and in the Compass Menus group of the Meso Keymap binding list
+(`keymap_prefs._GROUP_EXTRAS`, with two `GROUP_HINTS` lines: taps keep the native action; the paint / sculpt modes,
+text editing and the 2D editors keep their menu).
+
+Binding-table helpers touched (`core/meso_bindings.py`, `keymap_prefs.py`): `Key.label()` names RIGHTMOUSE
+"Right Mouse" (Blender's own name); `warnings()` and `displaced_lines()` count keymaps, not items, so the two cursor
+items of '3D View' are one keymap (one line lists both natives).
 
 ## Decisions (defaults in force until the user answers; numbering continues from docs/phase5-interfaces.md)
 86. **Where the right-click Compass is bound (DEFAULT a).** (a) The eight 3D View mode keymaps (Object, Mesh, Curve,
@@ -168,8 +175,14 @@ default='COMPASS')`, drawn in the "Compass menus" box with one line saying which
   WINDOW_DEACTIVATE, the lost area, nothing to offer -> the tap, the tool Compass tap places the cursor, Ctrl+Shift
   places at the press and drags the cursor, owner CURSOR swaps the chords, PASS_THROUGH outside the 3D View WINDOW
   region, while the Plaza runs and while another press runs; the pref default (read defensively); the draw manager
-  without a Plaza layout (targets, an offscreen `draw_region`). To come with the bindings: the shadow test passes
-  with the new `displaces`; the Meso keyconfig has each item first in its keymap with the IC item after it.
+  without a Plaza layout (targets, an offscreen `draw_region`). With the bindings: the shadow test passes with the
+  new `displaces`; `tests/blender/test_meso_keymap.py` `TestCompassRmbBindings` (replaces `TestShiftRmbStaysNative`):
+  each item first on its chord in the Meso and the user keyconfig with the IC items after it, Ctrl+Shift+RMB unbound
+  in IC, the items' properties, switching them off gives the chords back, the cursor-off warning, owner CURSOR swaps
+  the two chords (`core.compass_rmb.behaviour`), no Plaza item on RIGHTMOUSE; `test_keymap_prefs.py`: the Compass
+  Menus group, the displaced lines, the `shift_rmb_owner` line in the "Compass menus" box. The GUI sweep
+  `scenarios_snap_hold.sc_protected` now compares the Shift+RMB drag with every binding on but `compass_tools` /
+  `reloc_cursor`, and checks the Compass item first on Shift+RMB with IC's two cursor items after it.
 - GUI (lead only, never an agent): `tests/gui/scenarios_compass_rmb.py` with the Meso Keymap selected: RMB tap opens
   the native context menu, RMB hold + drag picks Edge (enters Edit Mode, edge select), Shift+RMB tap places the
   cursor, Shift+RMB hold shows the tool Compass, Ctrl+Shift+RMB drag moves the cursor. Also to check there

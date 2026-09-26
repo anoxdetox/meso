@@ -210,14 +210,20 @@ def _disclosure(layout, path, text, expanded):
 
 
 def displaced_lines(b: mb.Binding) -> list[str]:
-    """One greyed line per (key, new home) a binding displaces."""
+    """One greyed line per (key, new home) a binding displaces: in one keymap every native
+    item it names (Shift Right Mouse: the cursor place and drag), else the first one and the
+    number of keymaps."""
     groups: dict[tuple, list] = {}
     for d in b.displaces:
         groups.setdefault((d.key.label(), d.now), []).append(d)
     lines = []
     for (key, now), ds in groups.items():
-        where = ds[0].keymap if len(ds) == 1 else f"{len(ds)} keymaps"
-        lines.append(f"Replaces {key} {ds[0].native} in {where}; now: {mb.home_label(now)}")
+        kms = list(dict.fromkeys(d.keymap for d in ds))
+        if len(kms) == 1:
+            where, native = kms[0], " and ".join(dict.fromkeys(d.native for d in ds))
+        else:
+            where, native = f"{len(kms)} keymaps", ds[0].native
+        lines.append(f"Replaces {key} {native} in {where}; now: {mb.home_label(now)}")
     return lines
 
 
@@ -297,6 +303,12 @@ GROUP_HINTS = {
         "Object Mode first (not in Sculpt or text editing); Insert works in Object Mode only. "
         "It is also in the Options menu of the header and the Plaza Tool Settings row.",
     ),
+    'COMPASS': (
+        "A quick click keeps the native action (the context menu, the 3D cursor placement); "
+        "hold the button or drag for the Compass.",
+        "The paint and sculpt modes, text editing and the 2D editors keep their own "
+        "right-click menu.",
+    ),
 }
 
 _GROUP_EXTRAS = {
@@ -304,6 +316,7 @@ _GROUP_EXTRAS = {
     'ISOLATE': ('isolate_frame_selected',),
     'SNAPPING': ('hold_tap_threshold',),
     'PIVOT': ('hold_tap_threshold',),
+    'COMPASS': ('shift_rmb_owner',),
 }
 
 

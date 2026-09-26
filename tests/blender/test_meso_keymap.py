@@ -27,9 +27,10 @@ ALL_IDS = ('select_all', 'deselect_all', 'driver_remove_pass', 'select_invert',
            'select_keys_extra', 'isolate', 'reloc_mesh_vert_expand', 'properties_cycle',
            'apply_menu', 'snap_hold_grid', 'snap_hold_edge', 'snap_hold_vertex',
            'snap_hold_increment', 'pivot_once', 'reloc_annotate', 'reloc_gp_weight_direction',
-           'pivot_toggle')
+           'pivot_toggle', 'compass_context', 'compass_tools', 'reloc_cursor')
 LIVE_IDS = ALL_IDS
-N_ITEMS = 24 + 24 + 1 + 24 + 1 + 12 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 19 + 12 + 1 + 1
+N_ITEMS = (24 + 24 + 1 + 24 + 1 + 12 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 19 + 12 + 1 + 1
+           + 8 + 1 + 1)
 
 
 def _mod(name):
@@ -715,41 +716,137 @@ class TestApplyInPlaza(MesoKeymapCase):
         self.assertEqual((apply_.kind, apply_.submenu), (dm().DD_SUBMENU, "VIEW3D_MT_pose_apply"))
 
 
-class TestShiftRmbStaysNative(MesoKeymapCase):
-    """Shift RMB (3D cursor place and drag) stays native (user decision 6: the RMB Compass
-    menus are Phase 8+): with every Meso binding on, no Meso or Plaza item uses RIGHTMOUSE with
-    Shift (any value), and the native Industry Compatible cursor items are the first to fire on
-    their keys. (The GUI suite cannot start the cursor drag under event simulation, so this is
-    where a Shift RMB drag item would be caught.)"""
+class TestCompassRmbBindings(MesoKeymapCase):
+    """Phase 5b (docs/phase5b-interfaces.md "Bindings"): the right-click Compass in the eight
+    3D View mode keymaps, the Shift+right-click tool Compass and the 3D cursor on
+    Ctrl+Shift+RMB. Each Meso item is the first item on its chord in the Meso keyconfig, with
+    Industry Compatible's own items after it (shadowed, never removed); switching the Meso items
+    off gives the chords back; the ``shift_rmb_owner`` preference swaps what the two Shift
+    chords do (the items stay)."""
 
-    def _meso_items(self):
-        ours = [(km.name, kmi) for km, kmi, _item in mk().user_items()]
-        ours += [(km.name, kmi) for km, kmi in _mod("keymaps").registered_items()]
-        self.assertTrue(ours)
-        return ours
+    CURSOR_PLACE = "view3d.cursor3d()"
+    CURSOR_DRAG = "transform.translate(cursor_transform=True, release_confirm=True)"
 
-    def _shift_rmb(self, kmi):
-        return (kmi.active and kmi.type == 'RIGHTMOUSE'
-                and (kmi.any or kmi.shift != 0))
+    def _chord(self, km, key, value=None):
+        """The active items of ``km`` on ``key``'s chord (any value, or only ``value``), in
+        keymap order, as ``native_of`` strings."""
+        return [native_of(k) for k in km.keymap_items if k.active and key_matches(k, key)
+                and (value is None or k.value in (value, 'ANY'))]
 
-    def test_no_meso_item_on_shift_rmb(self):
+    def _items(self):
+        rmb = mb().binding('compass_context').items
+        return (list(rmb) + list(mb().binding('compass_tools').items)
+                + list(mb().binding('reloc_cursor').items))
+
+    def test_first_in_the_meso_keyconfig_with_the_native_items_after(self):
+        use_keyconfig('Industry_Compatible')
+        use_keyconfig('Meso')
+        kcs = wm().keyconfigs
+        rmb = mb().binding('compass_context')
+        for kc_name, keyconfig in (('Meso', kcs['Meso']), ('user', None)):
+            if keyconfig is None:
+                self.meso_on()
+                keyconfig = kcs.user
+            for item in rmb.items:
+                with self.subTest(keyconfig=kc_name, keymap=item.keymap):
+                    menu = dict(item.props)['menu']
+                    self.assertEqual(self._chord(find_builtin(keyconfig, item.keymap), item.key),
+                                     [native_of_item(item), f"wm.call_menu(name={menu!r})"])
+            with self.subTest(keyconfig=kc_name, keymap='3D View'):
+                km = find_builtin(keyconfig, '3D View')
+                tools = mb().binding('compass_tools').items[0]
+                cursor = mb().binding('reloc_cursor').items[0]
+                self.assertEqual(self._chord(km, tools.key),
+                                 [native_of_item(tools), self.CURSOR_PLACE, self.CURSOR_DRAG])
+                self.assertEqual(self._chord(km, tools.key, 'CLICK_DRAG'), [self.CURSOR_DRAG])
+                # Ctrl Shift RMB is free in Industry Compatible: the Meso item alone
+                self.assertEqual(self._chord(km, cursor.key), [native_of_item(cursor)])
+        # Industry Compatible itself: the native items only, Ctrl Shift RMB unbound
+        km = find_builtin(kcs['Industry_Compatible'], '3D View')
+        self.assertEqual(self._chord(km, mb().KEY_COMPASS_TOOLS),
+                         [self.CURSOR_PLACE, self.CURSOR_DRAG])
+        self.assertEqual(self._chord(km, mb().KEY_CURSOR), [])
+
+    def test_the_compass_items_carry_their_properties(self):
         self.meso_on()
-        self.assertEqual(mk().live_ids(), ALL_IDS)
-        bad = [(name, kmi.idname, kmi.value) for name, kmi in self._meso_items()
-               if self._shift_rmb(kmi)]
-        self.assertEqual(bad, [])
+        items = {id(item): kmi for _km, kmi, item in mk().user_items()}
+        rmb = _mod("core.compass_rmb")
+        for item in self._items():
+            with self.subTest(keymap=item.keymap, key=item.key.label()):
+                kmi = items[id(item)]
+                self.assertEqual(kmi.idname, rmb.IDNAME)
+                self.assertTrue(kmi.active)
+                self.assertEqual(dict(props_of(kmi)), dict(item.props))
+                if kmi.properties.kind == 'CONTEXT':
+                    self.assertEqual(kmi.properties.menu, rmb.CONTEXT_MENUS[item.keymap])
+                    self.assertTrue(hasattr(bpy.types, kmi.properties.menu), kmi.properties.menu)
 
-    def test_native_cursor_items_fire_first(self):
+    def test_switching_the_compass_bindings_off_gives_the_chords_back(self):
         self.meso_on()
-        km = wm().keyconfigs.user.keymaps.find('3D View', space_type='VIEW_3D',
-                                               region_type='WINDOW')
-        for value, native in (('PRESS', "view3d.cursor3d()"),
-                              ('CLICK_DRAG', "transform.translate(cursor_transform=True, "
-                                             "release_confirm=True)")):
+        self.assertEqual(mk().set_binding_active('compass_context', False), 8)
+        self.assertEqual(mk().set_binding_active('compass_tools', False), 1)
+        self.assertEqual(mk().set_binding_active('reloc_cursor', False), 1)
+        user = wm().keyconfigs.user
+        for km_name, menu in _mod("core.compass_rmb").CONTEXT_MENUS.items():
+            with self.subTest(keymap=km_name):
+                self.assertEqual(self._chord(find_builtin(user, km_name), mb().KEY_COMPASS_CONTEXT),
+                                 [f"wm.call_menu(name={menu!r})"])
+        km = find_builtin(user, '3D View')
+        for value, native in (('PRESS', self.CURSOR_PLACE), ('CLICK_DRAG', self.CURSOR_DRAG)):
             with self.subTest(value=value):
-                key = mb().Key('RIGHTMOUSE', shift=True, value=value)
-                first = next(k for k in km.keymap_items if k.active and key_matches(k, key))
-                self.assertEqual(native_of(first), native)
+                self.assertEqual(self._chord(km, mb().KEY_COMPASS_TOOLS, value)[:1], [native])
+        self.assertEqual(self._chord(km, mb().KEY_CURSOR), [])
+        for bid in ('compass_context', 'compass_tools', 'reloc_cursor'):
+            self.assertNotIn(bid, mk().live_ids())
+            mk().set_binding_active(bid, True)
+        self.assertEqual(mk().live_ids(), ALL_IDS)
+
+    def test_the_cursor_off_warns(self):
+        self.meso_on()
+        mk().set_binding_active('reloc_cursor', False)
+        warnings = mb().warnings(mk().live_bindings())
+        self.assertEqual(len(warnings), 1, warnings)
+        self.assertIn(self.CURSOR_PLACE, warnings[0])
+        self.assertIn("Ctrl Shift Right Click: 3D Cursor", warnings[0])
+
+    def test_the_owner_swaps_the_two_chords(self):
+        """``shift_rmb_owner`` CURSOR: the Shift RMB item (role SHIFT) is the 3D cursor and the
+        Ctrl Shift RMB item (role CTRL_SHIFT) the tool Compass; COMPASS (the default) the other
+        way round. The cursor stays reachable in both states."""
+        rmb = _mod("core.compass_rmb")
+        self.assertEqual(self.p.shift_rmb_owner, 'COMPASS')
+        roles = {mb().binding(bid).items[0].key: dict(mb().binding(bid).items[0].props)['role']
+                 for bid in ('compass_tools', 'reloc_cursor')}
+        self.assertEqual(roles, {mb().KEY_COMPASS_TOOLS: 'SHIFT', mb().KEY_CURSOR: 'CTRL_SHIFT'})
+        want = {'COMPASS': {'SHIFT': 'compass', 'CTRL_SHIFT': 'cursor'},
+                'CURSOR': {'SHIFT': 'cursor', 'CTRL_SHIFT': 'compass'}}
+        try:
+            for owner, by_role in want.items():
+                self.p.shift_rmb_owner = owner
+                with self.subTest(owner=owner):
+                    got = {role: rmb.behaviour('TOOLS', role, self.p.shift_rmb_owner)
+                           for role in roles.values()}
+                    self.assertEqual(got, by_role)
+                    self.assertIn('cursor', got.values())
+                    self.assertEqual(rmb.behaviour('CONTEXT', 'PLAIN', owner), 'compass')
+                    self.assertIn("3D cursor", _mod("prefs").shift_rmb_hint(owner))
+        finally:
+            self.p.shift_rmb_owner = 'COMPASS'
+        self.assertIn("Ctrl Shift Right Click", _mod("prefs").shift_rmb_hint('COMPASS')
+                      .split(';')[0])
+        self.assertIn("stays on Shift Right Click", _mod("prefs").shift_rmb_hint('CURSOR'))
+
+    def test_no_plaza_item_on_the_right_mouse_button(self):
+        """The Plaza's add-on items would shadow the Meso items: none uses RIGHTMOUSE."""
+        self.meso_on()
+        plaza = [(km.name, kmi.idname) for km, kmi in _mod("keymaps").registered_items()
+                 if kmi.type == 'RIGHTMOUSE']
+        self.assertEqual(plaza, [])
+
+
+def native_of_item(item):
+    """``native_call`` text of a table item (as ``native_of`` prints its keymap item)."""
+    return mb().native_call(item.idname, item.props)
 
 
 if __name__ == '__main__':

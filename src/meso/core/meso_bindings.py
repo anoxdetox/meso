@@ -15,11 +15,21 @@ keymap's Alt D driver removal returns CANCELLED over empty space, which stops th
 editor keymap, so a shadowing item ahead of it cannot pass Alt D on. Meso's
 ``meso.driver_button_remove`` does exactly the native removal over a driven property and passes
 the key on everywhere else (``driver_remove_pass``, the only Meso item in 'User Interface').
+
+The Compass Menus group (Phase 5b, docs/phase5b-interfaces.md "Bindings") puts
+``meso.compass_rmb`` on the right mouse button: a quick click keeps the native action (the
+context menu, the 3D cursor placement), a hold or a drag opens a Compass. The 3D cursor's
+Shift RMB items move to Ctrl Shift RMB (``reloc_cursor``); the ``shift_rmb_owner`` preference
+swaps what the two chords do, not the items.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from .compass_rmb import CONTEXT_MENUS as COMPASS_CONTEXT_MENUS
+from .compass_rmb import IDNAME as COMPASS_RMB_IDNAME
+from .compass_rmb import KIND_CONTEXT, KIND_TOOLS, ROLE_CTRL_SHIFT, ROLE_SHIFT
 
 IC_NAME = 'Industry_Compatible'
 MESO_NAME = 'Meso'         # the keyconfig name (= the preset file name)
@@ -31,6 +41,7 @@ NOW_TAP = 'tap'
 
 _KEY_NAMES = {
     'ONE': '1', 'TWO': '2', 'THREE': '3', 'INSERT': 'Insert', 'SPACE': 'Space',
+    'RIGHTMOUSE': 'Right Mouse',
 }
 
 
@@ -174,6 +185,7 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ('APPLY', "Apply"),
     ('SNAPPING', "Snapping"),
     ('PIVOT', "Pivot"),
+    ('COMPASS', "Compass Menus"),
 )
 
 # The 24 keymaps where IC has the full Ctrl+A / Ctrl+Shift+A / Ctrl+I trio, with their
@@ -307,6 +319,36 @@ def _pivot_displaced():
         elif km == 'Grease Pencil Weight Paint':
             out.append(Displaced(km, Key('D'), _GP_WEIGHT_DIRECTION, 'reloc_gp_weight_direction'))
     return tuple(out)
+
+
+# -- Compass Menus (Phase 5b) ----------------------------------------------------------------
+KEY_COMPASS_CONTEXT = Key('RIGHTMOUSE')
+KEY_COMPASS_TOOLS = Key('RIGHTMOUSE', shift=True)
+KEY_CURSOR = Key('RIGHTMOUSE', ctrl=True, shift=True)   # free in IC's 3D View keymaps
+# The 3D View mode keymaps of the right-click Compass (decision 86 a), each with Industry
+# Compatible's plain RMB context menu there (``core.compass_rmb.CONTEXT_MENUS``). Not the paint
+# and sculpt modes (RMB is shared with the stencil controls), 'Font' (forbidden) or the 2D
+# editors.
+COMPASS_CONTEXT_KEYMAPS: tuple[str, ...] = tuple(COMPASS_CONTEXT_MENUS)
+# Industry Compatible's two Shift RMB items of '3D View': the PRESS places the cursor, the
+# CLICK_DRAG moves it. Both are listed under the Meso item's PRESS key (the shadow test matches
+# every value of a chord against the Meso item's key).
+_CURSOR_PLACE = native_call('view3d.cursor3d')
+_CURSOR_DRAG = native_call('transform.translate',
+                           (('cursor_transform', True), ('release_confirm', True)))
+
+
+def _context_compass_items():
+    return tuple(Item(km, KEY_COMPASS_CONTEXT, COMPASS_RMB_IDNAME,
+                      (('kind', KIND_CONTEXT), ('menu', COMPASS_CONTEXT_MENUS[km])))
+                 for km in COMPASS_CONTEXT_KEYMAPS)
+
+
+def _context_compass_displaced():
+    return tuple(Displaced(km, KEY_COMPASS_CONTEXT,
+                           native_call('wm.call_menu', (('name', COMPASS_CONTEXT_MENUS[km]),)),
+                           NOW_TAP)
+                 for km in COMPASS_CONTEXT_KEYMAPS)
 
 
 _CLIP_SHOW_DISABLED = native_call('wm.context_toggle',
@@ -494,6 +536,40 @@ BINDINGS: tuple[Binding, ...] = (
         True,
         (Item('Object Mode', Key('INSERT'), 'meso.pivot_toggle'),),
     ),
+    # -- Compass Menus (Phase 5b) -----------------------------------------------------------
+    Binding(
+        'compass_context', 'COMPASS', "Right Click: Compass",
+        "Hold or drag the right mouse button in the 3D View (Object Mode and the Edit Mesh, "
+        "Curve, Armature, Pose, Metaball, Lattice and Particle modes) for the Compass of "
+        "modes and select modes, with the mode's context menu as the list below it. A quick "
+        "click still opens Industry Compatible's context menu",
+        True,
+        _context_compass_items(),
+        _context_compass_displaced(),
+    ),
+    Binding(
+        'compass_tools', 'COMPASS', "Shift Right Click: Tool Compass",
+        "Hold or drag Shift and the right mouse button in the 3D View for the mode's tool "
+        "Compass (Object, Vertex, Edge, Face), with the mode's menu as the list below it. A "
+        "quick click still places the 3D cursor; Industry Compatible's Shift Right Mouse "
+        "cursor (place, and drag to move) moves to Ctrl Shift Right Mouse. The Shift Right "
+        "Click preference (Compass menus) swaps the two chords",
+        True,
+        (Item('3D View', KEY_COMPASS_TOOLS, COMPASS_RMB_IDNAME,
+              (('kind', KIND_TOOLS), ('role', ROLE_SHIFT))),),
+        (Displaced('3D View', KEY_COMPASS_TOOLS, _CURSOR_PLACE, 'reloc_cursor'),
+         Displaced('3D View', KEY_COMPASS_TOOLS, _CURSOR_DRAG, 'reloc_cursor')),
+    ),
+    Binding(
+        'reloc_cursor', 'COMPASS', "Ctrl Shift Right Click: 3D Cursor",
+        "Ctrl Shift and the right mouse button in the 3D View place the 3D cursor, and a drag "
+        "moves it: the new home of Industry Compatible's Shift Right Mouse cursor (with the "
+        "Shift Right Click preference on 3D Cursor, the two chords swap). Displaces nothing",
+        True,
+        (Item('3D View', KEY_CURSOR, COMPASS_RMB_IDNAME,
+              (('kind', KIND_TOOLS), ('role', ROLE_CTRL_SHIFT))),),
+        follows='compass_tools',
+    ),
 )
 
 _BY_ID = {b.id: b for b in BINDINGS}
@@ -643,7 +719,8 @@ def warnings(active, inactive=()) -> tuple[str, ...]:
                 homeless.setdefault(d.now, []).append(d)
         for now, ds in homeless.items():
             first = ds[0]
-            where = first.keymap if len(ds) == 1 else f"{first.keymap} and {len(ds) - 1} more keymaps"
+            kms = list(dict.fromkeys(d.keymap for d in ds))   # two items of one keymap: once
+            where = kms[0] if len(kms) == 1 else f"{kms[0]} and {len(kms) - 1} more keymaps"
             out.append(f"{b.label} takes {first.key.label()} from {first.native} in {where}, but "
                        f"its new home, {home_label(now)}, is off. The action stays in the menus")
     return tuple(out)

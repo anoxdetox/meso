@@ -295,8 +295,11 @@ class TestMesoKeymapPrefs(_PrefsCase):
         self.assertEqual(len({k.as_pointer() for k in active}), 13 + n_meso)
         # never IC's own items with the same operator (e.g. Ctrl A object.select_all)
         meso = [k for k in active if k.idname != OPERATOR_IDNAME]
-        self.assertTrue(all(k.type in ('A', 'D', 'I', 'ONE', 'X', 'C', 'V', 'J', 'INSERT')
-                            for k in meso))
+        self.assertTrue(all(k.type in ('A', 'D', 'I', 'ONE', 'X', 'C', 'V', 'J', 'INSERT',
+                                       'RIGHTMOUSE') for k in meso))
+        # the Compass items, never IC's own right-click context menus (wm.call_menu)
+        rmb = {k.idname for k in meso if k.type == 'RIGHTMOUSE'}
+        self.assertEqual(rmb, {'meso.compass_rmb'})
         ctrl_a = [k for k in meso if k.type == 'A' and k.ctrl and not k.shift and not k.alt]
         self.assertTrue(ctrl_a)
         self.assertEqual({k.idname for k in ctrl_a}, {'meso.properties_cycle'})
@@ -389,12 +392,14 @@ class TestMesoKeymapPrefs(_PrefsCase):
             self.assertIn(b.label, labels)
         self.assertIn("Shift Ctrl A", labels)            # the user's keys (Blender's to_string)
         self.assertIn("off", labels)                     # the switched-off Insert toggle
-        for group in ("Selection", "Isolate", "Properties", "Apply", "Snapping", "Pivot"):
+        for group in ("Selection", "Isolate", "Properties", "Apply", "Snapping", "Pivot",
+                      "Compass Menus"):
             self.assertIn(group, labels)
         extras = [e[2] for e in log if e[0] == 'prop' and e[1] is self.prefs]
         self.assertIn('properties_cycle_order', extras)
         self.assertIn('isolate_frame_selected', extras)
         self.assertIn('hold_tap_threshold', extras)
+        self.assertIn('shift_rmb_owner', extras)
         self.assertFalse([e for e in log if e[0] == 'prop' and str(e[2]).startswith('bind_')])
         hint = " ".join(labels)
         self.assertIn("hold Ctrl to invert snapping (native)", hint)
@@ -407,10 +412,38 @@ class TestMesoKeymapPrefs(_PrefsCase):
         self.assertTrue(any(t.startswith("Replaces Ctrl Shift A") for t in labels), labels)
         text = " ".join(labels)
         self.assertIn("now: Alt D (Deselect All)", text)
+        # Phase 5b: both Shift RMB cursor items of '3D View' on one line, the menus in 8 keymaps
+        self.assertIn("Replaces Shift Right Mouse view3d.cursor3d() and transform.translate("
+                      "cursor_transform=True, release_confirm=True) in 3D View; now: Ctrl Shift "
+                      "Right Mouse (Ctrl Shift Right Click: 3D Cursor)",
+                      " ".join(self.kp.displaced_lines(self.mb.binding('compass_tools'))))
+        self.assertEqual(self.kp.displaced_lines(self.mb.binding('compass_context')),
+                         ["Replaces Right Mouse wm.call_menu(name='VIEW3D_MT_object_context_menu')"
+                          " in 8 keymaps; now: a quick tap of the key"])
+        self.assertIn("hold the button or drag for the Compass", hint)
         wt, tw = _mod("wrapped_text"), _mod("core.text_wrap")
         width = tw.label_width(wt.DEFAULT_REGION_WIDTH, wt.ui_scale(), 1, self.kp.BODY_INDENT)
         m = wt.measure()
         self.assertTrue(all(m(t) <= width for t in labels if t.startswith("Replaces")), labels)
+
+    def test_compass_box_draws_the_shift_rmb_owner(self):
+        """Phase 5b: the "Compass menus" box has ``shift_rmb_owner`` and one line saying which
+        chord has the 3D cursor."""
+        prefs_mod = _mod("prefs")
+        self.assertEqual(self.prefs.shift_rmb_owner, 'COMPASS')
+        try:
+            for owner, chord in (('COMPASS', "Ctrl Shift Right Click"),
+                                 ('CURSOR', "Shift Right Click")):
+                self.prefs.shift_rmb_owner = owner
+                log = []
+                prefs_mod._draw_compass_slots(_Layout(log), self.prefs)
+                props = [e[2] for e in log if e[0] == 'prop' and e[1] is self.prefs]
+                self.assertIn('shift_rmb_owner', props)
+                lines = [t for t in self._labels(log) if t.startswith("The 3D cursor")]
+                self.assertEqual(lines, [prefs_mod.shift_rmb_hint(owner)])
+                self.assertIn(f"on {chord}", lines[0])
+        finally:
+            self.prefs.shift_rmb_owner = 'COMPASS'
 
     def test_mismatch_warning_and_binding_warnings(self):
         self._meso_on()
