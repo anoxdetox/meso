@@ -81,19 +81,19 @@ that Industry Compatible or Blender also has applies there too.
 
 | Key | Action | Where |
 |---|---|---|
-| Ctrl Shift A | Select All | every editor with select keys: 3D View modes, UV, masks, Graph, Dope Sheet, Timeline, NLA, Sequencer, Outliner, Node, Clip (and its graph), channel lists, File Browser, Info |
-| Alt D | Deselect All; over a driven property, removes its drivers (as Blender does, one undo step) | every editor with select keys (as Ctrl Shift A); the driver removal over any property |
-| Ctrl Shift I | Invert Selection (Ctrl I stays too) | every editor with select keys |
-| Ctrl Alt A | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) | Object Mode, Pose Mode |
-| Ctrl Alt D | Show Disabled tracks (Industry Compatible's Alt D there) | Clip Editor |
-| Ctrl Alt D | Annotate tool (again: its next variant). Industry Compatible's D, moved here because D edits origins in the 3D View; D still annotates in the Image and UV Editors | 3D View modes, Image Editor, UV Editor |
-| Ctrl Alt D | Toggle the weight brush direction (add / subtract; Industry Compatible's D there). Ctrl + drag still paints the other way | Grease Pencil Weight Paint |
-| Ctrl 1 | Isolate the selection, again to go back: local view in Object Mode; in Edit Mesh, Curve, Armature, Pose and Metaball hide the unselected elements and every other object (local view of the objects you edit), then give back the whole scene: what was hidden before stays hidden, the local view is left (also one you entered with Ctrl 1 in Object Mode first), and you stay in the mode with the same select mode | 3D View |
-| Ctrl Alt 1 | Vertex select mode with expand (Industry Compatible's Ctrl 1; Ctrl click on the vertex select button does the same) | Edit Mesh |
-| Ctrl A | Next Properties tab (Object ▸ Object Data ▸ Modifiers ▸ Material, set in the preferences); with no Properties editor on the screen, the sidebar Item tab | 3D View (not Sculpt or text editing) |
-| Hold X / C / V / J | Hold before a drag (G-style transform, tool drag or gizmo drag) to snap to the grid / edges / vertices / in increments (J also for rotate and scale); several keys together snap to all of them. Hold the key as long as you like, and keep it down for more drags: every drag snaps while it is held. Your snap settings come back when you let go. A quick tap still does what the key does in Industry Compatible: X toggles snapping, C picks the Cursor tool, V opens the View pie (click style); J has nothing | 3D View: Object, Edit, Pose and Particle modes |
-| D | Edit origins. **Hold D**: every Move, Rotate or Scale gizmo drag while it is down changes only the origins (Affect Only Origins); let go and your setting is back, the origins stay where you left them. **Tap D**: only the next transform does (a gizmo drag, a tool drag or a key), then your setting is back; tap D again first to cancel; a cancelled transform (Esc, right click) keeps it for the next one. While D is held, a drag off the gizmo (in empty space or on the object, with the Tweak or Move tool) still draws an annotation (Blender's D + drag). Pressing another key while D is down (W for the Move tool, G, Insert, Space) makes the hold end when the next drag or modal tool ends (a transform, an orbit or pan, a box select, the Plaza, an annotation stroke), or at the release if that comes first; so a transform started with a key is the last one of that hold: pick the tool first, then hold D. **In any other 3D View mode** (Edit Mode, Pose, the paint modes, Grease Pencil) D, tap or hold, switches you to Object Mode first, as Blender's own mode switch does (one undo step; every object you edit leaves Edit Mode), and then works as above (a tap there always arms, even when a tap in Object Mode had armed it before); you stay in Object Mode. Not in a mesh's Sculpt Mode, where D / Shift D keep stepping the multires level (in hair curves' Sculpt Mode D does switch), nor while editing text | 3D View (not mesh Sculpt or text editing) |
-| Insert | Edit origins until Insert again (toggles Affect Only Origins: move origins, not the shapes) | Object Mode |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>A</kbd> | Select All | every editor with select keys: 3D View modes, UV, masks, Graph, Dope Sheet, Timeline, NLA, Sequencer, Outliner, Node, Clip (and its graph), channel lists, File Browser, Info |
+| <kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Deselect All; over a driven property, removes its drivers (as Blender does, one undo step) | every editor with select keys (as Ctrl Shift A); the driver removal over any property |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>I</kbd> | Invert Selection (Ctrl I stays too) | every editor with select keys |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>A</kbd> | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) | Object Mode, Pose Mode |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Show Disabled tracks (Industry Compatible's Alt D there) | Clip Editor |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Annotate tool (again: its next variant). Industry Compatible's D, moved here because D edits origins in the 3D View; D still annotates in the Image and UV Editors | 3D View modes, Image Editor, UV Editor |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Toggle the weight brush direction (add / subtract; Industry Compatible's D there). Ctrl + drag still paints the other way | Grease Pencil Weight Paint |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>1</kbd> | Isolate the selection; again to go back ([details](#ctrl-1-isolate-the-selection)) | 3D View |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>1</kbd> | Vertex select mode with expand (Industry Compatible's Ctrl 1; Ctrl click on the vertex select button does the same) | Edit Mesh |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>A</kbd> | Next Properties tab (Object ▸ Object Data ▸ Modifiers ▸ Material, set in the preferences); with no Properties editor on the screen, the sidebar Item tab | 3D View (not Sculpt or text editing) |
+| Hold&nbsp;<kbd>X</kbd>&nbsp;/&nbsp;<kbd>C</kbd>&nbsp;/&nbsp;<kbd>V</kbd>&nbsp;/&nbsp;<kbd>J</kbd> | Snap while held: to the grid / edges / vertices / in increments. A tap does what the key does in Industry Compatible ([details](#snap-holds-x-c-v-j)) | 3D View: Object, Edit, Pose and Particle modes |
+| <kbd>D</kbd> | Edit origins: hold D for gizmo drags, tap D for the next transform ([details](#d-edit-origins)) | 3D View (not mesh Sculpt or text editing) |
+| <kbd>Insert</kbd> | Edit origins until Insert again (toggles Affect Only Origins: move origins, not the shapes) | Object Mode |
 
 In the other editors Ctrl A still selects all; in the 3D View select all is Ctrl Shift A. Shift I
 stays local view and Ctrl H / Shift H / Alt H keep hiding and revealing. Blender uses Alt D for
@@ -104,6 +104,23 @@ the mouse is driven, and otherwise lets Alt D through to the editor, so Alt D de
 too. (Industry Compatible's own item stays in the User Interface keymap, switched off; if you
 switch Meso's off, switch it back on to keep the key.)
 
+Target: Blender 5.2 LTS / Python 3.13 only. Extension id `meso`, operators `meso.*`.
+
+### Ctrl 1: isolate the selection
+Ctrl 1 isolates the selection; press it again to go back. In Object Mode it is local view. In
+Edit Mesh, Curve, Armature, Pose and Metaball it hides the unselected elements and every other
+object (local view of the objects you edit); pressing it again gives back the whole scene: what
+was hidden before stays hidden, the local view is left (also one you entered with Ctrl 1 in
+Object Mode first), and you stay in the mode with the same select mode.
+
+### Snap holds (X, C, V, J)
+Hold X, C, V or J before a drag (G-style transform, tool drag or gizmo drag) to snap to the grid,
+edges, vertices or in increments (J also for rotate and scale); several keys together snap to all
+of them. Hold the key as long as you like, and keep it down for more drags: every drag snaps
+while it is held. Your snap settings come back when you let go. A quick tap still does what the
+key does in Industry Compatible: X toggles snapping, C picks the Cursor tool, V opens the View
+pie (click style); J has nothing.
+
 A snap hold snaps every drag while its key is down, and your own snap settings are back as soon
 as you let go (Meso tells the key is still down from its keyboard auto-repeat; a release during a
 drag is noticed about 0.2 s after that drag ends). If you press another key that repeats (not
@@ -113,7 +130,24 @@ nothing depends on the hold keys. During a drag, hold Ctrl to invert snapping (B
 key). Holding J *during* a drag does not do that yet. You can add J there yourself in
 Preferences ▸ Keymap ▸ Transform Modal Map (Snap Invert).
 
-Target: Blender 5.2 LTS / Python 3.13 only. Extension id `meso`, operators `meso.*`.
+### D: edit origins
+- **Hold D:** every Move, Rotate or Scale gizmo drag while it is down changes only the origins
+  (Affect Only Origins); let go and your setting is back, the origins stay where you left them.
+- **Tap D:** only the next transform does (a gizmo drag, a tool drag or a key), then your
+  setting is back; tap D again first to cancel; a cancelled transform (Esc, right click) keeps
+  it for the next one.
+- While D is held, a drag off the gizmo (in empty space or on the object, with the Tweak or
+  Move tool) still draws an annotation (Blender's D + drag).
+- Pressing another key while D is down (W for the Move tool, G, Insert, Space) makes the hold
+  end when the next drag or modal tool ends (a transform, an orbit or pan, a box select, the
+  Plaza, an annotation stroke), or at the release if that comes first; so a transform started
+  with a key is the last one of that hold: pick the tool first, then hold D.
+- **In any other 3D View mode** (Edit Mode, Pose, the paint modes, Grease Pencil) D, tap or
+  hold, switches you to Object Mode first, as Blender's own mode switch does (one undo step;
+  every object you edit leaves Edit Mode), and then works as above (a tap there always arms,
+  even when a tap in Object Mode had armed it before); you stay in Object Mode.
+- Not in a mesh's Sculpt Mode, where D / Shift D keep stepping the multires level (in hair
+  curves' Sculpt Mode D does switch), nor while editing text.
 
 ## Getting it
 Meso Mode is free and open source. Official builds will be published at its extensions page
