@@ -1,12 +1,14 @@
-"""Pre-drag snap holds, the pivot hold and toggle (ops/snap_hold.py, core/snap_hold.py;
-docs/meso-keymap-interfaces.md "Pre-drag snapping and pivot").
+"""Pre-drag snap holds, the D tap one-shot pivot edit and the Insert toggle (ops/snap_hold.py,
+core/snap_hold.py, core/pivot_once.py; docs/meso-keymap-interfaces.md "Pre-drag snapping and
+pivot").
 
 Runs inside Blender via tests/run_tests.py. Timers do not fire and no modal can run headless,
 so these tests drive the module-level paths the modal and the watcher use: press/release writes
 on the real ``tool_settings`` (with a non-empty individual snap set), the foreign-modal guard
 (``modal_ids_by_window`` patched), the watcher's phase sync and deferred release, the
 ``save_pre``/``save_post`` swap (the saved file holds the user's state), the ``load_pre`` restore,
-the ``unregister()`` restore, the pivot toggle, the polls, the native tap items in Industry
+the ``unregister()`` restore, the D tap one-shot (arm, the transform seen by the watcher, the
+confirmed / cancelled end, the D key modal's tap rule), the pivot toggle, the polls, the native tap items in Industry
 Compatible, the hold keymap items, and the Plaza snap fallbacks (every snap option and Affect
 Only Origins in the Tool Settings row). Never opens a pie or popup (``-b`` segfaults).
 """
@@ -143,12 +145,6 @@ class TestPressRelease(HoldCase):
         ts().use_snap_align_rotation = False
         self.assertEqual(state(), USER)
 
-    def test_pivot_hold(self):
-        self.press('D', 'PIVOT')
-        self.assertTrue(ts().use_transform_data_origin)
-        self.assertFalse(ts().use_snap)
-        hold().release_key('D')
-        self.assertEqual(state(), USER)
 
 
 class TestForeignGuard(HoldCase):
@@ -283,8 +279,7 @@ class TestAutoRepeat(HoldCase):
 
     def test_long_hold_repeats_pass_through_around_the_mouse_press(self):
         sh = core()
-        for key, element in (('X', 'GRID'), ('C', 'EDGE'), ('V', 'VERTEX'), ('J', 'INCREMENT'),
-                             ('D', 'PIVOT')):
+        for key, element in (('X', 'GRID'), ('C', 'EDGE'), ('V', 'VERTEX'), ('J', 'INCREMENT')):
             with self.subTest(key=key):
                 self.press(key, element)
                 overlay = state()
@@ -510,34 +505,314 @@ class TestPivotToggleAndPolls(HoldCase):
             bpy.ops.meso.pivot_toggle()
         self.assertFalse(ts().use_transform_data_origin)
 
-    def test_pivot_toggle_during_d_hold_changes_the_restored_value(self):
-        self.press('D', 'PIVOT')
+    def test_insert_while_the_d_tap_is_armed_makes_it_persistent(self):
         with ctx():
+            self.assertEqual(hold().tap_once(bpy.context), 'ARM')
+            self.assertEqual(bpy.ops.meso.pivot_toggle(), {'FINISHED'})
+        self.assertTrue(ts().use_transform_data_origin)
+        self.assertFalse(hold().once_armed())
+        self.assertFalse(hold().session().active)
+        # a transform no longer changes it
+        self.assertIsNone(hold().once_tick([[]], (5, 'TRANSFORM_OT_translate')))
+        self.assertTrue(ts().use_transform_data_origin)
+        with ctx():
+            bpy.ops.meso.pivot_toggle()                     # Insert again: off
+        self.assertEqual(state(), USER)
+
+    def test_insert_during_a_snap_hold_with_the_d_tap(self):
+        """X held, D tapped, Insert: on for good; X's release keeps it on."""
+        self.press('X', 'GRID')
+        with ctx():
+            hold().tap_once(bpy.context)
             bpy.ops.meso.pivot_toggle()
-        self.assertTrue(ts().use_transform_data_origin)   # still held
-        hold().release_key('D')
-        self.assertTrue(ts().use_transform_data_origin)   # the toggled user value
+        self.assertTrue(ts().use_transform_data_origin and ts().use_snap)
+        hold().release_key('X')
+        self.assertTrue(ts().use_transform_data_origin)
+        self.assertFalse(ts().use_snap)
         ts().use_transform_data_origin = False
+        self.assertEqual(state(), USER)
 
     def test_polls(self):
         with ctx():
             self.assertTrue(bpy.ops.meso.snap_hold.poll())
-            self.assertTrue(bpy.ops.meso.pivot_hold.poll())
+            self.assertTrue(bpy.ops.meso.pivot_once.poll())
             self.assertTrue(bpy.ops.meso.pivot_toggle.poll())
         with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self), ctx():
             self.assertTrue(bpy.ops.meso.snap_hold.poll())
-            self.assertFalse(bpy.ops.meso.pivot_hold.poll())
+            self.assertFalse(bpy.ops.meso.pivot_once.poll())
             self.assertFalse(bpy.ops.meso.pivot_toggle.poll())
         with in_mode(None, 'SCULPT', expect='SCULPT', testcase=self), ctx():
             self.assertFalse(bpy.ops.meso.snap_hold.poll())
-            self.assertFalse(bpy.ops.meso.pivot_hold.poll())
+            self.assertFalse(bpy.ops.meso.pivot_once.poll())
+        self.assertFalse(bpy.ops.meso.pivot_once.poll())    # no 3D View: IC's D runs
         # no 3D View: the native item runs (D1)
         self.assertFalse(bpy.ops.meso.snap_hold.poll())
 
 
+class TestPivotOnce(HoldCase):
+    """The D tap (user item C of 2026-09-26): Affect Only Origins for one transform. Headless
+    has no modal or registered operator, so the watcher's inputs are given: the modal ids
+    (``modal_ids``) and the newest registered operator (``once_tick(ids, last)``)."""
+
+    TR = [['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']]
+
+    def tap(self):
+        with ctx():
+            return hold().tap_once(bpy.context)
+
+    def test_tap_arms_and_a_confirmed_transform_restores(self):
+        mod = hold()
+        self.assertEqual(self.tap(), 'ARM')
+        self.assertTrue(ts().use_transform_data_origin)
+        self.assertFalse(ts().use_snap)
+        self.assertTrue(mod.once_armed())
+        self.assertEqual(mod.session().keys(), ['PIVOT_ONCE'])
+        self.assertTrue(mod.watching())
+        self.assertIsNone(mod.once_tick([[]], (1, 'OBJECT_OT_select_all')))
+        self.assertIsNone(mod.once_tick(self.TR, (1, 'OBJECT_OT_select_all')))
+        self.assertEqual(mod.once_state().phase, 'TRANSFORM')
+        self.assertTrue(ts().use_transform_data_origin)     # never written during it
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        self.assertEqual(state(), USER)
+        self.assertFalse(mod.once_armed())
+        self.assertFalse(mod.session().active)
+
+    def test_cancelled_transform_keeps_it_armed(self):
+        mod = hold()
+        self.tap()
+        marker = (1, 'OBJECT_OT_select_all')
+        mod.once_tick([[]], marker)                     # a click after the tap
+        self.assertEqual(mod.once_state().marker, 1)
+        mod.once_tick(self.TR, marker)
+        self.assertEqual(mod.once_tick([[]], marker), 'KEPT')
+        self.assertTrue(ts().use_transform_data_origin and mod.once_armed())
+        mod.once_tick(self.TR, marker)
+        self.assertEqual(mod.once_tick([[]], (3, 'TRANSFORM_OT_rotate')), 'USED')
+        self.assertEqual(state(), USER)
+
+    def test_second_tap_cancels(self):
+        self.assertEqual(self.tap(), 'ARM')
+        self.assertEqual(self.tap(), 'CANCEL')
+        self.assertEqual(state(), USER)
+        self.assertFalse(hold().once_armed())
+        self.assertEqual(self.tap(), 'ARM')                 # and arms again
+
+    def test_already_on_arms_nothing(self):
+        ts().use_transform_data_origin = True
+        self.assertEqual(self.tap(), 'ALREADY_ON')
+        self.assertFalse(hold().once_armed())
+        self.assertFalse(hold().session().active)
+        self.assertTrue(ts().use_transform_data_origin)
+
+    def test_user_switched_it_off(self):
+        self.tap()
+        ts().use_transform_data_origin = False              # the header checkbox
+        self.assertEqual(hold().once_tick([[]], None, read_last=False), 'USER_OFF')
+        self.assertEqual(state(), USER)
+        self.assertFalse(hold().session().active)
+
+    def test_no_tap_under_a_foreign_modal(self):
+        with modal_ids(['VIEW3D_OT_rotate']):
+            self.assertIsNone(self.tap())
+        self.assertEqual(state(), USER)
+
+    def test_restore_waits_for_a_foreign_modal(self):
+        mod = hold()
+        self.tap()
+        mod.once_tick(self.TR, (1, 'X'))
+        with modal_ids(['VIEW3D_OT_rotate']):             # an orbit right after the drag
+            self.assertEqual(mod.once_tick([['VIEW3D_OT_rotate']], (2, 'TRANSFORM_OT_translate')),
+                             'USED')
+            self.assertTrue(ts().use_transform_data_origin)
+            self.assertEqual(mod.pending_keys(), ('PIVOT_ONCE',))
+        with modal_ids([]):
+            mod._watch()
+        self.assertEqual(state(), USER)
+
+    def test_with_a_snap_hold(self):
+        """D tap, then X held: the overlays add up; each ends on its own."""
+        mod = hold()
+        self.tap()
+        self.press('X', 'GRID')
+        self.assertTrue(ts().use_snap and ts().use_transform_data_origin)
+        mod.once_tick(self.TR, (1, 'X'))
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        self.assertTrue(ts().use_snap)
+        self.assertFalse(ts().use_transform_data_origin)
+        mod.release_key('X')
+        self.assertEqual(state(), USER)
+
+    def test_watcher_keeps_it_armed_with_no_hold_operator(self):
+        mod = hold()
+        self.tap()
+        with modal_ids([]):
+            for _ in range(mod.MISSING_TICKS + 2):
+                self.assertIsNotNone(mod._watch())
+        self.assertTrue(mod.once_armed() and ts().use_transform_data_origin)
+
+    def test_vanished_hold_operator_keeps_the_one_shot(self):
+        mod = hold()
+        self.tap()
+        self.press('X', 'GRID')
+        with modal_ids([]):                                # X's operator is gone
+            for _ in range(mod.MISSING_TICKS):
+                mod._watch()
+        self.assertFalse(ts().use_snap)
+        self.assertTrue(mod.once_armed() and ts().use_transform_data_origin)
+
+    def test_the_transform_reads_the_overlay(self):
+        """Blender's own transform with the overlay moves only the origin."""
+        cube = bpy.data.objects.get("Cube")
+        if cube is None:
+            self.skipTest("no Cube")
+        loc, co = tuple(cube.location), [tuple(v.co) for v in cube.data.vertices]
+        world = [tuple(cube.matrix_world @ v.co) for v in cube.data.vertices]
+        try:
+            for o in bpy.context.view_layer.objects:
+                o.select_set(o is cube)
+            bpy.context.view_layer.objects.active = cube
+            self.tap()
+            with ctx():
+                self.assertEqual(bpy.ops.transform.translate(value=(1.0, 0.0, 0.0)),
+                                 {'FINISHED'})
+            bpy.context.view_layer.update()
+            self.assertAlmostEqual(cube.location.x, loc[0] + 1.0, places=4)
+            for a, b in zip(world, [tuple(cube.matrix_world @ v.co)
+                                    for v in cube.data.vertices]):
+                self.assertEqual([round(x, 4) for x in a], [round(x, 4) for x in b])
+            self.assertEqual(hold().once_tick([[]], (9, 'TRANSFORM_OT_translate')), 'USED')
+            self.assertEqual(state(), USER)
+        finally:
+            cube.location = loc
+            for v, c in zip(cube.data.vertices, co):
+                v.co = c
+            cube.data.update()
+
+    def test_load_pre_and_unregister_restore(self):
+        mod = hold()
+        self.tap()
+        mod._load_pre()
+        self.assertEqual(state(), USER)
+        self.assertFalse(mod.once_armed())
+        self.tap()
+        mod.unregister()
+        try:
+            self.assertEqual(state(), USER)
+            self.assertFalse(hasattr(bpy.types, 'MESO_OT_pivot_once'))
+        finally:
+            mod.register()
+        self.assertFalse(mod.once_armed())
+
+    def test_saved_file_has_the_user_value(self):
+        self.tap()
+        path = os.path.join(tempfile.mkdtemp(), "once.blend")
+        bpy.ops.wm.save_as_mainfile(filepath=path, copy=True, check_existing=False)
+        self.assertTrue(ts().use_transform_data_origin)
+        name = bpy.context.scene.name
+        with bpy.data.libraries.load(path) as (src, dst):
+            dst.scenes = [name]
+        loaded = dst.scenes[0]
+        try:
+            self.assertFalse(loaded.tool_settings.use_transform_data_origin)
+        finally:
+            bpy.data.scenes.remove(loaded)
+
+    # the D key modal
+
+    def run_key_modal(self, op, event):
+        with ctx():
+            return hold().MESO_OT_pivot_once.modal(op, bpy.context, event)
+
+    def key_op(self):
+        self.reports = []
+        return SimpleNamespace(_key='D', _report=self.reports.append)
+
+    def test_key_modal_tap_however_long(self):
+        op = self.key_op()
+        for _ in range(25):                                  # a long still hold
+            self.assertEqual(self.run_key_modal(op, ev('D', is_repeat=True)), {'PASS_THROUGH'})
+        self.assertEqual(self.run_key_modal(op, ev('MOUSEMOVE')), {'PASS_THROUGH'})
+        self.assertEqual(ts().use_transform_data_origin, False)   # nothing before the release
+        self.assertEqual(self.run_key_modal(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(self.reports, ['ARM'])
+        self.assertTrue(ts().use_transform_data_origin and hold().once_armed())
+
+    def test_key_modal_no_tap_with_anything_in_between(self):
+        for etype in ('LEFTMOUSE', 'RIGHTMOUSE', 'W', 'LEFT_SHIFT', 'ESC', 'WINDOW_DEACTIVATE'):
+            with self.subTest(event=etype):
+                op = self.key_op()
+                value = 'NOTHING' if etype == 'WINDOW_DEACTIVATE' else 'PRESS'
+                self.assertEqual(self.run_key_modal(op, ev(etype, value)),
+                                 {'FINISHED', 'PASS_THROUGH'})
+                self.assertEqual(self.reports, [])
+                self.assertEqual(state(), USER)
+
+    def test_key_modal_ends_under_a_foreign_modal(self):
+        op = self.key_op()
+        with modal_ids(['GPENCIL_OT_annotate', 'MESO_OT_pivot_once']):
+            self.assertEqual(self.run_key_modal(op, ev('D', 'RELEASE')),
+                             {'FINISHED', 'PASS_THROUGH'})
+        self.assertEqual(state(), USER)
+
+    def test_key_modal_is_not_foreign_to_a_snap_hold(self):
+        self.press('X', 'GRID')
+        with modal_ids(['MESO_OT_pivot_once', 'MESO_OT_snap_hold']):
+            self.assertFalse(hold().foreign_now())
+            self.assertEqual(self.run_key_modal(self.key_op(), ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertTrue(ts().use_snap and ts().use_transform_data_origin)
+
+    def test_operator_exec(self):
+        with ctx():
+            self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})
+            self.assertTrue(hold().once_armed())
+            self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})
+        self.assertEqual(state(), USER)
+
+
+class TestAnnotateRelocation(MesoKeymapCase):
+    """IC's D Annotate tool is on Ctrl Alt D in the Meso keyconfig, in every IC keymap where D
+    annotates; nothing else is on Ctrl Alt D in the keymaps that run there
+    (docs/spikes/meso-keymap-conflicts.md, "Annotate relocation")."""
+
+    RUN_THERE = ('3D View', '3D View Generic', 'Image Generic', 'Window', 'Screen', 'Frames',
+                 'User Interface', 'Grease Pencil')
+
+    def test_ctrl_alt_d_annotates_first_and_alone(self):
+        self.meso_on()
+        kc = wm().keyconfigs.user
+        key = mb().Key('D', ctrl=True, alt=True)
+        for name in mb().ANNOTATE_KEYMAPS:
+            with self.subTest(keymap=name):
+                km = find_builtin(kc, name)
+                on = [k for k in km.keymap_items if k.active and key_matches(k, key)]
+                self.assertEqual([native_of(k) for k in on],
+                                 ["wm.tool_set_by_id(cycle=True, name='builtin.annotate')"])
+                d = [k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D'))]
+                expected = 'meso.pivot_once' if name == 'Object Mode' else 'wm.tool_set_by_id'
+                self.assertEqual(d[0].idname, expected)
+        for km in kc.keymaps:
+            if km.name in self.RUN_THERE or km.name.startswith(('3D View Tool:',
+                                                                'Image Editor Tool:',
+                                                                'Generic Tool:')):
+                on = [k.idname for k in km.keymap_items
+                      if k.active and not km.is_modal and key_matches(k, key)]
+                self.assertEqual(on, [], km.name)
+
+    def test_ctrl_alt_d_switches_to_annotate(self):
+        self.meso_on()
+        km = find_builtin(wm().keyconfigs.user, 'Object Mode')
+        kmi = next(k for k in km.keymap_items
+                   if k.active and key_matches(k, mb().Key('D', ctrl=True, alt=True)))
+        with ctx():
+            bpy.ops.wm.tool_set_by_id(name='builtin.select_box')
+            bpy.ops.wm.tool_set_by_id(**hold().item_props(kmi))
+            tool = bpy.context.workspace.tools.from_space_view3d_mode('OBJECT').idname
+            bpy.ops.wm.tool_set_by_id(name='builtin.select_box')
+        self.assertEqual(tool, 'builtin.annotate')
+
+
 class TestKeymapItems(MesoKeymapCase):
-    HOLD_IDS = ('snap_hold_grid', 'snap_hold_edge', 'snap_hold_vertex', 'snap_hold_increment',
-                'pivot_hold')
+    HOLD_IDS = ('snap_hold_grid', 'snap_hold_edge', 'snap_hold_vertex', 'snap_hold_increment')
 
     def test_hold_items_carry_their_keymap(self):
         for bid in self.HOLD_IDS:
@@ -545,11 +820,12 @@ class TestKeymapItems(MesoKeymapCase):
                 self.assertEqual(dict(item.props)['keymap'], item.keymap, bid)
         self.meso_on()
         ids = mk_mod().live_ids()
-        for bid in self.HOLD_IDS + ('pivot_toggle',):
+        for bid in self.HOLD_IDS + ('pivot_once', 'reloc_annotate', 'pivot_toggle'):
             self.assertIn(bid, ids)
         for km, kmi, item in mk_mod().user_items():
-            if kmi.idname in ('meso.snap_hold', 'meso.pivot_hold'):
-                self.assertEqual(kmi.properties.keymap, item.keymap)
+            if kmi.idname in ('meso.snap_hold', 'meso.pivot_once'):
+                if kmi.idname == 'meso.snap_hold':
+                    self.assertEqual(kmi.properties.keymap, item.keymap)
                 self.assertFalse(kmi.repeat)
                 self.assertEqual(kmi.value, 'PRESS')
 
@@ -561,7 +837,6 @@ class TestKeymapItems(MesoKeymapCase):
             ('Object Mode', 'C'): "wm.tool_set_by_id(cycle=True, name='builtin.cursor')",
             ('Mesh', 'C'): "wm.tool_set_by_id(cycle=True, name='builtin.cursor')",
             ('3D View', 'V'): "wm.call_menu_pie(name='VIEW3D_MT_view_pie')",
-            ('Object Mode', 'D'): "wm.tool_set_by_id(cycle=True, name='builtin.annotate')",
         }
         for (km, key), native in cases.items():
             with self.subTest(keymap=km, key=key):

@@ -70,7 +70,7 @@ class TestTable(unittest.TestCase):
     def test_no_duplicate_keymap_key_over_the_whole_table(self):
         pairs = mb.table_items(mb.BINDINGS)
         self.assertEqual(len(pairs), sum(len(b.items) for b in mb.BINDINGS))
-        self.assertEqual(len(pairs), 111)
+        self.assertEqual(len(pairs), 123)
         with self.assertRaises(ValueError):
             mb.table_items((mb.binding('select_all'), mb.binding('select_all')))
 
@@ -166,14 +166,35 @@ class TestTable(unittest.TestCase):
         off = [b.id for b in mb.BINDINGS if not b.default_on]
         self.assertEqual(off, [])
 
-    def test_pivot_hold_keeps_annotate_on_the_tap(self):
-        b = mb.binding('pivot_hold')
-        self.assertEqual([(i.keymap, i.key, i.idname) for i in b.items],
-                         [('Object Mode', mb.Key('D'), 'meso.pivot_hold')])
+    def test_pivot_once_moves_annotate_to_ctrl_alt_d(self):
+        """User item C of 2026-09-26: D tap = one-shot pivot edit, IC's D Annotate tool moves
+        to Ctrl Alt D (the audit in docs/spikes/meso-keymap-conflicts.md)."""
+        b = mb.binding('pivot_once')
+        self.assertEqual([(i.keymap, i.key, i.idname, i.props) for i in b.items],
+                         [('Object Mode', mb.Key('D'), 'meso.pivot_once', ())])
         self.assertEqual([(d.keymap, d.key, d.now) for d in b.displaces],
-                         [('Object Mode', mb.Key('D'), mb.NOW_TAP)])
+                         [('Object Mode', mb.Key('D'), 'reloc_annotate')])
         self.assertIn('builtin.annotate', b.displaces[0].native)
+        reloc = mb.binding('reloc_annotate')
+        self.assertEqual(reloc.follows, 'pivot_once')
+        self.assertEqual(reloc.displaces, ())
+        self.assertEqual([i.keymap for i in reloc.items], list(mb.ANNOTATE_KEYMAPS))
+        self.assertEqual(len(mb.ANNOTATE_KEYMAPS), 12)
+        for item in reloc.items:
+            self.assertEqual(item.key, mb.Key('D', ctrl=True, alt=True))
+            self.assertEqual(mb.native_call(item.idname, item.props), b.displaces[0].native)
+            self.assertIn(item.keymap, mb.KEYMAP_SPACES)
+        self.assertEqual(mb.KEYMAP_SPACES['Image'], ('IMAGE_EDITOR', 'WINDOW'))
         self.assertTrue(mb.binding('pivot_toggle').default_on)
+        self.assertNotIn('pivot_hold', ALL_IDS)
+        self.assertEqual(mb.home_label('reloc_annotate'), "Ctrl Alt D (Annotate Tool)")
+
+    def test_annotate_off_warns_while_the_d_tap_is_on(self):
+        live = [b for b in mb.BINDINGS if b.id != 'reloc_annotate']
+        msgs = [m for m in mb.warnings(live) if 'Tap D' in m]
+        self.assertEqual(len(msgs), 1)
+        self.assertIn('Ctrl Alt D (Annotate Tool), is off', msgs[0])
+        self.assertFalse([m for m in mb.warnings(mb.BINDINGS) if 'Tap D' in m])
 
     def test_native_call(self):
         self.assertEqual(mb.native_call('object.select_all', (('action', 'SELECT'),)),
@@ -196,7 +217,7 @@ class TestKeyconfigData(unittest.TestCase):
 
     def test_items_by_keymap_keeps_table_order(self):
         groups = mb.items_by_keymap()
-        self.assertEqual(sum(len(v) for v in groups.values()), 111)
+        self.assertEqual(sum(len(v) for v in groups.values()), 123)
         flat = [pair for pairs in groups.values() for pair in pairs]
         order = {id(item): n for n, (_bid, item) in enumerate(mb.table_items())}
         for pairs in groups.values():
@@ -221,8 +242,9 @@ class TestKeyconfigData(unittest.TestCase):
                 expected = ['CONFIRM'] if name == 'Transform Modal Map' else ['native.a',
                                                                              'native.other']
                 self.assertEqual(natives, expected)
-        pivot = [i for i in by_name['Object Mode'] if i[0] == 'meso.pivot_hold']
-        self.assertNotIn("active", pivot[0][2])              # on by default
+        pivot = [i for i in by_name['Object Mode'] if i[0] == 'meso.pivot_once']
+        self.assertEqual(pivot[0][1], {"type": 'D', "value": 'PRESS'})
+        self.assertIsNone(pivot[0][2])                        # on by default, no properties
 
     def test_merge_refuses_a_missing_keymap(self):
         data = [d for d in ic_like_data() if d[0] != 'Clip Graph Editor']

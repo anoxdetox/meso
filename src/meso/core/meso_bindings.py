@@ -108,6 +108,10 @@ KEYMAP_SPACES: dict[str, tuple[str, str]] = {
     'Paint Face Mask (Weight, Vertex, Texture)': ('EMPTY', 'WINDOW'),
     'Paint Vertex Selection (Weight, Vertex)': ('EMPTY', 'WINDOW'),
     'UV Editor': ('EMPTY', 'WINDOW'),
+    'Image Paint': ('EMPTY', 'WINDOW'),
+    'Vertex Paint': ('EMPTY', 'WINDOW'),
+    'Weight Paint': ('EMPTY', 'WINDOW'),
+    'Image': ('IMAGE_EDITOR', 'WINDOW'),
     'Mask Editing': ('EMPTY', 'WINDOW'),
     'Markers': ('EMPTY', 'WINDOW'),
     'Graph Editor': ('GRAPH_EDITOR', 'WINDOW'),
@@ -204,6 +208,7 @@ KEY_CLIP_SHOW_DISABLED = Key('D', ctrl=True, alt=True)
 KEY_APPLY = Key('A', ctrl=True, alt=True)
 KEY_ISOLATE = Key('ONE', ctrl=True)
 KEY_VERT_EXPAND = Key('ONE', ctrl=True, alt=True)
+KEY_ANNOTATE = Key('D', ctrl=True, alt=True)
 
 _TRIO_OPS = dict(TRIO_KEYMAPS)
 
@@ -234,6 +239,11 @@ _PROPERTIES_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Curves', 'Armature', 'Po
                        'Paint Vertex Selection (Weight, Vertex)', '3D View')
 _EDGE_SNAP_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves', '3D View')
 _EDGE_SNAP_CURSOR_MAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves')
+# The keymaps where IC's D is the Annotate tool cycle (docs/spikes/meso-keymap-conflicts.md,
+# "Annotate relocation"): Ctrl Alt D is free in all of them and in every keymap that runs there.
+ANNOTATE_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves',
+                    'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Image',
+                    'UV Editor')
 
 
 def _properties_displaced():
@@ -381,19 +391,32 @@ BINDINGS: tuple[Binding, ...] = (
         True,
         (_hold_item('3D View', 'J', 'meso.snap_hold', 'INCREMENT'),),
     ),
-    # -- Pivot (step 3) ---------------------------------------------------------------------
+    # -- Pivot (step 3; user item C of 2026-09-26) ------------------------------------------
     Binding(
-        'pivot_hold', 'PIVOT', "Hold D: Edit Origins",
-        "Hold D in Object Mode to transform object origins only (Affect Only Origins while "
-        "held); a quick tap still switches to the Annotate tool, and D + drag off the gizmo "
-        "still draws an annotation",
+        'pivot_once', 'PIVOT', "Tap D: Edit Origins Once",
+        "Tap D in Object Mode: the next transform moves only the object origins (Affect Only "
+        "Origins), then your setting comes back; tap D again to cancel. It replaces Industry "
+        "Compatible's D Annotate tool there, which moves to Ctrl Alt D; D + drag still draws "
+        "an annotation",
         True,
-        (_hold_item('Object Mode', 'D', 'meso.pivot_hold'),),
-        (Displaced('Object Mode', Key('D'), _ANNOTATE_CYCLE, NOW_TAP),),
+        (Item('Object Mode', Key('D'), 'meso.pivot_once'),),
+        (Displaced('Object Mode', Key('D'), _ANNOTATE_CYCLE, 'reloc_annotate'),),
+    ),
+    Binding(
+        'reloc_annotate', 'PIVOT', "Annotate Tool",
+        "Ctrl Alt D switches to the Annotate tool (again: its next variant) wherever Industry "
+        "Compatible has it on D: the 3D View modes, the Image Editor and the UV Editor. The "
+        "new home of D in Object Mode; D keeps it in the other modes. Displaces nothing",
+        True,
+        tuple(Item(km, KEY_ANNOTATE, 'wm.tool_set_by_id',
+                   (('name', 'builtin.annotate'), ('cycle', True)))
+              for km in ANNOTATE_KEYMAPS),
+        follows='pivot_once',
     ),
     Binding(
         'pivot_toggle', 'PIVOT', "Insert: Toggle Affect Only Origins",
-        "Insert toggles Affect Only Origins in Object Mode. Displaces nothing",
+        "Insert toggles Affect Only Origins in Object Mode, the persistent pivot edit (until "
+        "Insert again). Displaces nothing",
         True,
         (Item('Object Mode', Key('INSERT'), 'meso.pivot_toggle'),),
     ),

@@ -617,7 +617,7 @@ class TestForeign(unittest.TestCase):
     def test_foreign_ids(self):
         self.assertEqual(sh.foreign_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold', None]),
                          ['TRANSFORM_OT_translate'])
-        self.assertEqual(sh.foreign_ids([None, 'MESO_OT_pivot_hold']), [])
+        self.assertEqual(sh.foreign_ids([None, 'MESO_OT_pivot_once']), [])
         self.assertEqual(sh.foreign_ids(['MESO_OT_plaza']), ['MESO_OT_plaza'])   # the Plaza is foreign
 
     def test_foreign_above(self):

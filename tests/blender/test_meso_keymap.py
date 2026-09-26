@@ -21,14 +21,13 @@ ADDON_MODULE = "bl_ext.meso_dev.meso"
 
 MODIFIERS = ('ctrl', 'shift', 'alt', 'oskey')
 
-# Every binding of the table, and the ones switched on by default (all of them: the D pivot hold
-# ships on since 2026-09-25), in table order.
+# Every binding of the table, and the ones switched on by default (all of them), in table order.
 ALL_IDS = ('select_all', 'deselect_all', 'select_invert', 'reloc_clip_show_disabled',
            'select_keys_extra', 'isolate', 'reloc_mesh_vert_expand', 'properties_cycle',
            'apply_menu', 'snap_hold_grid', 'snap_hold_edge', 'snap_hold_vertex',
-           'snap_hold_increment', 'pivot_hold', 'pivot_toggle')
+           'snap_hold_increment', 'pivot_once', 'reloc_annotate', 'pivot_toggle')
 LIVE_IDS = ALL_IDS
-N_ITEMS = 18 + 19 + 24 + 1 + 10 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 1 + 1
+N_ITEMS = 18 + 19 + 24 + 1 + 10 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 1 + 12 + 1
 
 
 def _mod(name):
@@ -352,14 +351,16 @@ class TestUserEdits(MesoKeymapCase):
         km = find_builtin(wm().keyconfigs.user, 'Object Mode')
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().KEY_SELECT_ALL))
         self.assertEqual(native_of(first), "object.select_all(action='DESELECT')")
-        # the D pivot hold off: D is Industry Compatible's Annotate tool cycle again
-        self.assertEqual(mk().set_binding_active('pivot_hold', False), 1)
-        self.assertNotIn('pivot_hold', mk().live_ids())
+        # the D tap off: D is Industry Compatible's Annotate tool cycle again
+        first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D')))
+        self.assertEqual(first.idname, 'meso.pivot_once')
+        self.assertEqual(mk().set_binding_active('pivot_once', False), 1)
+        self.assertNotIn('pivot_once', mk().live_ids())
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D')))
         self.assertEqual(native_of(first),
                          "wm.tool_set_by_id(cycle=True, name='builtin.annotate')")
-        self.assertEqual(mk().set_binding_active('pivot_hold', True), 1)
-        self.assertIn('pivot_hold', mk().live_ids())
+        self.assertEqual(mk().set_binding_active('pivot_once', True), 1)
+        self.assertIn('pivot_once', mk().live_ids())
 
     def test_warning_when_deselect_is_off(self):
         self.meso_on()

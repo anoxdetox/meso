@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Pre-drag snap and pivot holds (pure; no bpy). Contract: docs/meso-keymap-interfaces.md,
-"Pre-drag snapping and pivot".
+"""Pre-drag snap holds and the one-shot pivot edit (pure; no bpy). Contract:
+docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot".
 
 Holding X, C, V or J before a drag turns snapping on with one element (grid, edge, vertex or
-increment); holding D edits object origins. The held state is an *overlay* on the user's own
+increment); a D tap edits object origins for one transform (``core/pivot_once.py``, held here
+under its ``ONCE_KEY`` with the element PIVOT). The held state is an *overlay* on the user's own
 tool settings: the first press takes a ``Snapshot`` of them (the baseline), each press or
 release writes the overlay of the keys still held, and the last release writes the baseline
 back exactly. Only the fields in ``SNAP_FIELDS`` are ever written, and ``snap_elements`` is
@@ -31,8 +32,10 @@ SNAP_FIELDS = ('snap_elements', 'use_snap', 'use_snap_translate', 'use_snap_rota
                'use_snap_scale', 'use_transform_data_origin')
 AFFECT_FIELDS = ('use_snap_translate', 'use_snap_rotate', 'use_snap_scale')
 
-# Operator class names (Window.modal_operators ids) that are not "foreign" to a hold.
-OWN_IDS = frozenset({'MESO_OT_snap_hold', 'MESO_OT_pivot_hold'})
+# Operator class names (Window.modal_operators ids): the hold operators, and every Meso modal
+# that is not "foreign" to a hold (the D tap's short key modal).
+HOLD_OP_IDS = frozenset({'MESO_OT_snap_hold'})
+OWN_IDS = HOLD_OP_IDS | {'MESO_OT_pivot_once'}
 
 
 @dataclass(frozen=True)
@@ -165,7 +168,7 @@ class HoldSession:
 
     def user_set(self, name, value, current: Snapshot):
         """The user sets a written field during the hold (e.g. Insert toggles Affect Only
-        Origins while D is held): it becomes the baseline value, restored on the last release.
+        Origins while a hold that wrote it runs): it becomes the baseline value, restored on the last release.
         Returns the writes of the (unchanged) overlay; ``None`` when no hold owns the field (the
         caller writes the value itself)."""
         if not self.active or name not in self.written:

@@ -292,6 +292,8 @@ GROUP_HINTS = {
         "Every snap option stays in the header and the Plaza Tool Settings row.",
     ),
     'PIVOT': (
+        "Tap D: only the next transform moves the origins (tap D again to cancel). Insert: "
+        "on until Insert again.",
         "Object Mode only. Affect Only Origins is also in the Options menu of the header and "
         "the Plaza Tool Settings row.",
     ),
