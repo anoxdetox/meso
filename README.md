@@ -6,6 +6,15 @@ cursor. They hold the top-bar menus, the hovered editor's header menus, a Tool S
 the workspaces. **Compass menus** (gesture menus on the Plaza's north, south, east, west and
 centre zones) are next on the roadmap. "Meso" stands for Mesoamerican.
 
+**Why Meso?** Long before anyone held Space to find a menu, the peoples of Mesoamerica (the
+Olmec, the Maya, the Zapotec, the Mexica, better known as the Aztecs, and many more) were
+charting the sky, keeping calendars that meshed like gears, counting with a zero, raising
+cities of stone and giving the world chocolate. Their descendants are still here, and Mayan,
+Zapotec and Nahuatl languages are spoken today. Meso Mode builds nothing half as grand. Like
+every tool, it stands on the shoulders of giants: Blender, its community, and decades of other
+people's good ideas about where a menu should go. The name is a small tip of the hat to the
+original builders (and yes, the pun is intentional). The pyramids are theirs; the menus are ours.
+
 Familiar workflows for artists coming from Autodesk Maya software. See
 [`docs/comparison.md`](docs/comparison.md) for how the concepts map.
 
