@@ -5,6 +5,9 @@ Contract: local/docs/phase5-interfaces.md "Zones", "Slot values". While the Plaz
 press in a zone opens that zone's Compass menu for the pressed button. The zones are the
 centre box ('C') and the four quarters around it split by the 45-degree diagonals through the
 centre box's centre (the zone ticks of ``core.geometry``): N, E, S, W.
+
+Phase 6 (local/docs/phase6-interfaces.md §1): the ``plaza_style`` table (:data:`STYLE_PARTS`)
+says which parts of the Plaza show and which zones open (:func:`zone_opens`).
 """
 
 from __future__ import annotations
@@ -15,9 +18,10 @@ from dataclasses import dataclass
 from .dropdown_model import ZONE_LABEL, ZONE_NONE, ZONE_PANEL, ZONE_STRIP, ZONE_ITEM
 
 __all__ = (
-    'BUILTIN_COMPASSES', 'BUILTIN_PREFIX', 'BUTTONS', 'DEFAULT_SLOTS', 'SLOT_KEYS', 'ZONES',
-    'Slot', 'SLOT_BUILTIN', 'SLOT_MENU', 'SLOT_NONE', 'opens_compass', 'parse_slot',
-    'slot_key', 'zone_at', 'zone_of_angle',
+    'BUILTIN_COMPASSES', 'BUILTIN_PREFIX', 'BUTTONS', 'DEFAULT_SLOTS', 'PLAZA_STYLES',
+    'SLOT_KEYS', 'STYLE_CENTER_ONLY', 'STYLE_FULL', 'STYLE_PARTS', 'STYLE_ZONES_ONLY', 'ZONES',
+    'Slot', 'SLOT_BUILTIN', 'SLOT_MENU', 'SLOT_NONE', 'StyleParts', 'opens_compass',
+    'parse_slot', 'slot_key', 'style_parts', 'zone_at', 'zone_of_angle', 'zone_opens',
 )
 
 ZONES = ('N', 'E', 'S', 'W', 'C')
@@ -105,6 +109,44 @@ def zone_at(layout, x: float, y: float) -> str | None:
     if dx == 0 and dy == 0:
         return 'C'
     return zone_of_angle(math.degrees(math.atan2(dy, dx)))
+
+
+# Phase 6 (local/docs/phase6-interfaces.md §1): what the Plaza shows (``prefs.plaza_style``).
+STYLE_FULL = 'FULL'                 # rows, side boxes, centre box, ticks, all five zones
+STYLE_ZONES_ONLY = 'ZONES_ONLY'     # the centre box, the ticks and all five zones
+STYLE_CENTER_ONLY = 'CENTER_ONLY'   # the centre box only; only the centre zone opens
+PLAZA_STYLES = (STYLE_FULL, STYLE_ZONES_ONLY, STYLE_CENTER_ONLY)
+
+
+@dataclass(frozen=True, slots=True)
+class StyleParts:
+    """What one ``plaza_style`` keeps: the rows, the centre-line side boxes (Recent
+    Commands / Recent Files / Meso Settings), the zone ticks and the zones that open a
+    Compass (the centre box always shows)."""
+
+    rows: bool
+    side_boxes: bool
+    ticks: bool
+    zones: tuple[str, ...]
+
+
+STYLE_PARTS: dict[str, StyleParts] = {
+    STYLE_FULL: StyleParts(True, True, True, ZONES),
+    STYLE_ZONES_ONLY: StyleParts(False, False, True, ZONES),
+    STYLE_CENTER_ONLY: StyleParts(False, False, False, ('C',)),   # decision 95 (a)
+}
+
+
+def style_parts(style: str | None) -> StyleParts:
+    """The :class:`StyleParts` of ``style``; None or an unknown id -> :data:`STYLE_FULL`'s."""
+    return STYLE_PARTS.get(style or STYLE_FULL, STYLE_PARTS[STYLE_FULL])
+
+
+def zone_opens(zone: str | None, style: str | None) -> bool:
+    """True when a press in ``zone`` (:func:`zone_at`) may open its Compass under ``style``:
+    every zone but under CENTER_ONLY, where only 'C' does (a press in N/S/E/W then does
+    what it did before the Compass menus). None never opens."""
+    return zone is not None and zone in style_parts(style).zones
 
 
 def opens_compass(button: str, hit_zone: str | None, on_center: bool) -> bool:

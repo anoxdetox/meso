@@ -9,7 +9,7 @@ Pure Python (no bpy): unit-tested with the bundled interpreter.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Container, Iterable
 
 # Factory workspace tab order (general template). ``bpy.data.workspaces`` iterates
 # alphabetically and ``WorkSpace.order`` (DNA, "custom order in the UI") is not exposed in RNA;
@@ -259,3 +259,51 @@ def c_only_menu_allowed(idname: str, area_type: str | None) -> bool:
     ``area_type`` (see :data:`C_ONLY_MENU_GATES`). Non-C-only idnames -> True."""
     gate = C_ONLY_MENU_GATES.get(idname)
     return gate is None or (area_type is not None and area_type in gate)
+
+
+# Phase 6 (local/docs/phase6-interfaces.md §5, ``prefs.plaza_editors``): the area types the
+# Plaza can open over, in the preferences' order, with their item names; every id but
+# PLAZA_EDITORS_BARS is an ``Area.type`` of 5.2.2 (tests/blender check them). One area type
+# covers all its editors (DOPESHEET_EDITOR: the Timeline too; NODE_EDITOR: every node tree).
+PLAZA_EDITORS_BARS = 'BARS'     # the top bar and the status bar (the global areas)
+PLAZA_EDITOR_LABELS: dict[str, str] = {
+    'VIEW_3D': '3D Viewport',
+    'IMAGE_EDITOR': 'Image & UV Editor',
+    'NODE_EDITOR': 'Node Editors',
+    'SEQUENCE_EDITOR': 'Video Sequencer',
+    'CLIP_EDITOR': 'Movie Clip Editor',
+    'DOPESHEET_EDITOR': 'Dope Sheet & Timeline',
+    'GRAPH_EDITOR': 'Graph Editor & Drivers',
+    'NLA_EDITOR': 'Nonlinear Animation',
+    'TEXT_EDITOR': 'Text Editor',
+    'CONSOLE': 'Python Console',
+    'INFO': 'Info',
+    'OUTLINER': 'Outliner',
+    'PROPERTIES': 'Properties',
+    'FILE_BROWSER': 'File & Asset Browser',
+    'SPREADSHEET': 'Spreadsheet',
+    'PREFERENCES': 'Preferences',
+    PLAZA_EDITORS_BARS: 'Top Bar & Status Bar',
+}
+PLAZA_EDITORS: tuple[str, ...] = tuple(PLAZA_EDITOR_LABELS)
+# The global areas (``context.area.type`` over them) that PLAZA_EDITORS_BARS stands for.
+BAR_AREA_TYPES = frozenset({'TOPBAR', 'STATUSBAR'})
+
+
+def plaza_editor_key(area_type: str | None) -> str | None:
+    """The :data:`PLAZA_EDITORS` id of ``area_type``: PLAZA_EDITORS_BARS for TOPBAR /
+    STATUSBAR, else ``area_type`` itself (None stays None; an unknown type is returned as is)."""
+    if area_type in BAR_AREA_TYPES:
+        return PLAZA_EDITORS_BARS
+    return area_type
+
+
+def plaza_editor_enabled(area_type: str | None, enabled: Container[str]) -> bool:
+    """True when the Plaza may open over ``area_type`` (``Area.type`` of the keymap handler's
+    area) with the ``plaza_editors`` set ``enabled``: its :func:`plaza_editor_key` is in
+    ``enabled``; no area (None) and a type outside :data:`PLAZA_EDITORS` are always enabled
+    (a new editor type never loses the Plaza silently)."""
+    key = plaza_editor_key(area_type)
+    if key is None or key not in PLAZA_EDITOR_LABELS:
+        return True
+    return key in enabled

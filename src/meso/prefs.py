@@ -10,7 +10,7 @@ from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorPro
                        IntProperty, StringProperty)
 from bpy.types import AddonPreferences
 
-from .core import zones
+from .core import geometry, tables, zones
 
 
 def _update_text_chord(self, context):
@@ -138,6 +138,76 @@ class MesoAddonPreferences(AddonPreferences):
         description="Add the header's display controls (X-ray, shading, overlays, gizmos) to "
                     "the Tool Settings row",
         default=True,
+    )
+    # -- Phase 6 (local/docs/phase6-interfaces.md §1-5): what the Plaza shows, where and over
+    # which editors. Read at the Plaza's invoke (a snapshot).
+    plaza_style: EnumProperty(
+        name="Style",
+        description="What the Plaza shows",
+        items=(
+            (zones.STYLE_FULL, "Full", "The menu rows, the side boxes, the centre box and the "
+                                       "zone ticks; every zone opens its Compass menu"),
+            (zones.STYLE_ZONES_ONLY, "Zones Only", "The centre box and the zone ticks; every "
+                                                   "zone opens its Compass menu"),
+            (zones.STYLE_CENTER_ONLY, "Centre Only", "The centre box only; only the centre "
+                                                     "zone opens a Compass menu"),
+        ),
+        default=zones.STYLE_FULL,
+    )
+    show_root_row: BoolProperty(
+        name="Top Bar Menus",
+        description="Show the top bar menus (File, Edit, Render, ...) as a Plaza row",
+        default=True,
+    )
+    show_contextual_row: BoolProperty(
+        name="Header Menus",
+        description="Show the hovered editor's header menus (and the 3D Viewport's mode) as "
+                    "a Plaza row",
+        default=True,
+    )
+    show_workspace_row: BoolProperty(
+        name="Workspaces",
+        description="Show the workspace tabs as a Plaza row",
+        default=True,
+    )
+    show_recent_commands: BoolProperty(
+        name="Recent Commands",
+        description="Show the Recent Commands box left of the centre box",
+        default=True,
+    )
+    show_recent_files: BoolProperty(
+        name="Recent Files",
+        description="Show the Recent Files box left of the centre box",
+        default=True,
+    )
+    plaza_anchor: EnumProperty(
+        name="Position",
+        description="Where the Plaza opens",
+        items=(
+            (geometry.ANCHOR_CURSOR, "Mouse", "At the mouse pointer"),
+            (geometry.ANCHOR_AREA_CENTER, "Area Centre", "At the centre of the editor under "
+                                                         "the mouse"),
+            (geometry.ANCHOR_WINDOW_CENTER, "Window Centre", "At the centre of the window"),
+        ),
+        default=geometry.ANCHOR_CURSOR,
+    )
+    plaza_draw_scope: EnumProperty(
+        name="Draw Over",
+        description="Where the Plaza, its menus and its Compass menus are drawn",
+        items=(
+            (geometry.SCOPE_WINDOW, "Window", "Over every editor of the window"),
+            (geometry.SCOPE_AREA, "Editor", "Only over the editor under the mouse (over the "
+                                            "top bar and the status bar: the window)"),
+        ),
+        default=geometry.SCOPE_WINDOW,
+    )
+    plaza_editors: EnumProperty(
+        name="Editors",
+        description="Editors where the Plaza key opens the Plaza; elsewhere the key does what "
+                    "it does natively",
+        items=tuple((key, label, "") for key, label in tables.PLAZA_EDITOR_LABELS.items()),
+        default=set(tables.PLAZA_EDITORS),
+        options={'ENUM_FLAG'},
     )
     compass_menus: BoolProperty(
         name="Compass Menus",
@@ -349,10 +419,19 @@ class MesoAddonPreferences(AddonPreferences):
         col.prop(self, "transparency")
         col.prop(self, "font_scale")
         col.prop(self, "row_spacing")
-        col.prop(self, "show_tool_settings_row")
-        sub = col.column()
+        col.prop(self, "plaza_style")
+        col.prop(self, "plaza_anchor")
+        col.prop(self, "plaza_draw_scope")
+        rows_col = col.column()
+        rows_col.active = self.plaza_style == zones.STYLE_FULL
+        for name in ("show_root_row", "show_contextual_row", "show_tool_settings_row"):
+            rows_col.prop(self, name)
+        sub = rows_col.column()
         sub.active = self.show_tool_settings_row
         sub.prop(self, "show_display_controls")
+        for name in ("show_workspace_row", "show_recent_commands", "show_recent_files"):
+            rows_col.prop(self, name)
+        _draw_editors(col, self)
         col.prop(self, "submenu_delay")
         col.prop(self, "hover_open")
         sub = col.column()
@@ -375,6 +454,15 @@ class MesoAddonPreferences(AddonPreferences):
         _draw_compass_slots(layout, self)
         from . import keymap_prefs  # lazy: keymap_prefs imports this module
         keymap_prefs.draw(context, layout, self)
+
+
+def _draw_editors(layout, prefs) -> None:
+    """``plaza_editors`` as a grid of toggles (one per ``core.tables.PLAZA_EDITORS`` id)."""
+    box = layout.box()
+    box.label(text="Open the Plaza over")
+    grid = box.grid_flow(row_major=True, columns=3, even_columns=True, align=True)
+    for key in tables.PLAZA_EDITORS:
+        grid.prop_enum(prefs, "plaza_editors", key)
 
 
 _ZONE_NAMES = {'N': "North", 'E': "East", 'S': "South", 'W': "West", 'C': "Centre"}

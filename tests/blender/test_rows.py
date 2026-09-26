@@ -136,7 +136,7 @@ class TestBuildModel(unittest.TestCase):
         info = _info(window, _area(window, 'VIEW_3D'))
         off = SimpleNamespace(show_tool_settings_row=False, show_display_controls=True)
         model = _rows().build_model(bpy.context, info, off)
-        self.assertTrue(model.row(m.ROW_TOOL_SETTINGS).is_empty())
+        self.assertIsNone(model.row(m.ROW_TOOL_SETTINGS), "Phase 6: a hidden row is absent")
         self.assertFalse(model.row(m.ROW_CONTEXTUAL).is_empty())   # unaffected
         no_display = SimpleNamespace(show_tool_settings_row=True, show_display_controls=False)
         tools = [i.id for i in _rows().build_model(bpy.context, info, no_display)

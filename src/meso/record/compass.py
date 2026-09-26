@@ -38,6 +38,7 @@ from ..core.tables import UI_TYPE_LABELS, ordered_workspaces
 from . import builtin_menus
 from . import dropdown as rec_dropdown
 from . import recorder
+from . import rows as rec_rows
 
 __all__ = ('BUILDERS', 'MENU_BUILTINS', 'VIEW_PIES', 'build_compass', 'pie_compass')
 
@@ -325,10 +326,15 @@ def _toggles(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:
     return _compass('meso:toggles', _iface('Show'), slots, listed)
 
 
-def _tool_settings(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:
+def _tool_settings(context: Any, plaza: Any, prefs: Any, row: Any = None,
+                   in_plaza: bool = True) -> cp.CompassModel:
     """The Plaza's Tool Settings row as a Compass: toggles apply in place, cascades open the
-    row label's own dropdown (``ITEM_SOURCE_PLAZA_LABEL``)."""
-    row = plaza.row(ROW_TOOL_SETTINGS) if plaza is not None else None
+    row label's own dropdown (``ITEM_SOURCE_PLAZA_LABEL``). Phase 6: ``row`` (from
+    ``record.rows.compass_tool_settings_row``) replaces the Plaza's row; ``in_plaza`` False
+    (a row recorded for a Plaza style without rows) lists its toggles only (no label to
+    open)."""
+    if row is None:
+        row = plaza.row(ROW_TOOL_SETTINGS) if plaza is not None else None
     out: list[DropdownItem] = []
     for item in (row.items if row is not None else ()):
         if not item.enabled or not item.label:
@@ -336,7 +342,7 @@ def _tool_settings(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:
         if item.kind == KIND_TOGGLE:
             out.append(DropdownItem(DD_TOGGLE, item.label, checked=bool(item.checked),
                                     action=item_action(item)))
-        elif item.kind == KIND_CASCADE:
+        elif item.kind == KIND_CASCADE and in_plaza:
             out.append(DropdownItem(DD_SUBMENU, item.label, submenu=item.id,
                                     source=ITEM_SOURCE_PLAZA_LABEL))
     return _fill('meso:tool_settings', _iface('Tool Settings'), out)
@@ -582,8 +588,14 @@ def build_compass(context: Any, info: Any, value: str, plaza: Any = None,
     if slot.kind == zones.SLOT_NONE:
         return None
     try:
+        tool_row = None
+        if slot.kind == zones.SLOT_BUILTIN and slot.ident == 'tool_settings':
+            # Phase 6: a Plaza style without rows still offers the tool settings.
+            tool_row = rec_rows.compass_tool_settings_row(context, info, plaza, prefs)
         with rec_dropdown.invoking_context(context, info) as ctx:
-            if slot.kind == zones.SLOT_BUILTIN:
+            if tool_row is not None:
+                model = _tool_settings(ctx, plaza, prefs, *tool_row)
+            elif slot.kind == zones.SLOT_BUILTIN:
                 builder = BUILDERS[slot.ident]
                 if slot.ident in MENU_BUILTINS:
                     model = builder(ctx, plaza, prefs, menu, target)

@@ -24,7 +24,10 @@ local/docs/phase2-interfaces.md):
 - empty rows are skipped (no strip, no gap); a row wider than the bounds (or than the soft
   row width ``max_row_w``, breaking at separators first) wraps into several lines, each its
   own strip centred on the anchor, in reading order (first line on top);
-- the whole layout is shifted (never squashed) into ``window_bounds`` (inset by ``margin``).
+- the whole layout is shifted (never squashed) into ``window_bounds`` (inset by ``margin``);
+- Phase 6: a model without rows and side boxes is the centre box alone; ``layout(...,
+  ticks=False)`` drops the ticks; :func:`anchor_point` / :func:`scope_bounds` give the anchor
+  and the bounds of the ``plaza_anchor`` / ``plaza_draw_scope`` preferences.
 
 Text widths come from an injected ``text_width_fn(text) -> float`` (``blf.dimensions`` at
 ``metrics.font_px`` in Blender, a fake in unit tests), so everything here is deterministic.
@@ -341,8 +344,13 @@ def _drop_stray_separators(items: tuple[Item, ...]) -> tuple[Item, ...]:
 
 
 def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect | None,
-           metrics: Metrics, text_width_fn: TextWidthFn) -> Layout:
+           metrics: Metrics, text_width_fn: TextWidthFn, ticks: bool = True) -> Layout:
     """Place ``model`` around ``anchor`` (window coords, usually ``state.anchor``).
+
+    A model with no (non-empty) rows and no side boxes (Phase 6 ``plaza_style`` ZONES_ONLY /
+    CENTER_ONLY) is the centre box alone, centred on the anchor and clamped as usual;
+    ``ticks=False`` (CENTER_ONLY) places no zone ticks (``Layout.ticks == ()``, ``extent ==
+    plaza_rect``).
 
     Algorithm (unit-tested; see the module docstring for the look):
 
@@ -502,7 +510,8 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
     cr = center_box.rect
     origin = (cr.x + cr.w / 2, cr.y + cr.h / 2)
 
-    ticks = tuple(_tick(name, sx, sy, origin, plaza, m) for name, sx, sy in TICK_CORNERS)
+    ticks = (tuple(_tick(name, sx, sy, origin, plaza, m) for name, sx, sy in TICK_CORNERS)
+             if ticks else ())
     pad = math.ceil(m.tick_width)
     tick_rects = [Rect.from_corners(math.floor(min(t.x0, t.x1)) - pad,
                                     math.floor(min(t.y0, t.y1)) - pad,
@@ -517,6 +526,57 @@ def layout(model: PlazaModel, anchor: tuple[float, float], window_bounds: Rect |
         controls=controls_box, ticks=ticks, plaza_rect=plaza, extent=extent,
         anchor=(round_px(ax), round_px(ay)), origin=origin, shift=(dx, dy),
         window_bounds=window_bounds, signature=signature, files=files_box, _index=index)
+
+
+# Phase 6 (local/docs/phase6-interfaces.md §3-4): where the Plaza is anchored
+# (``prefs.plaza_anchor``) and where it draws (``prefs.plaza_draw_scope``).
+ANCHOR_CURSOR = 'CURSOR'
+ANCHOR_AREA_CENTER = 'AREA_CENTER'
+ANCHOR_WINDOW_CENTER = 'WINDOW_CENTER'
+PLAZA_ANCHORS = (ANCHOR_CURSOR, ANCHOR_AREA_CENTER, ANCHOR_WINDOW_CENTER)
+SCOPE_WINDOW = 'WINDOW'
+SCOPE_AREA = 'AREA'
+DRAW_SCOPES = (SCOPE_WINDOW, SCOPE_AREA)
+
+
+def rect_center(r: Rect) -> tuple[int, int]:
+    """The int centre of ``r`` (``round_px`` of ``x + w / 2``, ``y + h / 2``)."""
+    return round_px(r.x + r.w / 2), round_px(r.y + r.h / 2)
+
+
+def anchor_point(mode: str | None, pointer: tuple[int, int], area_rect: Rect | None,
+                 window_rect: Rect | None) -> tuple[int, int]:
+    """The Plaza anchor for ``mode`` (a :data:`PLAZA_ANCHORS` id): CURSOR (and None / an
+    unknown id) -> ``pointer``; AREA_CENTER -> the centre of ``area_rect`` (the hovered area's
+    WINDOW region; over the bars, None, it falls back to WINDOW_CENTER); WINDOW_CENTER ->
+    the centre of ``window_rect`` (``pointer`` when it is None or empty). Ints; the layout
+    clamps the result as it clamps a pointer anchor."""
+    px, py = int(pointer[0]), int(pointer[1])
+    if mode == ANCHOR_AREA_CENTER and area_rect is not None and not area_rect.is_empty():
+        return rect_center(area_rect)
+    if mode in (ANCHOR_AREA_CENTER, ANCHOR_WINDOW_CENTER) and window_rect is not None \
+            and not window_rect.is_empty():
+        return rect_center(window_rect)
+    return px, py
+
+
+def effective_scope(scope: str | None, area_rect: Rect | None) -> str:
+    """The draw scope that applies: AREA only when there is a hovered area (``area_rect``
+    not None / empty); over the top bar / status bar AREA falls back to WINDOW (decision 97
+    a); None or an unknown id -> WINDOW."""
+    if scope == SCOPE_AREA and area_rect is not None and not area_rect.is_empty():
+        return SCOPE_AREA
+    return SCOPE_WINDOW
+
+
+def scope_bounds(scope: str | None, screen_bounds: Rect | None,
+                 area_rect: Rect | None) -> Rect | None:
+    """The clamp bounds of the Plaza, its dropdowns and its Compasses: the hovered area's
+    rect under the :func:`effective_scope` AREA, else ``screen_bounds`` (the bbox of the
+    screen's areas)."""
+    if effective_scope(scope, area_rect) == SCOPE_AREA:
+        return area_rect
+    return screen_bounds
 
 
 def _wrap(items: tuple[Item, ...], widths: Mapping[str, float], m: Metrics,

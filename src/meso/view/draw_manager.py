@@ -139,6 +139,10 @@ class DrawState(Protocol):
     # Phase 5 / 5b (getattr, default None): the open Compass (``ops.compass.CompassSession``),
     # drawn alone; with ``layout`` None it is a right-click Compass (``ops.compass_rmb``).
     compass: Any
+    # Phase 6 (getattr): 'AREA' draws only in the regions of the area whose ``as_pointer()``
+    # is ``area_ptr`` (:func:`in_scope`); 'WINDOW' (default) everywhere.
+    draw_scope: str
+    area_ptr: int
 
     def fail(self, reason: str) -> None:
         """Deactivate (``active = False``, ``failed = True``); idempotent, never raises."""
@@ -418,13 +422,30 @@ def _report_failure(state: DrawState, reason: str) -> None:
         pass
 
 
+def in_scope(state: DrawState, area: Any) -> bool:
+    """Phase 6 §4 (local/docs/phase6-interfaces.md): True when the region being drawn belongs
+    to the Plaza's draw scope. ``state.draw_scope`` 'AREA' (getattr, default 'WINDOW') with
+    a non-zero ``state.area_ptr`` (the invoking area's ``as_pointer()``, captured at invoke;
+    never a stored RNA object) accepts only ``area`` with that pointer; everything else
+    (WINDOW scope, or AREA over the bars where it falls back to WINDOW) accepts every
+    area."""
+    if getattr(state, 'draw_scope', 'WINDOW') != 'AREA':
+        return True
+    ptr = getattr(state, 'area_ptr', 0)
+    if not ptr:
+        return True
+    return area is not None and area.as_pointer() == ptr
+
+
 def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
     """Handler body for one (space, region) pair; runs in that region's draw context.
 
     1. Return immediately unless ``state.active`` and ``bpy.context.window`` is not None and
        ``bpy.context.window.as_pointer() == state.window_ptr``.
-    2. ``region = bpy.context.region``; return if None or ``width <= 1 or height <= 1``.
-       Every early return of steps 1-2 does ``state.draw_filtered += 1``.
+    2. ``region = bpy.context.region``; return if None or ``width <= 1 or height <= 1``;
+       Phase 6: return when :func:`in_scope` rejects ``bpy.context.area`` (AREA draw scope:
+       only the invoking area's regions draw). Every early return of steps 1-2 does
+       ``state.draw_filtered += 1``.
     3. Visible pieces (window coords, :func:`region_pieces`). Empty -> return.
     4. ``layout = state.layout``; None without a ``state.compass`` -> draw nothing (still
        counted in step 6; Phase 5b: a Compass without a Plaza, ``ops.compass_rmb``, draws).
@@ -454,6 +475,9 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
             state.draw_filtered += 1
             return
         area = context.area
+        if not in_scope(state, area):
+            state.draw_filtered += 1
+            return
         pieces = region_pieces(area, region, region_type)
         if not pieces:
             return

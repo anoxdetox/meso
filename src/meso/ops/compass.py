@@ -7,9 +7,10 @@
   whose slot (``MenuSession.compass_slots``, the prefs snapshot) builds a non-empty Compass
   (``record.compass.build_compass``), closes any open dropdown chain (the reducer's Esc) and
   opens the Compass at the press point (``core.compass.place_compass``; one moved to fit the
-  window warps the pointer to its centre, as a Blender pie does). Any other event, or
-  a zone with nothing to offer, is not ours (:data:`NOT_OURS`): the press does exactly what it
-  did before Phase 5.
+  window warps the pointer to its centre, as a Blender pie does). Any other event, a zone
+  with nothing to offer, or (Phase 6) a zone the ``plaza_style`` keeps closed
+  (``core.zones.zone_opens``: CENTER_ONLY opens only 'C') is not ours (:data:`NOT_OURS`): the
+  press does exactly what it did before Phase 5.
 - **open**: moves feed ``core.compass.compass_step`` (hover by direction / on the list,
   :func:`gesture_move`); the opening button's release (or the click of a click-opened
   Compass) picks or cancels; Esc cancels; the Space release cancels and goes on to the
@@ -142,6 +143,8 @@ def _try_open(op: Any, state: Any, context: Any, event: Any) -> Any:
     if not zones.opens_compass(button, hit.zone, on_center):
         return NOT_OURS
     zone = zones.zone_at(state.layout, x, y)
+    if not zones.zone_opens(zone, getattr(state, 'plaza_style', zones.STYLE_FULL)):
+        return NOT_OURS         # Phase 6 CENTER_ONLY: only the centre zone opens
     value = session.compass_slots.get(zones.slot_key(zone, button), '')
     if not value:
         return NOT_OURS

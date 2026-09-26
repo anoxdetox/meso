@@ -74,6 +74,15 @@ usual.
 In the 3D Viewport a tap toggles quad view, or maximizes the hovered Top/Front/Side view.
 Elsewhere a tap keeps Blender's own Space action (play, tools or search).
 
+### What the Plaza shows, and where
+The preferences choose a **Style**: *Full* (everything above), *Zones Only* (just the centre box
+and the zone ticks, with every Compass menu) or *Centre Only* (the centre box alone; only its
+own Compass opens). With *Full*, each row and side box can be hidden on its own (the centre box
+and Meso Settings always show). **Position** opens the Plaza at the mouse, at the centre of the
+editor under the mouse, or at the centre of the window; **Draw Over** keeps it inside the
+hovered editor instead of the whole window. **Open the Plaza over** switches it off for chosen
+editors: there Space does what it does in Blender (in the Timeline, for instance, it plays).
+
 ## Compass menus
 ![The View Compass on the centre box](images/compass_views.png)
 

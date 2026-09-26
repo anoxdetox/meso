@@ -3,8 +3,9 @@
 
 Lifecycle (local/docs/spikes.md D1/D2/D3/D5):
 
-1. ``poll()`` declines (returns False) when Meso Mode is disabled for this context, so the
-   built-in Space action runs; never ``PASS_THROUGH`` from invoke (spike 2).
+1. ``poll()`` declines (returns False) when Meso Mode is disabled for this context (Phase 6:
+   also over an editor switched off in ``prefs.plaza_editors``), so the built-in Space action
+   runs; never ``PASS_THROUGH`` from invoke (spike 2).
 2. ``invoke()`` locates window/area/region under ``event.mouse_x/y`` (not
    ``context.region``: over an empty 3D header the Frames item runs with region WINDOW),
    builds a :class:`PlazaState` plus the session's model, layout and palette (the only
@@ -52,9 +53,11 @@ from ..core import dropdown_geometry as ddg
 from ..core import geometry
 from ..core.model import item_action
 from ..core.rects import Rect, bounding_box
+from ..core.tables import plaza_editor_enabled
 from ..core.tap import (TapCommand, effective_tap_action, is_tap, paint_mode_keymap,
                         resolve_tap_action)
 from ..core.timing import TimingStats
+from ..core.zones import style_parts
 from ..record import rows
 from ..view import renderer, theme
 from ..view.draw_manager import HandlerSet
@@ -95,10 +98,22 @@ class PlazaState:
     # --- identity of the target (plain data; safe to keep) ---
     window_ptr: int
     screen_ptr: int                       # window.screen.as_pointer() at invoke (watchdog)
-    anchor: tuple[int, int]               # window coords of the invoking event
+    anchor: tuple[int, int]               # window coords the layout is anchored at (Phase 6:
+                                          # prefs.plaza_anchor; the invoking event by default)
     t0: float                             # time.perf_counter() at invoke
-    bounds: Rect | None = None            # bbox of window.screen.areas (excludes global bars)
+    bounds: Rect | None = None            # clamp bounds: bbox of window.screen.areas (excludes
+                                          # global bars); Phase 6 AREA draw scope: the area rect
     area_bounds: Rect | None = None       # rect of the invoking area (None over the bars)
+    # Phase 6 (local/docs/phase6-interfaces.md §1, §3, §4): the invoking event's point (hit
+    # tests of the hovered area, the initial hover; None -> ``anchor``), the hovered area's
+    # pointer (0 over the bars: the AREA draw filter compares it, never an RNA object) and
+    # the snapshots of plaza_style / plaza_anchor / the effective draw scope.
+    press: tuple[int, int] | None = None
+    screen_bounds: Rect | None = None     # bbox of window.screen.areas (``bounds`` of WINDOW)
+    area_ptr: int = 0
+    plaza_style: str = 'FULL'
+    plaza_anchor: str = 'CURSOR'
+    draw_scope: str = 'WINDOW'            # core.geometry.effective_scope: AREA only over an area
     seams: tuple = ()                     # core.dropdown_geometry.area_seams(screen.areas)
     area_type: str | None = None          # None over no area; 'TOPBAR'/'STATUSBAR' over bars
     area_ui_type: str | None = None
@@ -159,6 +174,10 @@ class PlazaState:
     timer: Any = None                     # bpy.types.Timer (watchdog)
     handlers: HandlerSet | None = None
 
+    def __post_init__(self) -> None:
+        if self.screen_bounds is None:
+            self.screen_bounds = self.bounds
+
     def fail(self, reason: str) -> None:
         """Deactivate after a draw failure. Idempotent; never raises."""
         if not self.failed:
@@ -175,7 +194,8 @@ class PlazaState:
 # The running session, if any (at most one plaza at a time).
 _running: PlazaState | None = None
 
-# Global decline switch checked by poll() (future: prefs.enabled_editors, Phase 7).
+# Global decline switch checked by poll() (tests / emergency; the per-editor switch is
+# prefs.plaza_editors, Phase 6).
 _disabled: bool = False
 
 
@@ -208,6 +228,8 @@ def last_session() -> dict[str, Any] | None:
     Phase 3: ``handoff`` is ``core.actions.describe`` of any clicked item's planned call
     (None for a workspace switch), ``action`` = ``(kind, target, data_path)`` of the clicked
     item's Action (or None), ``tap_action`` = the effective tap action of the session.
+    Phase 6: ``anchor`` / ``press`` (window coords), ``plaza_style`` and ``draw_scope`` (the
+    effective one) of the session.
     Phase 4: ``end`` gains ``'run'`` (a dropdown operator item, or ``execute_on_release``);
     ``handoff`` / ``action`` describe the terminal run / hand-off only (in-place calls never
     set them); ``menus_opened`` (dropdown model keys in open order), ``in_place``
@@ -269,6 +291,36 @@ def _window_region(area):
         if region.type == 'WINDOW':
             return region
     return None
+
+
+def window_region_rect(area) -> Rect | None:
+    """The rect (window coords) of ``area``'s WINDOW region: the bbox of its visible WINDOW
+    regions (quad view: all four), else the area's rect; None without an area. The
+    AREA_CENTER anchor is its centre (Phase 6 §3). Never raises."""
+    if area is None:
+        return None
+    try:
+        rects = [_region_rect(r) for r in area.regions
+                 if r.type == 'WINDOW' and r.width > 1 and r.height > 1]
+        return bounding_box(rects) if rects else _region_rect(area)
+    except Exception:
+        return None
+
+
+def editor_enabled(context) -> bool:
+    """Phase 6 §5: False when ``prefs.plaza_editors`` switches off the editor of the keymap
+    handler's area (``context.area.type``; the top bar / status bar count as 'BARS'), so
+    ``poll()`` declines and Blender's own Space action runs there. No prefs, no area or an
+    area type outside ``core.tables.PLAZA_EDITORS`` -> True. Cheap; never raises."""
+    try:
+        addon_prefs = prefs.get_prefs(context)
+        if addon_prefs is None:
+            return True
+        area = context.area
+        return plaza_editor_enabled(area.type if area is not None else None,
+                                    addon_prefs.plaza_editors)
+    except Exception:
+        return True
 
 
 def release_key_for(event, fallback: str = 'SPACE') -> str:
@@ -345,6 +397,7 @@ def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
     Exceptions propagate (invoke cancels the session).
     """
     window, area = state.window, state.area
+    press = state.press if state.press is not None else state.anchor
     state.model = rows.build_model(
         context, rows.InvokeInfo(window, area, region, state.area_type, state.area_ui_type,
                                  state.context_mode), addon_prefs)
@@ -357,11 +410,40 @@ def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
                                    cap_height_fn=renderer.cap_height)
     bounds = state.bounds or Rect(0, 0, window.width, window.height)
     state.layout = geometry.layout(state.model, state.anchor, bounds, metrics,
-                                   renderer.text_width_fn(metrics.font_px))
+                                   renderer.text_width_fn(metrics.font_px),
+                                   ticks=style_parts(state.plaza_style).ticks)
     state.palette = theme.from_preferences(context, state.palette_style, state.transparency,
                                            state.custom_colors)
-    state.hover_id = geometry.hit_test(state.layout, *state.anchor)
+    state.hover_id = geometry.hit_test(state.layout, *press)
     dropdowns.after_layout(state)
+
+
+def place_plaza(state: PlazaState, area, window, anchor_mode: str | None,
+                scope: str | None) -> None:
+    """Phase 6 §3-4: ``state.plaza_anchor = anchor_mode``, ``draw_scope`` (the effective
+    ``scope``: AREA only over an area, ``core.geometry.effective_scope``), ``bounds``
+    (``core.geometry.scope_bounds``: the area rect under AREA, else ``screen_bounds``) and
+    ``anchor`` (``core.geometry.anchor_point`` of ``anchor_mode`` from ``state.press``, the
+    area's WINDOW region rect and the window rect, or the screen-area bbox when the window
+    reports no size). ``area`` / ``window`` are the live objects of the running invoke /
+    modal (read, never stored). Invoke calls it with the pref snapshots; an in-Plaza
+    preference change (``ops.dropdowns.rebuild_after_mode_change``) calls it with the new
+    values, then re-lays the Plaza out at ``state.anchor`` in ``state.bounds``. Never
+    raises."""
+    try:
+        press = state.press if state.press is not None else state.anchor
+        area_rect = state.area_bounds
+        state.plaza_anchor = anchor_mode or geometry.ANCHOR_CURSOR
+        state.draw_scope = geometry.effective_scope(scope, area_rect)
+        screen = state.screen_bounds if state.screen_bounds is not None else state.bounds
+        state.bounds = geometry.scope_bounds(state.draw_scope, screen, area_rect)
+        window_rect = Rect(0, 0, window.width, window.height) if window is not None else None
+        if window_rect is None or window_rect.is_empty():
+            window_rect = screen            # headless windows report 0 x 0
+        state.anchor = geometry.anchor_point(state.plaza_anchor, press,
+                                             window_region_rect(area), window_rect)
+    except Exception:
+        _log_exc("placing the Plaza failed; it opens at the pointer")
 
 
 def _hover_rect(layout, item_id: str | None) -> Rect | None:
@@ -477,8 +559,10 @@ class MESO_OT_plaza(Operator):
 
     @classmethod
     def poll(cls, context) -> bool:
-        """Decline (built-in Space runs) when disabled. Must stay cheap and deterministic."""
-        return not _disabled
+        """Decline (built-in Space runs) when disabled, or (Phase 6) over an editor switched
+        off in ``prefs.plaza_editors`` (:func:`editor_enabled`). Must stay cheap and
+        deterministic."""
+        return not _disabled and editor_enabled(context)
 
     def invoke(self, context, event) -> set[str]:
         """Open a session.
@@ -504,6 +588,11 @@ class MESO_OT_plaza(Operator):
           measured with ``renderer.text_width_fn``: the only measuring of the session),
           ``state.palette`` from ``view.theme.from_preferences`` and the initial
           ``hover_id`` (hit test at the mouse).
+        - Phase 6 (local/docs/phase6-interfaces.md §1-4): ``press`` = the event point (the
+          hovered area and the initial hover are hit-tested there), ``area_ptr``, the
+          ``plaza_style`` snapshot (the model's rows / side boxes, the layout's ticks) and
+          :func:`place_plaza` (``plaza_anchor`` -> ``anchor``, ``plaza_draw_scope`` ->
+          ``draw_scope`` / ``bounds``).
         - ``HandlerSet().start(state)``, ``wm.event_timer_add(WATCHDOG_INTERVAL,
           window=window)``, ``wm.modal_handler_add(self)``, set ``_running``;
           return ``{'RUNNING_MODAL'}``. Any exception -> ``_end`` + log + ``{'CANCELLED'}``.
@@ -541,13 +630,18 @@ class MESO_OT_plaza(Operator):
             context_mode = context.mode
 
             addon_prefs = prefs.get_prefs(context)
+            area_rect = _region_rect(area) if area is not None else None
+            screen_bounds = bounding_box(_region_rect(a) for a in screen.areas)
             state = PlazaState(
                 window_ptr=window.as_pointer(),
                 screen_ptr=screen.as_pointer(),
                 anchor=(x, y),
                 t0=t0,
-                bounds=bounding_box(_region_rect(a) for a in screen.areas),
-                area_bounds=_region_rect(area) if area is not None else None,
+                bounds=screen_bounds,
+                area_bounds=area_rect,
+                screen_bounds=screen_bounds,
+                press=(x, y),
+                area_ptr=area.as_pointer() if area is not None else 0,
                 seams=ddg.area_seams(_region_rect(a) for a in screen.areas),
                 area_type=area_type,
                 area_ui_type=area_ui_type,
@@ -571,6 +665,9 @@ class MESO_OT_plaza(Operator):
                 if state.palette_style == theme.STYLE_CUSTOM:
                     state.custom_colors = prefs.custom_colors(addon_prefs)
                 state.debug_timing = bool(addon_prefs.debug_timing)
+                state.plaza_style = str(getattr(addon_prefs, 'plaza_style', state.plaza_style))
+                place_plaza(state, area, window, getattr(addon_prefs, 'plaza_anchor', None),
+                            getattr(addon_prefs, 'plaza_draw_scope', None))
             state.window, state.area = window, area
             state.region = region if region_type == 'WINDOW' else _window_region(area)
             _build_content(state, context, region, addon_prefs)
@@ -583,6 +680,8 @@ class MESO_OT_plaza(Operator):
                          handler_region_type=handler_region_type,
                          mode_keymap=state.mode_keymap, release_key=state.release_key,
                          hover_redraws=0, handoff=None, handoff_result=None, action=None,
+                         anchor=state.anchor, press=state.press,
+                         plaza_style=state.plaza_style, draw_scope=state.draw_scope,
                          **dropdowns.summary(None),
                          tap_action=effective_tap_action(state.tap_action,
                                                          state.tap_action_view3d, area_type))

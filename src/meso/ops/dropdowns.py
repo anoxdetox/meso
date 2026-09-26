@@ -575,11 +575,17 @@ def _replace_row_item(model: PlazaModel, new: Item) -> PlazaModel:
     return dataclasses.replace(model, rows=tuple(rows_out), **line)
 
 
-def _relayout(state: Any, session: MenuSession) -> None:
-    """Re-place the Plaza after a model change (same anchor, bounds and metrics)."""
+def _relayout(state: Any, session: MenuSession, bounds: Any = None) -> None:
+    """Re-place the Plaza after a model change (same anchor, bounds and metrics; ``bounds``
+    given: those, after a Phase 6 draw-scope change). The zone ticks follow
+    ``state.plaza_style`` (none for CENTER_ONLY)."""
     metrics = state.layout.metrics
-    state.layout = geometry.layout(state.model, state.anchor, state.layout.window_bounds,
-                                   metrics, renderer.text_width_fn(metrics.font_px))
+    if bounds is None:
+        bounds = state.layout.window_bounds
+    ticks = zones.style_parts(getattr(state, 'plaza_style', zones.STYLE_FULL)).ticks
+    state.layout = geometry.layout(state.model, state.anchor, bounds,
+                                   metrics, renderer.text_width_fn(metrics.font_px),
+                                   ticks=ticks)
 
 
 def _make_native(state: Any, session: MenuSession, label_id: str) -> None:
@@ -818,12 +824,22 @@ def rebuild_after_mode_change(state: Any, context: Any, mode: str | None) -> Non
     session.cache.invalidate()
     info = _info(state)
     addon_prefs = prefs.get_prefs(context)
+    bounds = None
+    if addon_prefs is not None:
+        # Phase 6: a preference change from inside the Plaza (style, anchor, draw scope)
+        # applies at once, re-placed from the same press point.
+        from . import plaza as ops_plaza    # function-level: ops.plaza imports this module
+        state.plaza_style = rows.plaza_style(addon_prefs)
+        ops_plaza.place_plaza(state, state.area, state.window,
+                              getattr(addon_prefs, 'plaza_anchor', None),
+                              getattr(addon_prefs, 'plaza_draw_scope', None))
+        bounds = getattr(state, 'bounds', None)
     model = rows.build_model(context, info, addon_prefs)
     model = rec_dropdown.classify_rows(context, info, model, session.cache,
                                        show_shortcuts=session.show_shortcuts,
                                        debug_timing=bool(getattr(state, 'debug_timing', False)))
     state.model = model
-    _relayout(state, session)
+    _relayout(state, session, bounds)
     session.models, session.chain = (), EMPTY_CHAIN
     session.mode_changes.append(mode)
 

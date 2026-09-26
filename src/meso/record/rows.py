@@ -16,6 +16,9 @@ Content:
   the add-on preferences); 'Recent Files' (:func:`recent_files_item`, left of Recent
   Commands) opens File > Open Recent as a custom dropdown (``record.builtin_menus``).
 
+Phase 6 (local/docs/phase6-interfaces.md §1-2): the ``plaza_style`` and the row / side-box
+toggles decide which parts are built at all (:func:`shown_parts`).
+
 Only the live objects in :class:`InvokeInfo` and ``context`` are read, during the call; the
 returned model is plain data.
 """
@@ -40,6 +43,7 @@ from ..core.tables import (
     RECENT_FILES_LABEL, RECENT_LABEL, UI_TYPE_LABELS,
     c_only_menu_allowed, ordered_workspaces,
 )
+from ..core import zones
 from . import header, header_controls, recorder
 from .topbar import root_row
 
@@ -279,6 +283,54 @@ def _record_area(context: Any, info: InvokeInfo) -> Any | None:
         return None
 
 
+@dataclass(frozen=True, slots=True)
+class ShownParts:
+    """Which parts of the Plaza the preferences keep (Phase 6, local/docs/phase6-interfaces.md
+    §1-2): the four rows and the three centre-line side boxes (the centre box always shows)."""
+
+    root: bool = True
+    contextual: bool = True
+    tool_settings: bool = True
+    workspace: bool = True
+    recent: bool = True
+    files: bool = True
+    controls: bool = True
+
+
+def _pref_str(prefs: Any, name: str, default: str) -> str:
+    """``str(prefs.<name>)``, ``default`` when prefs is None or lacks it."""
+    if prefs is None:
+        return default
+    try:
+        return str(getattr(prefs, name, default))
+    except Exception:
+        return default
+
+
+def plaza_style(prefs: Any) -> str:
+    """``prefs.plaza_style`` (``core.zones.PLAZA_STYLES``); FULL when prefs is None."""
+    return _pref_str(prefs, 'plaza_style', zones.STYLE_FULL)
+
+
+def shown_parts(prefs: Any) -> ShownParts:
+    """The :class:`ShownParts` of ``prefs`` (None -> everything): the ``plaza_style`` keeps
+    rows / side boxes at all (``core.zones.style_parts``), then each row toggle
+    (``show_root_row``, ``show_contextual_row``, ``show_tool_settings_row``,
+    ``show_workspace_row``) and side-box toggle (``show_recent_commands``,
+    ``show_recent_files``) hides its part; the Meso Settings box shows whenever the style
+    has side boxes (decision 96 a)."""
+    style = zones.style_parts(plaza_style(prefs))
+    rows_on, side_on = style.rows, style.side_boxes
+    return ShownParts(
+        root=rows_on and _pref(prefs, 'show_root_row', True),
+        contextual=rows_on and _pref(prefs, 'show_contextual_row', True),
+        tool_settings=rows_on and _pref(prefs, 'show_tool_settings_row', True),
+        workspace=rows_on and _pref(prefs, 'show_workspace_row', True),
+        recent=side_on and _pref(prefs, 'show_recent_commands', True),
+        files=side_on and _pref(prefs, 'show_recent_files', True),
+        controls=side_on)
+
+
 def build_model(context: Any, info: InvokeInfo, prefs: Any = None) -> PlazaModel:
     """The session model: rows ``(root_row(context), Row(ROW_CONTEXTUAL),
     Row(ROW_TOOL_SETTINGS), workspace_row(...))`` (root + contextual above the centre;
@@ -294,16 +346,47 @@ def build_model(context: Any, info: InvokeInfo, prefs: Any = None) -> PlazaModel
     :func:`tool_settings_row`; workspace items carry ``Action(ACTION_WORKSPACE, target=name)``,
     the side items ``ACTION_REPEAT_HISTORY`` / ``ACTION_ADDON_PREFS``. ``recordings`` is
     dropped before returning (it holds live RNA).
+
+    Phase 6: only the parts :func:`shown_parts` keeps are built; a hidden row is absent from
+    ``rows`` (never recorded: the header is recorded only for a shown contextual or Tool
+    Settings row) and a hidden side box is None, so nothing hidden takes part in hit tests,
+    hover-open, the aim guard or keyboard navigation.
     """
-    recordings = _record_area(context, info)
+    parts = shown_parts(prefs)
+    recordings = (_record_area(context, info) if parts.contextual or parts.tool_settings
+                  else None)
     try:
-        contextual = contextual_row(context, info, recordings)
-        tools = tool_settings_row(context, info, recordings, prefs)
+        contextual = contextual_row(context, info, recordings) if parts.contextual else None
+        tools = tool_settings_row(context, info, recordings, prefs) if parts.tool_settings \
+            else None
     finally:
         del recordings
     recent, controls = side_items()
-    rows = (root_row(context), contextual, tools, workspace_row(context, info))
-    return PlazaModel(rows, center_item(context, info), recent, controls, recent_files_item())
+    rows = (root_row(context) if parts.root else None, contextual, tools,
+            workspace_row(context, info) if parts.workspace else None)
+    return PlazaModel(tuple(row for row in rows if row is not None), center_item(context, info),
+                      recent if parts.recent else None, controls if parts.controls else None,
+                      recent_files_item() if parts.files else None)
+
+
+def compass_tool_settings_row(context: Any, info: InvokeInfo, model: PlazaModel | None,
+                              prefs: Any = None) -> tuple[Row, bool]:
+    """``(row, in_plaza)`` for the Tool Settings Compass (``record.compass``): the Plaza's
+    own Tool Settings row (``in_plaza`` True: its cascades open the row labels) when
+    ``model`` has one; else, when the ``plaza_style`` hides every row (ZONES_ONLY: the
+    Compass still offers the tool settings), a row recorded now with the row toggles of
+    :func:`tool_settings_row` (``in_plaza`` False: no label to open); else an empty row (the
+    row toggle hides it: the Compass has nothing, as before Phase 6). Never raises."""
+    row = model.row(ROW_TOOL_SETTINGS) if model is not None else None
+    if row is not None:
+        return row, True
+    if zones.style_parts(plaza_style(prefs)).rows:
+        return Row(ROW_TOOL_SETTINGS), False
+    recordings = _record_area(context, info)
+    try:
+        return tool_settings_row(context, info, recordings, prefs), False
+    finally:
+        del recordings
 
 
 def refresh_tool_settings(context: Any, info: InvokeInfo, model: PlazaModel,
