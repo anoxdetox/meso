@@ -89,6 +89,19 @@ pivot ... the exact moment you release the D key, Pivot Edit Mode turns off"):
   the ray hits the cube, opposite every axis handle, outside the centre circle): measured what an LMB drag off the gizmo does
   while D is held with the Move tool (decision 48).
 
+G19 (round 5: "tapping d or hold d in non object mode should yank you to object mode"; the D
+press in another mode switches to Object Mode first, then it is D in Object Mode):
+
+- ``ri_d_edit_hold_gizmo``: in Edit Mesh, D held 1.5 s: Object Mode at the press (every repeat
+  passes through, the Object Mode D item lets them by), a Move-gizmo drag while D is down moves
+  only the origin, the release gives the user's value back, and the user stays in Object Mode.
+- ``ri_d_edit_hold_short_drag``: in Edit Mesh, D down and a gizmo drag right after it (before the
+  first repeat): the switch happened at the press, so the drag already edits the origin.
+- ``ri_d_edit_tap_gizmo``: in Edit Mesh, a D tap: Object Mode, armed; the next gizmo drag moves
+  only the origin and restores.
+- ``ri_d_edit_annotate``: in Edit Mesh, D held + an LMB drag in empty space with the Tweak tool:
+  after the switch, Blender's D + LMB annotate still draws a stroke (no transform).
+
 Every drag also checks it was a free move (``check_free_move``): the translate it ran finished
 with no axis constraint, and the cube moved off a single world axis. A key repeat that reached
 the Transform Modal Map (X = AXIS_X) would still move the cube, only along X. There is no
@@ -712,8 +725,14 @@ def p_drag(case, label, where="gizmo", cancel=False, key_up_at=None):
     return d
 
 
-def d_case(body, tool_id="builtin.move"):
-    """A G17 scenario: ``body(rec, case)`` drives it; this sets up and restores."""
+def set_mode(mode):
+    with ctx3d():
+        bpy.ops.object.mode_set(mode=mode)
+
+
+def d_case(body, tool_id="builtin.move", mode='OBJECT'):
+    """A G17 scenario: ``body(rec, case)`` drives it; this sets up and restores. ``mode``: the
+    mode it starts in (G19), after the Object Mode tool is set."""
     def run(rec):
         case = {"modals_seen": [], "transforms": [], "drags": []}
         rec["case"] = case
@@ -729,6 +748,9 @@ def d_case(body, tool_id="builtin.move"):
                 o.select_set(o is cube)
             bpy.context.view_layer.objects.active = cube
             set_user()
+            if mode != 'OBJECT':
+                set_mode(mode)
+                case["start_mode"] = bpy.context.mode
             XT.move_win(to_win(cube.location))
             yield 0.4
             case["t0"] = len(TRACE)
@@ -741,6 +763,8 @@ def d_case(body, tool_id="builtin.move"):
                                if e["type"] == 'D' and e["is_repeat"]]
         finally:
             XT.release_all()
+            if bpy.context.mode != 'OBJECT':
+                set_mode('OBJECT')
             hold_mod().end_all()
             for v, co in zip(me.vertices, original):
                 v.co = co
@@ -938,6 +962,69 @@ def _d_cancel_keeps(rec, case):
     origins_drag(rec, d, "drag")
 
 
+# ------------------------------------------------------------------------------ G19: D from a mode
+
+def _started_in_edit(rec, case):
+    check(rec, "started_in_edit_mesh", case.get("start_mode") == 'EDIT_MESH',
+          case.get("start_mode"))
+
+
+def _in_object_mode(rec, name):
+    cube = bpy.data.objects["Cube"]
+    check(rec, name, bpy.context.mode == 'OBJECT' and cube.mode == 'OBJECT',
+          [bpy.context.mode, cube.mode])
+
+
+def _d_edit_hold_gizmo(rec, case):
+    _started_in_edit(rec, case)
+    XT.key("d", True)
+    yield from track(case, LONG)
+    _in_object_mode(rec, "object_mode_at_the_press")
+    check(rec, "repeats_seen", n_repeats(case) >= 10, n_repeats(case))
+    check(rec, "on_while_held", ts().use_transform_data_origin and not armed())
+    d = yield from p_drag(case, "drag1")
+    held_origins_drag(rec, d, "drag1")
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    released(rec, case, "d")
+    _in_object_mode(rec, "stays_in_object_mode")
+
+
+def _d_edit_hold_short_drag(rec, case):
+    _started_in_edit(rec, case)
+    XT.key("d", True)
+    yield from track(case, 0.03)
+    d = yield from p_drag(case, "drag1")        # its press comes ~0.3 s after D's
+    held_origins_drag(rec, d, "drag1")
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    released(rec, case, "d")
+    _in_object_mode(rec, "stays_in_object_mode")
+
+
+def _d_edit_tap_gizmo(rec, case):
+    _started_in_edit(rec, case)
+    yield from d_press(case)
+    _in_object_mode(rec, "tap_object_mode")
+    check(rec, "tap_armed", armed() and ts().use_transform_data_origin)
+    d = yield from p_drag(case, "drag1")
+    origins_drag(rec, d, "drag1")
+    _in_object_mode(rec, "stays_in_object_mode")
+
+
+def _d_edit_annotate(rec, case):
+    _started_in_edit(rec, case)
+    XT.key("d", True)
+    yield from track(case, 0.2)
+    _in_object_mode(rec, "object_mode_at_the_press")
+    d = yield from p_drag(case, "annotate", where="empty")
+    XT.key("d", False)
+    yield from track(case, 0.4)
+    check(rec, "annotated", d["strokes_added"] > 0, d["strokes_added"])
+    check(rec, "no_transform", not d["transformed"] and not d["moved"], d)
+    released(rec, case, "d")
+
+
 D_SCENARIOS = [
     ("ri_d_tap_gizmo", d_case(_d_tap_gizmo)),
     ("ri_d_tap_twice", d_case(_d_tap_twice)),
@@ -952,6 +1039,10 @@ D_SCENARIOS = [
     ("ri_d_hold_annotate_object", d_case(_d_annotate("object"), tool_id="builtin.select")),
     ("ri_d_hold_annotate_move_empty", d_case(_d_annotate("empty"), tool_id="builtin.move")),
     ("ri_d_hold_annotate_move_object", d_case(_d_annotate("face"), tool_id="builtin.move")),
+    ("ri_d_edit_hold_gizmo", d_case(_d_edit_hold_gizmo, mode='EDIT')),
+    ("ri_d_edit_hold_short_drag", d_case(_d_edit_hold_short_drag, mode='EDIT')),
+    ("ri_d_edit_tap_gizmo", d_case(_d_edit_tap_gizmo, mode='EDIT')),
+    ("ri_d_edit_annotate", d_case(_d_edit_annotate, tool_id="builtin.select", mode='EDIT')),
 ]
 
 

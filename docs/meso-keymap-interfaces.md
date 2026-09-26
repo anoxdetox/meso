@@ -427,6 +427,54 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     reading the overlay, while armed, with Insert on, Insert while held, with an X hold, the redo, the watcher, every
     teardown, the saved file) and `TestAnnotateWhileDHeld`; GUI G13 (simulated hold) and G18 (real input).
 
+- **Round 5 implemented: D outside Object Mode** (user request of 2026-09-26: "tapping d or hold d in non object mode
+  should yank you to object mode"; "hold d (in object mode) works great", so Object Mode is unchanged):
+  - **The D press in another 3D View mode switches to Object Mode first**, then it is exactly D in Object Mode (tap
+    = the one-shot, hold = origins while held, off at the release), and the user stays in Object Mode (no switch
+    back at the release). The switch is `object.mode_set(mode='OBJECT')` called the native way
+    (`to_object_mode`: `undo=True`, so it is its own undo step and the last registered operator, as the header's
+    mode menu or Tab; every object of a multi-object edit leaves it). It happens in `invoke`, at the press, before
+    `start_hold`: the overlay's snapshot is taken after the switch (the tool settings are the scene's, the same in
+    every mode, so the release restores exactly), and a hold with an immediate gizmo drag already runs in Object
+    Mode. `execute` (a menu, a script: a tap) switches the same way. Under `-b` the call runs without the undo push
+    (there is no undo stack; a nested `undo=True` call segfaults there, verified 5.2.2).
+  - **When the switch cannot run** (`object.mode_set.poll()` fails, or the mode stays after the call) D reports a
+    warning and returns CANCELLED: nothing is written, and the shadowed native D item after it does not run in its
+    place (decision "D outside Object Mode: a failed switch"). An auto-repeat never switches, nor a press while a
+    foreign modal runs (PASS_THROUGH, as in Object Mode).
+  - **Where D is bound** (`PIVOT_KEYMAPS`, 19 keymaps; audit of the installed `industry_compatible_data.py`, which
+    takes the Grease Pencil maps from `blender_default.py`): 'Object Mode', 'Mesh', 'Curve' (also Surface), 'Curves',
+    'Armature', 'Metaball', 'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint' (IC's D there: the
+    Annotate tool cycle, 'Curves' has it twice → `reloc_annotate`, Ctrl Alt D, already there since step 9), 'Pose',
+    'Lattice', 'Point Cloud', 'Particle', 'Grease Pencil Edit Mode', 'Grease Pencil Draw Mode', 'Grease Pencil
+    Sculpt Mode', 'Grease Pencil Vertex Paint' (bare D free), 'Grease Pencil Weight Paint' (IC's D:
+    `grease_pencil.weight_toggle_direction` → the new `reloc_gp_weight_direction`, Ctrl Alt D; Ctrl + drag and the
+    tool settings' Direction stay). '3D View' and '3D View Generic' have no D in IC (the D + LMB / RMB annotate
+    items are in 'Grease Pencil', key modifier D, untouched).
+  - **Not bound:** 'Font' (text editing: D types; forbidden keymap; `mode_plan('EDIT_TEXT')` is None, so the poll
+    fails too) and **'Sculpt'**: IC's D / Shift D step the multires level up / down (repeating), a pair with no
+    sensible second home, so D keeps it there (reported; decision "D outside Object Mode: Sculpt"). The operator
+    polls True in Sculpt Mode, so a user can add the item there in the keymap editor.
+  - **D + LMB** in another mode: the D press has switched to Object Mode, so an LMB drag off the gizmo draws the
+    annotation in Object Mode (Blender's 'Grease Pencil' keymap, as before); annotating without leaving the mode is
+    the Annotate tool (Ctrl Alt D).
+  - **Insert** (`meso.pivot_toggle`) stays Object Mode only (decision "D outside Object Mode: Insert").
+  - `core/pivot_once.py`: `OBJECT_MODE`, `SWITCH_MODES`, `D_MODES`, `mode_plan` (`HERE` / `SWITCH` / None);
+    `core/meso_bindings.py`: `PIVOT_KEYMAPS`, `pivot_once` items in all of them and its `displaces` (11 Annotate
+    items, 1 GP direction toggle), `reloc_gp_weight_direction`, four GP `KEYMAP_SPACES` entries, the descriptions;
+    `ops/snap_hold.py`: `D_MODES`, `to_object_mode`, `MESO_OT_pivot_once` (poll `D_MODES`, `_object_mode`, `invoke`,
+    `execute`, label "Edit Origins (Object Mode)", the tooltip); `keymap_prefs.py`: the Pivot hint.
+  - **Tests:** unit `TestModePlan` (`test_pivot_once.py`), `test_d_in_every_3d_view_mode_keymap`,
+    `test_gp_weight_direction_moves_to_ctrl_alt_d`, `test_the_description_says_d_switches_modes`
+    (`test_meso_bindings.py`); headless `TestDOutsideObjectMode` (the real `invoke` / `modal` with a stand-in window
+    manager: a hold from Edit Mesh with the exact restore and no switch back, a tap from Pose arming the one-shot
+    and a second tap cancelling it, every 3D View mode of the header table, Sculpt and Esc, a multi-object edit, the
+    `execute` tap, no switch on a repeat or under a foreign modal, a failed switch, `to_object_mode`, an armed
+    one-shot cancelled from Edit Mode), `TestDKeymaps` (D first in every `PIVOT_KEYMAPS` keymap, not in Sculpt / Font
+    / Text / Console / '3D View', GP Ctrl Alt D, the five D + mouse annotate items), the updated shadow, Ctrl Alt D
+    and poll tests; GUI (written, not run this round) G19 `mk_d_from_modes` (simulated) and `ri_d_edit_*` (real
+    input), and `mk_pivot`'s Edit Mode checks (Ctrl Alt D, Insert).
+
 ## Delivery model (user decision 1; step 4)
 - The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
   `keymap_data/industry_compatible_data.py` at every load, never exported) plus every item of the binding table,
@@ -571,13 +619,14 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 | `snap_hold_vertex` | Snapping | '3D View' | V (hold) | `meso.snap_hold(element='VERTEX')` | **on** (C2) | IC V View pie → **tap V** opens it click-style on release + the Plaza View ▸ Viewpoint menu + numpad views; the press-drag-release pie gesture is lost |
 | `snap_hold_increment` | Snapping | '3D View' | J (hold) | `meso.snap_hold(element='INCREMENT')` | **on** | nothing (J unbound in IC) |
 | ~~`pivot_hold`~~ | — | removed in step 9 (user item C): no D hold any more | | | | |
-| `pivot_once` | Pivot | 'Object Mode' | D (hold, and tap) | `meso.pivot_once` | **on** (step 9; the hold since step 11) | IC D annotate tool cycle → `reloc_annotate` (Ctrl+Alt+D) + toolbar; D + LMB annotate stays native off the gizmo while D is held (the modal passes the mouse press on; verified with real input, G18: the Tweak and the Move tool) |
+| `pivot_once` | Pivot | `PIVOT_KEYMAPS` (round 5): 'Object Mode' and every 3D View mode keymap but 'Sculpt' and 'Font' (list in Status, round 5); outside Object Mode it switches to Object Mode first | D (hold, and tap) | `meso.pivot_once` | **on** (step 9; the hold since step 11; every mode since round 5) | IC D annotate tool cycle (10 keymaps, 'Curves' twice) → `reloc_annotate` (Ctrl+Alt+D) + toolbar; 'Grease Pencil Weight Paint': IC D `grease_pencil.weight_toggle_direction` → `reloc_gp_weight_direction` (Ctrl+Alt+D) + Ctrl drag + the tool settings' Direction; D + LMB annotate stays native off the gizmo while D is held (the modal passes the mouse press on; verified with real input, G18: the Tweak and the Move tool) |
 | `reloc_annotate` | Pivot | `ANNOTATE_KEYMAPS`: 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves', 'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Image', 'UV Editor' | Ctrl+Alt+D | `wm.tool_set_by_id(name='builtin.annotate', cycle=True)` | on, `follows='pivot_once'` | nothing (free in every keymap that runs there; audit in `docs/spikes/meso-keymap-conflicts.md`) |
+| `reloc_gp_weight_direction` | Pivot | 'Grease Pencil Weight Paint' | Ctrl+Alt+D | `grease_pencil.weight_toggle_direction` | on, `follows='pivot_once'` (round 5) | nothing (free there and in every keymap that runs there: the Ctrl Alt D audit, `TestAnnotateRelocation`) |
 | `pivot_toggle` | Pivot | 'Object Mode' | Insert | `meso.pivot_toggle` | **on** | nothing (Insert only bound in 'Text') |
 
 Not bound, by design: hold-J snap inversion during a transform (API blocker, below); anything on Shift+RMB or
 Ctrl+Shift+RMB (Phase 5b); hold keys in the UV Editor, Grease Pencil modes and paint/sculpt modes (C11: the mode maps
-there keep X/V/C/D native); Ctrl+A outside the 3D View (C8); any other item in 'User Interface' (step 10 replaces
+there keep X/V/C native; D is bound there since round 5, except 'Sculpt'); Ctrl+A outside the 3D View (C8); any other item in 'User Interface' (step 10 replaces
 only IC's Alt+D driver removal there, with a wrapper that does exactly the same over a driven property).
 
 **The shadow test is the authority** (headless, step 1): with IC selected and every binding on, for each Meso item it
@@ -642,7 +691,7 @@ never saved. The user's keymap edits live in Blender's own keymap preferences (t
 | `meso.isolate_toggle` | REGISTER, UNDO | Ctrl+1; see "Isolate" |
 | `meso.properties_cycle` | REGISTER | Prop `direction` (+1 / −1; the keymap uses +1). See "Properties cycle" |
 | `meso.snap_hold` | INTERNAL (no UNDO: tool settings) | Prop `element` ('GRID' / 'EDGE' / 'VERTEX' / 'INCREMENT'). Modal; see "Pre-drag snapping" |
-| `meso.pivot_once` | INTERNAL (no UNDO: tool settings) | D (step 11): a hold modal (`_HoldMixin`, element PIVOT) from the press; Affect Only Origins while D is down, the user's value at the release; a tap (within `hold_tap_threshold`, nothing in between) arms or cancels the one-shot (`tap_once`, step 9). `execute` (no event) is a tap. Poll: 3D View and `context.mode == 'OBJECT'` (else IC's D runs) |
+| `meso.pivot_once` | INTERNAL (no UNDO: tool settings) | D (step 11): a hold modal (`_HoldMixin`, element PIVOT) from the press; Affect Only Origins while D is down, the user's value at the release; a tap (within `hold_tap_threshold`, nothing in between) arms or cancels the one-shot (`tap_once`, step 9). `execute` (no event) is a tap. Round 5: in another mode `invoke` / `execute` first switch to Object Mode (`to_object_mode`, `object.mode_set` with its undo step); a failed switch: WARNING report, CANCELLED. Poll: 3D View and `context.mode` in `D_MODES` (Object Mode and `SWITCH_MODES`: every 3D View mode but text editing; else the native item runs) |
 | `meso.pivot_toggle` | REGISTER | Insert: flips `tool_settings.use_transform_data_origin` (sticky, like the native checkbox, the persistent mode); with the one-shot armed it ends it and turns the option on. Poll: `context.mode == 'OBJECT'` |
 
 Apply, the select trio and the relocations use native operators directly (so menus show their new shortcuts).
@@ -727,7 +776,8 @@ keymap recorded; another keymap picked while on Meso with the choice MESO → KE
   J = INCREMENT; several keys held = the union, DEFAULT). **J also sets Affect Move + Rotate + Scale** while held
   (DEFAULT, so step snapping works before R and S); X/C/V leave Affect as the user has it.
 - The D hold (the D key, element PIVOT, step 11): `use_transform_data_origin = True` (Object Mode only) from the
-  press until the release (or the still-held check's timeout).
+  press until the release (or the still-held check's timeout). Round 5: a press in another mode switches to Object
+  Mode first; the snapshot is taken after the switch.
 - The D tap's one-shot (`ONCE_KEY`, element PIVOT): `use_transform_data_origin = True` (Object Mode only) until
   the next transform that edits origins (step 9; review fixes below).
 
@@ -793,8 +843,9 @@ Events → effects:
   `wm.call_menu_pie(VIEW3D_MT_view_pie)` (click-style), J → nothing.
 - Poll of `meso.snap_hold`: `context.area.type == 'VIEW_3D'` and `context.mode` in {OBJECT, EDIT_MESH, EDIT_CURVE,
   EDIT_SURFACE, EDIT_ARMATURE, POSE, EDIT_METABALL, EDIT_LATTICE, EDIT_CURVES, EDIT_POINTCLOUD, PARTICLE}. A False
-  poll lets the native item run (D1). `meso.pivot_once` / `meso.pivot_toggle`: `context.mode == 'OBJECT'` (Affect Only
-  Origins is Object Mode only; in edit modes D/Insert stay native: annotate cycle / nothing).
+  poll lets the native item run (D1). `meso.pivot_toggle`: `context.mode == 'OBJECT'` (Affect Only Origins is Object
+  Mode only; Insert does nothing in other modes). `meso.pivot_once` (round 5): `context.mode` in
+  `core.pivot_once.D_MODES`; outside Object Mode the press leaves the mode first (`mode_plan`, `to_object_mode`).
 
 ### D key: hold and one-shot tap (`core/pivot_once.py`, steps 9 and 11)
 - **The D hold** (step 11; `hold_step`, the D key modal): the press writes the overlay (`start_hold(..., 'PIVOT')`,
@@ -1131,7 +1182,8 @@ Snapping and pivot (Xwayland):
   and the option is the user's again after it; the next drag moves the object; a drag cancelled with Esc keeps it
   armed and the next one uses it; two taps cancel; Insert on / off (it stays on through a transform); a D tap while
   Insert's mode is on arms nothing; Insert while armed makes it persistent; Ctrl Alt D picks the Annotate tool; in
-  Edit Mode D is IC's Annotate tool and Insert does nothing. `mk_snap_taps`: D tap / second tap, Ctrl Alt D, and
+  Edit Mode Ctrl Alt D is the Annotate tool and Insert does nothing (until round 5: D there was IC's Annotate tool;
+  now G19 `mk_d_from_modes`: D switches to Object Mode first). `mk_snap_taps`: D tap / second tap, Ctrl Alt D, and
   `pivot_once` switched off gives D back to IC's Annotate on the press. Step 11 (simulated, so no repeats: the
   still-held check or the release ends it): D down writes the option at once, a gizmo drag while it is down edits
   the origin, the release restores, Adjust Last Operation on that move still edits only the origin, a long still
@@ -1220,6 +1272,12 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
   (`HOLD_OP_IDS`), `core/meso_bindings.py` (the `pivot_once` label and description), `ops/snap_hold.py`, `prefs.py`
   (the tap-threshold description), `keymap_prefs.py` (the Pivot hint and threshold), the tests above,
   `tests/gui/scenarios_snap_hold.py` (G13), `tests/gui/realinput_driver.py` (G18), README.
+
+### Step (round 5) — D outside Object Mode switches to Object Mode first (✅ implemented, see Status; user request of 2026-09-26)
+- Files: `core/pivot_once.py` (`mode_plan`, `SWITCH_MODES`, `D_MODES`), `core/meso_bindings.py` (`PIVOT_KEYMAPS`,
+  `reloc_gp_weight_direction`, GP `KEYMAP_SPACES`), `ops/snap_hold.py` (`to_object_mode`, `MESO_OT_pivot_once`),
+  `keymap_prefs.py` (the Pivot hint), the tests above, `tests/gui/scenarios_snap_hold.py` (G19, `mk_pivot`),
+  `tests/gui/realinput_driver.py` (G19 real input), README.
 
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
@@ -1430,3 +1488,32 @@ anything in Phase 5+.
     only, so opening the Plaza over the left third of a viewport, or at the centre of a 1280 px window at 2x,
     shifted the centre box off the pointer. The right side (beside Meso Settings) was measured too: the same
     imbalance mirrored.
+
+### Decision (round 5, D outside Object Mode: a failed switch)
+(DEFAULT in force: a.) D in another mode when `object.mode_set` cannot run (its poll fails, or the mode stays): (a)
+**in force:** a warning report and CANCELLED: nothing is written and the key does nothing, so D never means two things
+(the shadowed native item, the Annotate tool in most modes, stays on Ctrl Alt D); (b) PASS_THROUGH, so the native D
+item after it (Annotate, the GP direction toggle) runs instead.
+
+### Decision (round 5, D outside Object Mode: Sculpt)
+(DEFAULT in force: a; reported.) Sculpt Mode: (a) **in force:** no Meso D item; IC's D / Shift D keep stepping the
+multires level up / down (a repeating pair with no sensible second home); the operator polls True there, so a user
+can add D in the keymap editor; (b) D switches to Object Mode there too, and the multires step up moves to another
+key (Shift D would stay the step down).
+
+### Decision (round 5, D outside Object Mode: Grease Pencil Weight Paint)
+(DEFAULT in force: a.) IC's (Blender's) D there toggles the weight brush direction: (a) **in force:** D switches to
+Object Mode as in every other mode, the direction toggle moves to Ctrl Alt D (`reloc_gp_weight_direction`; Ctrl +
+drag and the tool settings' Direction stay); (b) no Meso D there (D keeps the toggle), as in Sculpt.
+
+### Decision (round 5, D outside Object Mode: Insert)
+(DEFAULT in force: a.) Insert in another mode: (a) **in force:** stays Object Mode only (nothing happens elsewhere):
+it is a persistent setting, not a gesture, and a key that silently leaves Edit Mode to flip an option that only
+works in Object Mode is a surprise; the header and the Plaza keep the checkbox; (b) Insert switches to Object Mode
+first too, like D (trivial: the same `to_object_mode` and the items in `PIVOT_KEYMAPS`).
+
+### Decision (round 5, D outside Object Mode: D + drag)
+(DEFAULT in force: a; report.) D + LMB drag off the gizmo in another mode: (a) **in force:** the D press switches to
+Object Mode, then Blender's D + LMB annotate draws the stroke there as in Object Mode; annotating without leaving the
+mode is the Annotate tool (Ctrl Alt D); (b) wait with the switch until a transform starts (the press would then no
+longer be "the moment of the switch", and a hold + an immediate gizmo drag would miss the Object Mode gizmo).

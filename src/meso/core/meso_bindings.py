@@ -113,6 +113,10 @@ KEYMAP_SPACES: dict[str, tuple[str, str]] = {
     'Lattice': ('EMPTY', 'WINDOW'),
     'Particle': ('EMPTY', 'WINDOW'),
     'Grease Pencil Edit Mode': ('EMPTY', 'WINDOW'),
+    'Grease Pencil Draw Mode': ('EMPTY', 'WINDOW'),
+    'Grease Pencil Sculpt Mode': ('EMPTY', 'WINDOW'),
+    'Grease Pencil Weight Paint': ('EMPTY', 'WINDOW'),
+    'Grease Pencil Vertex Paint': ('EMPTY', 'WINDOW'),
     'Grease Pencil Selection': ('EMPTY', 'WINDOW'),
     'Paint Face Mask (Weight, Vertex, Texture)': ('EMPTY', 'WINDOW'),
     'Paint Vertex Selection (Weight, Vertex)': ('EMPTY', 'WINDOW'),
@@ -228,6 +232,7 @@ KEY_APPLY = Key('A', ctrl=True, alt=True)
 KEY_ISOLATE = Key('ONE', ctrl=True)
 KEY_VERT_EXPAND = Key('ONE', ctrl=True, alt=True)
 KEY_ANNOTATE = Key('D', ctrl=True, alt=True)
+KEY_GP_WEIGHT_DIRECTION = KEY_ANNOTATE    # the new home of IC's D in GP Weight Paint
 KEY_DRIVER_REMOVE = KEY_DESELECT_ALL      # IC's 'User Interface' Alt D
 
 _TRIO_OPS = dict(TRIO_KEYMAPS)
@@ -264,6 +269,21 @@ _EDGE_SNAP_CURSOR_MAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball'
 ANNOTATE_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves',
                     'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Image',
                     'UV Editor')
+# The 3D View mode keymaps where D is ``meso.pivot_once`` (round 5: D outside Object Mode
+# switches to Object Mode first). What IC has on bare D there (audited from the installed
+# industry_compatible_data.py, which takes the Grease Pencil maps from blender_default.py): the
+# Annotate tool cycle in the ANNOTATE_KEYMAPS of the 3D View ('Curves' has it twice), the
+# direction toggle in 'Grease Pencil Weight Paint', nothing in the others. Never 'Font' (text
+# editing: D types) nor 'Sculpt' (IC's D / Shift D step the multires level up / down, a pair
+# with no sensible second home: D keeps it; ``meso.pivot_once`` polls True there, so a user can
+# add the item in the keymap editor).
+PIVOT_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves',
+                 'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Pose',
+                 'Lattice', 'Point Cloud', 'Particle', 'Grease Pencil Edit Mode',
+                 'Grease Pencil Draw Mode', 'Grease Pencil Sculpt Mode',
+                 'Grease Pencil Weight Paint', 'Grease Pencil Vertex Paint')
+_ANNOTATE_D_COUNT = {'Curves': 2}         # IC lists the same D item twice there
+_GP_WEIGHT_DIRECTION = native_call('grease_pencil.weight_toggle_direction')
 
 
 def _properties_displaced():
@@ -275,6 +295,17 @@ def _properties_displaced():
         elif km in _TRIO_OPS:
             out.append(Displaced(km, KEY_IC_SELECT_ALL,
                                  native_call(_TRIO_OPS[km], _action('SELECT')), 'select_all'))
+    return tuple(out)
+
+
+def _pivot_displaced():
+    out = []
+    for km in PIVOT_KEYMAPS:
+        if km in ANNOTATE_KEYMAPS:
+            out.extend([Displaced(km, Key('D'), _ANNOTATE_CYCLE, 'reloc_annotate')]
+                       * _ANNOTATE_D_COUNT.get(km, 1))
+        elif km == 'Grease Pencil Weight Paint':
+            out.append(Displaced(km, Key('D'), _GP_WEIGHT_DIRECTION, 'reloc_gp_weight_direction'))
     return tuple(out)
 
 
@@ -423,24 +454,37 @@ BINDINGS: tuple[Binding, ...] = (
     # -- Pivot (step 3; user item C of 2026-09-26) ------------------------------------------
     Binding(
         'pivot_once', 'PIVOT', "Hold or Tap D: Edit Origins",
-        "Hold D in Object Mode: every move, rotate or scale while it is down moves only the "
-        "object origins (Affect Only Origins), and your setting comes back when you let go. A "
-        "quick tap: only the next transform does (tap D again to cancel). It replaces Industry "
-        "Compatible's D Annotate tool there, which moves to Ctrl Alt D; D + drag off the gizmo "
-        "still draws an annotation",
+        "Hold D: every move, rotate or scale while it is down moves only the object origins "
+        "(Affect Only Origins), and your setting comes back when you let go. A quick tap: only "
+        "the next transform does (tap D again to cancel). In any other 3D View mode (Edit, "
+        "Pose, the paint modes, Grease Pencil; not Sculpt or text editing) D switches to "
+        "Object Mode first and you stay there. It replaces Industry Compatible's D Annotate "
+        "tool, which moves to Ctrl Alt D, and in Grease Pencil Weight Paint the D direction "
+        "toggle, also on Ctrl Alt D; D + drag off the gizmo still draws an annotation",
         True,
-        (Item('Object Mode', Key('D'), 'meso.pivot_once'),),
-        (Displaced('Object Mode', Key('D'), _ANNOTATE_CYCLE, 'reloc_annotate'),),
+        tuple(Item(km, Key('D'), 'meso.pivot_once') for km in PIVOT_KEYMAPS),
+        _pivot_displaced(),
     ),
     Binding(
         'reloc_annotate', 'PIVOT', "Annotate Tool",
         "Ctrl Alt D switches to the Annotate tool (again: its next variant) wherever Industry "
         "Compatible has it on D: the 3D View modes, the Image Editor and the UV Editor. The "
-        "new home of D in Object Mode; D keeps it in the other modes. Displaces nothing",
+        "new home of D in the 3D View, where D edits origins; D keeps it in the Image and UV "
+        "Editors. Displaces nothing",
         True,
         tuple(Item(km, KEY_ANNOTATE, 'wm.tool_set_by_id',
                    (('name', 'builtin.annotate'), ('cycle', True)))
               for km in ANNOTATE_KEYMAPS),
+        follows='pivot_once',
+    ),
+    Binding(
+        'reloc_gp_weight_direction', 'PIVOT', "Grease Pencil Weight Direction",
+        "Ctrl Alt D toggles the weight brush between add and subtract in Grease Pencil Weight "
+        "Paint, the new home of its D there (Ctrl + drag still paints the other way, and the "
+        "tool settings have the direction). Displaces nothing",
+        True,
+        (Item('Grease Pencil Weight Paint', KEY_GP_WEIGHT_DIRECTION,
+              'grease_pencil.weight_toggle_direction'),),
         follows='pivot_once',
     ),
     Binding(

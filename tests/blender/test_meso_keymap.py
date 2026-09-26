@@ -26,9 +26,10 @@ ALL_IDS = ('select_all', 'deselect_all', 'driver_remove_pass', 'select_invert',
            'reloc_clip_show_disabled',
            'select_keys_extra', 'isolate', 'reloc_mesh_vert_expand', 'properties_cycle',
            'apply_menu', 'snap_hold_grid', 'snap_hold_edge', 'snap_hold_vertex',
-           'snap_hold_increment', 'pivot_once', 'reloc_annotate', 'pivot_toggle')
+           'snap_hold_increment', 'pivot_once', 'reloc_annotate', 'reloc_gp_weight_direction',
+           'pivot_toggle')
 LIVE_IDS = ALL_IDS
-N_ITEMS = 24 + 24 + 1 + 24 + 1 + 12 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 1 + 12 + 1
+N_ITEMS = 24 + 24 + 1 + 24 + 1 + 12 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 19 + 12 + 1 + 1
 
 
 def _mod(name):
@@ -398,12 +399,23 @@ class TestUserEdits(MesoKeymapCase):
         # the D tap off: D is Industry Compatible's Annotate tool cycle again
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D')))
         self.assertEqual(first.idname, 'meso.pivot_once')
-        self.assertEqual(mk().set_binding_active('pivot_once', False), 1)
+        n = len(mb().PIVOT_KEYMAPS)
+        self.assertEqual(mk().set_binding_active('pivot_once', False), n)
         self.assertNotIn('pivot_once', mk().live_ids())
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D')))
         self.assertEqual(native_of(first),
                          "wm.tool_set_by_id(cycle=True, name='builtin.annotate')")
-        self.assertEqual(mk().set_binding_active('pivot_once', True), 1)
+        # round 5: in the other modes too (Edit Mesh: Annotate; GP Weight Paint: the direction
+        # toggle; Pose: nothing on D at all)
+        user = wm().keyconfigs.user
+        for name, native in (('Mesh', "wm.tool_set_by_id(cycle=True, name='builtin.annotate')"),
+                             ('Grease Pencil Weight Paint',
+                              'grease_pencil.weight_toggle_direction()'),
+                             ('Pose', None)):
+            d = [native_of(k) for k in find_builtin(user, name).keymap_items
+                 if k.active and key_matches(k, mb().Key('D'))]
+            self.assertEqual(d[:1], [native] if native else [], name)
+        self.assertEqual(mk().set_binding_active('pivot_once', True), n)
         self.assertIn('pivot_once', mk().live_ids())
 
     def test_warning_when_deselect_is_off(self):

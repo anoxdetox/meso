@@ -39,6 +39,10 @@ Reducers:
   transform that runs without a modal (Repeat Last, a script: the registered operator stays
   the same) uses it when it edits origins.
 - ``hold_transform``: whether a hold ran a transform (Adjust Last Operation keeps origins for it).
+- ``mode_plan``: D outside Object Mode (round 5, "tapping d or hold d in non object mode should
+  yank you to object mode"): the press first leaves the mode for Object Mode the native way
+  (``object.mode_set``, its own undo step), then D is exactly D in Object Mode, and the user
+  stays there. Text editing never (D types).
 """
 
 from __future__ import annotations
@@ -65,6 +69,35 @@ OTHER = 'OTHER'                  # a transform finished without editing origins 
 
 
 PAIR_WINDOW = 0.5                # seconds between an object's transform and its data's geometry
+
+# ------------------------------------------------------------------------------ modes
+
+OBJECT_MODE = 'OBJECT'           # Affect Only Origins is an Object Mode option
+
+# ``context.mode`` values that D leaves for Object Mode first (``mode_plan``): every 3D View mode
+# with an object mode to leave. Not 'EDIT_TEXT' (D types a letter there; the 'Font' keymap never
+# gets a Meso item) and not the legacy '*_GPENCIL' modes (no such object exists in 5.2).
+SWITCH_MODES = frozenset({
+    'EDIT_MESH', 'EDIT_CURVE', 'EDIT_CURVES', 'EDIT_SURFACE', 'EDIT_ARMATURE', 'EDIT_METABALL',
+    'EDIT_LATTICE', 'EDIT_GREASE_PENCIL', 'EDIT_POINTCLOUD', 'POSE', 'SCULPT', 'PAINT_WEIGHT',
+    'PAINT_VERTEX', 'PAINT_TEXTURE', 'PARTICLE', 'SCULPT_CURVES', 'PAINT_GREASE_PENCIL',
+    'SCULPT_GREASE_PENCIL', 'WEIGHT_GREASE_PENCIL', 'VERTEX_GREASE_PENCIL',
+})
+D_MODES = SWITCH_MODES | {OBJECT_MODE}      # where ``meso.pivot_once`` polls True (3D View)
+
+# mode_plan() results
+HERE, SWITCH = 'HERE', 'SWITCH'
+
+
+def mode_plan(mode):
+    """What a D press does about the mode: ``HERE`` (Object Mode: nothing to do), ``SWITCH``
+    (leave it for Object Mode first), or ``None`` (D is not Meso's there: text editing, or a
+    mode this table does not know)."""
+    if mode == OBJECT_MODE:
+        return HERE
+    if mode in SWITCH_MODES:
+        return SWITCH
+    return None
 
 
 @dataclass

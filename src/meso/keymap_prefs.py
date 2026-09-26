@@ -293,8 +293,9 @@ GROUP_HINTS = {
     'PIVOT': (
         "Hold D: every transform moves only the origins until you let go. Tap D: only the "
         "next transform does (tap D again to cancel). Insert: on until Insert again.",
-        "Object Mode only. Affect Only Origins is also in the Options menu of the header and "
-        "the Plaza Tool Settings row.",
+        "Affect Only Origins is an Object Mode option: in another 3D View mode D switches to "
+        "Object Mode first (not in Sculpt or text editing); Insert works in Object Mode only. "
+        "It is also in the Options menu of the header and the Plaza Tool Settings row.",
     ),
 }
 

@@ -198,6 +198,10 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   (a sidebar Location X with drivers on X and Y: both; a Principled BSDF socket value: its driver in the
   material's node tree) and pushes the native "Remove Driver" undo step (undo, redo, undo identical to native). A
   nested call without `undo=True` pushes no undo step. Headless the native returns CANCELLED (no hovered button).
+- A nested operator call with `undo=True` segfaults under `-b` when the operator would push an undo step: there
+  is no undo stack (`bpy.ops.ed.undo.poll()` is False). Measured with `object.mode_set('EXEC_DEFAULT', True,
+  mode='OBJECT')` from Edit Mesh (5.2.2, 2026-09-26); the plain call works. `ops/snap_hold.to_object_mode` passes
+  `undo=not bpy.app.background`.
 - **Info's selection can be read back** with `info.report_copy` (it copies the selected reports to the clipboard;
   nothing selected gives an empty clipboard), in an Info area override (GUI, `mk_select_keys`).
 - The Sequencer in 5.x shows the workspace's `sequencer_scene` (None in the factory file): strips added to

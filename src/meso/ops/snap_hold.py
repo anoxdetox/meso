@@ -11,7 +11,7 @@ snapping and pivot"; rules in ``core/snap_hold.py`` and ``core/pivot_once.py``).
   instead: the Meso keymap keeps Industry Compatible's item on the key after the Meso item (X
   toggles snapping, C the Cursor tool, V opens the View pie; J has none), and the user's edit
   of it is honoured.
-- ``meso.pivot_once`` (D in Object Mode) is a hold of the same kind (element PIVOT, the D key
+- ``meso.pivot_once`` (D in the 3D View) is a hold of the same kind (element PIVOT, the D key
   in the session): the press writes Affect Only Origins, so every transform while D is down
   (a gizmo drag, a keyboard transform) edits only the origins, and the release gives the user's
   value back (``core.pivot_once.hold_step``; the still-held check below covers a release
@@ -26,6 +26,14 @@ snapping and pivot"; rules in ``core/snap_hold.py`` and ``core/pivot_once.py``).
   again with Affect Only Origins on (``undo_post``, off again on the next timer tick).
   Industry Compatible's D (Annotate tool) is on Ctrl Alt D in the Meso keymap; D + LMB off the
   gizmo still draws an annotation (Blender's 'Grease Pencil' keymap), also while D is held.
+- D in another 3D View mode (``core.pivot_once.mode_plan``; round 5): the press first leaves the
+  mode for Object Mode the native way (``to_object_mode``: ``object.mode_set(mode='OBJECT')`` with
+  its own undo step, every object of a multi-object edit leaves it as with Tab), then it is D in
+  Object Mode: the hold's snapshot is taken after the switch, and the user stays in Object Mode
+  after the release. When the switch cannot run (its poll fails, or the mode stays) D reports it
+  and does nothing (CANCELLED: the native D item after it never runs instead, so D never means
+  two things). Only a real press switches: an auto-repeat never does, nor a press while a
+  foreign modal runs (PASS_THROUGH, as in Object Mode).
 - A native transform swallows every event while it runs, the key release too, so a read-only
   watcher timer reads ``Window.modal_operators``. When the transform (or any foreign modal) is
   gone the hold keeps the overlay and runs the still-held check (``core.snap_hold.step``): the
@@ -73,7 +81,8 @@ SNAP_MODES = frozenset({
     'OBJECT', 'EDIT_MESH', 'EDIT_CURVE', 'EDIT_SURFACE', 'EDIT_ARMATURE', 'POSE',
     'EDIT_METABALL', 'EDIT_LATTICE', 'EDIT_CURVES', 'EDIT_POINTCLOUD', 'PARTICLE',
 })
-PIVOT_MODES = frozenset({'OBJECT'})     # Affect Only Origins is an Object Mode option
+PIVOT_MODES = frozenset({po.OBJECT_MODE})   # Affect Only Origins is an Object Mode option (Insert)
+D_MODES = po.D_MODES                        # D: Object Mode, or another mode it leaves first
 
 MOUSE_BUTTONS = frozenset({'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE',
                            'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE', 'PEN', 'ERASER'})
@@ -686,16 +695,40 @@ _ONCE_REPORTS = {
 }
 
 
+def to_object_mode(context):
+    """D outside Object Mode: leave the mode for Object Mode first, the native way.
+
+    ``object.mode_set(mode='OBJECT')`` with ``undo=True`` (a Python call pushes no undo step
+    otherwise): its own undo step, registered as the last operator, and every object of a
+    multi-object edit leaves the mode, as with Tab. Under ``-b`` without the undo push: there is
+    no undo stack (``ed.undo.poll()`` is False) and a nested ``undo=True`` call segfaults
+    (verified 5.2.2). Mode changes are no ``tool_settings`` write, and the caller has checked
+    that no foreign modal runs. Returns ``po.HERE`` (Object Mode already), ``po.SWITCH``
+    (switched now) or None (not a D mode, the poll fails, or the mode stays: nothing changed)."""
+    mode = getattr(context, 'mode', None)
+    plan = po.mode_plan(mode)
+    if plan != po.SWITCH:
+        return plan
+    try:
+        if not bpy.ops.object.mode_set.poll():
+            return None
+        bpy.ops.object.mode_set('EXEC_DEFAULT', not bpy.app.background, mode='OBJECT')
+    except (RuntimeError, TypeError) as ex:
+        _log_once(f"mode_set:{mode}", f"D could not leave {mode} for Object Mode: {ex!r}")
+        return None
+    return po.SWITCH if context.mode == po.OBJECT_MODE else None
+
+
 class MESO_OT_pivot_once(_HoldMixin, Operator):
-    """D in Object Mode: hold it and every move, rotate or scale edits only the object origins until you let go; tap it and only the next transform does (tap again to cancel)"""
+    """Hold D and every move, rotate or scale edits only the object origins until you let go; tap it and only the next transform does (tap again to cancel). In another 3D View mode D switches to Object Mode first"""
     bl_idname = "meso.pivot_once"
-    bl_label = "Edit Origins"
+    bl_label = "Edit Origins (Object Mode)"
     bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
         area = context.area
-        return area is not None and area.type == 'VIEW_3D' and context.mode in PIVOT_MODES
+        return area is not None and area.type == 'VIEW_3D' and context.mode in D_MODES
 
     def _element(self):
         return sh.PIVOT
@@ -704,7 +737,16 @@ class MESO_OT_pivot_once(_HoldMixin, Operator):
         if action in _ONCE_REPORTS:
             self.report({'INFO'}, _ONCE_REPORTS[action])
 
+    def _object_mode(self, context) -> bool:
+        """Object Mode now (switched if needed); False with a warning when the switch failed."""
+        if to_object_mode(context) is not None:
+            return True
+        self.report({'WARNING'}, f"Edit Origins: cannot leave {context.mode} for Object Mode")
+        return False
+
     def execute(self, context):
+        if foreign_now(context) or not self._object_mode(context):
+            return {'CANCELLED'}
         action = tap_once(context)
         if action is None:
             return {'CANCELLED'}
@@ -714,6 +756,10 @@ class MESO_OT_pivot_once(_HoldMixin, Operator):
     def invoke(self, context, event):
         if not _is_key_event(event):
             return self.execute(context)    # no key (a menu, a script): a tap
+        if event.is_repeat or foreign_now(context):
+            return {'PASS_THROUGH'}         # as _HoldMixin.invoke: nothing starts, nothing switches
+        if not self._object_mode(context):
+            return {'CANCELLED'}
         return _HoldMixin.invoke(self, context, event)
 
 

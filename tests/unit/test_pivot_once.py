@@ -37,6 +37,45 @@ class TestTransformIds(unittest.TestCase):
         self.assertNotIn(po.EV_MODIFIER, (sh.EV_OTHER, sh.EV_OTHER_KEY))
 
 
+
+class TestModePlan(unittest.TestCase):
+    """Round 5: D outside Object Mode leaves the mode for Object Mode first (``mode_plan``)."""
+
+    # every context.mode value of Blender 5.2.2 (bpy.types.Context.bl_rna.properties['mode'])
+    ALL_MODES = ('EDIT_MESH', 'EDIT_CURVE', 'EDIT_CURVES', 'EDIT_SURFACE', 'EDIT_TEXT',
+                 'EDIT_ARMATURE', 'EDIT_METABALL', 'EDIT_LATTICE', 'EDIT_GREASE_PENCIL',
+                 'EDIT_POINTCLOUD', 'POSE', 'SCULPT', 'PAINT_WEIGHT', 'PAINT_VERTEX',
+                 'PAINT_TEXTURE', 'PARTICLE', 'OBJECT', 'PAINT_GPENCIL', 'EDIT_GPENCIL',
+                 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL', 'VERTEX_GPENCIL', 'SCULPT_CURVES',
+                 'PAINT_GREASE_PENCIL', 'SCULPT_GREASE_PENCIL', 'WEIGHT_GREASE_PENCIL',
+                 'VERTEX_GREASE_PENCIL')
+
+    def test_object_mode_is_here(self):
+        self.assertEqual(po.mode_plan('OBJECT'), po.HERE)
+        self.assertEqual(po.OBJECT_MODE, 'OBJECT')
+
+    def test_every_other_3d_view_mode_switches(self):
+        for mode in ('EDIT_MESH', 'EDIT_CURVE', 'EDIT_SURFACE', 'EDIT_CURVES', 'EDIT_ARMATURE',
+                     'EDIT_METABALL', 'EDIT_LATTICE', 'EDIT_POINTCLOUD', 'EDIT_GREASE_PENCIL',
+                     'POSE', 'SCULPT', 'SCULPT_CURVES', 'PAINT_WEIGHT', 'PAINT_VERTEX',
+                     'PAINT_TEXTURE', 'PARTICLE', 'PAINT_GREASE_PENCIL', 'SCULPT_GREASE_PENCIL',
+                     'WEIGHT_GREASE_PENCIL', 'VERTEX_GREASE_PENCIL'):
+            self.assertEqual(po.mode_plan(mode), po.SWITCH, mode)
+
+    def test_never_in_text_editing_or_unknown_modes(self):
+        for mode in ('EDIT_TEXT', 'PAINT_GPENCIL', 'EDIT_GPENCIL', 'SCULPT_GPENCIL',
+                     'WEIGHT_GPENCIL', 'VERTEX_GPENCIL', None, '', 'SOMETHING_NEW'):
+            self.assertIsNone(po.mode_plan(mode), mode)
+
+    def test_the_sets(self):
+        self.assertEqual(po.D_MODES, po.SWITCH_MODES | {'OBJECT'})
+        self.assertNotIn('OBJECT', po.SWITCH_MODES)
+        self.assertLessEqual(po.D_MODES, set(self.ALL_MODES))
+        self.assertEqual(set(self.ALL_MODES) - po.D_MODES,
+                         {'EDIT_TEXT', 'PAINT_GPENCIL', 'EDIT_GPENCIL', 'SCULPT_GPENCIL',
+                          'WEIGHT_GPENCIL', 'VERTEX_GPENCIL'})
+
+
 def d_state(pressed_at=0.0):
     return sh.HoldState('D', pressed_at)
 

@@ -29,11 +29,18 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
   transform: a Move-gizmo drag moves only the origin, the option is the user's again after it,
   and the next drag moves the object normally; a cancelled drag (Esc) keeps it armed for the
   next one; two taps cancel; Insert toggles the persistent mode, and Insert while armed makes
-  it persistent; Ctrl Alt D picks the Annotate tool; in Edit Mode D stays IC's Annotate tool
-  and Insert does nothing. The D hold (2026-09-26): D down writes the option at once, a drag
+  it persistent; Ctrl Alt D picks the Annotate tool (in Edit Mode too) and Insert does nothing
+  in Edit Mode. The D hold (2026-09-26): D down writes the option at once, a drag
   while it is down edits the origin, the release restores, Adjust Last Operation on that move
   still edits only the origin, a long still press arms nothing, and a hold while the one-shot
   is armed ends both.
+- G19 ``mk_d_from_modes`` (round 5: "tapping d or hold d in non object mode should yank you to
+  object mode"): a D tap in Edit Mode switches to Object Mode (the native ``object.mode_set``,
+  the last registered operator; Ctrl Z goes back to Edit Mode) and arms the one-shot; a second
+  tap from Edit Mode cancels it; a D hold in Edit Mode is in Object Mode at the press, a gizmo
+  drag while it is down edits the origin, the release restores and the user stays in Object
+  Mode; in Sculpt D stays IC's (no switch); with the binding switched off D in Edit Mode is
+  IC's Annotate tool again.
 - ``mk_protected_features``: with every binding on, Shift RMB places and drags the 3D cursor
   (and no add-on item uses Shift RMB, IC's cursor items fire first),
   RMB opens the context menu, Tab the search, Shift Tab (Quick Favorites) reaches no hold, a box
@@ -874,22 +881,133 @@ def scenarios(drv):
                       active_tool())
             tool("builtin.move")
             yield 0.2
-            # the pivot keys are Object Mode only: in Edit Mode D stays native, Insert nothing
+            # Edit Mode: Ctrl Alt D is the Annotate tool there too, Insert does nothing (Object
+            # Mode only); D switches to Object Mode first (round 5, mk_d_from_modes)
             drv.set_mode('EDIT')
             yield 0.3
             tool("builtin.select_box")
             yield 0.2
-            yield from key(c, 'D')
-            drv.check(rec, "edit_d_annotate_tool", active_tool() == "builtin.annotate"
-                      and not hold_mod().once_armed(), [active_tool(), debug()])
+            yield from key(c, 'D', ctrl=True, alt=True)
+            drv.check(rec, "edit_ctrl_alt_d_annotate_tool", active_tool() == "builtin.annotate"
+                      and bpy.context.mode == 'EDIT_MESH' and not hold_mod().once_armed(),
+                      [active_tool(), bpy.context.mode, debug()])
             yield from key(c, 'INSERT')
-            drv.check(rec, "edit_insert_nothing", not ts().use_transform_data_origin)
+            drv.check(rec, "edit_insert_nothing", not ts().use_transform_data_origin
+                      and bpy.context.mode == 'EDIT_MESH', [state(), bpy.context.mode])
             tool("builtin.select_box")
             drv.set_mode('OBJECT')
             yield 0.2
         finally:
             reset_cube()
             end(cube)
+            yield 0.3
+
+    # ------------------------------------------------------------------------------ G19
+
+    def sc_d_from_modes(rec):
+        cube = bpy.data.objects.get("Cube")
+        me = cube.data
+        original = [tuple(v.co) for v in me.vertices]
+
+        def reset_cube():
+            for v, co in zip(bpy.data.objects["Cube"].data.vertices, original):
+                v.co = co
+            bpy.data.objects["Cube"].data.update()
+            bpy.data.objects["Cube"].location = (0.0, 0.0, 0.0)
+
+        try:
+            begin(rec, cube)
+            yield 0.3
+            tool("builtin.move")                # Object Mode's tool: its gizmo after the switch
+            yield 0.3
+            c = to_win(cube.location)
+            drv.sim('MOUSEMOVE', 'NOTHING', c)
+            yield 0.2
+            # D tap in Edit Mode: Object Mode (the native mode_set, its own undo step), armed
+            drv.set_mode('EDIT')
+            yield 0.3
+            with v3d_ctx():
+                bpy.ops.ed.undo_push(message="Meso D from Edit Mode")
+            yield from key(c, 'D')
+            wm = bpy.context.window_manager
+            last = wm.operators[-1].bl_idname if len(wm.operators) else None
+            drv.check(rec, "edit_d_tap_object_mode", bpy.context.mode == 'OBJECT'
+                      and cube.mode == 'OBJECT', [bpy.context.mode, cube.mode])
+            drv.check(rec, "edit_d_tap_armed", ts().use_transform_data_origin
+                      and hold_mod().once_armed(), [state(), debug()])
+            drv.check(rec, "edit_d_switch_is_native", last == 'OBJECT_OT_mode_set', last)
+            drv.check(rec, "edit_d_tap_modal_ended", holds_running() == [], drv.modal_ops())
+            # Ctrl Z: back in Edit Mode (tool settings are not undone: still armed, native)
+            with v3d_ctx():
+                undo = bpy.ops.ed.undo()
+            yield 0.4
+            cube = bpy.data.objects["Cube"]      # the undo may re-read the IDs
+            drv.check(rec, "edit_d_undo_back_in_edit_mode", undo == {'FINISHED'}
+                      and bpy.context.mode == 'EDIT_MESH', [undo, bpy.context.mode])
+            # a second tap, from Edit Mode again: Object Mode, the one-shot cancelled
+            yield from key(c, 'D')
+            drv.check(rec, "edit_d_second_tap_cancels", bpy.context.mode == 'OBJECT'
+                      and state() == USER and not hold_mod().once_armed(),
+                      [bpy.context.mode, state(), debug()])
+            # D hold in Edit Mode + a gizmo drag: Object Mode at the press, the drag edits the
+            # origin, the release restores, the user stays in Object Mode
+            drv.set_mode('EDIT')
+            yield 0.3
+            c = to_win(cube.location)
+            drv.sim('MOUSEMOVE', 'NOTHING', c)
+            yield 0.2
+            before = world_verts(cube)
+            drv.sim('D', 'PRESS', c)
+            yield 0.1
+            drv.check(rec, "edit_d_hold_object_mode_at_the_press", bpy.context.mode == 'OBJECT'
+                      and ts().use_transform_data_origin and holds_running() == [PIVOT_OP],
+                      [bpy.context.mode, state(), debug()])
+            yield from gizmo_drag(c)
+            drv.check(rec, "edit_d_hold_drag_edits_the_origin", LAST_DRAG["transformed"]
+                      and any(abs(v) > 1e-3 for v in cube.location)
+                      and world_verts(cube) == before, rounded(cube.location))
+            drv.sim('D', 'RELEASE', c)
+            yield 0.3
+            yield from wait_until(lambda: state() == USER and holds_running() == [])
+            drv.check(rec, "edit_d_hold_release_restores", state() == USER
+                      and holds_running() == [] and not hold_mod().once_armed(),
+                      [state(), debug()])
+            drv.check(rec, "edit_d_hold_stays_in_object_mode", bpy.context.mode == 'OBJECT',
+                      bpy.context.mode)
+            # Sculpt: no Meso D there (IC's D / Shift D multires steps stay): no switch
+            reset_cube()
+            yield 0.2
+            drv.set_mode('SCULPT')
+            yield 0.3
+            yield from key(c, 'D')
+            drv.check(rec, "sculpt_d_stays_native", bpy.context.mode == 'SCULPT'
+                      and holds_running() == [] and state() == USER,
+                      [bpy.context.mode, state(), debug()])
+            drv.set_mode('OBJECT')
+            yield 0.2
+            # switched off in the keymap editor: D in Edit Mode is IC's Annotate tool again
+            mk().set_binding_active('pivot_once', False)
+            yield 0.2
+            drv.set_mode('EDIT')
+            yield 0.3
+            tool("builtin.select_box")
+            yield 0.2
+            yield from key(c, 'D')
+            drv.check(rec, "off_edit_d_annotate_tool", active_tool() == "builtin.annotate"
+                      and bpy.context.mode == 'EDIT_MESH' and holds_running() == [],
+                      [active_tool(), bpy.context.mode, drv.modal_ops()])
+            tool("builtin.select_box")
+            drv.set_mode('OBJECT')
+            mk().set_binding_active('pivot_once', True)
+            yield 0.2
+        finally:
+            try:
+                if bpy.context.mode != 'OBJECT':
+                    drv.set_mode('OBJECT')
+            except Exception:
+                pass
+            reset_cube()
+            end(bpy.data.objects.get("Cube"))
             yield 0.3
 
     # ------------------------------------------------------------------------------ sweep
@@ -1089,5 +1207,6 @@ def scenarios(drv):
         ("mk_snap_teardown", sc_snap_teardown),
         ("mk_snap_pie_limit", sc_snap_pie_limit),
         ("mk_pivot", sc_pivot),
+        ("mk_d_from_modes", sc_d_from_modes),
         ("mk_protected_features", sc_protected),
     ]

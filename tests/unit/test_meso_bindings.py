@@ -102,7 +102,7 @@ class TestTable(unittest.TestCase):
     def test_no_duplicate_keymap_key_over_the_whole_table(self):
         pairs = mb.table_items(mb.BINDINGS)
         self.assertEqual(len(pairs), sum(len(b.items) for b in mb.BINDINGS))
-        self.assertEqual(len(pairs), 137)
+        self.assertEqual(len(pairs), 156)
         with self.assertRaises(ValueError):
             mb.table_items((mb.binding('select_all'), mb.binding('select_all')))
 
@@ -198,13 +198,20 @@ class TestTable(unittest.TestCase):
 
     def test_pivot_once_moves_annotate_to_ctrl_alt_d(self):
         """User item C of 2026-09-26: D tap = one-shot pivot edit, IC's D Annotate tool moves
-        to Ctrl Alt D (the audit in docs/spikes/meso-keymap-conflicts.md)."""
+        to Ctrl Alt D (the audit in docs/spikes/meso-keymap-conflicts.md). Round 5: D is in
+        every 3D View mode keymap but Sculpt and Font (it switches to Object Mode first)."""
         b = mb.binding('pivot_once')
         self.assertEqual([(i.keymap, i.key, i.idname, i.props) for i in b.items],
-                         [('Object Mode', mb.Key('D'), 'meso.pivot_once', ())])
-        self.assertEqual([(d.keymap, d.key, d.now) for d in b.displaces],
-                         [('Object Mode', mb.Key('D'), 'reloc_annotate')])
-        self.assertIn('builtin.annotate', b.displaces[0].native)
+                         [(km, mb.Key('D'), 'meso.pivot_once', ()) for km in mb.PIVOT_KEYMAPS])
+        self.assertEqual(b.items[0].keymap, 'Object Mode')
+        annotate = [d for d in b.displaces if d.now == 'reloc_annotate']
+        self.assertEqual(sorted({d.keymap for d in annotate}),
+                         sorted(set(mb.ANNOTATE_KEYMAPS) & set(mb.PIVOT_KEYMAPS)))
+        self.assertEqual([d.keymap for d in annotate].count('Curves'), 2)   # IC has it twice
+        self.assertEqual(len(annotate), 11)
+        for d in annotate:
+            self.assertEqual(d.key, mb.Key('D'))
+            self.assertIn('builtin.annotate', d.native)
         reloc = mb.binding('reloc_annotate')
         self.assertEqual(reloc.follows, 'pivot_once')
         self.assertEqual(reloc.displaces, ())
@@ -212,12 +219,63 @@ class TestTable(unittest.TestCase):
         self.assertEqual(len(mb.ANNOTATE_KEYMAPS), 12)
         for item in reloc.items:
             self.assertEqual(item.key, mb.Key('D', ctrl=True, alt=True))
-            self.assertEqual(mb.native_call(item.idname, item.props), b.displaces[0].native)
+            self.assertEqual(mb.native_call(item.idname, item.props), annotate[0].native)
             self.assertIn(item.keymap, mb.KEYMAP_SPACES)
         self.assertEqual(mb.KEYMAP_SPACES['Image'], ('IMAGE_EDITOR', 'WINDOW'))
         self.assertTrue(mb.binding('pivot_toggle').default_on)
         self.assertNotIn('pivot_hold', ALL_IDS)
         self.assertEqual(mb.home_label('reloc_annotate'), "Ctrl Alt D (Annotate Tool)")
+
+    def test_d_in_every_3d_view_mode_keymap(self):
+        """Round 5 ("tapping d or hold d in non object mode should yank you to object mode"):
+        the D item is in each 3D View mode keymap; never in Font (text editing), Sculpt (IC's
+        D / Shift D multires pair stays) or a forbidden keymap. The Image / UV Editor keep D."""
+        kms = mb.PIVOT_KEYMAPS
+        self.assertEqual(len(kms), 19)
+        self.assertEqual(len(set(kms)), len(kms))
+        for name in ('Mesh', 'Curve', 'Curves', 'Armature', 'Pose', 'Metaball', 'Lattice',
+                     'Point Cloud', 'Sculpt Curves', 'Weight Paint', 'Vertex Paint',
+                     'Image Paint', 'Particle', 'Grease Pencil Edit Mode',
+                     'Grease Pencil Draw Mode', 'Grease Pencil Sculpt Mode',
+                     'Grease Pencil Weight Paint', 'Grease Pencil Vertex Paint'):
+            self.assertIn(name, kms)
+            self.assertEqual(mb.KEYMAP_SPACES[name], ('EMPTY', 'WINDOW'))
+        for name in ('Font', 'Sculpt', 'Image', 'UV Editor', '3D View', '3D View Generic',
+                     'Grease Pencil', 'Text'):
+            self.assertNotIn(name, kms)
+        d_maps = {i.keymap for b in mb.BINDINGS for i in b.items if i.key == mb.Key('D')}
+        self.assertEqual(d_maps, set(kms))
+        self.assertFalse([k for k in kms if mb.is_forbidden_keymap(k)])
+
+    def test_gp_weight_direction_moves_to_ctrl_alt_d(self):
+        """IC's (Blender's) D in Grease Pencil Weight Paint toggles the brush direction: shadowed
+        by D, it lives on Ctrl Alt D (plus Ctrl + drag and the tool settings' Direction)."""
+        b = mb.binding('pivot_once')
+        gp = [d for d in b.displaces if d.keymap == 'Grease Pencil Weight Paint']
+        self.assertEqual([(d.key, d.native, d.now, d.off) for d in gp],
+                         [(mb.Key('D'), 'grease_pencil.weight_toggle_direction()',
+                           'reloc_gp_weight_direction', False)])
+        reloc = mb.binding('reloc_gp_weight_direction')
+        self.assertEqual(reloc.follows, 'pivot_once')
+        self.assertEqual(reloc.displaces, ())
+        self.assertEqual([(i.keymap, i.key, i.idname, i.props) for i in reloc.items],
+                         [('Grease Pencil Weight Paint', mb.Key('D', ctrl=True, alt=True),
+                           'grease_pencil.weight_toggle_direction', ())])
+        self.assertEqual(mb.native_call(reloc.items[0].idname), gp[0].native)
+        self.assertEqual(mb.home_label('reloc_gp_weight_direction'),
+                         "Ctrl Alt D (Grease Pencil Weight Direction)")
+        # every other displaced D goes to the Annotate relocation
+        self.assertEqual({d.now for d in b.displaces},
+                         {'reloc_annotate', 'reloc_gp_weight_direction'})
+        live = [x for x in mb.BINDINGS if x.id != 'reloc_gp_weight_direction']
+        msgs = [m for m in mb.warnings(live) if 'weight_toggle_direction' in m]
+        self.assertEqual(len(msgs), 1, msgs)
+
+    def test_the_description_says_d_switches_modes(self):
+        text = mb.binding('pivot_once').description
+        self.assertIn("switches to Object Mode first", text)
+        self.assertIn("not Sculpt or text editing", text)
+        self.assertNotIn("Hold D in Object Mode", text)
 
     def test_annotate_off_warns_while_the_d_tap_is_on(self):
         live = [b for b in mb.BINDINGS if b.id != 'reloc_annotate']
@@ -247,7 +305,7 @@ class TestKeyconfigData(unittest.TestCase):
 
     def test_items_by_keymap_keeps_table_order(self):
         groups = mb.items_by_keymap()
-        self.assertEqual(sum(len(v) for v in groups.values()), 137)
+        self.assertEqual(sum(len(v) for v in groups.values()), 156)
         flat = [pair for pairs in groups.values() for pair in pairs]
         order = {id(item): n for n, (_bid, item) in enumerate(mb.table_items())}
         for pairs in groups.values():

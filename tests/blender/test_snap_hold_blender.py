@@ -446,6 +446,14 @@ class TestNoRepeatItemsOnHoldKeys(MesoKeymapCase):
                     found.add((km.name, kmi.idname))
         self.assertEqual(found, {('Sculpt', 'object.subdivision_set')})
         self.assertNotIn('SCULPT', hold().SNAP_MODES | hold().PIVOT_MODES)
+        # Round 5: D polls True in Sculpt (it would leave Sculpt Mode first, so the hold runs in
+        # Object Mode, where no repeat item is on D), but the Meso keyconfig binds no D there:
+        # IC's D / Shift D multires steps stay.
+        self.assertIn('SCULPT', hold().D_MODES)
+        km = wm().keyconfigs.user.keymaps.find('Sculpt', space_type='EMPTY',
+                                               region_type='WINDOW')
+        self.assertFalse([k for k in km.keymap_items if k.idname.startswith('meso.')
+                          and k.type == 'D'])
 
 
 class TestTeardown(HoldCase):
@@ -543,11 +551,14 @@ class TestPivotToggleAndPolls(HoldCase):
             self.assertTrue(bpy.ops.meso.pivot_toggle.poll())
         with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self), ctx():
             self.assertTrue(bpy.ops.meso.snap_hold.poll())
-            self.assertFalse(bpy.ops.meso.pivot_once.poll())
-            self.assertFalse(bpy.ops.meso.pivot_toggle.poll())
+            self.assertTrue(bpy.ops.meso.pivot_once.poll())     # round 5: it switches first
+            self.assertFalse(bpy.ops.meso.pivot_toggle.poll())  # Insert: Object Mode only
         with in_mode(None, 'SCULPT', expect='SCULPT', testcase=self), ctx():
             self.assertFalse(bpy.ops.meso.snap_hold.poll())
-            self.assertFalse(bpy.ops.meso.pivot_once.poll())
+            self.assertTrue(bpy.ops.meso.pivot_once.poll())     # no Meso item there, though
+        with in_mode('FONT', 'EDIT', expect='EDIT_TEXT', testcase=self), ctx():
+            self.assertFalse(bpy.ops.meso.pivot_once.poll())    # text editing: D types
+            self.assertFalse(bpy.ops.meso.pivot_toggle.poll())
         self.assertFalse(bpy.ops.meso.pivot_once.poll())    # no 3D View: IC's D runs
         # no 3D View: the native item runs (D1)
         self.assertFalse(bpy.ops.meso.snap_hold.poll())
@@ -1250,6 +1261,245 @@ class TestAnnotateWhileDHeld(MesoKeymapCase):
         self.assertFalse([f for f in found if f[1].startswith('meso.')])
 
 
+
+class _Ctx:
+    """``bpy.context`` (the current override) with a stand-in window manager: headless runs no
+    modal, so ``modal_handler_add`` only records the operator. ``mode`` can be faked."""
+
+    def __init__(self, **fake):
+        real = bpy.context.window_manager
+        self.added = []
+        self.window_manager = SimpleNamespace(windows=real.windows, operators=real.operators,
+                                              modal_handler_add=self.added.append)
+        self.__dict__.update(fake)
+
+    def __getattr__(self, name):
+        return getattr(bpy.context, name)
+
+
+def d_op():
+    """A stand-in ``meso.pivot_once`` instance: the class's own invoke / execute / modal."""
+    cls, mix = hold().MESO_OT_pivot_once, hold()._HoldMixin
+
+    class DOp:
+        invoke = cls.invoke
+        execute = cls.execute
+        _element = cls._element
+        _report = cls._report
+        _object_mode = cls._object_mode
+        modal = mix.modal
+
+        def __init__(self):
+            self.reports = []
+
+        def report(self, kind, msg):
+            self.reports.append((tuple(sorted(kind)), msg))
+
+    return DOp()
+
+
+class TestDOutsideObjectMode(HoldCase):
+    """Round 5 ("tapping d or hold d in non object mode should yank you to object mode"): a D
+    press in another 3D View mode leaves it for Object Mode first (``object.mode_set``, every
+    object of a multi-object edit too), then it is D in Object Mode: the overlay at once (its
+    snapshot taken after the switch), the hold or the tap at the release, which restores
+    exactly; the user stays in Object Mode. The stand-in op runs the real invoke and modal."""
+
+    def d_down(self, op, **fake):
+        with ctx():
+            c = _Ctx(**fake)
+            result = op.invoke(c, ev('D'))
+            mode = bpy.context.mode
+        return result, mode, c
+
+    def d_up(self, op, ago):
+        if ago:
+            hold()._ops['D'] = dataclasses.replace(hold()._ops['D'],
+                                                   pressed_at=time.monotonic() - ago)
+        with modal_ids([D_OP]), ctx():
+            return op.modal(bpy.context, ev('D', 'RELEASE'))
+
+    def test_hold_from_edit_mesh(self):
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self) as obj:
+            op = d_op()
+            result, mode, c = self.d_down(op)
+            self.assertEqual(result, {'RUNNING_MODAL'})
+            self.assertEqual((mode, obj.mode), ('OBJECT', 'OBJECT'))
+            self.assertEqual(c.added, [op])
+            self.assertEqual(state(), dict(USER, use_transform_data_origin=True))
+            self.assertEqual(hold().pivot_keys(), ('D',))
+            self.assertEqual(self.d_up(op, ago=1.0), {'FINISHED'})
+            self.assertEqual(state(), USER)                 # exact restore
+            self.assertEqual(bpy.context.mode, 'OBJECT')    # no switch back
+            self.assertFalse(hold().once_armed() or hold().session().active)
+            self.assertEqual(op.reports, [])
+
+    def test_tap_from_pose_arms_the_one_shot(self):
+        with in_mode('ARMATURE', 'POSE', expect='POSE', testcase=self) as obj:
+            op = d_op()
+            result, mode, _c = self.d_down(op)
+            self.assertEqual((result, mode, obj.mode), ({'RUNNING_MODAL'}, 'OBJECT', 'OBJECT'))
+            self.assertEqual(self.d_up(op, ago=0.0), {'FINISHED'})
+            self.assertTrue(hold().once_armed() and ts().use_transform_data_origin)
+            self.assertEqual(op.reports, [(('INFO',), hold()._ONCE_REPORTS['ARM'])])
+            # a second tap, now in Object Mode (nothing to switch): cancels
+            op = d_op()
+            result, mode, _c = self.d_down(op)
+            self.assertEqual((result, mode), ({'RUNNING_MODAL'}, 'OBJECT'))
+            self.d_up(op, ago=0.0)
+            self.assertEqual(op.reports, [(('INFO',), hold()._ONCE_REPORTS['CANCEL'])])
+            self.assertEqual(state(), USER)
+
+    def test_every_3d_view_mode(self):
+        from tests.blender.test_header import VIEW3D_MODES
+        seen = []
+        for kind, mode_set_mode, expect, _menus in VIEW3D_MODES:
+            if expect in ('OBJECT', 'EDIT_TEXT'):
+                continue
+            with self.subTest(mode=expect):
+                with in_mode(kind, mode_set_mode, expect=expect, testcase=self) as obj:
+                    with ctx():
+                        self.assertTrue(bpy.ops.meso.pivot_once.poll())
+                    op = d_op()
+                    result, mode, _c = self.d_down(op)
+                    self.assertEqual((result, mode, obj.mode),
+                                     ({'RUNNING_MODAL'}, 'OBJECT', 'OBJECT'))
+                    self.assertTrue(ts().use_transform_data_origin)
+                    self.d_up(op, ago=1.0)
+                    self.assertEqual(state(), USER)
+                    seen.append(expect)
+        self.assertEqual(sorted(seen), sorted(hold().po.SWITCH_MODES))
+
+    def test_sculpt_and_esc(self):
+        with in_mode(None, 'SCULPT', expect='SCULPT', testcase=self):
+            op = d_op()
+            result, mode, _c = self.d_down(op)
+            self.assertEqual((result, mode), ({'RUNNING_MODAL'}, 'OBJECT'))
+            with modal_ids([D_OP]), ctx():
+                self.assertEqual(op.modal(bpy.context, ev('ESC')), {'FINISHED', 'PASS_THROUGH'})
+            self.assertEqual(state(), USER)
+            self.assertEqual(bpy.context.mode, 'OBJECT')
+
+    def test_multi_object_edit_leaves_every_object(self):
+        from tests.blender.test_header import mode_set
+        with in_mode('MESH', 'OBJECT', testcase=self) as other:
+            cube = bpy.data.objects['Cube']
+            cube.select_set(True)
+            mode_set('EDIT')
+            self.assertEqual((cube.mode, other.mode), ('EDIT', 'EDIT'))
+            op = d_op()
+            result, mode, _c = self.d_down(op)
+            self.assertEqual((result, mode), ({'RUNNING_MODAL'}, 'OBJECT'))
+            self.assertEqual((cube.mode, other.mode), ('OBJECT', 'OBJECT'))
+            self.d_up(op, ago=1.0)
+            self.assertEqual(state(), USER)
+
+    def test_exec_is_a_tap_after_the_switch(self):
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):
+            with ctx():
+                self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})
+                self.assertEqual(bpy.context.mode, 'OBJECT')
+            self.assertTrue(hold().once_armed())
+            with ctx():
+                self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})
+            self.assertEqual(state(), USER)
+
+    def test_a_repeat_or_a_foreign_modal_never_switches(self):
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):
+            op = d_op()
+            with ctx():
+                self.assertEqual(op.invoke(_Ctx(), ev('D', is_repeat=True)), {'PASS_THROUGH'})
+                self.assertEqual(bpy.context.mode, 'EDIT_MESH')
+                with modal_ids(['TRANSFORM_OT_translate']):
+                    self.assertEqual(op.invoke(_Ctx(), ev('D')), {'PASS_THROUGH'})
+                    self.assertEqual(bpy.ops.meso.pivot_once(), {'CANCELLED'})
+                self.assertEqual(bpy.context.mode, 'EDIT_MESH')
+            self.assertEqual(state(), USER)
+            self.assertFalse(hold().session().active)
+
+    def test_a_failed_switch_does_nothing(self):
+        """``object.mode_set`` cannot run (here: no active object, the mode faked): D reports
+        it and returns CANCELLED (the native D item after it does not run instead)."""
+        view_layer = bpy.context.view_layer
+        old = view_layer.objects.active
+        view_layer.objects.active = None
+        try:
+            op = d_op()
+            result, _mode, c = self.d_down(op, mode='POSE')
+        finally:
+            view_layer.objects.active = old
+        self.assertEqual(result, {'CANCELLED'})
+        self.assertEqual(c.added, [])
+        self.assertEqual(op.reports,
+                         [(('WARNING',), "Edit Origins: cannot leave POSE for Object Mode")])
+        self.assertEqual(state(), USER)
+        self.assertFalse(hold().session().active)
+
+    def test_to_object_mode(self):
+        mod, po = hold(), hold().po
+        with ctx():
+            self.assertEqual(mod.to_object_mode(bpy.context), po.HERE)
+        with in_mode('FONT', 'EDIT', expect='EDIT_TEXT', testcase=self), ctx():
+            self.assertIsNone(mod.to_object_mode(bpy.context))
+            self.assertEqual(bpy.context.mode, 'EDIT_TEXT')     # never leaves text editing
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self), ctx():
+            self.assertEqual(mod.to_object_mode(bpy.context), po.SWITCH)
+            self.assertEqual(bpy.context.mode, 'OBJECT')
+
+    def test_armed_then_d_in_edit_mode_cancels(self):
+        with ctx():
+            self.assertEqual(hold().tap_once(bpy.context), 'ARM')
+        with in_mode(None, 'EDIT', expect='EDIT_MESH', testcase=self):
+            op = d_op()
+            self.d_down(op)
+            self.d_up(op, ago=0.0)
+            self.assertEqual(op.reports, [(('INFO',), hold()._ONCE_REPORTS['CANCEL'])])
+            self.assertEqual(state(), USER)
+            self.assertEqual(bpy.context.mode, 'OBJECT')
+
+
+class TestDKeymaps(MesoKeymapCase):
+    """Round 5: in the Meso keyconfig (the user keyconfig, what fires) D is ``meso.pivot_once``
+    first in every 3D View mode keymap but Sculpt and Font; what it shadows is listed (the
+    shadow test) and has a home: Annotate and the GP weight direction on Ctrl Alt D."""
+
+    def first_active(self, name, key):
+        km = wm().keyconfigs.user.keymaps.find(name, space_type='EMPTY', region_type='WINDOW')
+        return [k for k in km.keymap_items if k.active and key_matches(k, key)]
+
+    def test_d_first_in_every_mode_keymap(self):
+        self.meso_on()
+        for name in mb().PIVOT_KEYMAPS:
+            with self.subTest(keymap=name):
+                d = self.first_active(name, mb().Key('D'))
+                self.assertEqual(native_of(d[0]), 'meso.pivot_once()')
+
+    def test_not_in_sculpt_or_font(self):
+        self.meso_on()
+        d = self.first_active('Sculpt', mb().Key('D'))
+        self.assertEqual(native_of(d[0]), "object.subdivision_set(ensure_modifier=False, "
+                                          "level=1, relative=True)")
+        user = wm().keyconfigs.user
+        for name in ('Font', 'Text', 'Console', 'Sculpt', '3D View', '3D View Generic'):
+            km = next(k for k in user.keymaps if k.name == name)
+            self.assertFalse([k.idname for k in km.keymap_items
+                              if k.idname == 'meso.pivot_once'], name)
+        font = next(k for k in user.keymaps if k.name == 'Font')
+        self.assertFalse([k.idname for k in font.keymap_items if k.idname.startswith('meso.')])
+
+    def test_gp_weight_direction_on_ctrl_alt_d(self):
+        self.meso_on()
+        on = self.first_active('Grease Pencil Weight Paint', mb().Key('D', ctrl=True, alt=True))
+        self.assertEqual([native_of(k) for k in on], ['grease_pencil.weight_toggle_direction()'])
+
+    def test_d_drag_annotate_stays(self):
+        """D + LMB / RMB (the 'Grease Pencil' keymap's key_modifier items) stay native."""
+        self.meso_on()
+        km = next(k for k in wm().keyconfigs.user.keymaps if k.name == 'Grease Pencil')
+        mods = [k for k in km.keymap_items if k.key_modifier == 'D']
+        self.assertEqual(len(mods), 5)
+        self.assertTrue(all(k.active and k.idname == 'gpencil.annotate' for k in mods))
+
 class TestAnnotateRelocation(MesoKeymapCase):
     """IC's D Annotate tool is on Ctrl Alt D in the Meso keyconfig, in every IC keymap where D
     annotates; nothing else is on Ctrl Alt D in the keymaps that run there
@@ -1274,6 +1524,9 @@ class TestAnnotateRelocation(MesoKeymapCase):
                     continue
                 if km.name in mb().ANNOTATE_KEYMAPS and k.idname == 'wm.tool_set_by_id':
                     continue
+                if (km.name == 'Grease Pencil Weight Paint'
+                        and k.idname == 'grease_pencil.weight_toggle_direction'):
+                    continue            # round 5: the other relocation to Ctrl Alt D
                 out.append((km.name, k.idname))
         return out
 
@@ -1301,7 +1554,8 @@ class TestAnnotateRelocation(MesoKeymapCase):
                 self.assertEqual([native_of(k) for k in on],
                                  ["wm.tool_set_by_id(cycle=True, name='builtin.annotate')"])
                 d = [k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D'))]
-                expected = 'meso.pivot_once' if name == 'Object Mode' else 'wm.tool_set_by_id'
+                expected = ('meso.pivot_once' if name in mb().PIVOT_KEYMAPS
+                            else 'wm.tool_set_by_id')
                 self.assertEqual(d[0].idname, expected)
 
     def test_ctrl_alt_d_switches_to_annotate(self):
