@@ -35,10 +35,12 @@ def slot_key(zone: str, button: str) -> str:
 
 SLOT_KEYS = tuple(slot_key(z, b) for z in ZONES for b in ('L', 'M', 'R'))
 
-# Built-in Compass ids (``record.compass`` builds them).
+# Built-in Compass ids (``record.compass`` builds them). 'context' and 'tools' are the
+# right-click Compasses of ``meso.compass_rmb`` (docs/phase5b-interfaces.md): valid slot
+# values, never zone defaults.
 BUILTIN_PREFIX = 'meso:'
 BUILTIN_COMPASSES = ('layout', 'editors', 'select', 'toggles', 'tool_settings', 'views',
-                     'settings', 'workspaces')
+                     'settings', 'workspaces', 'context', 'tools')
 
 # The plan's defaults (§3.4 of the design draft); every other slot is empty.
 DEFAULT_SLOTS: dict[str, str] = {

@@ -136,6 +136,9 @@ class DrawState(Protocol):
     dropdown_hover: Any             # tuple[int, ...] | None: hovered dropdown item path
     dropdown_hover_cell: Any        # int | None: focused cell of a hovered table row
     open_label: str | None          # row label whose dropdown is open (drawn highlighted)
+    # Phase 5 / 5b (getattr, default None): the open Compass (``ops.compass.CompassSession``),
+    # drawn alone; with ``layout`` None it is a right-click Compass (``ops.compass_rmb``).
+    compass: Any
 
     def fail(self, reason: str) -> None:
         """Deactivate (``active = False``, ``failed = True``); idempotent, never raises."""
@@ -327,7 +330,9 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
     clip=piece, hover_cell=dropdown_hover_cell)`` (each culls against its own extent;
     panels land above the strips); Phase 5: an open ``compass`` is drawn alone
     (``renderer.draw_compass``): the Plaza and its chain are hidden while it is open, as the
-    reference DCC hides its rows under its radial menus.
+    reference DCC hides its rows under its radial menus. Phase 5b: ``layout`` None with a
+    ``compass`` (the right-click Compass of ``ops.compass_rmb``: no Plaza) draws the Compass
+    only.
     Restores the scissor box, disables the scissor test when the previous box was the full
     viewport (gpu.state has no getter for the test; with a full box both states clip
     identically) and resets the blend mode. Returns the number of pieces where anything was
@@ -347,7 +352,7 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
                 continue
             gpu.state.scissor_set(x0, y0, w, h)
             hot = dd = False
-            if compass is None:     # an open Compass hides the Plaza (the reference DCC)
+            if compass is None and layout is not None:  # an open Compass hides the Plaza
                 hot = renderer.draw_plaza(layout, palette, hover_id, (ox, oy), linear_blend,
                                           cache=cache, clip=piece, open_label=open_label)
                 dd = chain is not None and renderer.draw_dropdowns(
@@ -369,10 +374,12 @@ def draw_targets(layout: Any, palette: Any, chain: Any = None,
                  compass: Any = None) -> list[Rect]:
     """The window rects a piece must intersect to be drawn: ``layout.extent``, the chain
     extent (``renderer.chain_extent``), the open Compass (``renderer.compass_extent``) and,
-    when ``palette.dim`` is visible, ``layout.window_bounds`` (None / empty ones left out)."""
-    rects = [layout.extent, renderer.chain_extent(chain), renderer.compass_extent(compass)]
+    when ``palette.dim`` is visible, ``layout.window_bounds`` (None / empty ones left out;
+    ``layout`` None: no Plaza, no dim, Phase 5b)."""
+    rects = [getattr(layout, 'extent', None), renderer.chain_extent(chain),
+             renderer.compass_extent(compass)]
     dim = getattr(palette, 'dim', None)
-    if dim is not None and dim[3] > 0:
+    if layout is not None and dim is not None and dim[3] > 0:
         rects.append(layout.window_bounds)
     return [r for r in rects if r is not None and not r.is_empty()]
 
@@ -419,7 +426,9 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
     2. ``region = bpy.context.region``; return if None or ``width <= 1 or height <= 1``.
        Every early return of steps 1-2 does ``state.draw_filtered += 1``.
     3. Visible pieces (window coords, :func:`region_pieces`). Empty -> return.
-    4. ``layout = state.layout``; None -> draw nothing (still counted in step 6). Otherwise
+    4. ``layout = state.layout``; None without a ``state.compass`` -> draw nothing (still
+       counted in step 6; Phase 5b: a Compass without a Plaza, ``ops.compass_rmb``, draws).
+       Otherwise
        ``linear = (area type, region_type) in LINEAR_BLEND_REGIONS``, and
        :func:`draw_region` with ``state.palette or theme.MESO_PALETTE``, ``state.hover_id``
        and this HandlerSet's BatchCache (scissor per piece; ``draw_plaza`` culls pieces
@@ -449,7 +458,8 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
         if not pieces:
             return
         layout = getattr(state, 'layout', None)
-        if layout is not None:
+        compass = getattr(state, 'compass', None)
+        if layout is not None or compass is not None:
             timing = getattr(state, 'debug_timing', False)
             t0 = time.perf_counter() if timing else 0.0
             area_type = area.type if area is not None else SPACE_AREA_TYPES.get(space_name)
@@ -462,7 +472,7 @@ def draw_callback(state: DrawState, space_name: str, region_type: str) -> None:
                         open_label=getattr(state, 'open_label', None),
                         dropdown_cache=_dropdown_cache_for(state),
                         dropdown_hover_cell=getattr(state, 'dropdown_hover_cell', None),
-                        compass=getattr(state, 'compass', None))
+                        compass=compass)
             if timing:
                 state.timing.add(time.perf_counter() - t0)
         state.draw_calls += 1

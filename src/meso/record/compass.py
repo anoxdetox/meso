@@ -6,6 +6,12 @@ value (``core.zones.parse_slot``): a Menu idname (a pie menu -> radial slots in 
 order; a plain menu -> the list) or a built-in id (``meso:layout`` ...). Everything is plain
 data (no RNA survives the call); operator items carry their poll result as ``enabled``.
 Runs with the invoking area's override held by the caller (``record.dropdown.invoking_context``).
+
+Phase 5b (docs/phase5b-interfaces.md "Content"): the right-click Compasses of
+``meso.compass_rmb``, ``meso:context`` (the modes around the pointer, the editor's context
+menu as the list; ``build_compass(menu=...)`` names that menu) and ``meso:tools`` (the most
+used tools of the mode / mesh select mode, the mode's tool menu as the list). Both are valid
+zone slot values too, never zone defaults.
 """
 
 from __future__ import annotations
@@ -15,9 +21,10 @@ from typing import Any
 import bpy
 
 from ..core import compass as cp
+from ..core import compass_rmb as rmb
 from ..core import zones
 from ..core.dropdown_model import (
-    DD_NATIVE, DD_OP, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE,
+    COVERAGE_NATIVE, DD_NATIVE, DD_OP, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE, DD_TOGGLE_ROW,
     DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_PLAZA_LABEL, PASSIVE_DD_KINDS, DropdownItem,
     native_menu_action,
 )
@@ -26,10 +33,11 @@ from ..core.model import (
     KIND_TOGGLE, ROW_TOOL_SETTINGS, Action, item_action,
 )
 from ..core.tables import UI_TYPE_LABELS, ordered_workspaces
+from . import builtin_menus
 from . import dropdown as rec_dropdown
 from . import recorder
 
-__all__ = ('BUILDERS', 'VIEW_PIES', 'build_compass', 'pie_compass')
+__all__ = ('BUILDERS', 'MENU_BUILTINS', 'VIEW_PIES', 'build_compass', 'pie_compass')
 
 _logged: set[str] = set()
 _ROOT = __package__.rpartition('.')[0]      # the add-on package (bl_ext.<repo>.meso)
@@ -374,24 +382,143 @@ def _workspaces(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:
     return _fill('meso:workspaces', _iface('Workspaces'), items)
 
 
+# --------------------------------------------------------------------------- right click
+
+
+def _menu_items(context: Any, menu_id: str) -> list[DropdownItem]:
+    """The items of the Menu ``menu_id`` recorded as a Compass list ([] when it is missing,
+    its poll fails or it has nothing; a pie's slot items come first)."""
+    if not menu_id or getattr(bpy.types, menu_id, None) is None:
+        return []
+    model = _menu_compass(context, menu_id)
+    if model is None:
+        return []
+    return [s for s in model.slots if s is not None] + list(model.items)
+
+
+def _mode_item(row: DropdownItem) -> DropdownItem:
+    """A mode of the mode switch as a DD_OP (its ``object.mode_set`` action, run after the
+    teardown), disabled when it is the current mode or the operator's poll fails."""
+    return DropdownItem(DD_OP, row.label, enabled=bool(row.enabled and not row.checked),
+                        action=row.action, source=row.source)
+
+
+def _context(context: Any, plaza: Any, prefs: Any, menu: str = '') -> cp.CompassModel:
+    """``meso:context`` (docs/phase5b-interfaces.md "Content"): the mode switch
+    (``record.builtin_menus.mode_switch_model``) around the pointer
+    (``core.compass_rmb.mode_slots``: Object Mode NE, the Edit Mode label E, its select-mode
+    cells W / N / S, the other modes SE / SW / NW; modes past those are listed first), then
+    the context menu ``menu`` (default: the mode's, ``core.compass_rmb.context_menu_for_mode``)
+    recorded as the list."""
+    switch = builtin_menus.mode_switch_model(context)
+    rows = switch.items if switch.coverage != COVERAGE_NATIVE else ()
+    by_mode: dict[str, DropdownItem] = {}
+    for row in rows:
+        mode = builtin_menus.item_mode(row)
+        if mode and mode not in by_mode:
+            by_mode[mode] = row
+    edit = by_mode.get('EDIT')
+    cells = edit.cells if edit is not None and edit.kind == DD_TOGGLE_ROW else ()
+    placed, overflow = rmb.mode_slots(list(by_mode), len(cells))
+    slots: dict[str, DropdownItem | None] = {}
+    for direction, (what, ref) in placed.items():
+        if what == 'mode':
+            slots[direction] = _mode_item(by_mode[ref])
+        else:
+            cell = cells[ref]
+            slots[direction] = DropdownItem(DD_OP, cell.label, enabled=cell.enabled,
+                                            action=cell.action)
+    listed: list[DropdownItem | None] = [_mode_item(by_mode[m]) for m in overflow]
+    menu = menu or rmb.context_menu_for_mode(str(getattr(context, 'mode', '') or ''))
+    menu_items = _menu_items(context, menu)
+    if listed and menu_items:
+        listed.append(DropdownItem(DD_SEPARATOR))
+    listed.extend(menu_items)
+    title = (recorder.display_label(menu) if menu else '') or switch.title
+    return _compass('meso:context', title, slots, listed)
+
+
+def _tool_item(context: Any, slot: rmb.ToolSlot) -> DropdownItem | None:
+    """One ``core.compass_rmb.ToolSlot`` as a Compass item: 'op' -> :func:`_op` (left out
+    when the operator does not exist, disabled by its poll); 'menu' -> a DD_SUBMENU (handed
+    off natively; left out when the menu is missing, disabled when its poll fails); 'enum'
+    -> a DD_NATIVE cascade ('▸') running the operator INVOKE_DEFAULT: its own enum popup."""
+    if slot.kind == 'op':
+        return _op(slot.target, slot.text, **dict(slot.props))
+    if slot.kind == 'menu':
+        cls = getattr(bpy.types, slot.target, None)
+        if cls is None:
+            return None
+        try:
+            enabled = bool(cls.poll(context)) if hasattr(cls, 'poll') else True
+        except Exception:
+            enabled = False
+        label = _iface(slot.text) if slot.text else (recorder.display_label(slot.target)
+                                                     or slot.target)
+        return DropdownItem(DD_SUBMENU, label, enabled=enabled, submenu=slot.target)
+    if slot.kind == 'enum':
+        if not _op_exists(slot.target):
+            return None
+        return DropdownItem(DD_NATIVE, _op_label(slot.target, slot.text),
+                            enabled=rec_dropdown._op_poll(slot.target, 'INVOKE_DEFAULT'),
+                            action=Action(ACTION_OPERATOR, target=slot.target,
+                                          props=dict(slot.props),
+                                          operator_context='INVOKE_DEFAULT'),
+                            source='native')
+    return None
+
+
+def _tools(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:
+    """``meso:tools`` (docs/phase5b-interfaces.md "Content"): Object Mode and the mesh
+    select modes (the first selected of vertex, edge, face) have a radial of tools
+    (``core.compass_rmb.TOOL_SLOTS``) and their tool menu as the list; every other mode has
+    no radial and the mode's main menu (``core.compass_rmb.mode_menu``) as the list."""
+    mode = str(getattr(context, 'mode', '') or '')
+    select: tuple[bool, ...] = ()
+    if mode == 'EDIT_MESH':
+        try:
+            select = tuple(context.tool_settings.mesh_select_mode)
+        except Exception:
+            select = ()
+    domain = rmb.tool_domain(mode, select)
+    slots: dict[str, DropdownItem | None] = {}
+    if domain:
+        spec, menu = rmb.TOOL_SLOTS[domain]
+        slots = {d: _tool_item(context, s) for d, s in spec.items()}
+    else:
+        edit = getattr(context, 'edit_object', None)
+        menu = rmb.mode_menu(mode, getattr(edit, 'type', None) if edit is not None else None,
+                             getattr(context, 'active_object', None) is not None)
+    title = (recorder.display_label(menu) if menu else '') or _iface('Tools')
+    return _compass('meso:tools', title, slots, _menu_items(context, menu))
+
+
 BUILDERS = {'layout': _layout, 'editors': _editors, 'select': _select, 'toggles': _toggles,
             'tool_settings': _tool_settings, 'views': _views, 'settings': _settings,
-            'workspaces': _workspaces}
+            'workspaces': _workspaces, 'context': _context, 'tools': _tools}
+# Built-ins whose builder takes the ``menu`` of :func:`build_compass` (the context menu).
+MENU_BUILTINS = frozenset({'context'})
 
 
 def build_compass(context: Any, info: Any, value: str, plaza: Any = None,
-                  prefs: Any = None) -> cp.CompassModel | None:
+                  prefs: Any = None, menu: str = '') -> cp.CompassModel | None:
     """The Compass of the slot ``value`` in the invoking area (``info``: a
     ``record.rows.InvokeInfo``; ``plaza``: the running Plaza's model, for the Tool Settings
-    Compass; ``prefs``: the add-on preferences). None when the slot is empty, the menu is
-    missing or its poll fails, or the Compass has nothing to offer here. Never raises."""
+    Compass; ``prefs``: the add-on preferences; ``menu``: the context menu of the
+    :data:`MENU_BUILTINS` (``meso:context``; '' = the mode's)). None when the slot is empty,
+    the menu is missing or its poll fails, or the Compass has nothing to offer here. Never
+    raises."""
     slot = zones.parse_slot(value)
     if slot.kind == zones.SLOT_NONE:
         return None
     try:
         with rec_dropdown.invoking_context(context, info) as ctx:
             if slot.kind == zones.SLOT_BUILTIN:
-                model = BUILDERS[slot.ident](ctx, plaza, prefs)
+                builder = BUILDERS[slot.ident]
+                if slot.ident in MENU_BUILTINS:
+                    model = builder(ctx, plaza, prefs, menu)
+                else:
+                    model = builder(ctx, plaza, prefs)
             else:
                 model = _menu_compass(ctx, slot.ident)
     except Exception as ex:
