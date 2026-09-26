@@ -945,8 +945,40 @@ class TestAnnotateRelocation(MesoKeymapCase):
     annotates; nothing else is on Ctrl Alt D in the keymaps that run there
     (docs/spikes/meso-keymap-conflicts.md, "Annotate relocation")."""
 
-    RUN_THERE = ('3D View', '3D View Generic', 'Image Generic', 'Window', 'Screen', 'Frames',
-                 'User Interface', 'Grease Pencil')
+    # Where the Annotate items run: the 3D View and the Image Editor. Every keymap of those
+    # spaces, and every space-independent one (modes, paint modes, Window, Screen, User
+    # Interface, ...), can run alongside them (review finding: a fixed list missed 'Object
+    # Non-modal', the paint selection masks, 'UV Sculpt', 'Paint Curve', ...).
+    SHARED_SPACES = frozenset({'EMPTY', 'VIEW_3D', 'IMAGE_EDITOR'})
+
+    def ctrl_alt_d_elsewhere(self, kc):
+        """``[(keymap, idname)]`` of every active Ctrl Alt D item in a keymap that runs
+        alongside the Annotate keymaps, other than the Annotate items themselves."""
+        key = mb().Key('D', ctrl=True, alt=True)
+        out = []
+        for km in kc.keymaps:
+            if km.is_modal or km.space_type not in self.SHARED_SPACES:
+                continue
+            for k in km.keymap_items:
+                if not (k.active and key_matches(k, key)):
+                    continue
+                if km.name in mb().ANNOTATE_KEYMAPS and k.idname == 'wm.tool_set_by_id':
+                    continue
+                out.append((km.name, k.idname))
+        return out
+
+    def test_ctrl_alt_d_is_free_where_annotate_runs(self):
+        self.meso_on()
+        kc = wm().keyconfigs.user
+        self.assertEqual(self.ctrl_alt_d_elsewhere(kc), [])
+        # the audit sees a new item in a keymap the old fixed list left out
+        km = kc.keymaps.find('Object Non-modal', space_type='EMPTY', region_type='WINDOW')
+        kmi = km.keymap_items.new('object.select_all', 'D', 'PRESS', ctrl=True, alt=True)
+        try:
+            self.assertEqual(self.ctrl_alt_d_elsewhere(kc),
+                             [('Object Non-modal', 'object.select_all')])
+        finally:
+            km.keymap_items.remove(kmi)
 
     def test_ctrl_alt_d_annotates_first_and_alone(self):
         self.meso_on()
@@ -961,13 +993,6 @@ class TestAnnotateRelocation(MesoKeymapCase):
                 d = [k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D'))]
                 expected = 'meso.pivot_once' if name == 'Object Mode' else 'wm.tool_set_by_id'
                 self.assertEqual(d[0].idname, expected)
-        for km in kc.keymaps:
-            if km.name in self.RUN_THERE or km.name.startswith(('3D View Tool:',
-                                                                'Image Editor Tool:',
-                                                                'Generic Tool:')):
-                on = [k.idname for k in km.keymap_items
-                      if k.active and not km.is_modal and key_matches(k, key)]
-                self.assertEqual(on, [], km.name)
 
     def test_ctrl_alt_d_switches_to_annotate(self):
         self.meso_on()
