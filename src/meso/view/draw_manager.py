@@ -327,7 +327,7 @@ def draw_region(region_rect: Rect, pieces: list[Rect], layout: Any, palette: Any
     clip=piece, hover_cell=dropdown_hover_cell)`` (each culls against its own extent;
     panels land above the strips); Phase 5: an open ``compass`` is drawn alone
     (``renderer.draw_compass``): the Plaza and its chain are hidden while it is open, as the
-    reference DCC hides its rows under a marking menu.
+    reference DCC hides its rows under its radial menus.
     Restores the scissor box, disables the scissor test when the previous box was the full
     viewport (gpu.state has no getter for the test; with a full box both states clip
     identically) and resets the blend mode. Returns the number of pieces where anything was

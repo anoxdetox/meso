@@ -89,7 +89,7 @@ Plaza's area changes under it).
 Centre ring (radius `dead_r`) and a line from the centre to the pointer while tracking (both in the tick colour),
 slot boxes in the dropdown panel grey with a border (hover: `item_hover` fill and a 2 px outline in `text_hover`),
 the list panel with the Phase 4 dropdown renderer. While a Compass is open the Plaza's strips and dropdown chain are
-not drawn (decision 84: the reference DCC hides its rows under a marking menu); the Plaza stays open and comes back
+not drawn (decision 84: the reference DCC hides its rows under its radial menus); the Plaza stays open and comes back
 when the Compass closes. Invoking window only.
 
 ## Preferences (`prefs.py`)
