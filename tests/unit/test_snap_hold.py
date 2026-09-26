@@ -143,6 +143,45 @@ class TestSession(unittest.TestCase):
         self.assertFalse(s.active)
         self.assertEqual(s.held, [])
 
+    def test_snap_change_while_the_d_one_shot_is_armed_is_kept(self):
+        """Review finding: an armed D tap keeps the session active; the user then sets snapping
+        in the header and holds X. The last release must give back the header's settings, not
+        the ones from before the D tap."""
+        s = sh.HoldSession()
+        cur = apply(USER, s.press('PIVOT_ONCE', 'PIVOT', 'S', USER))
+        header = cur.with_values({'use_snap': True, 'snap_elements': {'EDGE'}})
+        cur = apply(header, s.press('X', 'GRID', 'S', header))
+        self.assertEqual(cur.snap_elements, {'GRID'})
+        cur = apply(cur, s.release('PIVOT_ONCE', cur))      # the drag used the one-shot
+        self.assertFalse(cur.use_transform_data_origin)
+        self.assertEqual(cur.snap_elements, {'GRID'})       # X is still held
+        cur = apply(cur, s.release('X', cur))
+        self.assertEqual(cur, header.with_values({'use_transform_data_origin': False}))
+        self.assertFalse(s.active)
+
+    def test_snap_change_after_a_release_while_the_d_one_shot_is_armed_is_kept(self):
+        """X held and released while D is armed, then the user changes snapping: the one-shot's
+        end must not put the snap fields X had written back to the old baseline."""
+        s = sh.HoldSession()
+        cur = apply(USER, s.press('PIVOT_ONCE', 'PIVOT', 'S', USER))
+        cur = apply(cur, s.press('J', 'INCREMENT', 'S', cur))
+        cur = apply(cur, s.release('J', cur))
+        self.assertEqual(cur, USER.with_values({'use_transform_data_origin': True}))
+        self.assertEqual(s.written, {'use_transform_data_origin'})
+        header = cur.with_values({'use_snap': True, 'use_snap_rotate': True})
+        cur = apply(header, s.release('PIVOT_ONCE', header))
+        self.assertEqual(cur, header.with_values({'use_transform_data_origin': False}))
+
+    def test_a_middle_release_gives_up_only_the_fields_no_key_holds(self):
+        s = sh.HoldSession()
+        cur = apply(USER, s.press('J', 'INCREMENT', 'S', USER))
+        cur = apply(cur, s.press('X', 'GRID', 'S', cur))
+        cur = apply(cur, s.release('J', cur))
+        self.assertEqual(s.written, {'snap_elements', 'use_snap'})
+        cur = cur.with_values({'use_snap_scale': True})        # the user, while X is held
+        cur = apply(cur, s.release('X', cur))
+        self.assertEqual(cur, USER.with_values({'use_snap_scale': True}))
+
     def test_bad_element(self):
         with self.assertRaises(ValueError):
             sh.HoldSession().press('X', 'FACE', 'S', USER)

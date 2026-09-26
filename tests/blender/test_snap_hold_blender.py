@@ -642,6 +642,22 @@ class TestPivotOnce(HoldCase):
         mod.release_key('X')
         self.assertEqual(state(), USER)
 
+    def test_header_snap_change_while_armed_survives_a_hold(self):
+        """Review finding: tap D, set snapping in the header, hold X and drag (the drag uses the
+        one-shot), release X: the header's snap settings stay, not the ones before the tap."""
+        mod = hold()
+        self.tap()
+        ts().use_snap = True
+        ts().snap_elements = {'EDGE'}
+        header = state()
+        self.press('X', 'GRID')
+        self.assertEqual(set(ts().snap_elements), {'GRID'})
+        mod.once_tick(self.TR, (1, 'X'))
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        mod.release_key('X')
+        self.assertEqual(state(), dict(header, use_transform_data_origin=False))
+        self.assertFalse(mod.session().active)
+
     def test_watcher_keeps_it_armed_with_no_hold_operator(self):
         mod = hold()
         self.tap()

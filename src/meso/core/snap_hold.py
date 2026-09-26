@@ -103,9 +103,13 @@ def restore_writes(target: Snapshot, current: Snapshot, fields=SNAP_FIELDS):
 class HoldSession:
     """All holds of one Blender session (a module-level singleton on the bpy side).
 
-    ``baseline`` is taken at the first press; ``written`` is every field an overlay touched
-    since, which the last release puts back to the baseline. Fields Meso never wrote are left
-    alone, so a change the user makes to them during the hold is kept.
+    ``baseline`` is taken at the first press; ``written`` is every field an overlay of the keys
+    held now touched, which the last release puts back to the baseline. Fields Meso does not
+    own are left alone, so a change the user makes to them during the hold is kept: a later
+    press takes their values into the baseline, and a release gives up the fields no key held
+    now overlays (their baseline value was just written back). An armed D one-shot keeps the
+    session active for as long as it stays armed, so without these two rules a snap change the
+    user made meanwhile would be undone by the last release.
     """
     scene: str | None = None
     baseline: Snapshot | None = None
@@ -142,6 +146,10 @@ class HoldSession:
             self.baseline = current
             self.scene = scene
             self.written = set()
+        else:
+            # the fields no held key owns are the user's: take their values now
+            self.baseline = self.baseline.with_values(
+                {n: current.value(n) for n in SNAP_FIELDS if n not in self.written})
         if self.holds(key):
             return ()
         self.held.append((key, element))
@@ -155,7 +163,10 @@ class HoldSession:
         self.held = [(k, e) for k, e in self.held if k != key]
         if not self.held:
             return self.end_all(current)
-        return self._writes(current)
+        writes = self._writes(current)
+        # the fields no key held now overlays are back at the baseline: the user's again
+        self.written &= set(overlay_values(self.elements()))
+        return writes
 
     def end_all(self, current: Snapshot):
         """Every hold ends now: the baseline writes; the session is empty afterwards."""
