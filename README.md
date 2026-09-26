@@ -28,15 +28,16 @@ Familiar workflows for artists coming from Autodesk Maya software. See
   (Object Mode, Edit Mode, ...) opens the same mode list as Blender's header menu, for the
   active object's type, with the current mode checked. Pick a mode and the Plaza stays open,
   its menus and tool settings already those of the new mode. A mode that has select modes
-  is one row with a box for each: **Edit Mode [V] [E] [F]** for a mesh (Point, Stroke,
+  is one row with a button for each: **Edit Mode [V] [E] [F]** for a mesh (Point, Stroke,
   Segment for Grease Pencil; Point, Curve for hair curves, also in Sculpt Mode; Path, Point,
-  Tip in Particle Edit), the current select modes checked. Click **Edit Mode** to enter the
+  Tip in Particle Edit), the current select modes checked: boxes for the mesh select modes,
+  which combine, radios for the others, which pick one. Click **Edit Mode** to enter the
   mode as it is; click **V** to go straight to vertex select Edit Mode from any mode (the
   two undo steps of the header's mode menu then its button, so undo gives the old select
-  mode back); in the mode a box only changes the select mode, like the header buttons, and
-  the list stays open. The mesh boxes follow the header's Vertex / Edge / Face buttons (a
+  mode back); in the mode a button only changes the select mode, like the header buttons, and
+  the list stays open. The mesh buttons follow the header's Vertex / Edge / Face buttons (a
   click picks one, Shift+click adds or removes one, Ctrl+click expands or contracts the
-  selection); the others pick one. Left / Right move between the mode and its boxes.
+  selection); the others pick one. Left / Right move between the mode and its buttons.
 - **Recent files inside the Plaza:** the **Recent Files** box on the centre line (under
   Recent Commands), and File ▸ Open Recent, list Blender's recent files as its Open Recent
   menu does, with More... and Clear Recent Files List.... Picking one closes the Plaza and

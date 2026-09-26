@@ -407,9 +407,22 @@ class TestModeRowGeometry(unittest.TestCase):
                     self.assertEqual(dg.hit_test_chain(chain, x, edit.rect.y + 2),
                                      dg.Hit(dm.ZONE_ITEM, path=(1,), depth=0, cell=None),
                                      f"x={x}: the label")
-                # the right padding after the last cell: the row, no cell
-                self.assertIsNone(dg.hit_test_chain(chain, edit.rect.x1 - 1,
-                                                    edit.rect.y + 2).cell)
+                # the right padding after the last cell is the last cell ([F]): a slight
+                # overshoot never lands on the label (which would enter the mode)
+                last = edit.cells[-1]
+                self.assertLess(last.rect.x1, edit.rect.x1, "the row has a right padding")
+                for x in (last.rect.x1, edit.rect.x1 - 1):
+                    for y in (edit.rect.y, edit.rect.y1 - 1):
+                        self.assertEqual(dg.hit_test_chain(chain, x, y),
+                                         dg.Hit(dm.ZONE_ITEM, path=(1,), depth=0,
+                                                cell=last.index), f"x={x} y={y}")
+                # outside the row (the panel's own padding below / beside it): not a cell
+                self.assertNotEqual(dg.hit_test_chain(chain, edit.rect.x1,
+                                                      edit.rect.y + 2).cell, last.index)
+                self.assertIsNone(edit.cell_at(edit.rect.x1 - 1, edit.rect.y1))
+                # a plain row (no label action) keeps its padding as the passive label
+                plain = dataclasses.replace(edit, label_row=False)
+                self.assertIsNone(plain.cell_at(edit.rect.x1 - 1, edit.rect.y + 2))
 
     def test_checks_are_in_the_signature(self):
         d, tw, panel = self.place(1.0)

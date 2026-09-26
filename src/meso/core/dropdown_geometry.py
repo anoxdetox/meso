@@ -44,7 +44,10 @@ the check column, like a DD_RADIO.
 
 Hit testing priority: deepest open panel -> ... -> the root dropdown -> the Plaza strips
 (``core.geometry.hit_test``) -> empty strip space -> nothing. On a DD_TOGGLE_ROW the hit also
-names the cell under the point (``Hit.cell``; None on the row label).
+names the cell under the point (``Hit.cell``; None on the row label). On a label row
+(the mode switch's 'Edit Mode [V] [E] [F]') the padding right of the last cell is the last
+cell, so a slight overshoot never lands on the label (which runs the row's own action); on a
+plain row that padding stays the (passive) label.
 
 Pure Python (no bpy): unit-tested with the bundled interpreter.
 """
@@ -58,7 +61,8 @@ from dataclasses import dataclass, field
 from .dropdown_model import (
     CHECK_KINDS, DD_COLUMN_HEADER, DD_LABEL, DD_NATIVE_MORE, DD_SEPARATOR,
     DD_TOGGLE_ROW, MORE_LABEL, TABLE_KINDS, ZONE_ITEM, ZONE_LABEL, ZONE_NONE, ZONE_PANEL,
-    ZONE_STRIP, DropdownItem, DropdownModel, Path, has_arrow, has_check, radio_glyph,
+    ZONE_STRIP, DropdownItem, DropdownModel, Path, has_arrow, has_check, label_row,
+    radio_glyph,
 )
 from .geometry import FONT_SCALE_RANGE, Layout, Metrics, TextWidthFn, hit_test, round_px
 from .rects import Rect, bounding_box
@@ -179,6 +183,8 @@ class PlacedItem:
     inset by ``border`` + one line height on each side: nearly the panel width); ``heading``: a DD_LABEL section title. ``enabled`` / ``active``
     / ``checked`` copied from the item. ``cells``: the :class:`PlacedCell` of a
     DD_TOGGLE_ROW / DD_COLUMN_HEADER line (module doc "Toggle tables"), () otherwise.
+    ``label_row``: the item is a ``core.dropdown_model.label_row`` (its label is a target),
+    so the padding right of its last cell hits that cell (:meth:`cell_at`).
     """
 
     path: Path
@@ -199,12 +205,18 @@ class PlacedItem:
     line_rect: Rect | None = None
     heading: bool = False
     cells: tuple[PlacedCell, ...] = ()
+    label_row: bool = False
 
     def cell_at(self, x: float, y: float) -> int | None:
-        """The index of the cell whose rect contains ``(x, y)`` (half-open), or None."""
+        """The index of the cell whose rect contains ``(x, y)`` (half-open), or None. On a
+        ``label_row`` the row's padding right of the last cell is that cell too: only the
+        text side of the row is the label (a click there runs the row's own action)."""
         for cell in self.cells:
             if cell.rect.contains(x, y):
                 return cell.index
+        if (self.label_row and self.cells and x >= self.cells[-1].rect.x1
+                and self.rect.contains(x, y)):
+            return self.cells[-1].index
         return None
 
 
@@ -423,7 +435,8 @@ def place_items(model: DropdownModel, rect: Rect, dm: DropdownMetrics,
             placed.append(PlacedItem(
                 path, item.kind, row, highlight, item.label, x + dm.check_col, text_y,
                 item.enabled, item.active, item.checked, check_rect, style,
-                cells=_place_cells(item, cols, x1 - dm.pad_x, y, h, bi, dm)))
+                cells=_place_cells(item, cols, x1 - dm.pad_x, y, h, bi, dm),
+                label_row=label_row(item)))
             continue
         check_rect, style = None, ''
         if has_check(item):
