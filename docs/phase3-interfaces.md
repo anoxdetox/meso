@@ -373,7 +373,7 @@ core.actions       -> core.model;  core.tap -> core.views;  core.{views,tables,m
   - the Snap toggle → `use_snap` flips and an undo step is pushed;
   - a workspace click switches the workspace, and a re-invoke there works with no traceback;
   - Recent Commands opens the repeat history;
-  - Plaza Controls opens the add-on prefs;
+  - Meso Settings opens the add-on prefs;
   - screenshots `docs/screenshots/phase3_<mode>.png` for 3D Object, Edit Mesh, Sculpt, UV Editor, Shader Editor and Timeline.
 - **Phase 1–2 scenarios stay green.** Taps in the 3D View now default to PANE_TOGGLE, so `sc_tap_play`, `sc_tap_realistic`, `sc_tap_none`, `sc_tap_maximize` and any other 3D View tap scenario must set `tap_action_view3d = 'SAME_AS_GLOBAL'` (restore it in `finally`). `tests/blender/test_plaza.py` fake sessions must pass `tap_action_view3d` wherever they assert on VIEW_3D taps.
 
@@ -420,4 +420,4 @@ core.actions       -> core.model;  core.tap -> core.views;  core.{views,tables,m
     - Modal: `_last` also gains `tap_action`; every click, workspace included, ends with reason `'handoff'`; an exception in planning/execution is logged and the modal still returns FINISHED.
     - GUI harness: ui-scale shots are `phase3_<backend>_<scale>.png`; timeouts 600 s deadline / 640 s Blender / 680 s kwin; Phase 3 and `scenarios_*.py` scenarios run before `disabled_poll`, `disable_addon` last; scenario modules receive a live-globals stand-in for the driver; the Phase 1–2 3D View tap scenarios run with `tap_action_view3d='SAME_AS_GLOBAL'`.
     - Inventory: new keys `editors`, `editors_attempt`, `summary.editors_contextual_menus`; editors recorded by switching the Layout Timeline area's editor type; Asset Browser skipped headless; `dump_inventory.py` gives every subprocess a temp `BLENDER_USER_CONFIG` too.
-14. **Soft row width (integration).** `Metrics.max_row_w` (`BASE_MAX_ROW_W = 960` × `fs`; 0 = off, the dataclass default) caps a row's width inside wide windows: a wider row breaks at its separators first (segments packed whole), and a segment still wider is split into balanced lines (same line count as greedy, smallest width). When the window (`avail`) is the binding limit the Phase 2 greedy wrap is unchanged. Before this, the Edit Mesh / Sculpt Tool Settings row spanned the whole 1920 px window and pushed Recent Commands / Plaza Controls to the window edges.
+14. **Soft row width (integration).** `Metrics.max_row_w` (`BASE_MAX_ROW_W = 960` × `fs`; 0 = off, the dataclass default) caps a row's width inside wide windows: a wider row breaks at its separators first (segments packed whole), and a segment still wider is split into balanced lines (same line count as greedy, smallest width). When the window (`avail`) is the binding limit the Phase 2 greedy wrap is unchanged. Before this, the Edit Mesh / Sculpt Tool Settings row spanned the whole 1920 px window and pushed Recent Commands / Meso Settings to the window edges.

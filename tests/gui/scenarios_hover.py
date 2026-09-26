@@ -6,7 +6,7 @@ Loaded by ``tests/gui/gui_driver.py`` like every ``scenarios_*.py`` (module cont
 
 (a) resting on File opens its dropdown without a click; moving to Edit switches; moving to
 empty space closes it after the grace, the Plaza stays open; (b) a sweep across the labels
-resting on each for less than the delay opens nothing; (c) the Snap toggle, a workspace tab, Recent Commands, Plaza Controls
+resting on each for less than the delay opens nothing; (c) the Snap toggle, a workspace tab, Recent Commands, Meso Settings
 and the mode switcher never open anything on hover (no hand-off, nothing native); (d) the
 Pivot cascade opens on hover; (e) a click-pinned File stays open when the pointer leaves, a
 click on a hover-opened File pins it; (f) ``hover_open`` False: hover does nothing; (g) the aim guard: Object open, a quick
@@ -154,7 +154,7 @@ def scenarios(drv):
 
     # -------------------------------------------------------------------------- (c)
     def sc_ineligible_never_open(rec):
-        """The Snap toggle, a workspace tab, Recent Commands, Plaza Controls and the mode
+        """The Snap toggle, a workspace tab, Recent Commands, Meso Settings and the mode
         switcher only hover: nothing opens, nothing runs, nothing hands off."""
         ts = bpy.context.scene.tool_settings
         snap0 = bool(ts.use_snap)

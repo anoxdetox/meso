@@ -497,7 +497,7 @@ def hover_opens(target: Target | None) -> bool:
     """True when resting the pointer on ``target`` opens something on its own (no click):
     a ROLE_DROPDOWN row label (custom dropdown / Tool Settings cascade; needs
     ``hover_open``) or a ROLE_SUBMENU dropdown item (after ``submenu_delay``). Hand-off
-    ('…' native menus, the mode switcher, workspaces, Recent Commands, Plaza Controls,
+    ('…' native menus, the mode switcher, workspaces, Recent Commands, Meso Settings,
     DD_NATIVE items), apply (toggles), run (operators) and passive targets never do."""
     if target is None:
         return False

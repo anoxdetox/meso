@@ -35,7 +35,7 @@ KIND_LABEL = 'label'            # non-clickable text
 KIND_WORKSPACE = 'workspace'    # payload {'workspace': <name>}; click does nothing until Phase 3
 KIND_CENTER = 'center'          # the centre box (editor / workspace name)
 KIND_RECENT = 'recent'          # 'Recent Commands' side box (Phase 3 fills its menu)
-KIND_CONTROLS = 'controls'      # 'Plaza Controls' side box (Phase 6 fills its menu)
+KIND_CONTROLS = 'controls'      # 'Meso Settings' side box (Phase 6 fills its menu)
 # Phase 3 (Tool Settings row; contextual mode switcher):
 KIND_SEPARATOR = 'separator'    # thin vertical line with a gap; never hit, never clickable
 KIND_TOGGLE = 'toggle'          # check glyph left of the label; ``checked`` is a bool

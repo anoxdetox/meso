@@ -2136,7 +2136,7 @@ def sc_p3_recent_commands(rec):
 
 
 def sc_p3_plaza_controls(rec):
-    """Click 'Plaza Controls': the Preferences open on Meso Mode's add-on entry."""
+    """Click 'Meso Settings': the Preferences open on Meso Mode's add-on entry."""
     md = model_mod()
     wm = bpy.context.window_manager
     n_windows = len(wm.windows)

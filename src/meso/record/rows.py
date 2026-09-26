@@ -12,7 +12,7 @@ Content:
 - Centre item: the editor name of the invoking area (``UILayout.enum_item_name(area,
   'ui_type', ui_type)``, falling back to ``core.tables.UI_TYPE_LABELS`` then the id), or the
   workspace name when there is no editor (bars / no area).
-- Side items: 'Recent Commands' (left, native repeat history) and 'Plaza Controls' (right,
+- Side items: 'Recent Commands' (left, native repeat history) and 'Meso Settings' (right,
   the add-on preferences).
 
 Only the live objects in :class:`InvokeInfo` and ``context`` are read, during the call; the

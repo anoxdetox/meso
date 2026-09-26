@@ -123,7 +123,7 @@ def _model(extra_rows=()):
                checked=(n == 'Layout')) for n in FACTORY_WORKSPACES]))
     return m.make_model(rows, m.Item(m.CENTER_ID, '3D Viewport', m.KIND_CENTER),
                         m.Item(m.RECENT_ID, 'Recent Commands', m.KIND_RECENT),
-                        m.Item(m.CONTROLS_ID, 'Plaza Controls', m.KIND_CONTROLS))
+                        m.Item(m.CONTROLS_ID, 'Meso Settings', m.KIND_CONTROLS))
 
 
 def _thirty_item_model():

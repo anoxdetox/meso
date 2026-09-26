@@ -121,7 +121,7 @@ def plaza_model(snap_checked=False, pivot_label='Pivot: Median Point'):
                checked=(n == 'Layout')) for n in ('Layout', 'Modeling')])
     return M.make_model([root, ctx, tool, ws], M.Item(M.CENTER_ID, '3D Viewport', M.KIND_CENTER),
                         M.Item(M.RECENT_ID, 'Recent Commands', M.KIND_RECENT),
-                        M.Item(M.CONTROLS_ID, 'Plaza Controls', M.KIND_CONTROLS))
+                        M.Item(M.CONTROLS_ID, 'Meso Settings', M.KIND_CONTROLS))
 
 
 def dropdown_models(toggle_checked=False):
@@ -533,7 +533,7 @@ def aim_model():
         menu(TALL_ID, 'Object', M.contextual_item_id(TALL_ID))])
     return M.make_model([root, ctx], M.Item(M.CENTER_ID, '3D Viewport', M.KIND_CENTER),
                         M.Item(M.RECENT_ID, 'Recent Commands', M.KIND_RECENT),
-                        M.Item(M.CONTROLS_ID, 'Plaza Controls', M.KIND_CONTROLS))
+                        M.Item(M.CONTROLS_ID, 'Meso Settings', M.KIND_CONTROLS))
 
 
 def aim_dropdowns():

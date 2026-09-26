@@ -329,7 +329,7 @@ def hover_eligible(session: MenuSession, state: Any, hit: Hit) -> bool:
     """True when resting the pointer on ``hit`` opens something without a click
     (``core.menubar.hover_opens`` of :func:`target_for`): a row label with a custom dropdown
     or Tool Settings cascade (ROLE_DROPDOWN), or a submenu item. Toggles, workspaces,
-    Recent Commands, Plaza Controls, operator items, '…' native menus and DD_NATIVE items
+    Recent Commands, Meso Settings, operator items, '…' native menus and DD_NATIVE items
     (anything whose click would hand off or end the Plaza) are not."""
     return menubar.hover_opens(target_for(session, state, hit))
 

@@ -66,7 +66,7 @@ def full_model(rows=None, recent=True, controls=True, center_label='3D Viewport'
     return make_model(
         rows, Item(model_mod.CENTER_ID, center_label, model_mod.KIND_CENTER),
         Item(model_mod.RECENT_ID, 'Recent Commands', model_mod.KIND_RECENT) if recent else None,
-        Item(model_mod.CONTROLS_ID, 'Plaza Controls', model_mod.KIND_CONTROLS)
+        Item(model_mod.CONTROLS_ID, 'Meso Settings', model_mod.KIND_CONTROLS)
         if controls else None)
 
 

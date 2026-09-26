@@ -319,7 +319,7 @@ def label_role(item: Item | None) -> str:
     - ``KIND_TOGGLE`` whose action kind is in :data:`IN_PLACE_ACTIONS` -> ROLE_APPLY (Phase 4:
       Tool Settings toggles keep the Plaza open).
     - Everything else (native '…' menus, the mode switcher, workspaces, Recent Commands,
-      Plaza Controls) -> ROLE_HANDOFF.
+      Meso Settings) -> ROLE_HANDOFF.
     """
     action = item_action(item)
     if action is None:

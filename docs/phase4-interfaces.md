@@ -70,7 +70,7 @@ ops.plaza            -> (Phase 3 imports) + ops.dropdowns
   | Role | Row labels | Dropdown items | Reducer on release |
   |---|---|---|---|
   | ROLE_DROPDOWN | menus with a custom dropdown, Tool Settings cascades | – | opens on PRESS; hover switches while open |
-  | ROLE_HANDOFF | '…' native menus, mode switcher, workspaces, Recent Commands, Plaza Controls | DD_VALUE, DD_NATIVE, DD_NATIVE_MORE | `Handoff(action)` (terminal) |
+  | ROLE_HANDOFF | '…' native menus, mode switcher, workspaces, Recent Commands, Meso Settings | DD_VALUE, DD_NATIVE, DD_NATIVE_MORE | `Handoff(action)` (terminal) |
   | ROLE_APPLY | Tool Settings toggles (KIND_TOGGLE) | DD_TOGGLE, DD_FLAG, a DD_TOGGLE_ROW cell | `RunItem(path or None, keep_open=True)` (a cell: `cell=c`) |
   | ROLE_APPLY_CLOSE | – | DD_RADIO | `RunItem(path, True)` + `CloseChain(len(path) - 1)` |
   | ROLE_RUN | – | DD_OP | `RunItem(path, keep_open=False)` (terminal) |
@@ -135,7 +135,7 @@ User request (after Phase 4): a Plaza menu opens on its own when the pointer res
   - `hover_open_delay` (0.0–1.0 s, default 0.05, `HOVER_OPEN_DELAY_RANGE`);
   - `hover_close_delay` (0.0–2.0 s, default 0.3, `HOVER_CLOSE_DELAY_RANGE`).
   - `initial_state()` defaults `hover_open` to False, so a reducer built without the prefs is exactly the Phase 4 bar. `PlazaState` defaults to the pref values (True / 0.05 / 0.3) for a session started without prefs.
-- **Eligibility:** only ROLE_DROPDOWN labels open on hover: menus with a custom dropdown and the Tool Settings cascades (Pivot, Snap and Proportional cascades, orientation). `core.menubar.hover_opens(target)` also answers True for ROLE_SUBMENU items, which already opened after `submenu_delay`. `ops.dropdowns.hover_eligible(session, state, hit)` wraps it for a hit. Never eligible: toggles (ROLE_APPLY), '…' native menus, the mode switcher, workspaces, Recent Commands, Plaza Controls (all ROLE_HANDOFF), operator / DD_NATIVE items and passive labels. A native menu never opens on a mere hover.
+- **Eligibility:** only ROLE_DROPDOWN labels open on hover: menus with a custom dropdown and the Tool Settings cascades (Pivot, Snap and Proportional cascades, orientation). `core.menubar.hover_opens(target)` also answers True for ROLE_SUBMENU items, which already opened after `submenu_delay`. `ops.dropdowns.hover_eligible(session, state, hit)` wraps it for a hit. Never eligible: toggles (ROLE_APPLY), '…' native menus, the mode switcher, workspaces, Recent Commands, Meso Settings (all ROLE_HANDOFF), operator / DD_NATIVE items and passive labels. A native menu never opens on a mere hover.
 - **State** (`MenuBarState`):
   - `opened_by`: None when closed, else `'hover'` (transient), `'click'` or `'key'` (sticky). The `transient` property is True for `'hover'`.
   - `hover_wait` / `hover_wait_since`: a closed bar waiting for the delay.

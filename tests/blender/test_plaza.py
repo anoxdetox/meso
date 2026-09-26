@@ -462,7 +462,7 @@ def _model():
         [root, md.Row(md.ROW_CONTEXTUAL), md.Row(md.ROW_TOOL_SETTINGS), ws],
         md.Item(md.CENTER_ID, '3D Viewport', md.KIND_CENTER),
         md.Item(md.RECENT_ID, 'Recent Commands', md.KIND_RECENT),
-        md.Item(md.CONTROLS_ID, 'Plaza Controls', md.KIND_CONTROLS))
+        md.Item(md.CONTROLS_ID, 'Meso Settings', md.KIND_CONTROLS))
 
 
 def _layout(model, anchor=(1000, 500)):
@@ -937,7 +937,7 @@ def _model3():
         [root, ctx, tool, ws],
         md.Item(md.CENTER_ID, '3D Viewport', md.KIND_CENTER),
         md.Item(md.RECENT_ID, 'Recent Commands', md.KIND_RECENT),
-        md.Item(md.CONTROLS_ID, 'Plaza Controls', md.KIND_CONTROLS))
+        md.Item(md.CONTROLS_ID, 'Meso Settings', md.KIND_CONTROLS))
 
 
 class _Phase3Case(_PlazaCase):

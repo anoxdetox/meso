@@ -233,7 +233,7 @@ class TestBuildModel(unittest.TestCase):
         self.assertEqual((model.recent.id, model.recent.kind, model.recent.label),
                          (m.RECENT_ID, m.KIND_RECENT, 'Recent Commands'))
         self.assertEqual((model.controls.id, model.controls.kind, model.controls.label),
-                         (m.CONTROLS_ID, m.KIND_CONTROLS, 'Plaza Controls'))
+                         (m.CONTROLS_ID, m.KIND_CONTROLS, 'Meso Settings'))
 
     def test_workspace_row_failure_is_empty(self):
         rows = _rows()

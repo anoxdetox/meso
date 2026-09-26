@@ -97,7 +97,7 @@ class TestPlazaModel(unittest.TestCase):
                                             model.KIND_WORKSPACE, checked=True)])],
             _center(),
             Item(model.RECENT_ID, 'Recent Commands', model.KIND_RECENT),
-            Item(model.CONTROLS_ID, 'Plaza Controls', model.KIND_CONTROLS))
+            Item(model.CONTROLS_ID, 'Meso Settings', model.KIND_CONTROLS))
 
     def test_items_order(self):
         self.assertEqual([i.id for i in self._model().items()],

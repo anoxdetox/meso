@@ -64,7 +64,7 @@ UI_TYPE_LABELS: dict[str, str] = {
 
 # Centre-line side boxes (translated with pgettext_iface by record.rows).
 RECENT_LABEL = 'Recent Commands'
-CONTROLS_LABEL = 'Plaza Controls'
+CONTROLS_LABEL = 'Meso Settings'
 
 
 def ordered_workspaces(names: Iterable[str]) -> list[str]:

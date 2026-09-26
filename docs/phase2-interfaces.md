@@ -221,7 +221,7 @@ These are plain data, so it is safe that they outlive the modal. They carry no R
 - `build_model(context, InvokeInfo, prefs=None) -> PlazaModel` produces:
   - the rows `(root, contextual=empty, tool_settings=empty, workspace)`;
   - the centre item;
-  - the side items 'Recent Commands' and 'Plaza Controls' (through `pgettext_iface`).
+  - the side items 'Recent Commands' and 'Meso Settings' (through `pgettext_iface`; 'Plaza Controls' until 2026-09-26).
 - **Centre label.** It is `UILayout.enum_item_name(area, 'ui_type', ui_type)`, which works headless. It falls back to `UI_TYPE_LABELS`, then to the id. With no area (the bars, or no area at all), it is the active workspace name.
 - **Workspace row.** Built by `ordered_workspaces(bpy.data.workspaces names)`, with the active workspace `checked=True` and the rest `checked=False`. Items are displayed normally, and clicking does nothing yet.
 
