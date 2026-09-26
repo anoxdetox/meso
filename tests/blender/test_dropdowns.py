@@ -135,7 +135,7 @@ def dropdown_models(toggle_checked=False):
                 action=A(M.ACTION_SET_ENUM, data_path='tool_settings.transform_pivot_point',
                          value='CURSOR')))
     file_items = (
-        I(D.DD_OP, 'New', action=A(M.ACTION_OPERATOR, target='wm.read_homefile',
+        I(D.DD_OP, 'Save As', action=A(M.ACTION_OPERATOR, target='wm.save_as_mainfile',
                                    operator_context='INVOKE_REGION_WIN')),       # 0
         I(D.DD_SEPARATOR),                                                     # 1
         I(D.DD_SUBMENU, 'Import', submenu='TOPBAR_MT_file_import'),            # 2
@@ -159,7 +159,13 @@ def dropdown_models(toggle_checked=False):
                                        operator_context='INVOKE_REGION_WIN')),)),
         'TOPBAR_MT_edit': D.DropdownModel('TOPBAR_MT_edit', 'Edit', (
             I(D.DD_OP, 'Undo', action=A(M.ACTION_OPERATOR, target='ed.undo',
-                                        operator_context='INVOKE_REGION_WIN')),)),
+                                        operator_context='INVOKE_REGION_WIN')),
+            # A file-loading item (an Open Recent entry): runs from the D3 timer fallback.
+            I(D.DD_OP, 'scene.blend', source=D.ITEM_SOURCE_RECENT,
+              action=A(M.ACTION_OPERATOR, target='wm.open_mainfile',
+                       props={'filepath': '/nowhere/scene.blend',
+                              'display_file_selector': False},
+                       operator_context='INVOKE_DEFAULT')),)),
         'VIEW3D_MT_object': D.DropdownModel('VIEW3D_MT_object', 'Object', (
             I(D.DD_OP, 'Join', action=A(M.ACTION_OPERATOR, target='object.join')),)),
         # Classified custom by the parent, native when built lazily (poll / exception).
@@ -199,6 +205,7 @@ class _Case(unittest.TestCase):
         self.inv = inv = _mod("ops.invoke")
         rec_dd, rec_pop, rows = _mod("record.dropdown"), _mod("record.popover"), _mod("record.rows")
         self.builds, self.run_calls, self.executed, self.refreshes = [], [], [], []
+        self.scheduled = []
         self.toggle_checked = False
         self.snap_checked = False
         self.pivot = 'MEDIAN_POINT'
@@ -245,11 +252,17 @@ class _Case(unittest.TestCase):
                                   'stopped': self.handlers.stopped})
             return inv.ExecResult(('fake', {}), ['FINISHED'], True)
 
+        def fake_schedule(action, window_ptr, area_index, region_type='WINDOW'):
+            self.scheduled.append({'action': action, 'window_ptr': window_ptr,
+                                   'area_index': area_index, 'running': hb.is_running(),
+                                   'stopped': self.handlers.stopped})
+
         for mod, name, fake in ((rec_dd, 'build_dropdown', fake_build),
                                 (rec_pop, 'build_tool_cascade', fake_cascade),
                                 (rows, 'refresh_tool_settings', fake_refresh),
                                 (inv, 'run_call', fake_run_call),
-                                (inv, 'execute', fake_execute)):
+                                (inv, 'execute', fake_execute),
+                                (inv, 'schedule', fake_schedule)):
             self.addCleanup(setattr, mod, name, getattr(mod, name))
             setattr(mod, name, fake)
         # A controllable clock for the reducer (submenu delay / aim timeout).
@@ -1269,9 +1282,9 @@ class TestRuns(_Case):
         self.assertEqual(self.executed, [], "never on PRESS (D3)")
         self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
         last = self._assert_torn_down_then_ran(new.action, 'run')
-        self.assertEqual(last['run_item'], ('TOPBAR_MT_file', (0,), 'New',
-                                            ('operator', 'wm.read_homefile', '')))
-        self.assertEqual(last['handoff'], ('wm.read_homefile', {}))
+        self.assertEqual(last['run_item'], ('TOPBAR_MT_file', (0,), 'Save As',
+                                            ('operator', 'wm.save_as_mainfile', '')))
+        self.assertEqual(last['handoff'], ('wm.save_as_mainfile', {}))
         self.assertEqual(self.run_calls, [])
 
     def test_drag_release_from_label_runs(self):
@@ -1417,7 +1430,7 @@ class TestRuns(_Case):
                 if flag:
                     self.assertEqual(last['end'], 'run')
                     self.assertEqual([c['action'].target for c in self.executed],
-                                     ['wm.read_homefile'])
+                                     ['wm.save_as_mainfile'])
                     self.assertFalse(self.executed[0]['running'])
                 else:
                     self.assertEqual((last['end'], self.executed), ('finish', []))
@@ -1429,6 +1442,29 @@ class TestRuns(_Case):
         self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
         self.assertEqual(self.executed[0]['action'].kind, md().ACTION_TOGGLE)
         self.assertEqual(self.run_calls, [], "not in place: the Plaza was ending")
+
+    def test_file_load_item_is_scheduled_after_teardown(self):
+        """A file-loading operator (an Open Recent entry) never runs inside modal(): the
+        Plaza ends, then ``ops.invoke.schedule`` (the D3 timer fallback) gets the action
+        with the window pointer and area index (plain data only)."""
+        self.state.area_index = list(self.window.screen.areas).index(self.area)
+        self.click(self.label_xy('TOPBAR_MT_edit'))
+        self.assertEqual(self.click(self.item_xy((1,)))[1], {'FINISHED'})
+        self.assertEqual(self.executed, [])
+        self.assertEqual(len(self.scheduled), 1)
+        call = self.scheduled[0]
+        item = dropdown_models()['TOPBAR_MT_edit'].items[1]
+        self.assertEqual(call['action'], item.action)
+        self.assertFalse(call['running'], "teardown before the schedule (D3)")
+        self.assertEqual(call['stopped'], 1)
+        self.assertEqual(call['window_ptr'], self.window.as_pointer())
+        self.assertEqual(call['area_index'], list(self.window.screen.areas).index(self.area))
+        last = _hb().last_session()
+        self.assertEqual((last['end'], last['handoff_result']), ('run', ['SCHEDULED']))
+        self.assertEqual(last['handoff'], ('wm.open_mainfile',
+                                           {'filepath': '/nowhere/scene.blend',
+                                            'display_file_selector': False}))
+        self.assertEqual(self.run_calls, [])
 
     def test_execute_raising_still_finishes(self):
         def boom(*args, **kwargs):
@@ -1650,7 +1686,7 @@ class TestRobustness(_Case):
         self.assertEqual(self.ev('RET', 'PRESS'), {'RUNNING_MODAL'})
         self.assertEqual(self.executed, [], "never on the PRESS")
         self.assertEqual(self.ev('RET', 'RELEASE'), {'FINISHED'})
-        self.assertEqual(self.executed[0]['action'].target, 'wm.read_homefile')
+        self.assertEqual(self.executed[0]['action'].target, 'wm.save_as_mainfile')
 
     def test_unarmed_return_release_does_nothing(self):
         """A RETURN RELEASE without its PRESS in this session (pressed before the Plaza
@@ -1739,7 +1775,8 @@ class TestStartSession(unittest.TestCase):
     def test_summary_defaults(self):
         self.assertEqual(_dd().summary(None), {'menus_opened': [], 'menus_opened_by': [],
                                                'in_place': [], 'run_item': None,
-                                               'dropdown_builds': 0, 'dropdown_hits': 0})
+                                               'dropdown_builds': 0, 'dropdown_hits': 0,
+                                               'mode_changes': []})
 
 
 class TestApplyInPlace(unittest.TestCase):
@@ -1860,11 +1897,15 @@ class TestRealBuilders(unittest.TestCase):
         self.assertTrue(ws)
         for item in ws:
             self.assertFalse(self._eligible_label(item.id), item.id)
-        for item_id in (M.RECENT_ID, M.CONTROLS_ID, M.CENTER_ID, M.MODE_SWITCH_ID):
+        for item_id in (M.RECENT_ID, M.CONTROLS_ID, M.CENTER_ID):
             # present and placed: a missing id would resolve to ROLE_PASSIVE (False) anyway
             self.assertIsNotNone(model.find(item_id), item_id)
             self.assertIsNotNone(self.state.layout.item(item_id), f"{item_id} is placed")
             self.assertFalse(self._eligible_label(item_id), item_id)
+        # The built menus open custom dropdowns: eligible like the row menus.
+        for item_id in (M.MODE_SWITCH_ID, M.RECENT_FILES_ID):
+            self.assertIsNotNone(self.state.layout.item(item_id), f"{item_id} is placed")
+            self.assertTrue(self._eligible_label(item_id), item_id)
         self.assertIsNotNone(model.find(snap.id))
         self.assertIsNotNone(self.state.layout.item(snap.id), "the Snap toggle is placed")
         # Real rows are recorded custom (a label turns native lazily, when its build fails
@@ -1881,16 +1922,22 @@ class TestRealBuilders(unittest.TestCase):
         self.assertTrue(natives)
         for item in natives:
             self.assertFalse(self._eligible_label(item.id), f"native {item.id}")
-        # Inside File: Open Recent (C-only) is a DD_NATIVE hand-off, never hover-opened;
-        # a custom submenu (Import) is.
+        # Edit ▸ Undo History (C-only) is a DD_NATIVE hand-off: never hover-opened.
+        em = _mod("record.dropdown").build_dropdown(bpy.context, _dd()._info(self.state),
+                                                    'TOPBAR_MT_edit')
+        history = next(it for it in em.items if it.kind == D.DD_NATIVE and it.action
+                       is not None and it.action.target == 'TOPBAR_MT_undo_history')
+        self.assertEqual(D.item_role(history), D.ROLE_HANDOFF)
+        self.assertTrue(D.has_arrow(history))
+        # Inside File: Open Recent (built) is a custom submenu, hover-opened like Import.
+        ddg = _mod("core.dropdown_geometry")
         box = self.state.layout.item('TOPBAR_MT_file')
         self.click(self.mid(box.rect))
-        ddg = _mod("core.dropdown_geometry")
         fm = self.state.menus.models[0]
         recent = next(i for i, it in enumerate(fm.items)
-                      if it.kind == D.DD_NATIVE and 'Recent' in it.label)
-        self.assertFalse(_dd().hover_eligible(self.state.menus, self.state,
-                                              ddg.Hit(D.ZONE_ITEM, path=(recent,), depth=0)))
+                      if it.kind == D.DD_SUBMENU and it.submenu == 'TOPBAR_MT_file_open_recent')
+        self.assertTrue(_dd().hover_eligible(self.state.menus, self.state,
+                                             ddg.Hit(D.ZONE_ITEM, path=(recent,), depth=0)))
         sub = next(i for i, it in enumerate(fm.items) if it.kind == D.DD_SUBMENU)
         self.assertTrue(_dd().hover_eligible(self.state.menus, self.state,
                                              ddg.Hit(D.ZONE_ITEM, path=(sub,), depth=0)))

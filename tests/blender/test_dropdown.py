@@ -155,7 +155,8 @@ class MESO_MT_ddtest_all(bpy.types.Menu):
         layout.menu("MESO_MT_ddtest_child")
         layout.menu("MESO_MT_ddtest_hidden")                     # poll False: absent
         layout.menu("MESO_MT_ddtest_opaque")                     # native child
-        layout.menu("TOPBAR_MT_file_open_recent")                   # C-only
+        layout.menu("TOPBAR_MT_file_open_recent")                   # C-only, built
+        layout.menu("TOPBAR_MT_undo_history")                       # C-only
         layout.operator_enum("object.select_all", "action")
         layout.operator_menu_enum("object.origin_set", "type", text="Origin")
         layout.prop(ts, "use_snap")
@@ -254,10 +255,16 @@ class TestConversion(unittest.TestCase):
         self.assertEqual(native.kind, m.DD_NATIVE)
         self.assertEqual(native.action, m.native_menu_action("MESO_MT_ddtest_opaque"))
         self.assertEqual(m.item_role(native), m.ROLE_HANDOFF)
+        history = by_label(model, "Undo History")      # C-only: a native cascade
+        self.assertEqual(history.kind, m.DD_NATIVE)
+        self.assertTrue(m.has_arrow(history) and m.has_arrow(native))
+        self.assertEqual(history.action.target, "TOPBAR_MT_undo_history")
+        # Open Recent is C-only too, but built by record.builtin_menus: a custom submenu.
         recent = by_label(model, "Open Recent")
-        self.assertEqual(recent.kind, m.DD_NATIVE)
-        self.assertTrue(m.has_arrow(recent) and m.has_arrow(native))
-        self.assertEqual(recent.action.target, "TOPBAR_MT_file_open_recent")
+        self.assertEqual((recent.kind, recent.submenu),
+                         (m.DD_SUBMENU, "TOPBAR_MT_file_open_recent"))
+        self.assertEqual(m.item_role(recent), m.ROLE_SUBMENU)
+        self.assertTrue(m.has_arrow(recent))
 
     def test_operator_enum_expansions(self):
         m, model = self.m, self.model
@@ -363,11 +370,18 @@ class TestCoverage(unittest.TestCase):
 
     def test_c_only_and_native_only(self):
         m = dm()
-        for menu in ("TOPBAR_MT_file_open_recent", "MESO_MT_mode_switch",
-                     "MESO_MT_no_such_menu"):
+        for menu in ("TOPBAR_MT_undo_history", "MESO_MT_no_such_menu"):
             model = build(menu)
             self.assertEqual(model.coverage, m.COVERAGE_NATIVE, menu)
             self.assertEqual(model.native_action, m.native_menu_action(menu))
+        self.assertEqual(build("TOPBAR_MT_undo_history").title, "Undo History")
+        # The built menus (core.tables.BUILT_MENUS) are custom, their native menu the
+        # container hand-off.
+        for menu in ("TOPBAR_MT_file_open_recent", "MESO_MT_mode_switch"):
+            model = build(menu)
+            self.assertEqual(model.coverage, m.COVERAGE_CUSTOM, menu)
+            self.assertEqual(model.native_action, m.native_menu_action(menu))
+            self.assertEqual(dd().classify_menu(bpy.context, menu), (m.COVERAGE_CUSTOM, ''))
         self.assertEqual(build("TOPBAR_MT_file_open_recent").title, "Open Recent")
 
     def test_menu_coverage(self):
@@ -521,7 +535,8 @@ class TestFactoryMenus(unittest.TestCase):
         m = dm()
         model = build("TOPBAR_MT_file")
         self.assertEqual(model.coverage, m.COVERAGE_CUSTOM)
-        self.assertEqual(by_label(model, "Open Recent").kind, m.DD_NATIVE)
+        self.assertEqual(by_label(model, "Open Recent").kind, m.DD_SUBMENU)
+        self.assertEqual(by_label(model, "Open Recent").submenu, "TOPBAR_MT_file_open_recent")
         self.assertTrue(m.has_arrow(by_label(model, "Open Recent")))
         self.assertEqual(by_label(model, "New").kind, m.DD_SUBMENU)
         save = by_label(model, "Save")

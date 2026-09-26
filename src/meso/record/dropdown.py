@@ -35,7 +35,9 @@ menu (submenu)             DD_SUBMENU ``submenu=record.menu`` (poll already filt
                            the recorder); a child whose :func:`menu_coverage` is
                            COVERAGE_NATIVE -> DD_NATIVE 'Label' (drawn with '▸', no '…':
                            ``has_arrow``) with ``native_menu_action(child)``
-native (C-only menu)       DD_NATIVE 'Label' ('▸') + ``native_menu_action(record.menu)``
+native (C-only menu)       DD_NATIVE 'Label' ('▸') + ``native_menu_action(record.menu)``;
+                           a built menu (``core.tables.BUILT_MENUS``: File ▸ Open Recent)
+                           is a DD_SUBMENU (``record.builtin_menus`` builds it)
 prop BOOLEAN               DD_TOGGLE ``checked`` = value, ``Action(ACTION_TOGGLE,
                            data_path)`` (``record.datapath.resolve``; unresolvable ->
                            DD_VALUE); a property read-only in this context
@@ -84,6 +86,8 @@ opaque / error / partial   the whole model is COVERAGE_NATIVE (items are empty);
 Labels: the record ``text`` (recorder label rules: explicit text translated, else op RNA
 name / bl_label / property name); '' falls back to ``recorder.display_label`` / the op RNA
 name. A C-only root menu (``core.tables.C_ONLY_MENUS``) is COVERAGE_NATIVE without recording.
+The built menus (``core.tables.BUILT_MENUS``: the mode switcher, Open Recent) are never
+recorded either: :func:`build_in_context` returns ``record.builtin_menus.build`` (COVERAGE_CUSTOM).
 
 Never raises: a failing build returns a COVERAGE_NATIVE model with ``errors`` (logged once).
 Never call a real popup / popover here.
@@ -113,8 +117,8 @@ from ..core.model import (
     ACTION_OPERATOR, ACTION_SET_ENUM, ACTION_TOGGLE, ACTION_TOGGLE_FLAG, KIND_MENU,
     ROW_CONTEXTUAL, ROW_ROOT, Action, PlazaModel, Item, Row,
 )
-from ..core.tables import C_ONLY_MENUS, c_only_menu_allowed
-from . import datapath, header_controls, recorder
+from ..core.tables import BUILT_MENUS, C_ONLY_MENUS, c_only_menu_allowed
+from . import builtin_menus, datapath, header_controls, recorder
 from .recorder import (
     REC_DYNAMIC, REC_ERROR, REC_LABEL, REC_LINK, REC_MENU, REC_NATIVE, REC_OPAQUE,
     REC_OPERATOR, REC_OPERATOR_ENUM, REC_OPERATOR_MENU_ENUM, REC_OPERATOR_MENU_HOLD,
@@ -788,8 +792,12 @@ class Converter:
             item = self._submenu(rec)
             return [item] if item is not None else []
         if kind == REC_NATIVE:
-            enabled = bool(rec.enabled) and c_only_menu_allowed(rec.menu, self._area_type)
             label = rec.text or recorder.display_label(rec.menu)
+            if rec.menu in BUILT_MENUS:
+                # Built by record.builtin_menus (File ▸ Open Recent): a custom submenu.
+                return [DropdownItem(DD_SUBMENU, label, enabled=bool(rec.enabled),
+                                     active=bool(rec.active), submenu=rec.menu, source=kind)]
+            enabled = bool(rec.enabled) and c_only_menu_allowed(rec.menu, self._area_type)
             # A native submenu keeps the '▸' (core.dropdown_model.has_arrow), no '…'.
             return [DropdownItem(DD_NATIVE, label, enabled=enabled,
                                  active=bool(rec.active), action=native_menu_action(rec.menu),
@@ -957,8 +965,8 @@ class Converter:
             return None
         if self._pointers(rec) and not self.panel:
             self._native(CAUSE_POINTER)     # its draw reads them; a later record cannot
-        native = menu in NATIVE_ONLY_MENUS or menu in C_ONLY_MENUS
-        if not native and self.child_coverage is not None:
+        native = menu not in BUILT_MENUS and (menu in NATIVE_ONLY_MENUS or menu in C_ONLY_MENUS)
+        if not native and menu not in BUILT_MENUS and self.child_coverage is not None:
             try:
                 native = self.child_coverage(menu) == COVERAGE_NATIVE
             except Exception:
@@ -1179,6 +1187,8 @@ def classify_menu(context: Any, menu_id: str,
     """``(COVERAGE_*, cause)`` of ``menu_id`` in ``context`` (the caller holds the override):
     what :func:`menu_coverage` caches, plus the cause (coverage tool). Top-level records only,
     converted without polls or child classification. Never raises."""
+    if menu_id in BUILT_MENUS:
+        return COVERAGE_CUSTOM, CAUSE_NONE
     static = _static_native(menu_id)
     if static is not None:
         return static
@@ -1232,7 +1242,12 @@ def build_in_context(context: Any, menu_id: str,
                      cache: DropdownCache | None = None, show_shortcuts: bool = False,
                      poll: bool = True) -> tuple[DropdownModel, str]:
     """:func:`build_dropdown` with the override already held (``context`` is the invoking
-    area's): ``(model, cause)``. Not cached here. Never raises."""
+    area's): ``(model, cause)``. Not cached here. Never raises. A built menu
+    (``core.tables.BUILT_MENUS``) comes from ``record.builtin_menus.build``."""
+    if menu_id in BUILT_MENUS:
+        model = builtin_menus.build(context, menu_id, operator_context)
+        cause = CAUSE_NONE if model.coverage != COVERAGE_NATIVE else CAUSE_FAILED
+        return model, cause
     static = _static_native(menu_id)
     if static is not None:
         return _native_model(menu_id, operator_context, (static[1],)), static[1]
@@ -1332,7 +1347,7 @@ def classify_rows(context: Any, info: Any, model: PlazaModel,
                     if item.kind != KIND_MENU or not menu or menu in NATIVE_ONLY_MENUS:
                         items.append(item)
                         continue
-                    native = (menu in C_ONLY_MENUS or _coverage_in(
+                    native = ((menu in C_ONLY_MENUS and menu not in BUILT_MENUS) or _coverage_in(
                         ctx, menu, DROPDOWN_OPERATOR_CONTEXT, cache) == COVERAGE_NATIVE)
                     if native and (item.payload or {}).get('coverage') != COVERAGE_NATIVE:
                         items.append(_native_row_item(item))
@@ -1351,7 +1366,7 @@ def classify_rows(context: Any, info: Any, model: PlazaModel,
                       f"classify_rows took {elapsed * 1000:.1f} ms (budget about 2 ms)")
         if not changed:
             return model
-        return PlazaModel(tuple(rows), model.center, model.recent, model.controls)
+        return replace(model, rows=tuple(rows))
     except Exception as ex:
         _log_once('classify_rows', f"classifying the row menus failed: {ex!r}")
         return model

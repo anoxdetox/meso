@@ -39,9 +39,15 @@ which stay in ``ops.plaza``) to :func:`handle_event`, which
                       measured here, in the modal; every open level rebuilt, paths
                       re-resolved, ``dropdown_model.valid_depth``, chain re-placed where it
                       was with ``relayout_chain``; a HoverItem at the last pointer); ``step(Changed(key, valid_depth))`` + Opened per
-                      rebuilt level
+                      rebuilt level. An apply that changed ``context.mode`` (a mode
+                      switcher pick) re-records the WHOLE Plaza instead
+                      (:func:`rebuild_after_mode_change`) and closes the chain
+                      (``Changed(key, 0)``): the Plaza stays open in the new mode
    RunItem(p, False)  record ``last_session``; ``_end(state, 'run')``; ``ops.invoke.execute(
-                      action, window, area, region, area_type)`` right before FINISHED (D3)
+                      action, window, area, region, area_type)`` right before FINISHED (D3);
+                      a file-loading operator (``core.actions.loads_file``: Open Recent,
+                      Revert, New, Recover) goes through ``ops.invoke.schedule`` instead (the
+                      D3 timer fallback: a file load frees the running modal's handler)
    Handoff(action)    ``_end(state, 'handoff')``; ``ops.invoke.execute(...)``; FINISHED (D3)
    Redraw             ``state.handlers.redraw(rects=[old / new hover + open labels, old / new
                       panel rects, old / new plaza extent when the layout changed])``
@@ -163,7 +169,8 @@ class MenuSession:
     order), ``in_place`` (``core.actions.describe`` of each in-place call), ``run``
     (``(model key, path, label, (kind, target, data_path))`` of the terminal RunItem /
     Handoff, or None); ``opened_by`` (``bar.opened_by`` of each ``opened`` root dropdown:
-    'hover' / 'click' / 'key'; None for submenus).
+    'hover' / 'click' / 'key'; None for submenus); ``mode_changes`` (``context.mode`` after
+    each in-place mode switch that re-recorded the whole Plaza).
     """
 
     bar: MenuBarState = field(default_factory=initial_state)
@@ -184,6 +191,7 @@ class MenuSession:
     last_xy: tuple[float, float] | None = None
     shift: bool = False
     ctrl: bool = False
+    mode_changes: list[str | None] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- setup
@@ -264,12 +272,13 @@ def summary(session: MenuSession | None) -> dict[str, Any]:
     """The ``last_session()`` additions of ``session`` (plain data; defaults for None)."""
     if session is None:
         return {'menus_opened': [], 'menus_opened_by': [], 'in_place': [], 'run_item': None,
-                'dropdown_builds': 0, 'dropdown_hits': 0}
+                'dropdown_builds': 0, 'dropdown_hits': 0, 'mode_changes': []}
     return {'menus_opened': list(session.opened),
             'menus_opened_by': [by for by in session.opened_by if by is not None],
             'in_place': list(session.in_place),
             'run_item': session.run, 'dropdown_builds': session.cache.builds,
             'dropdown_hits': session.cache.hits,
+            'mode_changes': list(session.mode_changes),
             'classify_ms': rec_dropdown.LAST_TIMING.get('classify_rows_ms')}
 
 
@@ -498,14 +507,17 @@ def _build_child(state: Any, context: Any, parent: DropdownModel,
 
 
 def _replace_row_item(model: PlazaModel, new: Item) -> PlazaModel:
-    """``model`` with the row item of id ``new.id`` replaced by ``new``."""
+    """``model`` with the item of id ``new.id`` replaced by ``new`` (a row item or a
+    centre-line box such as 'Recent Files')."""
     rows_out = []
     for row in model.rows:
         if any(it.id == new.id for it in row.items):
             row = Row(row.key, tuple(new if it.id == new.id else it for it in row.items),
                       row.align)
         rows_out.append(row)
-    return PlazaModel(tuple(rows_out), model.center, model.recent, model.controls)
+    line = {name: new for name in ('files', 'recent', 'center', 'controls')
+            if getattr(model, name) is not None and getattr(model, name).id == new.id}
+    return dataclasses.replace(model, rows=tuple(rows_out), **line)
 
 
 def _relayout(state: Any, session: MenuSession) -> None:
@@ -722,6 +734,45 @@ def refresh_after_change(state: Any, context: Any, changed_key: str) -> int:
         return 0
 
 
+def _context_mode(context: Any) -> str | None:
+    try:
+        return context.mode
+    except Exception:
+        return None
+
+
+def rebuild_after_mode_change(state: Any, context: Any, mode: str | None) -> None:
+    """After an in-place apply changed ``context.mode`` (a mode switcher pick): the whole
+    Plaza is re-recorded for the new mode, as a fresh invoke would record it
+    (``record.rows.build_model`` + ``record.dropdown.classify_rows``: the mode label, the
+    contextual menus, the Tool Settings row), with ``state.context_mode`` / ``mode_keymap``
+    updated, the session cache invalidated, the Plaza re-laid out at the same anchor and the
+    chain closed. Only plain data is kept: window / area / region stay the live objects of
+    the running modal (a mode change keeps the screen), nothing recorded survives the call.
+    Never raises: on failure the Tool Settings refresh of :func:`refresh_after_change` still
+    runs through the caller."""
+    session = state.menus
+    from .. import prefs     # lazily (import graph, as ops.invoke.addon_module)
+    from ..core.tap import paint_mode_keymap
+    state.context_mode = mode
+    try:
+        state.mode_keymap = paint_mode_keymap(mode, state.area_type,
+                                              getattr(state, 'handler_region_type', None))
+    except Exception:
+        pass
+    session.cache.invalidate()
+    info = _info(state)
+    addon_prefs = prefs.get_prefs(context)
+    model = rows.build_model(context, info, addon_prefs)
+    model = rec_dropdown.classify_rows(context, info, model, session.cache,
+                                       show_shortcuts=session.show_shortcuts,
+                                       debug_timing=bool(getattr(state, 'debug_timing', False)))
+    state.model = model
+    _relayout(state, session)
+    session.models, session.chain = (), EMPTY_CHAIN
+    session.mode_changes.append(mode)
+
+
 def _apply_in_place(state: Any, context: Any, effect: RunItem) -> list[Event]:
     session = state.menus
     if effect.path is None:
@@ -734,9 +785,20 @@ def _apply_in_place(state: Any, context: Any, effect: RunItem) -> list[Event]:
     if action is None:
         return [Changed(key, None)]
     action = core_actions.with_click_modifiers(action, shift=session.shift, ctrl=session.ctrl)
+    mode_before = _context_mode(context)
     res = invoke.apply_in_place(action, state.window, state.area, state.region)
     if res.call is not None:
         session.in_place.append(res.call)
+    mode_after = _context_mode(context)
+    if mode_after != mode_before:
+        # A mode switch: every row depends on the mode, so the whole Plaza is re-recorded
+        # and the chain closes (the Plaza stays open).
+        try:
+            rebuild_after_mode_change(state, context, mode_after)
+            return [Changed(key, 0)]
+        except Exception:
+            _log_once('mode_rebuild', "re-recording the Plaza after a mode change failed",
+                      exc=True)
     if (action.data_path or '').startswith(ANIMATED_PATH_PREFIXES):
         # Region visibility animates (the RNA value lands when the animation ends): re-record
         # again on later watchdog TIMERs so the check mark is not stale.
@@ -832,9 +894,21 @@ def _run_terminal(op: Any, state: Any, effect: Effect) -> set[str]:
     session.run = where + (act,)
     hb._last.update(handoff=handoff, action=act, tapped=False,
                     elapsed=time.perf_counter() - state.t0)
+    window_ptr = getattr(state, 'window_ptr', 0)
+    area_index = getattr(state, 'area_index', None)
     hb._end(state, reason)
     if op is not None:
         op._state = None
+    if core_actions.loads_file(action):
+        # A file load removes every window handler, this running modal's included: it runs
+        # from the D3 timer fallback once modal() has returned (re-resolved by pointer).
+        try:
+            invoke.schedule(action, window_ptr, area_index)
+            hb._last['handoff_result'] = ['SCHEDULED']
+        except Exception:
+            _log_once(f"schedule:{reason}", f"scheduling the {reason} action failed", exc=True)
+            hb._last['handoff_result'] = None
+        return {'FINISHED'}
     try:
         res = invoke.execute(action, window, area, region, area_type)
         hb._last['handoff_result'] = res.result

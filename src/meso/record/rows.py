@@ -13,7 +13,8 @@ Content:
   'ui_type', ui_type)``, falling back to ``core.tables.UI_TYPE_LABELS`` then the id), or the
   workspace name when there is no editor (bars / no area).
 - Side items: 'Recent Commands' (left, native repeat history) and 'Meso Settings' (right,
-  the add-on preferences).
+  the add-on preferences); 'Recent Files' (:func:`recent_files_item`, left of Recent
+  Commands) opens File > Open Recent as a custom dropdown (``record.builtin_menus``).
 
 Only the live objects in :class:`InvokeInfo` and ``context`` are read, during the call; the
 returned model is plain data.
@@ -21,6 +22,7 @@ returned model is plain data.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,11 +31,13 @@ import bpy
 from ..core.model import (
     ACTION_ADDON_PREFS, ACTION_MENU, ACTION_REPEAT_HISTORY, ACTION_WORKSPACE, CENTER_ID,
     CONTROLS_ID, KIND_CASCADE, KIND_CENTER, KIND_CONTROLS, KIND_MENU, KIND_RECENT,
-    KIND_WORKSPACE, MODE_SWITCH_ID, RECENT_ID, ROW_CONTEXTUAL, ROW_TOOL_SETTINGS, ROW_WORKSPACE,
+    KIND_WORKSPACE, MODE_SWITCH_ID, RECENT_FILES_ID, RECENT_ID, ROW_CONTEXTUAL,
+    ROW_TOOL_SETTINGS, ROW_WORKSPACE,
     Action, PlazaModel, Item, Row, contextual_item_id, workspace_item_id,
 )
 from ..core.tables import (
-    CONTROLS_LABEL, MODE_SWITCH_FALLBACK_LABEL, MODE_SWITCH_MENU, RECENT_LABEL, UI_TYPE_LABELS,
+    CONTROLS_LABEL, MODE_SWITCH_FALLBACK_LABEL, MODE_SWITCH_MENU, OPEN_RECENT_MENU,
+    RECENT_FILES_LABEL, RECENT_LABEL, UI_TYPE_LABELS,
     c_only_menu_allowed, ordered_workspaces,
 )
 from . import header, header_controls, recorder
@@ -150,8 +154,21 @@ def side_items() -> tuple[Item, Item]:
                  action=Action(ACTION_ADDON_PREFS)))
 
 
+def recent_files_item() -> Item:
+    """``Item(RECENT_FILES_ID, pgettext_iface(RECENT_FILES_LABEL), KIND_MENU, {'menu':
+    OPEN_RECENT_MENU}, action=Action(ACTION_MENU, target=OPEN_RECENT_MENU))``: the centre-line
+    'Recent Files' box. A built menu (``core.tables.BUILT_MENUS``), so it opens a custom
+    dropdown (ROLE_DROPDOWN, hover-open like the row menus); the Action is the native
+    hand-off of a session without dropdowns."""
+    return Item(RECENT_FILES_ID, _iface(RECENT_FILES_LABEL), KIND_MENU,
+                {'menu': OPEN_RECENT_MENU}, action=Action(ACTION_MENU, target=OPEN_RECENT_MENU))
+
+
 def mode_switch_item(context: Any, info: InvokeInfo) -> Item | None:
-    """Phase 3 (C): the contextual row's first item in the 3D View, else None.
+    """Phase 3 (C): the contextual row's first item in the 3D View, else None. A built
+    menu (``core.tables.BUILT_MENUS``): it opens the custom mode dropdown
+    (``record.builtin_menus.mode_switch_model``); the Action is the native hand-off of a
+    session without dropdowns.
 
     ``Item(MODE_SWITCH_ID, <current mode name>, KIND_CASCADE, cascade=True,
     action=Action(ACTION_MENU, target=core.tables.MODE_SWITCH_MENU))``; the label is
@@ -265,8 +282,8 @@ def _record_area(context: Any, info: InvokeInfo) -> Any | None:
 def build_model(context: Any, info: InvokeInfo, prefs: Any = None) -> PlazaModel:
     """The session model: rows ``(root_row(context), Row(ROW_CONTEXTUAL),
     Row(ROW_TOOL_SETTINGS), workspace_row(...))`` (root + contextual above the centre;
-    the wrapping Tool Settings row below it, workspace tabs at the very bottom), ``center_item(...)``
-    and :func:`side_items`.
+    the wrapping Tool Settings row below it, workspace tabs at the very bottom),
+    ``center_item(...)``, :func:`side_items` and :func:`recent_files_item`.
 
     ``prefs`` (the add-on preferences or None -> defaults) feeds the Tool Settings row
     toggles. Each part has its own fallback, so this only raises on programming errors
@@ -286,7 +303,7 @@ def build_model(context: Any, info: InvokeInfo, prefs: Any = None) -> PlazaModel
         del recordings
     recent, controls = side_items()
     rows = (root_row(context), contextual, tools, workspace_row(context, info))
-    return PlazaModel(rows, center_item(context, info), recent, controls)
+    return PlazaModel(rows, center_item(context, info), recent, controls, recent_files_item())
 
 
 def refresh_tool_settings(context: Any, info: InvokeInfo, model: PlazaModel,
@@ -314,7 +331,7 @@ def refresh_tool_settings(context: Any, info: InvokeInfo, model: PlazaModel,
                 rows.append(row)
         if not found:
             return model
-        return PlazaModel(tuple(rows), model.center, model.recent, model.controls)
+        return dataclasses.replace(model, rows=tuple(rows))
     except Exception as ex:
         _log_once('refresh_tool_settings', f"re-recording the Tool Settings row failed: {ex!r}")
         return model
