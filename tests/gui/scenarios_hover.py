@@ -40,6 +40,72 @@ AIM_REST = 0.3            # hover_open_delay (the aim-guard rest) of the rest-sw
 HAND_STEP = 7             # px per move of a hand-like exit walk
 HAND_FRAME = 0.008        # s between its moves (125 Hz)
 
+# Chains entered for the exits: (name, row label id, submenu opened from its dropdown).
+EXIT_CHAINS = (("object_apply", "ctx:VIEW3D_MT_object", "VIEW3D_MT_object_apply"),
+               ("file_import", FILE, "TOPBAR_MT_file_import"),
+               ("file_export", FILE, "TOPBAR_MT_file_export"))
+
+
+def exit_paths(st, addon_module):
+    """Straight paths (HAND_STEP px) from a point of the deepest open panel (the
+    submenu) to a point of the invoking area outside the Plaza, that leave the chain's
+    panels once (through the parent panel if it lies in the way: hovering a parent item
+    closes the submenu natively) and then cross at least one other hover-eligible label;
+    never sideways over the open label's row (a slide along the bar switches by design).
+    ``{kind: (points, crossed eligible labels, index of the last point in a panel)}``,
+    the first found per kind: 'down', 'sideways' (over the Tool Settings row) and
+    'diagonal'. Module level: the real-input suite (``realinput_driver.py``) walks the same
+    paths."""
+    g = importlib.import_module(addon_module + ".core.dropdown_geometry")
+    dm = importlib.import_module(addon_module + ".core.dropdown_model")
+    model = importlib.import_module(addon_module + ".core.model")
+    dd = importlib.import_module(addon_module + ".ops.dropdowns")
+    layout, chain = st.layout, st.menus.chain
+    plaza, sub = layout.plaza_rect, chain.panels[-1].rect
+    area = st.area_bounds or st.bounds
+    inside = (dm.ZONE_ITEM, dm.ZONE_PANEL)
+    others = {b.item_id for b in layout.items
+              if dd.hover_eligible(st.menus, st, g.Hit(dm.ZONE_LABEL, label_id=b.item_id))}
+    others.discard(st.menus.bar.open_label)
+    open_row = layout.item(st.menus.bar.open_label).row_key
+    starts = [(int(sub.x + fx * sub.w), int(sub.y + fy * sub.h))
+              for fx in (0.1, 0.5, 0.9) for fy in (0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97)]
+    found = {}
+    for start in starts:
+        for deg in range(0, 360, 5):
+            dx, dy = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+            pts, hits = [start], [g.resolve_hit(layout, chain, *start)]
+            for k in range(1, 400):
+                x = round(start[0] + dx * HAND_STEP * k)
+                y = round(start[1] + dy * HAND_STEP * k)
+                if not area.contains(x, y):
+                    break
+                pts.append((x, y))
+                hits.append(g.resolve_hit(layout, chain, x, y))
+                if not plaza.contains(x, y) and hits[-1].zone == dm.ZONE_NONE:
+                    break
+            if hits[0].zone not in inside or hits[-1].zone != dm.ZONE_NONE \
+                    or plaza.contains(*pts[-1]):
+                continue
+            last_in = max(n for n, h in enumerate(hits) if h.zone in inside)
+            if any(h.zone not in inside for h in hits[:last_in]):
+                continue                    # left the chain and came back
+            crossed = [h.label_id for h in hits[last_in:] if h.zone == dm.ZONE_LABEL]
+            eligible = [c for c in dict.fromkeys(crossed) if c in others]
+            if not eligible:
+                continue
+            rows = {layout.item(c).row_key for c in crossed}
+            if open_row in rows and abs(dy) <= 1.2 * abs(dx):
+                continue
+            if dy < 0 and abs(dy) >= abs(dx):          # steeply down
+                kind = "down"
+            elif abs(dx) > 2 * abs(dy) and model.ROW_TOOL_SETTINGS in rows:
+                kind = "sideways"
+            else:
+                kind = "diagonal"
+            found.setdefault(kind, (pts, eligible, last_in))
+    return found
+
 
 def scenarios(drv):
     """``[(name, fn(rec) -> generator)]`` for the driver's SCENARIOS list."""
@@ -527,65 +593,6 @@ def scenarios(drv):
                   ls.get("menus_opened_by"))
 
     # -------------------------------------------------------------------------- (j)
-    # Chains entered for the exits: (name, row label id, submenu opened from its dropdown).
-    EXIT_CHAINS = (("object_apply", "ctx:VIEW3D_MT_object", "VIEW3D_MT_object_apply"),
-                   ("file_import", FILE, "TOPBAR_MT_file_import"),
-                   ("file_export", FILE, "TOPBAR_MT_file_export"))
-
-    def exit_paths(st):
-        """Straight paths (HAND_STEP px) from a point of the deepest open panel (the
-        submenu) to a point of the invoking area outside the Plaza, that leave the chain's
-        panels once (through the parent panel if it lies in the way: hovering a parent item
-        closes the submenu natively) and then cross at least one other hover-eligible label;
-        never sideways over the open label's row (a slide along the bar switches by design).
-        ``{kind: (points, crossed eligible labels, index of the last point in a panel)}``,
-        the first found per kind: 'down', 'sideways' (over the Tool Settings row) and
-        'diagonal'."""
-        g = ddg()
-        layout, chain = st.layout, st.menus.chain
-        plaza, sub = layout.plaza_rect, chain.panels[-1].rect
-        area = st.area_bounds or st.bounds
-        inside = (D().ZONE_ITEM, D().ZONE_PANEL)
-        others = set(eligible_labels(st)) - {st.menus.bar.open_label}
-        open_row = layout.item(st.menus.bar.open_label).row_key
-        starts = [(int(sub.x + fx * sub.w), int(sub.y + fy * sub.h))
-                  for fx in (0.1, 0.5, 0.9) for fy in (0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97)]
-        found = {}
-        for start in starts:
-            for deg in range(0, 360, 5):
-                dx, dy = math.cos(math.radians(deg)), math.sin(math.radians(deg))
-                pts, hits = [start], [g.resolve_hit(layout, chain, *start)]
-                for k in range(1, 400):
-                    x = round(start[0] + dx * HAND_STEP * k)
-                    y = round(start[1] + dy * HAND_STEP * k)
-                    if not area.contains(x, y):
-                        break
-                    pts.append((x, y))
-                    hits.append(g.resolve_hit(layout, chain, x, y))
-                    if not plaza.contains(x, y) and hits[-1].zone == D().ZONE_NONE:
-                        break
-                if hits[0].zone not in inside or hits[-1].zone != D().ZONE_NONE \
-                        or plaza.contains(*pts[-1]):
-                    continue
-                last_in = max(n for n, h in enumerate(hits) if h.zone in inside)
-                if any(h.zone not in inside for h in hits[:last_in]):
-                    continue                    # left the chain and came back
-                crossed = [h.label_id for h in hits[last_in:] if h.zone == D().ZONE_LABEL]
-                eligible = [c for c in dict.fromkeys(crossed) if c in others]
-                if not eligible:
-                    continue
-                rows = {layout.item(c).row_key for c in crossed}
-                if open_row in rows and abs(dy) <= 1.2 * abs(dx):
-                    continue
-                if dy < 0 and abs(dy) >= abs(dx):          # steeply down
-                    kind = "down"
-                elif abs(dx) > 2 * abs(dy) and md().ROW_TOOL_SETTINGS in rows:
-                    kind = "sideways"
-                else:
-                    kind = "diagonal"
-                found.setdefault(kind, (pts, eligible, last_in))
-        return found
-
     walk_gaps = []
 
     def hand_walk(points):
@@ -644,8 +651,12 @@ def scenarios(drv):
         nested session a hover redraw starves the simulating driver for up to ~80 ms
         (``walk_gaps``) while the watchdog TIMER keeps running, so the simulated hand pauses
         on a label longer than the 0.05 s default. Real input is queued during such a frame
-        and handled before the TIMER, so it never reads as a rest; the default delay is
-        covered by the reducer and headless tests (8 ms moves, a TIMER every 0.05 s)."""
+        and handled before the TIMER, so a busy frame never reads as a rest; the default
+        delay is covered by the reducer and headless tests (8 ms moves, a TIMER every
+        0.05 s) and by the real-input walk ``ri_plaza_sticky_exits`` (XTEST moves from their
+        own thread, so a busy frame never pauses the hand; it also checks that a switch only
+        ever follows a real hold on the label). ``walk_gaps_below_rest`` fails when a stall
+        outlasts even AIM_REST."""
         prefs = drv.addon_prefs()
         old = prefs.hover_open_delay
         try:
@@ -665,7 +676,7 @@ def scenarios(drv):
             keys = yield from enter_chain(rec, st, f"{name}_", label_id, submenu)
             if keys is None:
                 continue
-            paths = exit_paths(st)
+            paths = exit_paths(st, drv.ADDON_MODULE)
             rec.setdefault("exit_paths", {})[name] = {k: v[1] for k, v in paths.items()}
             rec.setdefault("panels", {})[name] = [repr(p.rect) for p in st.menus.chain.panels]
             for kind, (pts, crossed, last_in) in sorted(paths.items()):
@@ -698,6 +709,11 @@ def scenarios(drv):
                       drv.dd_keys(st))
         rec["exits"] = done
         rec["walk_gaps"] = list(walk_gaps)
+        # A driver stall at least as long as the rest would read as a rest on a crossed label:
+        # fail loudly here instead of as a mysterious switch (the real-input walk at the
+        # default delay is ri_plaza_sticky_exits in realinput_driver.py).
+        drv.check(rec, "walk_gaps_below_rest", max(walk_gaps, default=0.0) < AIM_REST,
+                  [max(walk_gaps, default=0.0), AIM_REST])
         drv.check(rec, "exit_kinds", set(done) == {"down", "sideways", "diagonal"}, done)
         drv.check(rec, "no_draw_error", not st.failed and st.error is None, st.error)
         # Rest on a crossed label: it switches, and the switched menu is sticky.
