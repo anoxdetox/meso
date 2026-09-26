@@ -1330,6 +1330,8 @@ def scenarios(drv):
                 if data is not None and data.users == 0:
                     bpy.data.armatures.remove(data)
             scene.tool_settings.mesh_select_mode = saved_select_mode
+            # the cleanup's reveal left the records active
+            importlib.import_module(drv.ADDON_MODULE + ".ops.isolate").clear_records()
             if cube is not None:
                 select_only(cube)
             back_to_blender()
@@ -1357,6 +1359,10 @@ def scenarios(drv):
         quad = maximized = False
         saved_select_mode = tuple(scene.tool_settings.mesh_select_mode)
         iso_ops = importlib.import_module(drv.ADDON_MODULE + ".ops.isolate")
+        # Start from no isolate: an earlier scenario's cleanup revealed with mesh.reveal, which
+        # leaves its record active by design (a reveal while isolated, then Ctrl 1, restores
+        # the state from before the isolate), and the first Ctrl 1 here would restore it.
+        iso_ops.clear_records()
         try:
             choose('MESO')
             yield 0.3
@@ -1526,6 +1532,7 @@ def scenarios(drv):
                 if data is not None and data.users == 0:
                     bpy.data.meshes.remove(data)
             scene.tool_settings.mesh_select_mode = saved_select_mode
+            iso_ops.clear_records()             # the cleanup's reveal left them active
             if cube is not None:
                 select_only(cube)
             back_to_blender()
