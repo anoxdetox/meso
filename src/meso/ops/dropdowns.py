@@ -961,7 +961,8 @@ def _reset_chain(session: MenuSession) -> None:
             session.bar, open_label=None, submenus=(), roles=(), cell_roles=(),
             hover_path=None, hover_cell=None,
             pending=None, aim_since=None, pressed=None, press_opened=False, nav_enter=False,
-            opened_by=None, hover_wait=None, leave_since=None, leave_aim=None)
+            opened_by=None, hover_wait=None, leave_since=None, leave_aim=None,
+            entered=False)
     except Exception:
         bar = session.bar
         session.bar = initial_state(bar.submenu_delay, bar.execute_on_release, bar.hover_open,

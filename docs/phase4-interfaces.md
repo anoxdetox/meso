@@ -137,7 +137,9 @@ User request (after Phase 4): a Plaza menu opens on its own when the pointer res
   - `initial_state()` defaults `hover_open` to False, so a reducer built without the prefs is exactly the Phase 4 bar. `PlazaState` defaults to the pref values (True / 0.05 / 0.3) for a session started without prefs.
 - **Eligibility:** only ROLE_DROPDOWN labels open on hover: menus with a custom dropdown and the Tool Settings cascades (Pivot, Snap and Proportional cascades, orientation). `core.menubar.hover_opens(target)` also answers True for ROLE_SUBMENU items, which already opened after `submenu_delay`. `ops.dropdowns.hover_eligible(session, state, hit)` wraps it for a hit. Never eligible: toggles (ROLE_APPLY), '…' native menus, the mode switcher, workspaces, Recent Commands, Meso Settings (all ROLE_HANDOFF), operator / DD_NATIVE items and passive labels. A native menu never opens on a mere hover.
 - **State** (`MenuBarState`):
-  - `opened_by`: None when closed, else `'hover'` (transient), `'click'` or `'key'` (sticky). The `transient` property is True for `'hover'`.
+  - `opened_by`: None when closed, else `'hover'`, `'click'` or `'key'` (sticky). It records how the root dropdown opened and is what `last_session()['menus_opened_by']` lists.
+  - `entered`: the pointer has been inside a panel of the open chain (any `HoverItem`, panel padding included). Reset when the chain closes and whenever a new root dropdown opens (a switch included).
+  - The `transient` property is True for `'hover'` while `entered` is False.
   - `hover_wait` / `hover_wait_since`: a closed bar waiting for the delay.
   - `leave_since` / `leave_aim`: when a transient chain was left, and its last aim.
 - **Opening:**
@@ -145,11 +147,17 @@ User request (after Phase 4): a Plaza menu opens on its own when the pointer res
   - Moves inside the label that was just closed (Esc, a title click, a native model's `Changed(key, 0)`) never re-arm it: only re-entering does, so a native label cannot loop.
   - A press before the delay opens by click as before.
   - Never while a press is held: an LMB pressed on a toggle or hand-off label and dragged onto a dropdown label clears `hover_wait` and opens nothing, so its release can never run an item or hand off from a dropdown that was never pressed. The label re-arms when the pointer enters one with the button up.
-- **Closing a transient chain:**
-  - Any HoverLabel off the open label (empty space, a non-eligible label) starts `leave_since`. The open label or any HoverItem, panel padding included, clears it.
+- **Sticky once entered** (user feedback of 2026-09-26: "when in a submenu then hovering on nothing (viewport or any non plaza item) menu should not dissapear"):
+  - Once the pointer has entered any panel of a hover-opened chain (`entered`), the chain is sticky like a pinned one. A move onto the viewport, empty strip space or a non-eligible label, and any Timer, never close it or any of its submenus.
+  - It closes on a pick (RUN / HANDOFF are terminal, APPLY_CLOSE closes its own level), a press on empty Plaza space or outside every panel, a switch to another eligible label (the aim guard rules below are unchanged), a click on the open title (as for a pinned title), Esc and the Space release.
+  - A switch from an entered chain opens the new dropdown with `entered` False and `opened_by` unchanged. A hover-opened dropdown the pointer never entered therefore still closes `hover_close_delay` after the pointer left it.
+  - `opened_by` stays `'hover'` (it is how the chain opened); a press inside a panel or a Nav key still turns it into `'click'` / `'key'`.
+  - Tests: `tests/unit/test_menubar.py` (`TestStickyOnceEntered`, the `entered` invariants of `TestInvariants`, `TestHoverOpen.test_leaving_a_hover_opened_submenu_keeps_the_chain`), `tests/blender/test_dropdowns.py` (`TestHoverOpen.test_entered_submenu_stays_open_over_nothing`, `test_entered_chain_esc_and_space`, `test_switch_from_an_entered_chain_is_transient`), GUI `hover_entered_chain_sticky` (`tests/gui/scenarios_hover.py`).
+- **Closing a transient chain** (never entered):
+  - Any HoverLabel off the open label (empty space, a non-eligible label) starts `leave_since`. The open label clears it; any HoverItem, panel padding included, clears it and makes the chain entered (sticky).
   - `Timer` closes the whole chain (`CloseChain(0)`; the Plaza stays open) once `now - leave_since > hover_close_delay` and no aim is younger than `aim_timeout` (0.25 s).
   - Aim: D sets `HoverLabel.aiming` with `core.dropdown_geometry.is_approaching(origin, cur, panel, slack)`, a safe triangle toward the edge of any chain panel that faces the pointer's recent position (`origin`: see "Aim guard" below).
-- **Switching:** hovering another ROLE_DROPDOWN label while any chain is open switches at once, unless the aim guard below defers it. The new chain keeps `opened_by`: a pinned bar stays pinned, a transient one stays transient.
+- **Switching:** hovering another ROLE_DROPDOWN label while any chain is open switches at once, unless the aim guard below defers it. The new chain keeps `opened_by`: a pinned bar stays pinned, a hover-opened one (entered or not) is transient again until the pointer enters the new dropdown.
 - **Aim guard** (user report of 2026-09-25: "I have Object open, then I try to reach the Object submenu but it briefly hovers onto Help, Help pops open"; Meso Keymap step 7):
   - While any chain is open (click-, key- or hover-opened), D sets `HoverLabel.aiming` for every move outside the panels: `is_approaching(origin, cur, panel, slack)` toward any panel of the chain, where `origin = aim_origin(trail, cur, AIM_TRAIL_PX)` is the newest of the last `AIM_TRAIL_LEN` (16) move points at least 8 px away (`MenuSession.trail`) and `slack = AIM_SLACK_PX` (2 px), both times the ui scale. The exact per-move triangle is not enough: a steep path toward a tall panel beside the pointer (Object's panel opens beside its label and reaches above the root row) is mostly pixel steps straight up (dx == 0), which the exact triangle rejects.
   - A HoverLabel on another ROLE_DROPDOWN label with `aiming` does not switch: hover := that label (it highlights), `switch_wait` := it, `switch_since` := now; every aimed move over it refreshes `switch_since`.
@@ -157,11 +165,11 @@ User request (after Phase 4): a Plaza menu opens on its own when the pointer res
   - A hover-opened chain crossing a label is also "left" (the leave timer starts) but aimed, so it neither closes nor switches while the pointer heads for it.
   - Moves along the bar (File → Edit) are not toward the chain: the switch stays immediate. A hand slides there in small steps, and a panel opened below its label is wider than it, so the slack-widened triangle toward its top edge takes in those sideways steps (every step "approached" the File panel and Edit waited for a rest). D therefore clears `aiming` for a slide along the bar (`_sliding_along_bar`): the hovered label is in the open label's row (`row_key`) and on its line (the rects overlap vertically), and the heading from the same `aim_origin` is mostly sideways (`core.dropdown_geometry.along_row`: `|dx| >= |dy|`, `dx != 0`). The reported crossing is not affected (Help is in the root row, the open Object label in the contextual row). With `hover_open` off the guard works the same (it only defers a switch).
   - Tests: `tests/unit/test_menubar.py` (`TestAimGuard`, the random-sequence invariants), `tests/unit/test_dropdown_geometry.py` (`TestApproaching.test_slack_accepts_steps_along_the_facing_edge`, `TestAimOrigin`, `TestAlongRow`), `tests/blender/test_dropdowns.py` (`TestAimGuard`: the reported layout, a 125 Hz walk from Object to the top of its panel over Help, rest and move-away switches, a hover-opened chain, and step-by-step slides from File to Edit, with 1–5 px steps, a downward drift and a 1 s hover delay, that switch on the first point over Edit), GUI `hover_aim_guard_diagonal` (`tests/gui/scenarios_hover.py`).
-- **Pinning (transient → sticky):**
-  - A press on the hover-opened title pins it (`'click'`, `press_opened=True`: its release keeps it open).
+- **Pinning (hover → `'click'` / `'key'`):**
+  - A press on the transient hover-opened title pins it (`'click'`, `press_opened=True`: its release keeps it open).
   - A press inside any panel (an item or padding) pins it.
   - Any Nav key pins it (`'key'`).
-  - A click on a pinned open title closes it (the Phase 4 toggle).
+  - A click on a pinned (or entered) open title closes it (the Phase 4 toggle).
   - An empty click, Esc and the Space release behave as before in both modes.
 - **Unchanged:** `execute_on_release`, drag-release from a label, in-place applies and re-records, operator runs after teardown, Esc layering. A hover-open is not an interaction (`interacted` stays False: tap logic unchanged).
 - **`last_session()`:** `menus_opened_by` lists `bar.opened_by` of each opened root dropdown, parallel to its entries in `menus_opened`. Submenus are left out.

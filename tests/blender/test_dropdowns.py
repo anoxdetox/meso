@@ -875,6 +875,54 @@ class TestHoverOpen(_Case):
         self.tick(1.0)
         self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit', "the panel is inside")
 
+    def test_entered_submenu_stays_open_over_nothing(self):
+        """User feedback 2026-09-26: a hover-opened chain the pointer has entered stays
+        open when the pointer moves onto the viewport or empty Plaza space; an empty click
+        closes only the chain."""
+        self.hover_open('TOPBAR_MT_file')
+        self.move(self.item_xy((2,)))                      # submenu_delay 0: opens
+        self.move(self.item_xy((2, 0)))
+        self.assertEqual((len(self.state.dropdowns.panels), self.bar().entered), (2, True))
+        for xy in (self.outside(), self.gap(), self.label_xy('TEST_MT_native'),
+                   self.label_xy(SNAP_ID), self.outside()):
+            self.move(xy)
+            self.tick(0.5)
+            self.assertEqual(len(self.state.dropdowns.panels), 2, xy)
+        self.tick(3.0)
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_file')
+        self.assertEqual(self.bar().opened_by, 'hover', "how it opened is kept")
+        self.click(self.gap())
+        self.assertIsNone(self.state.dropdowns, "an empty click closes the chain")
+        self.assertTrue(_hb().is_running(), "only the chain closes")
+        self.assertEqual((self.executed, self.run_calls), ([], []))
+
+    def test_entered_chain_esc_and_space(self):
+        self.hover_open('TOPBAR_MT_file')
+        self.move(self.item_xy((0,)))
+        self.move(self.outside())
+        self.tick(1.0)
+        self.assertEqual(self.ev('ESC', 'PRESS'), {'RUNNING_MODAL'})
+        self.assertIsNone(self.state.dropdowns)
+        self.assertTrue(_hb().is_running())
+        self.move(self.gap())
+        self.hover_open('TOPBAR_MT_file')
+        self.move(self.item_xy((0,)))
+        self.move(self.outside())
+        self.tick(1.0)
+        self.assertEqual(self.ev('SPACE', 'RELEASE'), {'FINISHED'})
+        self.assertEqual(_hb().last_session()['end'], 'finish')
+        self.assertEqual(self.executed, [])
+
+    def test_switch_from_an_entered_chain_is_transient(self):
+        self.hover_open('TOPBAR_MT_file')
+        self.move(self.item_xy((0,)))
+        self.move(self.label_xy('TOPBAR_MT_edit'))       # a move along the bar: switches
+        self.assertEqual(self.state.open_label, 'TOPBAR_MT_edit')
+        self.assertEqual((self.bar().opened_by, self.bar().entered), ('hover', False))
+        self.move(self.gap())
+        self.tick(0.35)
+        self.assertIsNone(self.state.dropdowns, "never entered: closes after the grace")
+
     def test_leave_toward_the_panel_is_aim(self):
         self.hover_open('TOPBAR_MT_file')
         panel = self.state.dropdowns.panels[0].rect

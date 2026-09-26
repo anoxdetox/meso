@@ -881,18 +881,23 @@ class TestHoverOpen(unittest.TestCase):
             s, outs = run(s, hl(None, 2.0), ev, mb.Timer(3.0))
             self.assertEqual(outs[-1], (), ev)
             self.assertTrue(s.is_open)
-            # and leaving the panel again restarts the grace
-            s, outs = run(s, hl(None, 4.0), mb.Timer(4.2), mb.Timer(4.31))
-            self.assertEqual(outs[1:], [(), (mb.CloseChain(0), mb.Redraw())])
+            # and leaving the panel again keeps it: the chain was entered (sticky)
+            self.assertTrue(s.entered)
+            s, outs = run(s, hl(None, 4.0), mb.Timer(4.2), mb.Timer(4.31), mb.Timer(9.0))
+            self.assertEqual(outs[1:], [(), (), ()])
+            self.assertTrue(s.is_open)
+            self.assertIsNone(s.leave_since)
 
-    def test_leaving_a_hover_opened_submenu_closes_everything(self):
+    def test_leaving_a_hover_opened_submenu_keeps_the_chain(self):
+        # User feedback 2026-09-26: "when in a submenu then hovering on nothing (viewport or
+        # any non plaza item) menu should not disappear".
         s = hover_opened(FILE, 1.0, submenu_delay=0.0)
         s, outs = run(s, hover_item((1,), S, 1.1), mb.Opened(1, SUB_ROLES),
                       hover_item((1, 0), R_, 1.2))
         self.assertEqual(s.submenus, ((1,),))
-        s, outs = run(s, hl(None, 2.0), mb.Timer(2.4))
-        self.assertEqual(outs[-1], (mb.CloseChain(0), mb.Redraw()))
-        self.assertEqual(s.depth, 0)
+        s, outs = run(s, hl(None, 2.0), mb.Timer(2.4), hl(SNAP, 2.5, AP), mb.Timer(9.0))
+        self.assertEqual(outs[1:], [(), (mb.Redraw(),), ()])
+        self.assertEqual((s.open_label, s.submenus, s.opened_by), (FILE, ((1,),), mb.OPENED_HOVER))
 
     def test_aim_toward_panel_extends_grace(self):
         s = hover_opened(FILE, 1.0, close=0.3)
@@ -1105,6 +1110,113 @@ class TestHoverOpen(unittest.TestCase):
         self.assertEqual(outs, [(rd,), (), (rd,), (rd,), ()])
         self.assertFalse(s.is_open)
         self.assertEqual((s.opened_by, s.hover_wait), (None, None))
+
+
+class TestStickyOnceEntered(unittest.TestCase):
+    """User feedback 2026-09-26: once the pointer has entered a panel of a hover-opened
+    chain, moving onto nothing (the viewport, empty strip space, a non-eligible label) never
+    closes it; a chain the pointer never entered keeps the hover_close_delay close
+    (docs/phase4-interfaces.md "Hover-open")."""
+
+    def entered_submenu(self):
+        s = hover_opened(FILE, 1.0, submenu_delay=0.0, close=0.3)
+        self.assertFalse(s.entered)
+        s, _ = run(s, hover_item((1,), S, 1.1), mb.Opened(1, SUB_ROLES),
+                   hover_item((1, 2), S, 1.2), mb.Opened(2, SUB_ROLES),
+                   hover_item((1, 2, 0), R_, 1.3))
+        self.assertEqual((s.depth, s.entered, s.transient), (3, True, False))
+        self.assertEqual(s.opened_by, mb.OPENED_HOVER, "opened_by keeps how it opened")
+        return s
+
+    def test_panel_padding_counts_as_entering(self):
+        s = hover_opened(FILE, 1.0)
+        s, (e,) = run(s, mb.HoverItem(None, P, 1.1))
+        self.assertTrue(s.entered)
+        s, outs = run(s, hl(None, 1.2), mb.Timer(5.0))
+        self.assertEqual(outs, [(), ()])
+        self.assertTrue(s.is_open)
+
+    def test_moving_onto_nothing_keeps_the_whole_chain(self):
+        s = self.entered_submenu()
+        subs = s.submenus
+        for ev in (hl(None, 2.0), hl(None, 2.1, P, aiming=True), hl('sep', 2.2, P),
+                   hl(SNAP, 2.3, AP), hl(NATIVE, 2.4, H), hl(WS, 2.5, H),
+                   hl(FILE, 2.6), mb.Timer(3.0), mb.Timer(30.0)):
+            s, (e,) = run(s, ev)
+            self.assertFalse([x for x in e if isinstance(x, (mb.CloseChain, mb.OpenDropdown))],
+                             (ev, e))
+        self.assertEqual((s.open_label, s.submenus, s.leave_since), (FILE, subs, None))
+
+    def test_closes_on_pick_empty_click_esc_and_space(self):
+        s = self.entered_submenu()
+        s, outs = run(s, hl(None, 2.0), press(itm((1, 2, 0), R_), 2.1),
+                      release(itm((1, 2, 0), R_), 2.2))
+        self.assertEqual(outs[-1], (mb.RunItem((1, 2, 0), False),))
+        for t in (STRIP, OUTSIDE, lbl('sep', P)):
+            with self.subTest(t=t):
+                s = self.entered_submenu()
+                s, outs = run(s, hl(None, 2.0), press(t, 2.1))
+                self.assertEqual(outs[-1], (mb.CloseChain(0), mb.Redraw()))
+                self.assertFalse(s.entered)
+        s = self.entered_submenu()
+        s, outs = run(s, hl(None, 2.0), mb.Esc())
+        self.assertEqual(outs[-1], (mb.CloseChain(0), mb.Redraw()))
+        self.assertEqual((s.is_open, s.entered), (False, False))
+        s = self.entered_submenu()
+        s, outs = run(s, hl(None, 2.0), mb.SpaceRelease())
+        self.assertEqual(outs[-1], (mb.Finish(),))
+
+    def test_open_title_click_closes_it(self):
+        s = self.entered_submenu()
+        s, (e1, e2) = run(s, press(lbl(FILE), 2.0), release(lbl(FILE), 2.1))
+        self.assertEqual((e1, e2), ((), (mb.CloseChain(0), mb.Redraw())))
+
+    def test_switch_starts_an_unentered_transient_chain(self):
+        s = self.entered_submenu()
+        s, (e,) = run(s, hl(EDIT, 2.0))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
+        self.assertEqual((s.opened_by, s.entered, s.transient), (mb.OPENED_HOVER, False, True))
+        s, outs = run(s, mb.Opened(0, FILE_ROLES), hl(None, 2.1), mb.Timer(2.5))
+        self.assertEqual(outs[-1], (mb.CloseChain(0), mb.Redraw()), "never entered: closes")
+        # entering the switched chain makes it sticky again
+        s = self.entered_submenu()
+        s, _ = run(s, hl(EDIT, 2.0), mb.Opened(0, FILE_ROLES), hover_item((0,), R_, 2.1),
+                   hl(None, 2.2), mb.Timer(9.0))
+        self.assertEqual((s.open_label, s.entered), (EDIT, True))
+
+    def test_aim_guard_still_applies(self):
+        s = self.entered_submenu()
+        s, (e,) = run(s, hl(EDIT, 2.0, aiming=True))
+        self.assertEqual(e, (mb.Redraw(),), "deferred: crossed toward the chain")
+        self.assertEqual((s.switch_wait, s.open_label), (EDIT, FILE))
+        s, (e,) = run(s, mb.Timer(2.01 + mb.switch_rest(s)))
+        self.assertEqual(e, (mb.CloseChain(0), mb.OpenDropdown(EDIT), mb.Redraw()))
+        # a crossing that reaches the chain keeps it, and it stays sticky
+        s = self.entered_submenu()
+        s, _ = run(s, hl(EDIT, 2.0, aiming=True), hover_item((1, 2, 1), AC, 2.02),
+                   hl(None, 2.1), mb.Timer(9.0))
+        self.assertEqual((s.open_label, s.switch_wait, s.depth), (FILE, None, 3))
+
+    def test_never_entered_keeps_the_close_delay(self):
+        s = hover_opened(FILE, 1.0, close=0.3)
+        s, outs = run(s, hl(None, 2.0), mb.Timer(2.2), mb.Timer(2.31))
+        self.assertEqual(outs[1:], [(), (mb.CloseChain(0), mb.Redraw())])
+        self.assertFalse(s.entered)
+
+    def test_closing_to_a_shallower_level_keeps_entered(self):
+        s = self.entered_submenu()
+        s, _ = run(s, hover_item((0,), R_, 2.0))
+        self.assertEqual((s.depth, s.entered), (1, True))
+        s, _ = run(s, mb.Changed(FILE, 1), hl(None, 2.1), mb.Timer(9.0))
+        self.assertEqual((s.is_open, s.entered), (True, True))
+
+    def test_click_opened_chain_is_unchanged(self):
+        s = opened_file()
+        s, _ = run(s, hover_item((0,), R_, 1.0))
+        self.assertTrue(s.entered)
+        s, outs = run(s, hl(None, 1.1), mb.Timer(9.0))
+        self.assertTrue(s.is_open)
+        self.assertEqual(s.opened_by, mb.OPENED_CLICK)
 
 
 # --------------------------------------------------------------------------- aim guard
@@ -1382,6 +1494,19 @@ class TestInvariants(unittest.TestCase):
             self.assertEqual(label_roles.get(s.switch_wait), dm.ROLE_DROPDOWN)
         if not s.transient:
             self.assertIsNone(s.leave_since)
+        # Sticky once entered: ``entered`` only while open; set by every HoverItem; it only
+        # clears with a close or a new root dropdown; a move or a Timer never closes an
+        # entered chain except for a switch to another label.
+        if not s.is_open:
+            self.assertFalse(s.entered, s)
+        if isinstance(ev, mb.HoverItem) and before.is_open:
+            self.assertTrue(s.entered, s)
+        if before.is_open and before.entered and s.is_open and not s.entered:
+            self.assertIn(mb.OpenDropdown(s.open_label), effects)
+        if (before.is_open and before.entered
+                and isinstance(ev, (mb.HoverLabel, mb.HoverItem, mb.Timer))
+                and mb.CloseChain(0) in effects):
+            self.assertTrue([e for e in effects if isinstance(e, mb.OpenDropdown)], effects)
         if isinstance(ev, (mb.HoverLabel, mb.Timer, mb.HoverItem)):
             self.assertFalse([e for e in effects if isinstance(e, (mb.RunItem, mb.Handoff))])
             for e in effects:

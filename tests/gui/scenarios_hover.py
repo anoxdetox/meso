@@ -12,7 +12,9 @@ Pivot cascade opens on hover; (e) a click-pinned File stays open when the pointe
 click on a hover-opened File pins it; (f) ``hover_open`` False: hover does nothing; (g) the aim guard: Object open, a quick
 diagonal path to the top of its tall panel crosses Help (above Object) and Help never
 opens; stopping and resting on Help switches to it; (h) File open, a quick slide along the
-root row to Edit switches on arrival (the aim guard never delays a slide along the bar).
+root row to Edit switches on arrival (the aim guard never delays a slide along the bar);
+(i) a hover-opened chain the pointer entered (Object ▸ Apply) stays open over the viewport
+until an empty click or Esc.
 """
 
 import importlib
@@ -448,6 +450,74 @@ def scenarios(drv):
             if prefs is not None:
                 prefs.hover_open_delay = old
 
+    # -------------------------------------------------------------------------- (i)
+    def sc_entered_chain_sticky(rec):
+        """User feedback 2026-09-26: Object hover-opened, the pointer enters it and its Apply
+        submenu, then moves onto the viewport and rests there well past the close delay:
+        the whole chain stays open. An empty click closes only the chain; after a re-open,
+        entering and leaving, Esc closes it too."""
+        obj = md().contextual_item_id("VIEW3D_MT_object")
+        xy, st = yield from start(rec)
+        if st is None:
+            return
+        oxy = label_xy(st, obj)
+        drv.check(rec, "object_placed", oxy is not None)
+        if oxy is None:
+            yield from drv.close_plaza(xy, rec)
+            return
+        drv.sim('MOUSEMOVE', 'NOTHING', oxy)
+        yield OPEN_WAIT
+        drv.check(rec, "object_hover_opened", st.open_label == obj
+                  and opened_by(st) == "hover", [st.open_label, opened_by(st)])
+        apply_i = drv.dd_find(st, 0, lambda it: it.kind == D().DD_SUBMENU
+                              and it.submenu == "VIEW3D_MT_object_apply")
+        drv.check(rec, "apply_found", apply_i is not None)
+        if apply_i is None:
+            yield from drv.close_plaza(xy, rec)
+            return
+        drv.sim('MOUSEMOVE', 'NOTHING', drv.dd_xy(st, (apply_i,)))
+        yield OPEN_WAIT
+        keys = ["VIEW3D_MT_object", "VIEW3D_MT_object_apply"]
+        drv.check(rec, "apply_opened", drv.dd_keys(st) == keys, drv.dd_keys(st))
+        sub = drv.dd_xy(st, (apply_i, 0))
+        if sub is not None:
+            drv.sim('MOUSEMOVE', 'NOTHING', sub)
+            yield 0.1
+        drv.check(rec, "entered", bar(st) is not None and bar(st).entered is True,
+                  bar(st) and bar(st).entered)
+        away = empty(st)
+        drv.sim('MOUSEMOVE', 'NOTHING', away)
+        yield 0.1
+        drv.sim('MOUSEMOVE', 'NOTHING', (away[0] + 3, away[1] + 2))
+        yield CLOSE_WAIT * 2
+        drv.check(rec, "chain_kept_over_viewport", st.open_label == obj
+                  and drv.dd_keys(st) == keys, [st.open_label, drv.dd_keys(st)])
+        drv.check(rec, "no_draw_error", not st.failed and st.error is None, st.error)
+        yield from drv.press_click(away)
+        drv.check(rec, "empty_click_closes", st.dropdowns is None and st.open_label is None,
+                  [st.open_label, drv.dd_keys(st)])
+        drv.check(rec, "plaza_open_after_click", drv.plaza().is_running())
+        # Re-open, enter, leave, Esc: the chain closes and the Plaza stays.
+        drv.sim('MOUSEMOVE', 'NOTHING', oxy)
+        yield OPEN_WAIT
+        first = drv.dd_xy(st, (0,))
+        if first is not None:
+            drv.sim('MOUSEMOVE', 'NOTHING', first)
+            yield 0.1
+        away = empty(st)
+        drv.sim('MOUSEMOVE', 'NOTHING', away)
+        yield CLOSE_WAIT
+        drv.check(rec, "reopened_kept", st.open_label == obj, st.open_label)
+        drv.sim('ESC', 'PRESS', away)
+        yield 0.05
+        drv.sim('ESC', 'RELEASE', away)
+        yield 0.2
+        drv.check(rec, "esc_closes_chain", st.dropdowns is None, drv.dd_keys(st))
+        drv.check(rec, "plaza_open_after_esc", drv.plaza().is_running())
+        ls = yield from finish(rec, away)
+        drv.check(rec, "menus_opened_by", ls.get("menus_opened_by") == ["hover", "hover"],
+                  ls.get("menus_opened_by"))
+
     return [
         ("hover_opens_switches_closes", sc_hover_opens_switches_closes),
         ("hover_fast_sweep", sc_fast_sweep),
@@ -457,4 +527,5 @@ def scenarios(drv):
         ("hover_open_off", sc_hover_open_off),
         ("hover_aim_guard_diagonal", sc_aim_guard_diagonal),
         ("hover_aim_guard_slide_bar", sc_aim_guard_slide_bar),
+        ("hover_entered_chain_sticky", sc_entered_chain_sticky),
     ]

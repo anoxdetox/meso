@@ -16,8 +16,11 @@ Familiar workflows for artists coming from Autodesk Maya software. See
 - **Hold Space:** the Plaza opens at the cursor and stays open while you browse. Rest on a menu
   to open it, click to pin it, and move to the next label to switch. A label you only cross on
   your way into the open menu doesn't steal it: stop on that label (or click it) to switch.
-  Releasing Space closes everything. The **Meso Settings** box on the centre line opens the
-  add-on preferences.
+  Once the pointer has been inside an open menu or submenu, the menu stays open when the
+  pointer wanders onto the viewport or empty space. It closes when you pick an item, click
+  empty space, move to another menu label, or press Esc. A menu that opened on hover and was
+  never entered still closes shortly after the pointer leaves it. Releasing Space closes
+  everything. The **Meso Settings** box on the centre line opens the add-on preferences.
 - **Custom dropdowns** are drawn from Blender's own menus and popovers. They follow Blender's
   click conventions: Shift+click adds to a multi-choice set, and Ctrl+click expands the select
   mode. Anything that can't be reproduced hands off to the native menu.
