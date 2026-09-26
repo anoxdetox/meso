@@ -373,6 +373,55 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     on / reset) and `test_meso_keymap.py` (the switched-off native, the editors behind the handler); GUI G4 (the
     real selection in the Outliner, Node, Clip, channels, File Browser and Info), `mk_alt_d_reach` (every editor
     reached; the Outliner and Node blocked again with IC's item on) and the new `mk_alt_d_driver`.
+- **Step 11 implemented** (the D hold, user request of 2026-09-26: "Hold the D key down: This activates a temporary
+  toggle. As long as your finger is holding the key down, you can move the pivot. The exact moment you release the D
+  key, Pivot Edit Mode turns off automatically, locking the pivot where you left it"; the D tap and Insert stay):
+  - **D is a hold again, with the tap on top.** `meso.pivot_once` is a hold operator of the snap-hold kind now
+    (`_HoldMixin`, element PIVOT, the D key in the `HoldSession`): the **press** writes Affect Only Origins at once as
+    an overlay of the user's value, so a gizmo drag or any transform started while D is down edits only origins; the
+    modal passes every event through (own repeats too, step 6). The **release** decides (`core.pivot_once.hold_step`,
+    `core.snap_hold.step` plus "any other key press, a modifier too, is not a tap"): within `hold_tap_threshold`
+    (0.2 s) with no mouse button, key, modifier or foreign modal since the press → **tap**: the overlay goes and the
+    step-9 one-shot runs exactly as before (arm; a second tap cancels; Insert while armed makes it persistent; a tap
+    while the option is on arms nothing). Anything else → **hold**: the user's own value comes back, nothing else is
+    undone ("locking the pivot where you left it").
+  - **Every transform while D is held edits origins** (not consumed): the step-8 still-held rule covers the release a
+    transform swallows (own repeats prove D down; the deadline after a transform counts as released; the learned
+    repeat timing), and nothing is written while a foreign modal runs. Restore points: the release, the timeout,
+    `WINDOW_DEACTIVATE`, Esc, `cancel()`, `load_pre`, the `save_pre` / `save_post` swap, `unregister()`, the
+    vanished-operator reset (`MESO_OT_pivot_once` is in `HOLD_OP_IDS` now).
+  - **Interactions:** a D hold while the one-shot is armed replaces it (the release gives the user's value back and
+    ends the one-shot, `_end_pivot_hold`); a D hold while Insert's persistent mode is on changes nothing at the
+    release; Insert while D is held flips the value the release gives back (the persistent mode then stays on); a D
+    tap with an X hold down is still a tap (no "other hold key" rule for D). Adjust Last Operation on the last
+    transform made while D was held keeps Affect Only Origins: the hold end records it in `_state['used']` when the
+    newest registered operator is a transform newer than the one at the press (`core.pivot_once.hold_transform`),
+    and the step-9 `undo_post` rule runs it with the option on.
+  - **D + LMB** (measured with real input, G18): Blender's 'Grease Pencil' keymap carries `gpencil.annotate` on LMB /
+    RMB with the held-key modifier D (in the Meso keyconfig too, `TestAnnotateWhileDHeld`), and it runs in the 3D View
+    after the gizmos and before the tool keymaps. So while D is held a Move / Rotate / Scale **gizmo** drag edits the
+    origin, and an LMB drag **anywhere else**, in empty space and on the object (Tweak tool), draws an annotation
+    stroke as before (no transform); the release still gives the user's value back. The native D + drag annotate
+    stays reachable unchanged; decision 48.
+  - **Known limit (the snap holds' decision 34):** another repeating key pressed while D is held (W, E, R to pick a
+    tool, G Repeat Last, Insert) stops D's OS repeats, so the next transform is the last one of that hold (its
+    overlay goes when that transform ends, or at the release if it comes first). Pick the tool first, then hold D.
+  - `core/pivot_once.py`: `hold_step`, `EV_MODIFIER`, `hold_transform` (the `tap_step` reducer of step 9 is gone);
+    `core/snap_hold.py`: `HOLD_OP_IDS` = `OWN_IDS` = {`MESO_OT_snap_hold`, `MESO_OT_pivot_once`}. `ops/snap_hold.py`:
+    `_pivots` (the D hold keys and the registered-operator marker at the press), `pivot_keys()`, `_drive` steps a D
+    hold with `hold_step` and ends it with `tap_once` (tap) or `_end_pivot_hold` (hold), `_classify_tap` returns
+    `EV_MODIFIER` for a modifier press, `start_hold(element='PIVOT')` starts a D hold, `MESO_OT_pivot_once` uses
+    `_HoldMixin` (the `keymap` property moved to `MESO_OT_snap_hold`). Binding label "Hold or Tap D: Edit Origins",
+    operator label "Edit Origins", the Pivot group shows the tap threshold too.
+  - **Tests:** unit `tests/unit/test_pivot_once.py` (`TestHoldStep`: tap threshold, a long still press is a hold,
+    mouse / key / modifier / foreign modal make it a hold, a modifier keeps the repeats trusted, repeats pass in every
+    phase; `TestTapAndHold`: a pure model of the session, the hold and the one-shot for every interaction above;
+    `TestHoldTimeline`: the OS event pattern of `test_snap_hold.timeline` with the D reducer: every drag while held,
+    the release during a drag, another repeating key, a modifier); headless `TestPivotHold` (press writes at once, tap
+    and second tap, a long still press, anything in between, Esc / focus loss, `_classify_tap`, three transforms with
+    repeats, the swallowed release timing out, a release under the annotate modal, a real `transform.translate`
+    reading the overlay, while armed, with Insert on, Insert while held, with an X hold, the redo, the watcher, every
+    teardown, the saved file) and `TestAnnotateWhileDHeld`; GUI G13 (simulated hold) and G18 (real input).
 
 ## Delivery model (user decision 1; step 4)
 - The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
@@ -411,7 +460,7 @@ values, calls the pure functions and applies the returned writes.
 | `ops/keymap_choice.py` (new) | bpy | `MESO_OT_keymap_choose`, `MESO_OT_keymap_choice_dialog`, `MESO_OT_keymap_reset` (step 4) |
 | `ops/isolate.py` (new) | bpy | `MESO_OT_isolate_toggle`, per-mode flag readers/writers, the in-memory records |
 | `ops/properties_cycle.py` (new) | bpy | `MESO_OT_properties_cycle`, sidebar fallback timer |
-| `ops/snap_hold.py` (new) | bpy | `MESO_OT_snap_hold`, `MESO_OT_pivot_hold`, `MESO_OT_pivot_toggle`, the module session, watcher timer, handlers, native tap replay |
+| `ops/snap_hold.py` (new) | bpy | `MESO_OT_snap_hold`, `MESO_OT_pivot_once` (the D hold and tap, step 11; `MESO_OT_pivot_hold` until step 9), `MESO_OT_pivot_toggle`, the module session, watcher timer, handlers, native tap replay |
 | `prefs.py` | bpy | New preferences (below); step 4 removed the generated `bind_<id>` BoolProperties |
 | `keymap_prefs.py` | bpy | The "Meso Keymap" box (choice, Reset to Default (Meso), binding list); the section tree also lists the Meso keymaps |
 | `keymaps.py` | bpy | Unchanged (the Plaza items); its docstring's "must be LAST" becomes "last before `meso_keymap`" |
@@ -518,7 +567,7 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 | `snap_hold_vertex` | Snapping | '3D View' | V (hold) | `meso.snap_hold(element='VERTEX')` | **on** (C2) | IC V View pie → **tap V** opens it click-style on release + the Plaza View ▸ Viewpoint menu + numpad views; the press-drag-release pie gesture is lost |
 | `snap_hold_increment` | Snapping | '3D View' | J (hold) | `meso.snap_hold(element='INCREMENT')` | **on** | nothing (J unbound in IC) |
 | ~~`pivot_hold`~~ | — | removed in step 9 (user item C): no D hold any more | | | | |
-| `pivot_once` | Pivot | 'Object Mode' | D (tap) | `meso.pivot_once` | **on** (step 9) | IC D annotate tool cycle → `reloc_annotate` (Ctrl+Alt+D) + toolbar; D + LMB annotate stays native (the modal ends on the mouse press; verified with real input, G17) |
+| `pivot_once` | Pivot | 'Object Mode' | D (hold, and tap) | `meso.pivot_once` | **on** (step 9; the hold since step 11) | IC D annotate tool cycle → `reloc_annotate` (Ctrl+Alt+D) + toolbar; D + LMB annotate stays native off the gizmo while D is held (the modal passes the mouse press on; verified with real input, G17, G18) |
 | `reloc_annotate` | Pivot | `ANNOTATE_KEYMAPS`: 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves', 'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Image', 'UV Editor' | Ctrl+Alt+D | `wm.tool_set_by_id(name='builtin.annotate', cycle=True)` | on, `follows='pivot_once'` | nothing (free in every keymap that runs there; audit in `docs/spikes/meso-keymap-conflicts.md`) |
 | `pivot_toggle` | Pivot | 'Object Mode' | Insert | `meso.pivot_toggle` | **on** | nothing (Insert only bound in 'Text') |
 
@@ -589,7 +638,7 @@ never saved. The user's keymap edits live in Blender's own keymap preferences (t
 | `meso.isolate_toggle` | REGISTER, UNDO | Ctrl+1; see "Isolate" |
 | `meso.properties_cycle` | REGISTER | Prop `direction` (+1 / −1; the keymap uses +1). See "Properties cycle" |
 | `meso.snap_hold` | INTERNAL (no UNDO: tool settings) | Prop `element` ('GRID' / 'EDGE' / 'VERTEX' / 'INCREMENT'). Modal; see "Pre-drag snapping" |
-| `meso.pivot_once` | INTERNAL (no UNDO: tool settings) | D tap (step 9): a short modal from the press to the release; a tap arms or cancels the one-shot (`tap_once`). `execute` (no event) does the same. Poll: 3D View and `context.mode == 'OBJECT'` (else IC's D runs) |
+| `meso.pivot_once` | INTERNAL (no UNDO: tool settings) | D (step 11): a hold modal (`_HoldMixin`, element PIVOT) from the press; Affect Only Origins while D is down, the user's value at the release; a tap (within `hold_tap_threshold`, nothing in between) arms or cancels the one-shot (`tap_once`, step 9). `execute` (no event) is a tap. Poll: 3D View and `context.mode == 'OBJECT'` (else IC's D runs) |
 | `meso.pivot_toggle` | REGISTER | Insert: flips `tool_settings.use_transform_data_origin` (sticky, like the native checkbox, the persistent mode); with the one-shot armed it ends it and turns the option on. Poll: `context.mode == 'OBJECT'` |
 
 Apply, the select trio and the relocations use native operators directly (so menus show their new shortcuts).
@@ -673,8 +722,10 @@ keymap recorded; another keymap picked while on Meso with the choice MESO → KE
 - Snap holds: `use_snap = True`, `snap_elements = ∪ elements of the held snap keys` (X = GRID, C = EDGE, V = VERTEX,
   J = INCREMENT; several keys held = the union, DEFAULT). **J also sets Affect Move + Rotate + Scale** while held
   (DEFAULT, so step snapping works before R and S); X/C/V leave Affect as the user has it.
+- The D hold (the D key, element PIVOT, step 11): `use_transform_data_origin = True` (Object Mode only) from the
+  press until the release (or the still-held check's timeout).
 - The D tap's one-shot (`ONCE_KEY`, element PIVOT): `use_transform_data_origin = True` (Object Mode only) until
-  the next transform that edits origins (step 9; the D hold of steps 3–8 is gone; review fixes below).
+  the next transform that edits origins (step 9; review fixes below).
 
 ### HoldSession (module state, one per Blender session)
 ```python
@@ -721,8 +772,8 @@ Events → effects:
 | `ESC` with no foreign modal | release the overlay, FINISH, PASS_THROUGH |
 | `cancel()` (file load, window close) | release the overlay if the session still holds it |
 
-- `OWN_IDS` = {`MESO_OT_snap_hold`, `MESO_OT_pivot_once`} (step 9; `HOLD_OP_IDS` = the first only, for the
-  vanished-operator reset): another Meso hold and the D key modal are not foreign. The Plaza
+- `OWN_IDS` = `HOLD_OP_IDS` = {`MESO_OT_snap_hold`, `MESO_OT_pivot_once`} (step 11; in step 9 `HOLD_OP_IDS` was
+  the first only): another Meso hold and the D hold are not foreign, and both count for the vanished-operator reset. The Plaza
   (`MESO_OT_plaza`) **is** foreign, so Space during a hold opens the Plaza and the restore happens after it closes.
 - `foreign_above(ids, own)`: `modal_operators` is newest first; True if a non-`None` id that is not in `own` comes
   before the first own id (guards the `None` entry of an unregistered class, spike b).
@@ -741,11 +792,18 @@ Events → effects:
   poll lets the native item run (D1). `meso.pivot_once` / `meso.pivot_toggle`: `context.mode == 'OBJECT'` (Affect Only
   Origins is Object Mode only; in edit modes D/Insert stay native: annotate cycle / nothing).
 
-### D tap: one-shot pivot edit (`core/pivot_once.py`, step 9)
-- **Tap rule** (`tap_step`, the D key modal): own RELEASE → tap (FINISHED, consumed); own repeat → PASS_THROUGH;
-  own PRESS (release unseen) → consumed, still running; mouse button press, any other key press (not a repeat,
-  modifiers included), a foreign modal, Esc, `WINDOW_DEACTIVATE`, `cancel()` → not a tap, FINISHED + PASS_THROUGH;
-  anything else → PASS_THROUGH. No time limit and no drag threshold: a long still press is a tap (decision 37).
+### D key: hold and one-shot tap (`core/pivot_once.py`, steps 9 and 11)
+- **The D hold** (step 11; `hold_step`, the D key modal): the press writes the overlay (`start_hold(..., 'PIVOT')`,
+  the D key in the session); the modal is `core.snap_hold.step` with two changes: no `others_held` rule, and a mouse
+  button, another key (`EV_OTHER_KEY`) or a modifier (`EV_MODIFIER`, from `_classify_tap`) sets `used`, so the
+  release is no tap. A modifier leaves the repeats trusted (not `blind`), another repeating key does not (decision
+  49). Every other row of the hold reducer table above applies (repeats pass through, the still-held check, the
+  timeout, FOREIGN defers, Esc / deactivate / `cancel()` end it).
+- **Tap rule** (step 11, replaces step 9's): the own release in HELD within `hold_tap_threshold` of the press and not
+  `used` → tap: the overlay is released first, then `tap_once` runs the one-shot (below) with the user's value. Any
+  other end → the end of a hold (`_end_pivot_hold`): an armed one-shot ends too (restore deferred under a foreign
+  modal), and the last transform registered since the press is recorded for Adjust Last Operation
+  (`hold_transform(press_marker, last)`). A long still press is a hold (decision 47, replacing 37).
 - **`tap(state, value_on, marker)`**: IDLE and the option off → ARMED (`ARM`: `HoldSession.press(ONCE_KEY, PIVOT)`
   writes it); IDLE and the option on (Insert's persistent mode, or the checkbox) → `ALREADY_ON`, nothing armed
   (decision 38); ARMED / TRANSFORM → IDLE (`CANCEL`: `release(ONCE_KEY)` writes the user's value back).
@@ -782,7 +840,8 @@ Events → effects:
   it on when the last registered operator is still the transform that used the tap (`_state['used']`: marker,
   idname, scene key) and the one-shot is not armed again; `_redo_restore` (a 0 s timer, after the re-execution)
   switches it back off. A plain Ctrl Z passes the same way: on and off with nothing in between. File load and
-  `unregister()` finish a pending restore (`finish_redo`).
+  `unregister()` finish a pending restore (`finish_redo`). Step 11: the end of a D hold records the last transform
+  made while D was held the same way (no origin-edit evidence is needed: the option was on for it; decision 51).
 
   A confirmed transform registers (`OPTYPE_REGISTER`): verified for Move-gizmo drags, Tweak / Move tool drags and
   a `transform.translate` INVOKE in the GUI (G13, G17, and G14's `last_operator()`); headless `bpy.ops` calls do
@@ -942,8 +1001,10 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
 - `test_keyconfig_choice.py`: every `restore_plan` row (IC still active or not; previous empty / IC / loaded / preset
   only / missing); `choose_plan` MESO→KEEP, KEEP→MESO, MESO on IC; `register_plan` NONE / RESELECT_IC / PROMPT
   (background and prompted guards).
-- `test_pivot_once.py` (step 9): `is_transform_id`, `transform_running`, the D key modal's `tap_step` rows (a long
-  press with repeats is a tap; anything in between is not), `tap` (arm, cancel, already on) and every `tick` row.
+- `test_pivot_once.py` (step 9): `is_transform_id`, `transform_running`, `tap` (arm, cancel, already on) and every
+  `tick` row. Step 11: `hold_step` (the tap threshold, a long still press is a hold, anything in between, modifiers,
+  repeats in every phase), `hold_transform`, the pure tap-and-hold model (`TestTapAndHold`) and the timed OS event
+  pattern (`TestHoldTimeline`).
 - `test_snap_hold.py`: overlay per key; union for X+V; J Affect; baseline taken at first press only; last release
   restores exactly; mid release writes the remaining overlay; `restore_writes` writes `snap_elements` first and once
   and only changed fields; `step` table rows (tap, long hold, used by mouse, FOREIGN defer, deactivate, ESC, cancel,
@@ -995,9 +1056,8 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   in Edit Mode for the pivot ops. Step 9: `TestPivotOnce` (arm and a confirmed transform, a cancelled one keeps it
   armed, two taps, already on, switched off by the user, no tap under a foreign modal, a restore that waits for an
   orbit, with an X hold, the watcher's reset keeps it, `transform.translate` moves only the origin, load /
-  unregister / save, the D key modal: a long press is a tap, a mouse button / key / modifier / Esc / focus loss is
-  not, a foreign modal ends it, it is not foreign to an X hold; `execute`), Insert while armed (also with an X
-  hold); `TestAnnotateRelocation` (Ctrl Alt D is the only active item on the key in the 12 keymaps, the Meso D
+  unregister / save; `execute`), Insert while armed (also with an X hold); step 11 `TestPivotHold` (the D hold
+  through the running modal: see Status step 11) and `TestAnnotateWhileDHeld`; `TestAnnotateRelocation` (Ctrl Alt D is the only active item on the key in the 12 keymaps, the Meso D
   item first in Object Mode, IC's D first elsewhere, nothing on Ctrl Alt D in '3D View', '3D View Generic', 'Image
   Generic', 'Window', 'Screen', 'Frames', 'User Interface', 'Grease Pencil' or a tool keymap; the item switches to
   the Annotate tool).
@@ -1068,13 +1128,23 @@ Snapping and pivot (Xwayland):
   armed and the next one uses it; two taps cancel; Insert on / off (it stays on through a transform); a D tap while
   Insert's mode is on arms nothing; Insert while armed makes it persistent; Ctrl Alt D picks the Annotate tool; in
   Edit Mode D is IC's Annotate tool and Insert does nothing. `mk_snap_taps`: D tap / second tap, Ctrl Alt D, and
-  `pivot_once` switched off gives D back to IC's Annotate on the press.
+  `pivot_once` switched off gives D back to IC's Annotate on the press. Step 11 (simulated, so no repeats: the
+  still-held check or the release ends it): D down writes the option at once, a gizmo drag while it is down edits
+  the origin, the release restores, Adjust Last Operation on that move still edits only the origin, a long still
+  press arms nothing, a hold while armed ends both.
 - G17 (step 9, `realinput` session, real X11 input): `ri_d_tap_gizmo` (a tap, a gizmo drag moves only the origin
   with the option on during it and back after it, the second drag is normal), `ri_d_long_tap` (D held 1.5 s with
   repeats and no other input is a tap; every repeat passed through), `ri_d_annotate_drag` (D + LMB drag in empty
   space with the Tweak tool: `GPENCIL_OT_annotate` runs, a stroke is added, nothing armed, no transform),
   `ri_d_tap_twice` (cancelled, the next drag is normal), `ri_d_cancel_keeps` (Esc during the gizmo drag keeps it
   armed; the next drag moves the origin). Each also checks no write during a transform and the exact restore.
+  Step 11 removed `ri_d_long_tap` (a long still press is a hold now) and moved `ri_d_annotate_drag` to G18.
+- G18 (step 11, `realinput` session): `ri_d_hold_gizmo_multi` (D held 1.5 s with repeats, two gizmo drags move only
+  the origin, the release restores, the next drag moves the object), `ri_d_hold_short_drag` (a drag right after the
+  press), `ri_d_hold_up_during_drag` (the release swallowed by the drag: restored by the still-held check),
+  `ri_d_long_still_hold` (no tap), `ri_d_hold_while_armed`, `ri_d_hold_insert_on`, `ri_d_annotate_drag` and
+  `ri_d_hold_annotate_object` (D + LMB drag with the Tweak tool in empty space and from the cube: a native annotation
+  stroke, no transform, the value back at the release).
 
 Protected features (every Meso keymap PR, roadmap rule): Shift+I local view, Shift+RMB cursor place and drag, the
 Cursor and Annotate tools in the toolbar, box/lasso/circle select, context menus, search, Quick Favorites, playback,
@@ -1137,6 +1207,12 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
   (`pivot_once`, `reloc_annotate`, `ANNOTATE_KEYMAPS`, four `KEYMAP_SPACES` entries), `ops/snap_hold.py`,
   `keymap_prefs.py` (the Pivot hint), `prefs.py` (the tap-threshold description), the tests above,
   `tests/gui/scenarios_snap_hold.py` (G9, G13), `tests/gui/realinput_driver.py` (G17).
+
+### Step 11 — D hold: Affect Only Origins while D is down, the tap stays (✅ implemented, see Status; user request of 2026-09-26)
+- Files: `core/pivot_once.py` (`hold_step`, `EV_MODIFIER`, `hold_transform`; `tap_step` removed), `core/snap_hold.py`
+  (`HOLD_OP_IDS`), `core/meso_bindings.py` (the `pivot_once` label and description), `ops/snap_hold.py`, `prefs.py`
+  (the tap-threshold description), `keymap_prefs.py` (the Pivot hint and threshold), the tests above,
+  `tests/gui/scenarios_snap_hold.py` (G13), `tests/gui/realinput_driver.py` (G18), README.
 
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
@@ -1262,7 +1338,8 @@ anything in Phase 5+.
     the one-shot stays armed for the next transform (a cancelled transform changed nothing; told apart by
     `WindowManager.operators`, and when nothing registered at all it counts as used); (b) any transform, cancelled
     or not, uses it up.
-37. **New in step 9 (DEFAULT in force: a).** What counts as a D tap: (a) **in force:** a release with no mouse
+37. **Superseded by decision 47 (step 11).** The original text: **New in step 9 (DEFAULT in force: a).** What counts
+    as a D tap: (a) **in force:** a release with no mouse
     button, other key (modifiers too) or foreign modal since the press, however long D was down and however far
     the pointer moved (nothing native uses D + a mouse move); (b) Blender's own click rule, which also rejects a
     pointer moved past the keyboard drag threshold; (c) a time limit (the holds' `hold_tap_threshold`).
@@ -1301,3 +1378,24 @@ anything in Phase 5+.
     own Alt D item stays switched off too (it would stop Alt D before the editors again), so Alt D removes no
     driver; the preferences warn and name the item to switch on; the right-click Delete Driver stays; (b) remove
     IC's item from the Meso keyconfig altogether (nothing to switch on).
+47. **New in step 11 (DEFAULT in force: a; replaces decision 37).** What counts as a D tap: (a) **in force:** a
+    release within `hold_tap_threshold` (0.2 s, shared with the snap holds and shown in the Pivot group too) with no
+    mouse button, key (modifiers too) or foreign modal since the press; a longer still press is a hold that
+    changes nothing (the user's value at the release, nothing armed); (b) a still press of any length stays a tap
+    (step 9's rule) and only a press with something in between is a hold; (c) a separate D threshold preference.
+48. **New in step 11 (DEFAULT in force: a; report).** D + LMB while D is held (measured, G18): the Move / Rotate /
+    Scale gizmos edit the origin; an LMB drag anywhere else, empty space or the object with the Tweak or Move tool,
+    is Blender's D + LMB annotate from the 'Grease Pencil' keymap (it runs before the tool keymaps), no transform.
+    (a) **In force:** keep it (native D + drag annotate reachable unchanged; pivot drags use the gizmo, or tap D and
+    then use any tool drag); (b) a Meso D + LMB-drag item that translates a selected object under the pointer
+    (origin only), taking annotate over objects (it stays in empty space and on Ctrl Alt D).
+49. **New in step 11 (DEFAULT in force: a).** Another repeating key pressed while D is held (W / E / R to pick a
+    tool, G Repeat Last, Insert, Space for the Plaza): (a) **in force:** as the snap holds (decision 34), D's OS
+    repeats stop, so the next transform is the last one of that hold (the overlay goes when it ends, or at the
+    release if that comes first); (b) the options of decision 34.
+50. **New in step 11 (DEFAULT in force: a).** Esc or a focus loss while D is held with the one-shot armed: (a) **in
+    force:** the D press ends as a hold, so both end (the user's value); (b) Esc ends only the hold and the one-shot
+    stays armed.
+51. **New in step 11 (DEFAULT in force: a).** Adjust Last Operation after a D hold: (a) **in force:** the last
+    transform registered while D was held re-runs with Affect Only Origins on (a transform in another editor gets the
+    option too, where it does nothing); (b) also require the origin-edit evidence, as the one-shot does.
