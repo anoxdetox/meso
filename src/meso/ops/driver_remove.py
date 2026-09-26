@@ -16,6 +16,11 @@ sockets, every other path), and it returns:
   the undo step is the native "Remove Driver" step (a plain nested ``bpy.ops`` call pushes none).
 - PASS_THROUGH otherwise (no hovered button, or the property is not driven), so the editor
   keymap's Alt D (Deselect All) runs next. A PASS_THROUGH never pushes an undo step.
+- CANCELLED, as Industry Compatible's own item, in a typing region (``TYPING_SPACES``): the
+  Python Console's main region runs the 'User Interface' keymap too, and a key passed on there
+  reaches ``console.insert`` (any key with text), which types the event's "d" (Alt keeps the
+  text of a key event). The Text Editor's main region has no 'User Interface' keymap; it is
+  listed for safety.
 """
 
 from __future__ import annotations
@@ -25,6 +30,17 @@ from bpy.props import BoolProperty
 from bpy.types import Operator
 
 from ..core import meso_bindings as mb
+
+
+# Main regions that type the text of a key event: the key must stop here, as it did natively.
+TYPING_SPACES = frozenset({'CONSOLE', 'TEXT_EDITOR'})
+
+
+def typing_region(context) -> bool:
+    space = getattr(context, 'space_data', None)
+    region = getattr(context, 'region', None)
+    return (getattr(space, 'type', None) in TYPING_SPACES
+            and getattr(region, 'type', None) == 'WINDOW')
 
 
 def remove_hovered_driver(all_elements: bool) -> tuple[set, str | None]:
@@ -48,13 +64,15 @@ Anywhere else, pass the key on (so Alt D deselects in the editor under the mouse
     def invoke(self, context, _event):
         return self.execute(context)
 
-    def execute(self, _context):
+    def execute(self, context):
         result, error = remove_hovered_driver(self.all)
         if error is not None:
             # The native operator stopped the key with an error: do the same.
             self.report({'ERROR'}, error)
             return {'CANCELLED'}
-        return {'FINISHED'} if 'FINISHED' in result else {'PASS_THROUGH'}
+        if 'FINISHED' in result:
+            return {'FINISHED'}
+        return {'CANCELLED'} if typing_region(context) else {'PASS_THROUGH'}
 
 
 _classes = (MESO_OT_driver_button_remove,)

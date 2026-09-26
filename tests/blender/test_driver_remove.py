@@ -70,6 +70,30 @@ class TestOperator(unittest.TestCase):
         self.assertEqual(bpy.ops.meso.driver_button_remove(all=False), {'PASS_THROUGH'})
         self.assertEqual(steps_since(marker), [])
 
+    def test_the_key_stops_in_a_typing_region(self):
+        """Review finding: over the Python Console the key passed on would reach
+        ``console.insert`` and type a "d"; the wrapper stops it there as IC's item did (a
+        removed driver is still FINISHED)."""
+        w = bpy.context.window_manager.windows[0]
+        area = next(a for a in w.screen.areas if a.type == 'PROPERTIES')
+        old = area.ui_type
+        try:
+            for ui_type, want in (('CONSOLE', {'CANCELLED'}), ('TEXT_EDITOR', {'CANCELLED'}),
+                                  ('OUTLINER', {'PASS_THROUGH'})):
+                area.ui_type = ui_type
+                region = next(r for r in area.regions if r.type == 'WINDOW')
+                with self.subTest(ui_type=ui_type), \
+                        bpy.context.temp_override(window=w, area=area, region=region):
+                    self.assertEqual(bpy.ops.meso.driver_button_remove('INVOKE_DEFAULT'), want)
+                    self.assertEqual(self._with_fake(_FakeOps(result={'FINISHED'})),
+                                     {'FINISHED'})
+            area.ui_type = 'CONSOLE'
+            header = next(r for r in area.regions if r.type == 'HEADER')
+            with bpy.context.temp_override(window=w, area=area, region=header):
+                self.assertEqual(bpy.ops.meso.driver_button_remove(), {'PASS_THROUGH'})
+        finally:
+            area.ui_type = old
+
     def _with_fake(self, fake, **props):
         mod = ops_dr()
         real = mod.bpy
