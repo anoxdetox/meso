@@ -84,6 +84,10 @@ pivot ... the exact moment you release the D key, Pivot Edit Mode turns off"):
   in empty space and starting on the cube: Blender's D + LMB annotate draws a stroke in both
   (the 'Grease Pencil' keymap runs before the tool keymap), no transform; Affect Only Origins is
   on while D is down and the user's value after the release, nothing armed.
+- ``ri_d_hold_annotate_move_empty`` / ``ri_d_hold_annotate_move_object``: the same with the Move
+  tool, in empty space and from a point on the cube's front face off every gizmo handle (checked:
+  the ray hits the cube, opposite every axis handle, outside the centre circle): measured what an LMB drag off the gizmo does
+  while D is held with the Move tool (decision 48).
 
 Every drag also checks it was a free move (``check_free_move``): the translate it ran finished
 with no axis constraint, and the cube moved off a single world axis. A key repeat that reached
@@ -119,6 +123,7 @@ import traceback
 import addon_utils
 import bpy
 from bpy_extras import view3d_utils
+from mathutils import Vector
 
 faulthandler.enable(all_threads=True)
 
@@ -623,9 +628,44 @@ def d_press(case, seconds=0.08):
     yield from track(case, 0.3)
 
 
+# A point near the lower left corner of the cube's front (-Y) face in the default view: the Move /
+# Rotate / Scale gizmo handles lie on the positive axes (right-down, right-up and up) around a
+# small centre circle, so a press here is on the object but off every handle (``face_off_gizmo``
+# checks it on the screen).
+FACE_POINT = Vector((-0.85, -1.0, -0.85))
+
+
+def face_off_gizmo():
+    """``(ok, detail)``: FACE_POINT hits the cube, lies opposite every positive axis handle on
+    the screen and outside the gizmo's centre circle."""
+    cube = bpy.data.objects["Cube"]
+    a = area3d()
+    r = region(a)
+    rv3d = a.spaces.active.region_3d
+    mw = cube.matrix_world
+    p = view3d_utils.location_3d_to_region_2d(r, rv3d, mw @ FACE_POINT)
+    o = view3d_utils.location_3d_to_region_2d(r, rv3d, mw.translation)
+    ray_o = view3d_utils.region_2d_to_origin_3d(r, rv3d, p)
+    ray_d = view3d_utils.region_2d_to_vector_3d(r, rv3d, p)
+    hit, _loc, _n, _i, obj, _m = bpy.context.scene.ray_cast(
+        bpy.context.evaluated_depsgraph_get(), ray_o, ray_d)
+    prefs = bpy.context.preferences
+    size = prefs.view.gizmo_size * (prefs.system.ui_scale or 1.0)
+    off = p - o
+    dots = [round(off.dot(view3d_utils.location_3d_to_region_2d(
+        r, rv3d, mw.translation + axis) - o), 1)
+        for axis in (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)))]
+    detail = {"hit": obj.name if hit and obj else None, "dist_px": round(off.length, 1),
+              "centre_px": round(0.5 * size, 1), "axis_dots": dots}
+    ok = (hit and obj is not None and obj.name == "Cube" and off.length > 0.5 * size
+          and all(d < 0 for d in dots))
+    return bool(ok), detail
+
+
 def p_drag(case, label, where="gizmo", cancel=False, key_up_at=None):
-    """An LMB drag on the Move gizmo at the cube (``where`` 'gizmo'), in empty space ('empty')
-    or from the cube's centre with whatever tool is active ('object'); ``cancel``: Esc before
+    """An LMB drag on the Move gizmo at the cube (``where`` 'gizmo'), in empty space ('empty'),
+    from the cube's centre ('object') or from the cube's front face off every gizmo handle
+    ('face') with whatever tool is active; ``cancel``: Esc before
     the button goes up; ``key_up_at``: release D at that move. Records what moved."""
     cube = bpy.data.objects["Cube"]
     if where == "gizmo":
@@ -634,6 +674,8 @@ def p_drag(case, label, where="gizmo", cancel=False, key_up_at=None):
         yield from track(case, 0.12)
     elif where == "object":
         c = to_win(cube.location)
+    elif where == "face":
+        c = to_win(cube.matrix_world @ FACE_POINT)
     else:
         r = region(area3d())
         c = (r.x + r.width // 6, r.y + r.height // 6)
@@ -767,6 +809,9 @@ def n_repeats(case):
 
 def _d_annotate(where):
     def body(rec, case):
+        if where == "face":
+            ok, detail = face_off_gizmo()
+            check(rec, "press_on_the_cube_off_the_gizmo", ok, detail)
         XT.key("d", True)
         yield from track(case, 0.2)
         check(rec, "on_while_held", ts().use_transform_data_origin and not armed())
@@ -905,6 +950,8 @@ D_SCENARIOS = [
     ("ri_d_hold_insert_on", d_case(_d_hold_insert_on)),
     ("ri_d_annotate_drag", d_case(_d_annotate("empty"), tool_id="builtin.select")),
     ("ri_d_hold_annotate_object", d_case(_d_annotate("object"), tool_id="builtin.select")),
+    ("ri_d_hold_annotate_move_empty", d_case(_d_annotate("empty"), tool_id="builtin.move")),
+    ("ri_d_hold_annotate_move_object", d_case(_d_annotate("face"), tool_id="builtin.move")),
 ]
 
 
