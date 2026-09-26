@@ -105,7 +105,7 @@ add-on, so its preferences reset once. Remove the old development link from
 ```
 B=~/.local/share/blender/blender
 PY=~/.local/share/blender/5.2/python/bin/python3.13
-bl() { ( ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
+bl() { ( prlimit --core=1 --pid $BASHPID 2>/dev/null || ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
 
 $PY -m unittest discover -s tests/unit -t .                            # pure tests (no bpy)
 bl -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
@@ -116,7 +116,7 @@ bl --command extension build --source-dir src/meso --output-dir dist
 tools/dev_link.sh                                                       # symlink into user_default for GUI testing
 ```
 Every Blender launch uses fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` directories and no core
-files (`ulimit -c 0`, so a test crash never reaches your desktop's crash reporter),
+crash reports (a core limit of 1 byte, so a test crash never reaches your desktop's crash reporter),
 so tests never touch your real Blender config. After `tools/dev_link.sh`, enable Meso Mode with
 the checkbox in Preferences > Add-ons. Do not use "Uninstall" on the linked extension, and never
 add `src/` as an extension repository.

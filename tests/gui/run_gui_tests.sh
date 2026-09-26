@@ -29,10 +29,11 @@
 # (path printed) on failure; the downscaled screenshots stay in docs/screenshots/.
 # The whole run takes a few minutes: wrap it in `timeout 700`.
 set -u
-# No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
-# which would pop up on the user's session and offer to restart Blender there. (systemd-coredump
-# still logs the crash: the private bus below activates nothing, so no desktop service can crash-loop.)
-ulimit -c 0
+# No crash reports: a test Blender crash must never reach the desktop crash handler (DrKonqi),
+# which would pop up on the user's session and offer to restart Blender there. RLIMIT_CORE = 1
+# makes the kernel abort the dump before the core_pattern pipe (systemd-coredump); 0 still
+# reports every crash.
+prlimit --core=1 --pid $$ || ulimit -c 0   # 1 byte: the kernel drops the crash before systemd-coredump/DrKonqi (0 does not)
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # One nested GUI run at a time on this machine: concurrent nested compositors + GPU Blenders
 # stalled the desktop compositor ("The main thread was hanging temporarily!", 2026-09-26).

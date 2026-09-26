@@ -25,7 +25,7 @@ click/modifier conventions.
 ## Commands
 ```
 $PY -m unittest discover -s tests/unit -t .                          # pure tests (no bpy)
-NODESK="env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=$(mktemp -d)"  # prefix of EVERY non-GUI Blender launch
+NODESK="prlimit --core=1 -- env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=$(mktemp -d)"  # prefix of EVERY non-GUI Blender launch
 $NODESK BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 $NODESK $B --command extension validate src/meso                  # positional path
 timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules + a real-input session; ~5-8 min)
@@ -90,9 +90,11 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<private mktemp -d>` (`$NODESK` above). Otherwise `-b` still connects to
   the desktop compositor (GPU init for the offscreen tests), also with only the variables unset (libwayland's
   `$XDG_RUNTIME_DIR/wayland-0` fallback; both seen 2026-09-26); the offscreen tests pass this way.
-- EVERY Blender launch (headless, GUI, validate, spikes) runs under `ulimit -c 0` (the runners set it; prefix ad-hoc
-  commands): with cores enabled a test crash reaches the desktop crash handler (DrKonqi), which pops up on the user's
-  session and offers to restart Blender there.
+- EVERY Blender launch (headless, GUI, validate, spikes) runs with RLIMIT_CORE = 1 byte: `prlimit --core=1 -- …`
+  (in `$NODESK`) or `prlimit --core=1 --pid $$` in a script (the runners do). The kernel then aborts the dump before
+  the `core_pattern` pipe, so systemd-coredump and the desktop crash handler (DrKonqi, which pops up on the user's
+  session and offers to restart Blender there) never hear of a test crash. `ulimit -c 0` is NOT enough: the pipe
+  still runs and reports every crash (seen 2026-09-26).
 - NEVER put a test/spike Blender on the user's desktop. Nested GUI sessions get a private runtime dir and bus:
   `env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<private 0700 dir> dbus-run-session --
   kwin_wayland --virtual …` (as the runners do), and the session script refuses to start Blender otherwise. Never
@@ -102,7 +104,7 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
 - The private bus runs with `dbus-run-session --config-file=tests/gui/private-session-bus.conf` (no service
   directories: nothing is ever activated on it). With the stock config each nested session started the desktop's
   portal backend and ksecretd, which crashed without a display, were restarted in a loop and flooded the desktop's
-  crash handler (3,400+ reports 2026-09-25/26; `ulimit -c 0` does not stop systemd-coredump from logging them).
+  crash handler (3,400+ reports 2026-09-25/26).
 - One nested GUI session at a time on the machine: the runners take `flock /tmp/meso-nested-gui-$UID.lock`. Concurrent
   nested compositors + GPU Blenders stalled the desktop compositor ("The main thread was hanging temporarily!",
   user-visible lockups, 2026-09-26). Workflows never run GUI suites in parallel agents; check

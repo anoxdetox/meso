@@ -12,7 +12,7 @@
 set -eu
 # No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
 # which would pop up on the user's session and offer to restart Blender there.
-ulimit -c 0
+prlimit --core=1 --pid $$ || ulimit -c 0   # 1 byte: the kernel drops the crash before systemd-coredump/DrKonqi (0 does not)
 OUT=${1:?usage: run.sh OUT.json [SHOTS_DIR] [--host]}
 SHOTS=${2:-}
 MODE=${3:-nested}
