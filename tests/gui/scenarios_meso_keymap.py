@@ -10,14 +10,19 @@ G1, G3-G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
   choice (Blender -> Keep, Meso -> the Meso Keymap; no msgbus notification is sent).
 - G4 ``mk_select_keys``: Ctrl Shift A / Alt D / Ctrl Shift I and the Ctrl I alias, checked on
   the real selection, in the 3D View (Object Mode, Edit Mesh), UV, Graph, Dope Sheet, Timeline,
-  NLA and Sequencer; in the Outliner, Node Editor, Clip Editor and channel lists (where Alt D
-  never reaches the editor) Ctrl Shift A stays the native deselect and Ctrl Shift I inverts;
-  the Clip Graph and File Browser extras; Ctrl Alt D toggles the Clip Editor's Show Disabled;
-  a binding switched off in the user keymap gives the key back to Industry Compatible's item;
-  Alt D over a driven
-  property still removes the driver; Space still opens the Plaza.
-- ``mk_alt_d_reach``: which editor keymaps an Alt D item reaches at all (the evidence for
-  ``core.meso_bindings.ALT_D_BLOCKED_KEYMAPS``; a Blender change there fails this scenario).
+  NLA and Sequencer, and (C13: Alt D passed on by the 'User Interface' wrapper) in the
+  Outliner, Node Editor, Clip Editor and channel lists, with IC's Ctrl A there too; the Clip
+  Graph, File Browser and Info extras; Alt D no longer toggles the Clip Editor's Show Disabled,
+  Ctrl Alt D does; a binding switched off in the user keymap gives the key back to Industry
+  Compatible's item; Alt D over a driven property still removes the driver; Space still opens
+  the Plaza.
+- ``mk_alt_d_reach``: every editor keymap behind the 'User Interface' handler
+  (``core.meso_bindings.UI_FIRST_KEYMAPS``) gets Alt D over empty space; with the wrapper off
+  and Industry Compatible's own item switched on again, the Outliner is blocked (the reason
+  for the wrapper; a Blender change there fails this scenario).
+- ``mk_alt_d_driver``: Alt D over a driven sidebar field (drivers on X and Y) and a driven
+  node socket removes the drivers and does not deselect; undo brings them back, redo removes
+  them, undo again (one native "Remove Driver" step); over an undriven field nothing changes.
 - G7 ``mk_apply_menu``: Ctrl Alt A opens Object > Apply and Pose > Apply; the Plaza's Object >
   Apply submenu still opens.
 - G5 ``mk_isolate``: Ctrl 1 local view in and out in Object Mode (selection kept, the light
@@ -316,16 +321,13 @@ def scenarios(drv):
         r = drv.region_of(area, rtype)
         return (r.x + r.width // 2, r.y + r.height // 2)
 
-    def native_trio(rec, prefix, xy, state, total):
-        """Editors where Alt D never reaches the editor keymap: Ctrl A selects (native), Ctrl
-        Shift A stays Industry Compatible's deselect, Ctrl Shift I (Meso) and Ctrl I invert."""
-        drv.check(rec, f"{prefix}_has_elements", total > 0, total)
+    def ui_first_trio(rec, prefix, xy, state, total):
+        """Editors behind the 'User Interface' handler (C13): IC's Ctrl A selects, Alt D
+        deselects (passed on by the wrapper), then the Meso trio and the Ctrl I alias."""
         yield from expect_sel(rec, f"{prefix}_ctrl_a_native", xy, 'A', dict(ctrl=True), state,
                               total)
-        yield from expect_sel(rec, f"{prefix}_ctrl_shift_a_native_deselect", xy, 'A', SELECT,
-                              state, 0)
-        yield from expect_sel(rec, f"{prefix}_invert", xy, 'I', INVERT, state, total)
-        yield from expect_sel(rec, f"{prefix}_ctrl_i_alias", xy, 'I', IC_INVERT, state, 0)
+        yield from expect_sel(rec, f"{prefix}_alt_d_after_ctrl_a", xy, 'D', DESELECT, state, 0)
+        yield from trio(rec, prefix, xy, state, total)
 
     def sc_select_keys(rec):
         scene = bpy.context.scene
@@ -426,7 +428,7 @@ def scenarios(drv):
                 yield from trio(rec, ui_type.lower(), mid(area), n_keys, len(keys))
             area = swap('FCURVES')
             yield 0.5
-            yield from native_trio(rec, "channels", mid(area, 'CHANNELS'),
+            yield from ui_first_trio(rec, "channels", mid(area, 'CHANNELS'),
                                    lambda: sum(fc.select for fc in fcurves), len(fcurves))
             track = cube.animation_data.nla_tracks.new()
             strip = track.strips.new("meso_test", 20, action)
@@ -445,17 +447,17 @@ def scenarios(drv):
             yield 0.5
             yield from trio(rec, "sequencer", mid(area), lambda: int(seq.select), 1)
 
-            # -- Outliner and Node Editor: Alt D never reaches them --------------------------
+            # -- Outliner and Node Editor (behind the User Interface keymap) ------------------
             area = swap('OUTLINER')
             yield 0.5
-            yield from native_trio(rec, "outliner", mid(area),
+            yield from ui_first_trio(rec, "outliner", mid(area),
                                    lambda: sum(o.select_get() for o in layer_objects),
                                    len(layer_objects))
             select_only(cube)
             nodes = list(cube.active_material.node_tree.nodes)
             area = swap('ShaderNodeTree')
             yield 0.5
-            yield from native_trio(rec, "node", mid(area), lambda: sum(n.select for n in nodes),
+            yield from ui_first_trio(rec, "node", mid(area), lambda: sum(n.select for n in nodes),
                                    len(nodes))
 
             # -- Clip Editor and its graph view --------------------------------------------
@@ -474,8 +476,12 @@ def scenarios(drv):
             space.view = 'CLIP'
             yield 0.5
             xy = mid(area)
-            yield from native_trio(rec, "clip", xy, lambda: int(mtrack.select), 1)
+            yield from ui_first_trio(rec, "clip", xy, lambda: int(mtrack.select), 1)
             shown = space.show_disabled
+            mtrack.select = True
+            yield from key(xy, 'D', **DESELECT)
+            drv.check(rec, "clip_alt_d_not_show_disabled", space.show_disabled is shown
+                      and not mtrack.select, [shown, space.show_disabled, mtrack.select])
             yield from key(xy, 'D', ctrl=True, alt=True)
             drv.check(rec, "clip_ctrl_alt_d_show_disabled", space.show_disabled is (not shown),
                       [shown, space.show_disabled])
@@ -491,6 +497,8 @@ def scenarios(drv):
                 gxy = (graph.x + graph.width // 2, graph.y + graph.height // 2)
                 yield from expect_op(rec, "clip_graph_select", gxy, 'A', SELECT,
                                      'clip.graph_select_all_markers', 'SELECT')
+                yield from expect_op(rec, "clip_graph_deselect", gxy, 'D', DESELECT,
+                                     'clip.graph_select_all_markers', 'DESELECT')
                 yield from expect_op(rec, "clip_graph_invert", gxy, 'I', INVERT,
                                      'clip.graph_select_all_markers', 'INVERT')
             space.view = 'CLIP'
@@ -508,7 +516,30 @@ def scenarios(drv):
                     return len(bpy.context.selected_files or ())
 
             yield from expect_sel(rec, "files_select", mid(area), 'A', SELECT, n_files, 1)
-            yield from expect_sel(rec, "files_invert", mid(area), 'I', INVERT, n_files, 0)
+            yield from expect_sel(rec, "files_deselect", mid(area), 'D', DESELECT, n_files, 0)
+            yield from expect_sel(rec, "files_invert", mid(area), 'I', INVERT, n_files, 1)
+            yield from expect_sel(rec, "files_invert_back", mid(area), 'I', INVERT, n_files, 0)
+
+            # -- Info: its selection is read back through Copy (the selected reports) --------
+            area = swap('INFO')
+            yield 0.4
+            with bpy.context.temp_override(window=drv.win()):
+                bpy.ops.meso.keymap_choose(choice='MESO')     # an INFO report to select
+            yield 0.3
+            wm = bpy.context.window_manager
+            saved_clipboard = wm.clipboard
+
+            def n_reports():
+                wm.clipboard = ""
+                with bpy.context.temp_override(window=drv.win(), area=area,
+                                               region=drv.region_of(area, 'WINDOW')):
+                    bpy.ops.info.report_copy()
+                return int(bool(wm.clipboard.strip()))
+
+            try:
+                yield from trio(rec, "info", mid(area), n_reports, 1)
+            finally:
+                wm.clipboard = saved_clipboard
             unswap()
         finally:
             unswap()
@@ -551,8 +582,10 @@ def scenarios(drv):
             return {'FINISHED'}
 
     def sc_alt_d_reach(rec):
-        """Which editor keymaps an Alt D item can reach (the reason for ALT_D_BLOCKED_KEYMAPS):
-        a probe item on Alt D in each keymap (Meso's own Alt D items switched off)."""
+        """Which editor keymaps an Alt D item reaches over empty space: a probe item on Alt D
+        in each keymap (Meso's own Alt D deselect items switched off, the 'User Interface'
+        wrapper on). Then, with the wrapper off and IC's own item on again, the Outliner is
+        blocked: the reason for the wrapper (C13)."""
         scene = bpy.context.scene
         cube = bpy.data.objects.get("Cube")
         tmp = tempfile.mkdtemp(prefix="meso_gui_reach_")
@@ -564,7 +597,9 @@ def scenarios(drv):
             mk().set_binding_active('select_keys_extra', False)
             yield 0.3
             kc = bpy.context.window_manager.keyconfigs.addon
-            names = sorted(mb().ALT_D_BLOCKED_KEYMAPS | mb().ALT_D_PARTLY_BLOCKED_KEYMAPS
+            drv.check(rec, "wrapper_live", 'driver_remove_pass' in mk().live_ids(),
+                      mk().live_ids())
+            names = sorted(mb().UI_FIRST_KEYMAPS
                            | {'Graph Editor', 'Dopesheet', 'NLA Editor', 'Sequencer', 'Object Mode'})
             for name in names:
                 st, rt = mb().KEYMAP_SPACES[name]
@@ -605,16 +640,30 @@ def scenarios(drv):
                 ('NLA_EDITOR', 'WINDOW', None, 'NLA Editor'),
                 ('SEQUENCE_EDITOR', 'WINDOW', None, 'Sequencer'),
                 ('IMAGE_EDITOR', 'WINDOW', image_mask, 'Mask Editing'),
+                ('OUTLINER', 'WINDOW', None, 'Outliner'),
+                ('ShaderNodeTree', 'WINDOW', None, 'Node Editor'),
+                ('CLIP_EDITOR', 'WINDOW', clip_view('CLIP'), 'Clip Editor'),
+                ('CLIP_EDITOR', 'PREVIEW', clip_view('GRAPH'), 'Clip Graph Editor'),
+                ('CLIP_EDITOR', 'WINDOW', clip_view('CLIP', 'MASK'), 'Mask Editing'),
+                ('FILES', 'WINDOW', None, 'File Browser Main'),
+                ('INFO', 'WINDOW', None, 'Info'),
+                ('FCURVES', 'CHANNELS', None, 'Animation Channels'),
+                'native',                            # IC's own item back, the wrapper off
                 ('OUTLINER', 'WINDOW', None, None),
                 ('ShaderNodeTree', 'WINDOW', None, None),
-                ('CLIP_EDITOR', 'WINDOW', clip_view('CLIP'), None),
-                ('CLIP_EDITOR', 'PREVIEW', clip_view('GRAPH'), None),
-                ('CLIP_EDITOR', 'WINDOW', clip_view('CLIP', 'MASK'), None),
-                ('FILES', 'WINDOW', None, None),
-                ('INFO', 'WINDOW', None, None),
-                ('FCURVES', 'CHANNELS', None, None),
             )
-            for i, (ui_type, rtype, setup, want) in enumerate(cases):
+            for i, case in enumerate(cases):
+                if case == 'native':
+                    mk().set_binding_active('driver_remove_pass', False)
+                    ukm = bpy.context.window_manager.keyconfigs.user.keymaps.find(
+                        'User Interface', space_type='EMPTY', region_type='WINDOW')
+                    for k in ukm.keymap_items:
+                        if k.idname == 'anim.driver_button_remove' and k.alt and not k.ctrl:
+                            k.active = True
+                    bpy.context.window_manager.keyconfigs.update()
+                    yield 0.2
+                    continue
+                ui_type, rtype, setup, want = case
                 area = swap(ui_type)
                 yield 0.4
                 if setup is not None:
@@ -646,6 +695,177 @@ def scenarios(drv):
                 cube.animation_data_clear()
                 bpy.data.actions.remove(made["action"])
                 cube.location = (0.0, 0.0, 0.0)
+            back_to_blender()
+            yield 0.3
+
+    # ------------------------------------------------------------------------------ Alt D driver
+
+    def drivers_of(idblock):
+        ad = getattr(idblock, "animation_data", None)
+        return sorted((fc.data_path, fc.array_index) for fc in (ad.drivers if ad else ()))
+
+    def clear_drivers(idblock):
+        ad = getattr(idblock, "animation_data", None)
+        for fc in list(ad.drivers if ad else ()):
+            ad.drivers.remove(fc)
+
+    def ed(op):
+        with bpy.context.temp_override(window=drv.win()):
+            return sorted(getattr(bpy.ops.ed, op)())
+
+    def undo_push(message):
+        with bpy.context.temp_override(window=drv.win()):
+            bpy.ops.ed.undo_push(message=message)
+
+    DRIVEN = {"material": None}
+
+    class MESO_GUITEST_PT_driven_3d(bpy.types.Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'UI'
+        bl_category = "MesoTest"
+        bl_label = "Driven (test)"
+
+        def draw(self, context):
+            cube = bpy.data.objects.get("Cube")
+            col = self.layout.column()
+            col.scale_y = 6.0
+            if cube is not None:
+                col.prop(cube, "location", index=0, text="X")
+                col.prop(cube, "rotation_euler", index=2, text="RZ")   # never driven
+
+    def principled():
+        mat = bpy.data.materials.get(DRIVEN["material"] or "")
+        if mat is None or mat.node_tree is None:
+            return None, None
+        node = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        return mat.node_tree, node
+
+    class MESO_GUITEST_PT_driven_node(bpy.types.Panel):
+        bl_space_type = 'NODE_EDITOR'
+        bl_region_type = 'UI'
+        bl_category = "MesoTest"
+        bl_label = "Driven socket (test)"
+
+        def draw(self, context):
+            _tree, node = principled()
+            col = self.layout.column()
+            col.scale_y = 6.0
+            if node is not None:
+                col.prop(node.inputs['Roughness'], "default_value", text="R")
+
+    def sidebar_xy(area, row=0):
+        ui = drv.region_of(area, 'UI')
+        scale = bpy.context.preferences.system.ui_scale or 1.0
+        return (ui.x + ui.width // 2 - int(15 * scale),
+                ui.y + ui.height - int(90 * scale) - row * int(120 * scale))
+
+    def show_sidebar(rec, area, tag):
+        area.spaces.active.show_region_ui = True
+        area.tag_redraw()
+        yield 0.4
+        ui = drv.region_of(area, 'UI')
+        try:
+            ui.active_panel_category = "MesoTest"
+        except (TypeError, AttributeError) as ex:
+            drv.check(rec, f"{tag}_tab", False, repr(ex))
+        area.tag_redraw()
+        yield 0.4
+
+    def undo_round(rec, tag, owner, driven):
+        """Undo brings the drivers back, redo removes them, undo again: one native step."""
+        ed('undo')
+        yield 0.3
+        drv.check(rec, f"{tag}_undo_back", drivers_of(owner()) == driven, drivers_of(owner()))
+        ed('redo')
+        yield 0.3
+        drv.check(rec, f"{tag}_redo_removed", drivers_of(owner()) == [], drivers_of(owner()))
+        ed('undo')
+        yield 0.3
+        drv.check(rec, f"{tag}_undo_again", drivers_of(owner()) == driven, drivers_of(owner()))
+
+    def sc_alt_d_driver(rec):
+        cube = bpy.data.objects.get("Cube")
+        DRIVEN["material"] = cube.active_material.name if cube.active_material else None
+        area3d = drv.area_by("VIEW_3D")
+        saved_ui = area3d.spaces.active.show_region_ui
+        for cls in (MESO_GUITEST_PT_driven_3d, MESO_GUITEST_PT_driven_node):
+            bpy.utils.register_class(cls)
+        try:
+            choose('MESO')
+            yield 0.3
+            drv.check(rec, "wrapper_live", 'driver_remove_pass' in mk().live_ids())
+            # -- the 3D View sidebar: X and Y driven, the pointer over X (all=True: both go) --
+            select_only(cube)
+            for i in (0, 1):
+                cube.driver_add("location", i).driver.expression = "0"
+            driven = [("location", 0), ("location", 1)]
+            undo_push("Meso test: drivers")
+            yield from show_sidebar(rec, area3d, "sidebar")
+            xy = sidebar_xy(area3d, 0)
+            drv.sim('MOUSEMOVE', 'NOTHING', xy)
+            yield 0.3
+            yield from key(xy, 'D', **DESELECT)
+            yield 0.2
+            cube_now = lambda: bpy.data.objects.get("Cube")
+            drv.check(rec, "sidebar_removed", drivers_of(cube_now()) == [],
+                      [drivers_of(cube_now()), xy])
+            drv.check(rec, "sidebar_no_deselect", selected_names() == ["Cube"], selected_names())
+            yield from undo_round(rec, "sidebar", cube_now, driven)
+            # the undriven field (RZ): nothing removed, no deselect, the key passes on
+            xy = sidebar_xy(area3d, 1)
+            drv.sim('MOUSEMOVE', 'NOTHING', xy)
+            yield 0.3
+            yield from key(xy, 'D', **DESELECT)
+            yield 0.2
+            drv.check(rec, "undriven_nothing_removed", drivers_of(cube_now()) == driven,
+                      drivers_of(cube_now()))
+            drv.check(rec, "undriven_no_deselect", selected_names() == ["Cube"],
+                      selected_names())
+            clear_drivers(cube_now())
+            area3d.spaces.active.show_region_ui = saved_ui
+            # -- the Node Editor sidebar: a driven Principled BSDF socket value --------------
+            tree, node = principled()
+            drv.check(rec, "node_principled", node is not None)
+            if node is not None:
+                area = swap('ShaderNodeTree')
+                yield 0.4
+                clear_drivers(tree)
+                for n in tree.nodes:
+                    n.select = True
+                n_nodes = len(tree.nodes)
+                node.inputs['Roughness'].driver_add("default_value").driver.expression = "0.25"
+                undo_push("Meso test: socket driver")
+                yield from show_sidebar(rec, area, "node")
+                tree_now = lambda: principled()[0]
+                driven_socket = drivers_of(tree_now())
+                drv.check(rec, "node_driven", len(driven_socket) == 1, driven_socket)
+                xy = sidebar_xy(area, 0)
+                drv.sim('MOUSEMOVE', 'NOTHING', xy)
+                yield 0.3
+                yield from key(xy, 'D', **DESELECT)
+                yield 0.2
+                drv.check(rec, "node_removed", drivers_of(tree_now()) == [],
+                          [drivers_of(tree_now()), xy])
+                drv.check(rec, "node_no_deselect",
+                          sum(n.select for n in tree_now().nodes) == n_nodes)
+                yield from undo_round(rec, "node", tree_now, driven_socket)
+                clear_drivers(tree_now())
+                area.spaces.active.show_region_ui = False
+                unswap()
+        finally:
+            unswap()
+            cube = bpy.data.objects.get("Cube")
+            if cube is not None:
+                clear_drivers(cube)
+                select_only(cube)
+            tree, _node = principled()
+            if tree is not None:
+                clear_drivers(tree)
+            area3d = drv.area_by("VIEW_3D")
+            if area3d is not None:
+                area3d.spaces.active.show_region_ui = saved_ui
+            for cls in (MESO_GUITEST_PT_driven_node, MESO_GUITEST_PT_driven_3d):
+                bpy.utils.unregister_class(cls)
             back_to_blender()
             yield 0.3
 
@@ -1072,6 +1292,7 @@ def scenarios(drv):
         ("mk_keyconfig_switch", sc_keyconfig_switch),
         ("mk_select_keys", sc_select_keys),
         ("mk_alt_d_reach", sc_alt_d_reach),
+        ("mk_alt_d_driver", sc_alt_d_driver),
         ("mk_apply_menu", sc_apply_menu),
         ("mk_isolate", sc_isolate),
         ("mk_properties_cycle", sc_properties_cycle),
