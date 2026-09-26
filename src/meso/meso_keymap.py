@@ -162,6 +162,15 @@ def live_bindings(context=None) -> tuple[mb.Binding, ...]:
     return tuple(b for b in mb.BINDINGS if b.id in ids)
 
 
+def off_bindings(context=None) -> tuple[mb.Binding, ...]:
+    """The bindings whose items are all switched off (or deleted) in the user keymap, in table
+    order (empty unless Meso is the active keyconfig); ``mb.warnings(..., inactive=)``."""
+    if not is_meso_active(context):
+        return ()
+    ids = set(live_ids(context))
+    return tuple(b for b in mb.BINDINGS if b.id not in ids)
+
+
 def set_binding_active(binding_id: str, on: bool, context=None) -> int:
     """Switch every item of a binding on or off in the user keymap (what the keymap editor's
     checkbox does; used by tests). Returns the number of items changed."""

@@ -9,6 +9,12 @@ same key stay in the keyconfig after the Meso item (shadowed, so switching the M
 gives the key back). Each binding lists what it displaces in IC and where that native action
 lives now; a headless test compares every ``displaces`` list with the real IC keymap (the
 "shadow test"), so a future keymap change cannot silently hide a native action.
+
+One IC item is switched off instead of shadowed (``Displaced.off``): the 'User Interface'
+keymap's Alt D driver removal returns CANCELLED over empty space, which stops the key before any
+editor keymap, so a shadowing item ahead of it cannot pass Alt D on. Meso's
+``meso.driver_button_remove`` does exactly the native removal over a driven property and passes
+the key on everywhere else (``driver_remove_pass``, the only Meso item in 'User Interface').
 """
 
 from __future__ import annotations
@@ -63,6 +69,9 @@ class Displaced:
     key: Key
     native: str                           # native_call() of the IC item, e.g. "object.select_all(action='DESELECT')"
     now: str                              # a binding id, or NOW_TAP
+    # True: the IC item is switched off in the Meso keyconfig (``merge_keyconfig_data``), not
+    # only shadowed, because it would stop the key before the Meso item passes it on.
+    off: bool = False
 
 
 @dataclass(frozen=True)
@@ -125,6 +134,7 @@ KEYMAP_SPACES: dict[str, tuple[str, str]] = {
     'Outliner': ('OUTLINER', 'WINDOW'),
     'Info': ('INFO', 'WINDOW'),
     'File Browser Main': ('FILE_BROWSER', 'WINDOW'),
+    'User Interface': ('EMPTY', 'WINDOW'),      # FORBIDDEN_EXCEPTIONS only
 }
 
 # Typing contexts, UI-hover handlers, window-level maps and the Plaza's own maps: no Meso
@@ -135,9 +145,20 @@ FORBIDDEN_KEYMAPS = frozenset({
     'Frames', 'Transform Modal Map',
 })
 
+# The one allowed (keymap, operator) in a forbidden keymap: the Alt D driver-removal wrapper,
+# which replaces IC's own item there and passes the key on when nothing is driven (C13).
+DRIVER_REMOVE_IDNAME = 'meso.driver_button_remove'
+FORBIDDEN_EXCEPTIONS = frozenset({('User Interface', DRIVER_REMOVE_IDNAME)})
+
 
 def is_forbidden_keymap(name: str) -> bool:
     return name in FORBIDDEN_KEYMAPS or name.endswith('Modal Map') or name.endswith(' Modal')
+
+
+def is_allowed_item(item: 'Item') -> bool:
+    """A table item may live in its keymap: not a forbidden one, or the one exception."""
+    return (not is_forbidden_keymap(item.keymap)
+            or (item.keymap, item.idname) in FORBIDDEN_EXCEPTIONS)
 
 
 # ------------------------------------------------------------------------------ groups
@@ -188,17 +209,15 @@ EXTRA_KEYMAPS: tuple[tuple[str, str], ...] = (
     ('Grease Pencil Selection', 'grease_pencil.select_all'),
 )
 
-# Keymaps whose region runs Blender's 'User Interface' keymap first, where its Alt D item
-# (``anim.driver_button_remove``, for a hovered property) returns CANCELLED instead of passing
-# the key on, so an Alt D item of the editor keymap never fires there, not even over empty
-# space (verified in the GUI suite, mk_alt_d_reach; IC's own Clip Editor Alt D Show Disabled
-# toggle is dead for the same reason). 'Mask Editing' is reached in the Image Editor but not in
-# the Clip Editor's Mask mode.
-ALT_D_BLOCKED_KEYMAPS = frozenset({
+# Keymaps whose region runs Blender's 'User Interface' keymap first ('Mask Editing': in the
+# Clip Editor's Mask mode, not in the Image Editor). IC's Alt D item there
+# (``anim.driver_button_remove``) returns CANCELLED over empty space and stops the key, so an
+# Alt D item of these keymaps fires only because ``driver_remove_pass`` replaces it (C13;
+# verified in the GUI suite, mk_alt_d_reach, and docs/spikes/meso-feedback-3.md section F).
+UI_FIRST_KEYMAPS = frozenset({
     'Outliner', 'Node Editor', 'Clip Editor', 'Clip Graph Editor', 'Info', 'Animation Channels',
-    'File Browser Main',
+    'File Browser Main', 'Mask Editing',
 })
-ALT_D_PARTLY_BLOCKED_KEYMAPS = frozenset({'Mask Editing'})
 
 KEY_SELECT_ALL = Key('A', ctrl=True, shift=True)
 KEY_DESELECT_ALL = Key('D', alt=True)
@@ -209,6 +228,7 @@ KEY_APPLY = Key('A', ctrl=True, alt=True)
 KEY_ISOLATE = Key('ONE', ctrl=True)
 KEY_VERT_EXPAND = Key('ONE', ctrl=True, alt=True)
 KEY_ANNOTATE = Key('D', ctrl=True, alt=True)
+KEY_DRIVER_REMOVE = KEY_DESELECT_ALL      # IC's 'User Interface' Alt D
 
 _TRIO_OPS = dict(TRIO_KEYMAPS)
 
@@ -258,35 +278,44 @@ def _properties_displaced():
     return tuple(out)
 
 
-# Where Alt D deselects (the trio keymaps it reaches), and where Ctrl Shift A may take IC's
-# deselect because its new home (Alt D) works there in every editor that uses the keymap.
-_DESELECT_KEYMAPS = tuple(t for t in TRIO_KEYMAPS if t[0] not in ALT_D_BLOCKED_KEYMAPS)
-_SELECT_ALL_KEYMAPS = tuple(t for t in _DESELECT_KEYMAPS
-                            if t[0] not in ALT_D_PARTLY_BLOCKED_KEYMAPS)
-_EXTRA_ALT_D_KEYMAPS = tuple(t for t in EXTRA_KEYMAPS if t[0] not in ALT_D_BLOCKED_KEYMAPS)
+_CLIP_SHOW_DISABLED = native_call('wm.context_toggle',
+                                  (('data_path', 'space_data.show_disabled'),))
 
 
 BINDINGS: tuple[Binding, ...] = (
     # -- Selection --------------------------------------------------------------------------
     Binding(
         'select_all', 'SELECTION', "Select All",
-        "Ctrl Shift A selects everything in the 3D View modes, the UV Editor, Graph Editor, "
-        "Dope Sheet, Timeline, NLA and Sequencer. It replaces Industry Compatible's Ctrl Shift A "
-        "Deselect All there, which moves to Alt D. Editors where Alt D cannot work (Outliner, "
-        "Node, Clip, Info, channel lists, masks) keep Ctrl Shift A as deselect. Ctrl A still "
-        "selects all",
+        "Ctrl Shift A selects everything in the 3D View modes and every editor with select "
+        "keys. It replaces Industry Compatible's Ctrl Shift A Deselect All, which moves to "
+        "Alt D. Ctrl A still selects all",
         True,
-        _select_items(_SELECT_ALL_KEYMAPS, KEY_SELECT_ALL, 'SELECT'),
+        _select_items(TRIO_KEYMAPS, KEY_SELECT_ALL, 'SELECT'),
         tuple(Displaced(km, KEY_SELECT_ALL, native_call(op, _action('DESELECT')), 'deselect_all')
-              for km, op in _SELECT_ALL_KEYMAPS),
+              for km, op in TRIO_KEYMAPS),
     ),
     Binding(
         'deselect_all', 'SELECTION', "Deselect All",
-        "Alt D deselects everything in the 3D View modes, the UV Editor, masks in the Image "
-        "Editor, Graph Editor, Dope Sheet, Timeline, NLA and Sequencer. Free in Industry "
-        "Compatible. Over a hovered property Alt D still removes its driver",
+        "Alt D deselects everything in the 3D View modes and every editor with select keys. "
+        "In the Clip Editor it replaces Industry Compatible's Alt D Show Disabled toggle, which "
+        "moves to Ctrl Alt D; elsewhere Alt D is free. Over a driven property Alt D still "
+        "removes its driver",
         True,
-        _select_items(_DESELECT_KEYMAPS, KEY_DESELECT_ALL, 'DESELECT'),
+        _select_items(TRIO_KEYMAPS, KEY_DESELECT_ALL, 'DESELECT'),
+        (Displaced('Clip Editor', KEY_DESELECT_ALL, _CLIP_SHOW_DISABLED,
+                   'reloc_clip_show_disabled'),),
+    ),
+    Binding(
+        'driver_remove_pass', 'SELECTION', "Hovered Property: Remove Driver",
+        "Alt D over a driven property removes its drivers, exactly as Blender does (one undo "
+        "step). Anywhere else it passes Alt D on, so Deselect All works in the Outliner, Node, "
+        "Clip, File Browser, Info and channel lists too. It replaces Industry Compatible's Alt D "
+        "item of the User Interface keymap, which stays there switched off: that item stops "
+        "Alt D even over empty space",
+        True,
+        (Item('User Interface', KEY_DRIVER_REMOVE, DRIVER_REMOVE_IDNAME),),
+        (Displaced('User Interface', KEY_DRIVER_REMOVE, native_call('anim.driver_button_remove'),
+                   'driver_remove_pass', off=True),),
     ),
     Binding(
         'select_invert', 'SELECTION', "Invert Selection",
@@ -298,19 +327,19 @@ BINDINGS: tuple[Binding, ...] = (
     Binding(
         'reloc_clip_show_disabled', 'SELECTION', "Show Disabled Tracks (Clip Editor)",
         "Ctrl Alt D toggles Show Disabled in the Clip Editor (also in the header Overlay "
-        "popover). Its native Alt D key never reaches the Clip Editor: the hovered-property "
-        "driver removal takes Alt D first. Displaces nothing",
+        "popover), the new home of Industry Compatible's Alt D there. Displaces nothing",
         True,
         (Item('Clip Editor', KEY_CLIP_SHOW_DISABLED, 'wm.context_toggle',
               (('data_path', 'space_data.show_disabled'),)),),
+        follows='deselect_all',
     ),
     Binding(
         'select_keys_extra', 'SELECTION', "Select Keys in More Editors",
-        "Ctrl Shift A and Ctrl Shift I also in the File Browser and the Clip Graph Editor, and "
-        "Alt D too in Paint Vertex Selection and Grease Pencil selection. Displaces nothing",
+        "Ctrl Shift A, Alt D and Ctrl Shift I also in the File Browser, the Clip Graph Editor, "
+        "Paint Vertex Selection and Grease Pencil selection. Displaces nothing",
         True,
         _select_items(EXTRA_KEYMAPS, KEY_SELECT_ALL, 'SELECT')
-        + _select_items(_EXTRA_ALT_D_KEYMAPS, KEY_DESELECT_ALL, 'DESELECT')
+        + _select_items(EXTRA_KEYMAPS, KEY_DESELECT_ALL, 'DESELECT')
         + _select_items(EXTRA_KEYMAPS, KEY_INVERT, 'INVERT'),
     ),
     # -- Isolate (step 2) -------------------------------------------------------------------
@@ -460,7 +489,7 @@ def items_by_keymap(bindings=BINDINGS) -> dict[str, list[tuple[str, Item]]]:
     ``merge_keyconfig_data`` puts first in each keymap)."""
     out: dict[str, list[tuple[str, Item]]] = {}
     for bid, item in table_items(bindings):
-        if is_forbidden_keymap(item.keymap):
+        if not is_allowed_item(item):
             raise ValueError(f"{bid}: Meso Keymap item in forbidden keymap {item.keymap!r}")
         out.setdefault(item.keymap, []).append((bid, item))
     return out
@@ -482,15 +511,35 @@ def item_data(item: Item, active: bool = True) -> tuple:
     return (item.idname, args, data or None)
 
 
+def _entry_matches(entry, d: Displaced) -> bool:
+    """Is a keyconfig-data item ``(idname, args, data)`` the IC item ``d`` names?"""
+    idname, args, extra = entry
+    if not isinstance(args, dict) or args.get("type") != d.key.type \
+            or args.get("value") != d.key.value or args.get("any") or args.get("key_modifier"):
+        return False
+    if any(bool(args.get(m)) != getattr(d.key, m) for m in ('ctrl', 'shift', 'alt', 'oskey')):
+        return False
+    props = (extra or {}).get("properties") or ()
+    return native_call(idname, props) == d.native
+
+
+def _switched_off(entry) -> tuple:
+    idname, args, extra = entry
+    extra = dict(extra or {})
+    extra["active"] = False
+    return (idname, args, extra)
+
+
 def merge_keyconfig_data(data, bindings=BINDINGS):
     """Industry Compatible keyconfig data -> the Meso keyconfig data (in place; returned).
 
     ``data`` is ``generate_keymaps()``'s list of ``(keymap name, keymap args, {"items": [...]})``.
     Each keymap's Meso items go first, in table order, so they fire before the IC items on the
     same key; those IC items stay after them (shadowed, never removed: switching a Meso item off
-    in the keymap editor gives the key back, and a hold key's tap replays the IC item). A keymap
-    the data lacks is a ``KeyError`` (Blender never merges a keymap name that its default
-    keyconfig lacks into the user keyconfig).
+    in the keymap editor gives the key back, and a hold key's tap replays the IC item). The IC
+    items of a ``Displaced.off`` entry stay too, switched off (the keymap editor can switch
+    them on again). A keymap the data lacks is a ``KeyError`` (Blender never merges a keymap
+    name that its default keyconfig lacks into the user keyconfig).
     """
     by_name = {}
     for name, _args, content in data:
@@ -500,6 +549,10 @@ def merge_keyconfig_data(data, bindings=BINDINGS):
         if keymap not in by_name:
             raise KeyError(f"keymap {keymap!r} is not in the Industry Compatible data")
         items = by_name[keymap]["items"]
+        for b in bindings:
+            for d in b.displaces:
+                if d.off and d.keymap == keymap:
+                    items[:] = [_switched_off(e) if _entry_matches(e, d) else e for e in items]
         items[0:0] = [item_data(item, active[bid]) for bid, item in pairs]
     return data
 
@@ -518,15 +571,26 @@ def home_label(now: str) -> str:
     return f"{', '.join(keys)} ({b.label})"
 
 
-def warnings(active) -> tuple[str, ...]:
-    """One message per active binding whose displaced action has no active new home.
+def warnings(active, inactive=()) -> tuple[str, ...]:
+    """One message per active binding whose displaced action has no active new home, and one
+    per switched-off binding (``inactive``) whose IC item stays switched off
+    (``Displaced.off``), so its action has no key at all.
 
-    ``active`` is the live bindings (an item switched on in the user keymap). E.g. select_all
-    on and deselect_all off:
-    "Industry Compatible's Deselect All (Ctrl Shift A) has no key now; ..."
+    ``active`` is the live bindings (an item switched on in the user keymap); ``inactive`` the
+    available bindings with every item switched off (empty unless Meso is the active keymap).
+    E.g. select_all on and deselect_all off:
+    "Select All takes Ctrl Shift A from object.select_all(action='DESELECT') ..."
     """
     ids = {b.id for b in active}
     out = []
+    for b in inactive:
+        if b.id in ids:
+            continue
+        for d in b.displaces:
+            if d.off:
+                out.append(f"{b.label} is off, and Industry Compatible's {d.key.label()} "
+                           f"{d.native} stays switched off in {d.keymap}: switch one of them "
+                           "on in Preferences > Keymap. The action stays in the menus")
     for b in active:
         homeless: dict[str, list[Displaced]] = {}
         for d in b.displaces:

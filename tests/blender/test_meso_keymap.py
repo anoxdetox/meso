@@ -22,12 +22,13 @@ ADDON_MODULE = "bl_ext.meso_dev.meso"
 MODIFIERS = ('ctrl', 'shift', 'alt', 'oskey')
 
 # Every binding of the table, and the ones switched on by default (all of them), in table order.
-ALL_IDS = ('select_all', 'deselect_all', 'select_invert', 'reloc_clip_show_disabled',
+ALL_IDS = ('select_all', 'deselect_all', 'driver_remove_pass', 'select_invert',
+           'reloc_clip_show_disabled',
            'select_keys_extra', 'isolate', 'reloc_mesh_vert_expand', 'properties_cycle',
            'apply_menu', 'snap_hold_grid', 'snap_hold_edge', 'snap_hold_vertex',
            'snap_hold_increment', 'pivot_once', 'reloc_annotate', 'pivot_toggle')
 LIVE_IDS = ALL_IDS
-N_ITEMS = 18 + 19 + 24 + 1 + 10 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 1 + 12 + 1
+N_ITEMS = 24 + 24 + 1 + 24 + 1 + 12 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 1 + 12 + 1
 
 
 def _mod(name):
@@ -111,6 +112,16 @@ def key_matches(kmi, key):
 def find_builtin(kc, name):
     space, region = mb().KEYMAP_SPACES[name]
     return kc.keymaps.find(name, space_type=space, region_type=region)
+
+
+def off_natives():
+    """``[(keymap, Displaced)]`` of the IC items the Meso keyconfig switches off."""
+    return [(d.keymap, d) for b in mb().BINDINGS for d in b.displaces if d.off]
+
+
+def is_off_native(km_name, kmi):
+    return any(name == km_name and key_matches(kmi, d.key) and native_of(kmi) == d.native
+               for name, d in off_natives())
 
 
 def reset_meso():
@@ -239,8 +250,15 @@ class TestKeyconfig(MesoKeymapCase):
                 self.assertEqual(km.is_modal, km_ic.is_modal)
                 n = len(groups.get(km.name, ()))
                 total += n
-                self.assertEqual([signature(k) for k in list(km.keymap_items)[n:]],
-                                 [signature(k) for k in km_ic.keymap_items])
+                # the same items, except the switched-off ones (Displaced.off)
+                want = []
+                for k in km_ic.keymap_items:
+                    sig = signature(k)
+                    if is_off_native(km.name, k):
+                        self.assertTrue(k.active)
+                        sig = sig[:13] + (False,) + sig[14:]
+                    want.append(sig)
+                self.assertEqual([signature(k) for k in list(km.keymap_items)[n:]], want)
         self.assertEqual(total, N_ITEMS)
 
     def test_the_meso_items(self):
@@ -252,7 +270,7 @@ class TestKeyconfig(MesoKeymapCase):
         for km, kmi, item in items:
             with self.subTest(keymap=item.keymap, key=item.key.label()):
                 self.assertEqual((km.space_type, km.region_type), mb().KEYMAP_SPACES[item.keymap])
-                self.assertFalse(mb().is_forbidden_keymap(km.name))
+                self.assertTrue(mb().is_allowed_item(item))
                 self.assertEqual((kmi.idname, kmi.type, kmi.value), (item.idname, item.key.type,
                                                                      item.key.value))
                 self.assertFalse(kmi.repeat)
@@ -263,11 +281,15 @@ class TestKeyconfig(MesoKeymapCase):
                 for m in MODIFIERS:
                     self.assertEqual(bool(getattr(kmi, m)), getattr(item.key, m), m)
                 self.assertEqual(dict(props_of(kmi)), dict(item.props))
-        # Clip Editor: Ctrl Shift I inverts, Ctrl Alt D toggles Show Disabled; Ctrl Shift A and
-        # Alt D stay Industry Compatible's (Alt D never reaches the Clip Editor keymap).
+        # Clip Editor: the trio, and Ctrl Alt D toggles Show Disabled (C7, C13).
         clip = {(i.key.label(), i.idname) for _k, _i, i in items if i.keymap == 'Clip Editor'}
-        self.assertEqual(clip, {('Ctrl Shift I', 'clip.select_all'),
+        self.assertEqual(clip, {('Ctrl Shift A', 'clip.select_all'),
+                                ('Alt D', 'clip.select_all'),
+                                ('Ctrl Shift I', 'clip.select_all'),
                                 ('Ctrl Alt D', 'wm.context_toggle')})
+        # 'User Interface': only the Alt D wrapper (C13).
+        ui = [(i.key.label(), i.idname) for _k, _i, i in items if i.keymap == 'User Interface']
+        self.assertEqual(ui, [('Alt D', 'meso.driver_button_remove')])
 
     def test_every_keymap_exists_in_the_default_keyconfig(self):
         """Blender merges only keymaps the default keyconfig has into the user keyconfig."""
@@ -298,7 +320,9 @@ class TestShadow(MesoKeymapCase):
         problems = []
         groups = mb().items_by_keymap()
         for b in mb().BINDINGS:
-            expected = sorted((d.keymap, d.key, d.native) for d in b.displaces)
+            # In the Meso keyconfig a Displaced.off item is switched off, not shadowed.
+            expected = sorted((d.keymap, d.key, d.native) for d in b.displaces
+                              if not (meso_block and d.off))
             found = []
             for item in b.items:
                 km = find_builtin(kc, item.keymap)
@@ -320,6 +344,26 @@ class TestShadow(MesoKeymapCase):
     def test_shadow_in_the_meso_keyconfig(self):
         use_keyconfig('Meso')
         self._check(wm().keyconfigs['Meso'], meso_block=True)
+
+    def test_switched_off_natives(self):
+        """Every Displaced.off item is in the Meso keyconfig after the Meso block, switched
+        off, exactly once; active in Industry Compatible."""
+        use_keyconfig('Industry_Compatible')
+        use_keyconfig('Meso')
+        kcs = wm().keyconfigs
+        self.assertEqual([d.native for _n, d in off_natives()], ['anim.driver_button_remove()'])
+        for name, d in off_natives():
+            for kc, active in ((kcs['Industry_Compatible'], True), (kcs['Meso'], False)):
+                with self.subTest(keyconfig=kc.name, keymap=name):
+                    km = find_builtin(kc, name)
+                    hits = [k for k in km.keymap_items if key_matches(k, d.key)
+                            and native_of(k) == d.native]
+                    self.assertEqual([k.active for k in hits], [active])
+        # the user keyconfig (what fires): Alt D in 'User Interface' is the wrapper alone
+        self.meso_on()
+        km = find_builtin(kcs.user, 'User Interface')
+        alt_d = [k.idname for k in km.keymap_items if k.active and key_matches(k, mb().KEY_DESELECT_ALL)]
+        self.assertEqual(alt_d, ['meso.driver_button_remove'])
 
     def test_meso_items_fire_first(self):
         """In the user keyconfig (what fires) every switched-on Meso item comes before the
@@ -346,7 +390,7 @@ class TestUserEdits(MesoKeymapCase):
 
     def test_switching_a_binding_off_gives_the_key_back(self):
         self.meso_on()
-        self.assertEqual(mk().set_binding_active('select_all', False), 18)
+        self.assertEqual(mk().set_binding_active('select_all', False), 24)
         self.assertNotIn('select_all', mk().live_ids())
         km = find_builtin(wm().keyconfigs.user, 'Object Mode')
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().KEY_SELECT_ALL))
@@ -370,21 +414,37 @@ class TestUserEdits(MesoKeymapCase):
         self.assertEqual(len(warnings), 1, warnings)
         self.assertIn('Alt D', warnings[0])
 
-    def test_alt_d_blocked_editors_keep_native_deselect(self):
-        """Outliner, Node, Clip, Info, channel lists and masks: IC's Ctrl Shift A deselect is
-        still the first active item for that key in the user keymap."""
+    def test_editors_behind_the_user_interface_keymap(self):
+        """C13: in the Outliner, Node, Clip, File Browser, Info, channel lists and masks, Alt D
+        deselects and Ctrl Shift A selects all (the first active item for the key)."""
         self.meso_on()
         user = wm().keyconfigs.user
-        for name in ('Outliner', 'Node Editor', 'Clip Editor', 'Info', 'Animation Channels',
-                     'Mask Editing'):
+        for name in sorted(mb().UI_FIRST_KEYMAPS):
             with self.subTest(keymap=name):
                 km = find_builtin(user, name)
-                first = next(k for k in km.keymap_items
-                             if k.active and key_matches(k, mb().KEY_SELECT_ALL))
-                self.assertEqual(first.properties.action, 'DESELECT')
-                self.assertFalse([1 for _k, _i, it in mk().user_items()
-                                  if it.keymap == name and it.key == mb().KEY_DESELECT_ALL
-                                  and name != 'Mask Editing'])
+                for key, action in ((mb().KEY_SELECT_ALL, 'SELECT'),
+                                    (mb().KEY_DESELECT_ALL, 'DESELECT')):
+                    first = next(k for k in km.keymap_items if k.active and key_matches(k, key))
+                    self.assertTrue(first.idname.endswith('select_all')
+                                    or first.idname.endswith('select_all_markers'), first.idname)
+                    self.assertEqual(first.properties.action, action)
+        # Clip Editor: Show Disabled is on Ctrl Alt D; its old Alt D item stays, shadowed.
+        km = find_builtin(user, 'Clip Editor')
+        show = [(k.to_string(), k.active) for k in km.keymap_items
+                if k.idname == 'wm.context_toggle'
+                and k.properties.data_path == 'space_data.show_disabled']
+        self.assertEqual(sorted(show), sorted([('Ctrl Alt D', True), ('Alt D', True)]))
+
+    def test_driver_removal_off_warns(self):
+        self.meso_on()
+        self.assertEqual(mb().warnings(mk().live_bindings(), mk().off_bindings()), ())
+        mk().set_binding_active('driver_remove_pass', False)
+        self.assertEqual([b.id for b in mk().off_bindings()], ['driver_remove_pass'])
+        warnings = mb().warnings(mk().live_bindings(), mk().off_bindings())
+        self.assertEqual(len(warnings), 1, warnings)
+        self.assertIn('anim.driver_button_remove()', warnings[0])
+        use_keyconfig('Blender')
+        self.assertEqual(mk().off_bindings(), ())
 
     def test_native_menus_show_the_apply_key(self):
         self.meso_on()

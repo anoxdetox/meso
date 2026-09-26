@@ -24,6 +24,11 @@ def ic_like_data():
         items = [("native.a", {"type": 'A', "value": 'PRESS', "ctrl": True, "shift": True},
                   {"properties": [("action", 'DESELECT')]}),
                  ("native.other", {"type": 'F5', "value": 'PRESS'}, None)]
+        if name == 'User Interface':
+            items.append(("anim.driver_button_remove", {"type": 'D', "value": 'PRESS', "alt": True},
+                          None))
+            items.append(("anim.driver_button_remove", {"type": 'D', "value": 'PRESS',
+                                                        "ctrl": True, "alt": True}, None))
         data.append((name, {"space_type": space, "region_type": region}, {"items": items}))
     data.append(("Transform Modal Map", {"space_type": 'EMPTY', "region_type": 'WINDOW',
                                          "modal": True},
@@ -52,14 +57,41 @@ class TestTable(unittest.TestCase):
             for item in b.items:
                 with self.subTest(binding=b.id, keymap=item.keymap):
                     self.assertIn(item.keymap, mb.KEYMAP_SPACES)
-                    self.assertFalse(mb.is_forbidden_keymap(item.keymap))
+                    self.assertTrue(mb.is_allowed_item(item))
+                    if mb.is_forbidden_keymap(item.keymap):
+                        self.assertIn((item.keymap, item.idname), mb.FORBIDDEN_EXCEPTIONS)
             for d in b.displaces:
                 self.assertIn(d.keymap, {i.keymap for i in b.items}, (b.id, d))
         for name in ('Text', 'Text Generic', 'Console', 'Font', 'User Interface', 'Window',
                      'Screen', 'Preview', 'Frames', 'Transform Modal Map', 'Knife Tool Modal Map',
                      'View3D Walk Modal'):
             self.assertTrue(mb.is_forbidden_keymap(name), name)
-            self.assertNotIn(name, mb.KEYMAP_SPACES)
+            if name != 'User Interface':
+                self.assertNotIn(name, mb.KEYMAP_SPACES)
+
+    def test_the_one_user_interface_item(self):
+        """C13: the Alt D driver-removal wrapper is the only Meso item in a forbidden keymap."""
+        self.assertEqual(mb.FORBIDDEN_EXCEPTIONS,
+                         {('User Interface', 'meso.driver_button_remove')})
+        ui = [(b.id, i) for b in mb.BINDINGS for i in b.items if mb.is_forbidden_keymap(i.keymap)]
+        self.assertEqual([(bid, i.keymap, i.key, i.idname, i.props) for bid, i in ui],
+                         [('driver_remove_pass', 'User Interface', mb.Key('D', alt=True),
+                           'meso.driver_button_remove', ())])
+        b = mb.binding('driver_remove_pass')
+        self.assertEqual(b.displaces, (mb.Displaced('User Interface', mb.Key('D', alt=True),
+                                                    'anim.driver_button_remove()',
+                                                    'driver_remove_pass', off=True),))
+        self.assertTrue(b.default_on)
+        self.assertIsNone(b.follows)
+        # The only switched-off native item of the table.
+        self.assertEqual([(x.id, d.keymap) for x in mb.BINDINGS for d in x.displaces if d.off],
+                         [('driver_remove_pass', 'User Interface')])
+        # Another item in a forbidden keymap is still refused.
+        bad = mb.Binding('bad', 'SELECTION', "Bad", "Bad", True,
+                         (mb.Item('User Interface', mb.Key('F5'), 'meso.plaza'),))
+        self.assertFalse(mb.is_allowed_item(bad.items[0]))
+        with self.assertRaises(ValueError):
+            mb.items_by_keymap((bad,))
 
     def test_no_bare_space_and_press_only(self):
         for b in mb.BINDINGS:
@@ -70,7 +102,7 @@ class TestTable(unittest.TestCase):
     def test_no_duplicate_keymap_key_over_the_whole_table(self):
         pairs = mb.table_items(mb.BINDINGS)
         self.assertEqual(len(pairs), sum(len(b.items) for b in mb.BINDINGS))
-        self.assertEqual(len(pairs), 123)
+        self.assertEqual(len(pairs), 137)
         with self.assertRaises(ValueError):
             mb.table_items((mb.binding('select_all'), mb.binding('select_all')))
 
@@ -89,17 +121,12 @@ class TestTable(unittest.TestCase):
     def test_trio_and_extra_coverage(self):
         self.assertEqual(len(mb.TRIO_KEYMAPS), 24)
         trio = [km for km, _op in mb.TRIO_KEYMAPS]
-        blocked = mb.ALT_D_BLOCKED_KEYMAPS
-        partly = mb.ALT_D_PARTLY_BLOCKED_KEYMAPS
-        self.assertEqual(sorted(i.keymap for i in mb.binding('select_invert').items), sorted(trio))
-        deselect = sorted(i.keymap for i in mb.binding('deselect_all').items)
-        self.assertEqual(deselect, sorted(k for k in trio if k not in blocked))
-        self.assertEqual(len(deselect), 19)
-        select = sorted(i.keymap for i in mb.binding('select_all').items)
-        self.assertEqual(select, sorted(k for k in trio if k not in blocked and k not in partly))
-        self.assertEqual(len(select), 18)
+        # C13 (user item F of 2026-09-26): with Alt D passed on in the 'User Interface' keymap,
+        # the trio is in every select-key editor.
+        for bid in ('select_all', 'deselect_all', 'select_invert'):
+            self.assertEqual([i.keymap for i in mb.binding(bid).items], trio, bid)
         extra = mb.binding('select_keys_extra')
-        self.assertEqual(len(extra.items), 10)
+        self.assertEqual(len(extra.items), 12)
         self.assertEqual({i.keymap for i in extra.items}, {k for k, _o in mb.EXTRA_KEYMAPS})
         self.assertEqual(extra.displaces, ())
         for b in ('select_all', 'deselect_all', 'select_invert', 'select_keys_extra'):
@@ -111,20 +138,19 @@ class TestTable(unittest.TestCase):
         for name in ('Preview', 'Clip Dopesheet Editor', 'Spreadsheet Generic', 'Sculpt'):
             self.assertNotIn(name, maps)
 
-    def test_alt_d_blocked_keymaps(self):
-        """Where Alt D never reaches the editor keymap: no Meso Alt D item (it would be dead),
-        and Ctrl Shift A stays IC's deselect (its new home would not work there)."""
-        alt_d = mb.KEY_DESELECT_ALL.chord()
-        ctrl_shift_a = mb.KEY_SELECT_ALL.chord()
-        for b in mb.BINDINGS:
-            for item in b.items:
-                if item.keymap in mb.ALT_D_BLOCKED_KEYMAPS:
-                    self.assertNotEqual(item.key.chord(), alt_d, (b.id, item.keymap))
-                    trio_map = item.keymap in dict(mb.TRIO_KEYMAPS)
-                    if trio_map:
-                        self.assertNotEqual(item.key.chord(), ctrl_shift_a, (b.id, item.keymap))
-                if item.keymap in mb.ALT_D_PARTLY_BLOCKED_KEYMAPS:
-                    self.assertNotEqual(item.key.chord(), ctrl_shift_a, (b.id, item.keymap))
+    def test_alt_d_in_the_editors_behind_the_user_interface_keymap(self):
+        """Every keymap that runs behind the 'User Interface' handler has the Alt D deselect,
+        and Ctrl Shift A select all (its displaced deselect lives on Alt D there now)."""
+        self.assertEqual(mb.UI_FIRST_KEYMAPS, {
+            'Outliner', 'Node Editor', 'Clip Editor', 'Clip Graph Editor', 'Info',
+            'Animation Channels', 'File Browser Main', 'Mask Editing'})
+        items = {(i.keymap, i.key.chord(), dict(i.props).get('action'))
+                 for b in mb.BINDINGS for i in b.items}
+        for name in mb.UI_FIRST_KEYMAPS:
+            with self.subTest(keymap=name):
+                self.assertIn((name, mb.KEY_DESELECT_ALL.chord(), 'DESELECT'), items)
+                self.assertIn((name, mb.KEY_SELECT_ALL.chord(), 'SELECT'), items)
+        self.assertFalse(hasattr(mb, 'ALT_D_BLOCKED_KEYMAPS'))
 
     def test_every_new_home_is_in_the_same_keymap(self):
         for b in mb.BINDINGS:
@@ -153,13 +179,17 @@ class TestTable(unittest.TestCase):
         self.assertTrue(all(i.key == mb.KEY_APPLY and i.idname == 'wm.call_menu' for i in b.items))
 
     def test_clip_show_disabled_key(self):
+        """C7 again: Alt D deselects in the Clip Editor, Show Disabled moves to Ctrl Alt D."""
         reloc = mb.binding('reloc_clip_show_disabled')
-        self.assertIsNone(reloc.follows)
+        self.assertEqual(reloc.follows, 'deselect_all')
         self.assertEqual(reloc.displaces, ())
         self.assertEqual(reloc.items[0].key, mb.KEY_CLIP_SHOW_DISABLED)
         self.assertEqual(dict(reloc.items[0].props), {'data_path': 'space_data.show_disabled'})
-        self.assertFalse([i for b in mb.BINDINGS for i in b.items
-                          if i.keymap == 'Clip Editor' and i.key == mb.KEY_DESELECT_ALL])
+        clip = [d for d in mb.binding('deselect_all').displaces if d.keymap == 'Clip Editor']
+        self.assertEqual([(d.key, d.now, d.off) for d in clip],
+                         [(mb.KEY_DESELECT_ALL, 'reloc_clip_show_disabled', False)])
+        self.assertEqual(clip[0].native, mb.native_call(reloc.items[0].idname,
+                                                        reloc.items[0].props))
 
     def test_defaults(self):
         """Every binding ships on (the D pivot hold too since 2026-09-25, user decision 5)."""
@@ -217,7 +247,7 @@ class TestKeyconfigData(unittest.TestCase):
 
     def test_items_by_keymap_keeps_table_order(self):
         groups = mb.items_by_keymap()
-        self.assertEqual(sum(len(v) for v in groups.values()), 123)
+        self.assertEqual(sum(len(v) for v in groups.values()), 137)
         flat = [pair for pairs in groups.values() for pair in pairs]
         order = {id(item): n for n, (_bid, item) in enumerate(mb.table_items())}
         for pairs in groups.values():
@@ -241,10 +271,33 @@ class TestKeyconfigData(unittest.TestCase):
                 natives = [i[0] for i in items[len(pairs):]]
                 expected = ['CONFIRM'] if name == 'Transform Modal Map' else ['native.a',
                                                                              'native.other']
+                if name == 'User Interface':
+                    expected += ['anim.driver_button_remove'] * 2
                 self.assertEqual(natives, expected)
+        ui = by_name['User Interface']
+        self.assertEqual(ui[0], ('meso.driver_button_remove',
+                                 {"type": 'D', "value": 'PRESS', "alt": True}, None))
         pivot = [i for i in by_name['Object Mode'] if i[0] == 'meso.pivot_once']
         self.assertEqual(pivot[0][1], {"type": 'D', "value": 'PRESS'})
         self.assertIsNone(pivot[0][2])                        # on by default, no properties
+
+    def test_merge_switches_off_the_user_interface_alt_d(self):
+        """IC's Alt D driver removal stays in 'User Interface', switched off (it would stop Alt
+        D before the Meso item passes it on); the Ctrl Alt D one and the others stay on."""
+        data = mb.merge_keyconfig_data(ic_like_data())
+        ui = {name: content["items"] for name, _a, content in data}['User Interface']
+        natives = [e for e in ui if e[0] == 'anim.driver_button_remove']
+        self.assertEqual(natives, [
+            ("anim.driver_button_remove", {"type": 'D', "value": 'PRESS', "alt": True},
+             {"active": False}),
+            ("anim.driver_button_remove", {"type": 'D', "value": 'PRESS', "ctrl": True,
+                                           "alt": True}, None)])
+        self.assertEqual([e[2] for e in ui if e[0].startswith('native.')], [
+            {"properties": [("action", 'DESELECT')]}, None])
+        # without the binding, nothing is switched off
+        data = mb.merge_keyconfig_data(ic_like_data(), (mb.binding('apply_menu'),))
+        ui = {name: content["items"] for name, _a, content in data}['User Interface']
+        self.assertEqual([e[2] for e in ui if e[0] == 'anim.driver_button_remove'], [None, None])
 
     def test_merge_refuses_a_missing_keymap(self):
         data = [d for d in ic_like_data() if d[0] != 'Clip Graph Editor']
@@ -272,7 +325,7 @@ class TestWarnings(unittest.TestCase):
         w = mb.warnings(live(off={'deselect_all'}))
         self.assertEqual(len(w), 1, w)
         self.assertIn("Select All takes Ctrl Shift A", w[0])
-        self.assertIn("17 more keymaps", w[0])
+        self.assertIn("23 more keymaps", w[0])
         self.assertIn("Alt D (Deselect All)", w[0])
 
     def test_each_homeless_pair(self):
@@ -280,12 +333,28 @@ class TestWarnings(unittest.TestCase):
             'reloc_mesh_vert_expand': ('isolate', 'Ctrl Alt 1'),
             'select_all': ('properties_cycle', 'Ctrl Shift A'),
             'select_keys_extra': ('properties_cycle', 'Paint Vertex Selection'),
+            'reloc_clip_show_disabled': ('deselect_all', 'show_disabled'),
         }
         for off, (displacer, text) in cases.items():
             with self.subTest(off=off):
                 w = mb.warnings(live(off={off}))
                 self.assertTrue(any(m.startswith(mb.binding(displacer).label) and text in m
                                     for m in w), w)
+
+    def test_driver_removal_switched_off(self):
+        """The wrapper off: IC's own item stays off too, so Alt D removes no driver; warned
+        only when the caller lists it as switched off (Meso active)."""
+        off = live(off={'driver_remove_pass'})
+        self.assertEqual(mb.warnings(off), ())
+        w = mb.warnings(off, inactive=(mb.binding('driver_remove_pass'),))
+        self.assertEqual(len(w), 1, w)
+        self.assertIn("Hovered Property: Remove Driver is off", w[0])
+        self.assertIn("Alt D anim.driver_button_remove() stays switched off in User Interface",
+                      w[0])
+        # listed as inactive but live after all (the caller's race): no warning
+        self.assertEqual(mb.warnings(mb.BINDINGS, inactive=mb.BINDINGS), ())
+        self.assertEqual(mb.home_label('driver_remove_pass'),
+                         "Alt D (Hovered Property: Remove Driver)")
 
     def test_home_label(self):
         self.assertEqual(mb.home_label(mb.NOW_TAP), "a quick tap of the key")
@@ -301,7 +370,7 @@ class TestPlazaConflicts(unittest.TestCase):
         self.assertEqual([b.id for b in mb.plaza_key_conflicts(mb.Key('X'), on)], ['snap_hold_grid'])
         self.assertEqual([b.id for b in mb.plaza_key_conflicts(mb.Key('C'), on)], ['snap_hold_edge'])
         self.assertEqual([b.id for b in mb.plaza_key_conflicts(mb.KEY_DESELECT_ALL, on)],
-                         ['deselect_all', 'select_keys_extra'])
+                         ['deselect_all', 'driver_remove_pass', 'select_keys_extra'])
         self.assertEqual(mb.plaza_key_conflicts(mb.Key('A', alt=True), on), ())
         self.assertEqual(mb.plaza_key_conflicts(mb.Key('X'), ()), ())     # Meso not active
 

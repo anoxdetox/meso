@@ -357,7 +357,7 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     _wrapped(hint, KEYMAP_EDITOR_HINT)
     _wrapped(hint, SHARED_EDITS_HINT)
     live = meso_keymap.live_bindings(context)
-    for message in mb.warnings(live):
+    for message in mb.warnings(live, meso_keymap.off_bindings(context)):
         warn = col.column(align=True)
         warn.alert = True
         _wrapped(warn, message, icon='ERROR')

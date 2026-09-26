@@ -66,8 +66,11 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   non-modal form leaves a stray keymap.
 - Meso Keymap items never go into 'Text', 'Text Generic', 'Console', 'Font', 'User Interface', 'Window', 'Screen' or
   the Sequencer 'Preview' keymap; a Meso item that shadows a native one must list it in `core/meso_bindings.py`
-  `displaces` (the shadow test enforces it). Alt D never reaches an editor keymap whose region runs the 'User
-  Interface' handler first (`ALT_D_BLOCKED_KEYMAPS`); never move a native action onto Alt D there.
+  `displaces` (the shadow test enforces it). The one exception (`FORBIDDEN_EXCEPTIONS`, C13): the Alt D
+  pass-through wrapper `meso.driver_button_remove` in 'User Interface', which replaces IC's Alt D driver removal
+  (kept there switched off, `Displaced(off=True)`: a CANCELLED 'User Interface' item stops the key before the editor
+  keymaps, so only a replacement can pass it on). It must stay exactly the native removal over a driven property and
+  PASS_THROUGH everywhere else; never add another item there.
 - Never write `tool_settings` while `Window.modal_operators` holds a foreign modal; hold restores wait for it.
 - Snap state is written as the `snap_elements` union, never base then individual (they clear each other).
 - Never keep `Area`/`Region`/`Screen`/RNA pointers after the modal ends or after undo/workspace changes; store
