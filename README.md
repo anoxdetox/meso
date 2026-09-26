@@ -41,6 +41,8 @@ Meso Mode is free and open source. Official builds will be published at its exte
 and repository release page when the first public release is out (links will be added here).
 If someone charged you for it, you paid for something that's free.
 
+Developed and tested on Linux; meant to run on Windows and macOS too (not tested there yet).
+
 To build it or help out, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 > **Disclaimer:** This is 100% vibe coded. We're not responsible if this code eats your homework.

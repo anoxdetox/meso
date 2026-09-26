@@ -6,6 +6,7 @@
 #
 # Put machine-specific values in an untracked `local.env` at the repo root (gitignored), e.g.
 #   B=/opt/blender-5.2.2-linux-x64/blender
+#   MESO_EXTENSIONS_DIR=~/.config/blender/5.2/extensions/user_default   (tools/dev_link.py)
 # It is sourced first; values already in the environment win over it.
 
 _meso_root="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"

@@ -37,7 +37,7 @@ timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|ope
 timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Keymap restart check (real start-ups, temp config)
 $PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate tests/data/inventory_5_2.json (subprocesses)
 $B --command extension build --source-dir src/meso --output-dir dist
-tools/dev_link.sh                                                     # symlink into user_default for GUI testing
+python3 tools/dev_link.py [--remove]                                  # link src/meso into $MESO_EXTENSIONS_DIR (env or local.env)
 ```
 Offscreen render test on each GPU backend (add `--gpu-backend vulkan` / `--gpu-backend opengl` right after `-b`,
 `-- -k test_render_offscreen`); headless default is OpenGL. Run both after renderer changes.
