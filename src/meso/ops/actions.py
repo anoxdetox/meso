@@ -6,9 +6,10 @@ Every setter pushes exactly one undo step via the positional undo flag (docs/spi
 (``space_data.*``) return CANCELLED with the value changed and no step (native parity).
 The Plaza operator itself never has UNDO.
 
-:class:`MESO_OT_mode_set_select` (``{'UNDO','INTERNAL'}``) is the Plaza mode switch's
-submode pick from another mode: ``object.mode_set`` then the select mode of that mode
-(``core.modes``), nested, so the pick is one undo step.
+:class:`MESO_OT_mode_set_select` (``{'INTERNAL'}``) is the Plaza mode switch's submode
+pick from another mode: ``object.mode_set`` then the select mode of that mode
+(``core.modes``), nested, each followed by the undo step its native call pushes, so the pick
+leaves the two steps of the native mode menu then header button (see the class).
 
 :class:`MESO_OT_toggle_flag` (``{'UNDO','INTERNAL'}``, see the class) exists because
 ``wm.context_set_enum`` rejects flag enums ("expected a set, not a str") and assigning an
@@ -135,26 +136,62 @@ class MESO_OT_toggle_flag(Operator):
 
 
 def _apply_select(context: Any, domains: modes.SelectDomains, ident: str, extend: bool,
-                  expand: bool) -> bool:
+                  expand: bool) -> set[str] | None:
     """Set the member ``ident`` of ``domains`` in the current mode, as its header button
     does: the operator (EXEC, nested: no undo step of its own; ``use_extend`` /
-    ``use_expand`` for a domain with ``modifiers``) or the property. True when it ran (a
-    CANCELLED call changed nothing: the member was already the select mode)."""
+    ``use_expand`` for a domain with ``modifiers``) or the property. The operator's result
+    (CANCELLED: nothing changed, e.g. the member was already the select mode); for the
+    property FINISHED when the value changed, else CANCELLED; None when it failed."""
     if domains.operator:
         props: dict[str, Any] = {domains.op_prop: ident}
         if domains.modifiers:
             props.update(use_extend=bool(extend), use_expand=bool(expand))
-        return _call(domains.operator, modes.SUBMODE_OPERATOR_CONTEXT, None, props) is not None
+        return _call(domains.operator, modes.SUBMODE_OPERATOR_CONTEXT, None, props)
     owner_path, prop = datapath.split(domains.state_path)
     owner = datapath.context_value(context, owner_path) if owner_path else None
     if owner is None:
-        return False
+        return None
     try:
+        old = getattr(owner, prop)
         setattr(owner, prop, ident)
     except (AttributeError, TypeError, ValueError) as ex:
         _log_once(f"select:{domains.state_path}", f"setting {domains.state_path} failed: {ex!r}")
-        return False
-    return getattr(owner, prop, None) == ident
+        return None
+    if getattr(owner, prop, None) != ident:
+        return None
+    return {'FINISHED'} if old != ident else {'CANCELLED'}
+
+
+def _push_step(name: str) -> None:
+    """``ed.undo_push(message=name)``: a step exactly as an operator's own push names it
+    (``ED_undo_push_op`` pushes ``ot->name``); it runs at any undo depth."""
+    try:
+        bpy.ops.ed.undo_push('EXEC_DEFAULT', message=name)
+    except RuntimeError as ex:
+        _log_once(f"undo_push:{name}", f"pushing the undo step {name!r} failed: {ex!r}")
+
+
+def _op_name(idname: str) -> str:
+    """The (untranslated) name of the operator ``idname``, '' when it does not exist."""
+    op = _op(idname) if idname else None
+    try:
+        return op.get_rna_type().name if op is not None else ''
+    except (AttributeError, KeyError, RuntimeError):
+        return ''
+
+
+def _mode_step_name(mode: str) -> str:
+    """The step a native change into ``mode`` pushes: its mode toggle's name
+    (``core.modes.MODE_TOGGLE_OPERATORS``: 'Edit Mode'); the mode id where unreadable."""
+    return _op_name(modes.MODE_TOGGLE_OPERATORS.get(mode, '')) or mode
+
+
+def _select_step_name(domains: modes.SelectDomains) -> str:
+    """The step the same pick pushes inside the mode (``core.modes.submode_action``): the
+    header button's operator name ('Select Mode'), or 'Context Set Enum' for a property
+    domain (Particle Edit: ``wm.context_set_enum``)."""
+    op = domains.operator or 'wm.context_set_enum'
+    return _op_name(op) or op
 
 
 class MESO_OT_mode_set_select(Operator):
@@ -162,10 +199,16 @@ class MESO_OT_mode_set_select(Operator):
 
     bl_idname = MODE_SELECT_OPERATOR
     bl_label = 'Set Object Mode and Select Mode'
-    # One undo step for the whole pick: the nested object.mode_set / select-mode calls run
-    # inside this UNDO operator's depth and push none of their own. No REGISTER (like
-    # object.mode_set): no redo panel over a mode switch.
-    bl_options = {'UNDO', 'INTERNAL'}
+    # The native header's two undo steps (round-5 decision "submode undo steps"): the mode
+    # menu's pick pushes its mode toggle's step ('Edit Mode', holding the old select mode),
+    # then the header button pushes its own ('Select Mode'). A single step would lose the old
+    # select mode: undo would land on the memfile step before it, which keeps the current
+    # tool settings. The nested object.mode_set / select-mode calls run without the undo
+    # flag (REGISTER operators with it, the mode toggle and mesh.select_mode, segfault in
+    # -b, so that could never be tested headless) and execute() pushes both steps by hand
+    # under the native names (ed.undo_push, what an operator's own push does). No UNDO flag
+    # (it would push a third step), no REGISTER (like object.mode_set: no redo panel).
+    bl_options = {'INTERNAL'}
 
     mode: StringProperty(
         name="Mode",
@@ -202,8 +245,13 @@ class MESO_OT_mode_set_select(Operator):
 
         - no active object / a mode without select modes / an unknown member, or entering
           the mode failed -> ``{'CANCELLED'}`` (reported; nothing changed, no step);
-        - otherwise ``{'FINISHED'}`` (one step), also when only the select mode could not be
-          set (reported: the mode did change)."""
+        - once the mode changed its step is pushed ('Edit Mode'), then the select mode set;
+        - ``{'FINISHED'}`` with the select-mode step pushed ('Select Mode') when the select
+          mode changed, else ``{'CANCELLED'}`` and no second step, as the native button
+          pushes none when it changes nothing (the member was already the select mode;
+          reported when setting it failed). The mode step stays.
+
+        Both steps are pushed whatever the caller's undo flag (the Plaza passes it)."""
         obj = context.active_object
         domains = modes.select_domains(obj.type if obj is not None else None, self.mode)
         if domains is None or self.select not in domains.idents:
@@ -219,8 +267,14 @@ class MESO_OT_mode_set_select(Operator):
             if obj is None or obj.mode != self.mode:
                 self.report({'WARNING'}, f"Cannot enter {self.mode}")
                 return {'CANCELLED'}
-        if not _apply_select(context, domains, self.select, self.use_extend, self.use_expand):
+            _push_step(_mode_step_name(self.mode))
+        res = _apply_select(context, domains, self.select, self.use_extend, self.use_expand)
+        if res is None:
             self.report({'WARNING'}, f"Cannot set the select mode {self.select}")
+            return {'CANCELLED'}
+        if 'FINISHED' not in res:
+            return {'CANCELLED'}
+        _push_step(_select_step_name(domains))
         return {'FINISHED'}
 
 

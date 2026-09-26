@@ -29,7 +29,8 @@ invalidated after in-place changes).
   enum names (Vertex / Edge / Face as DD_FLAG checked from ``mesh_select_mode``; the other
   domains DD_RADIO). In that mode a pick runs the header button's own call (Shift / Ctrl
   extend / expand the mesh select mode, ``core.actions.with_click_modifiers``); from another
-  mode ``meso.mode_set_select`` enters the mode, then sets the select mode (one undo step).
+  mode ``meso.mode_set_select`` enters the mode, then sets the select mode (two undo steps,
+  as the header's mode menu then its button).
   The mode label stays the mode name, as the native header's (its select mode is the
   separate V / E / F buttons, the Plaza's Tool Settings row).
 - **Open Recent** (:data:`core.tables.OPEN_RECENT_MENU`; ``recent_files_menu_draw``,

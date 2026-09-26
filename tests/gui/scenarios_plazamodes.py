@@ -7,18 +7,20 @@ Loaded by ``tests/gui/gui_driver.py`` (module contract as scenarios_phase4.py). 
 only.
 
 - ``pm_mode_pick``: the mode dropdown in the Plaza over the 3D View; 'Edit Mode ▸' opens
-  its submenu and a click on its 'Edit Mode' row switches the cube in place with exactly one undo step ('Toggle Edit Mode', as the native
+  its submenu and a click on its 'Edit Mode' row switches the cube in place with exactly one undo step ('Edit Mode', as the native
   header menu pushes), the dropdown closes, the Plaza stays open and its rows are the Edit
   Mode rows (mode label, contextual menus, the select-mode buttons of the Tool Settings row);
   'Object Mode' from the re-recorded label switches back; the Space release finishes.
 - ``pm_submode_pick`` (edit submodes, user request 2026-09-26): from Object Mode, 'Edit Mode
   ▸' opens on hover (after the submenu delay); 'Edge' enters Edit Mode with the Edge select
-  mode in ONE undo step ('Set Object Mode and Select Mode'), the Plaza stays open and
-  re-recorded (Tool Settings Edges checked), the chain closed. Inside Edit Mode the submenu
+  mode in the native header's TWO undo steps ('Edit Mode', then 'Select Mode': round-5
+  decision "submode undo steps"), the Plaza stays open and re-recorded (Tool Settings Edges checked), the chain closed. Inside Edit Mode the submenu
   shows Edge checked: Shift+click Face extends (``mesh.select_mode`` use_extend, its own
   'Select Mode' step) and the submenu stays open with the checks updated; Ctrl+click Vertex
   expands; a plain click is exclusive. After the Plaza, one undo (``ed.undo``) per step
-  walks back to Object Mode with the old select mode. Screenshot ``plaza_mode_submenu``.
+  walks back: Edge after the three in-mode steps, Edit Mode with the old Vertex select mode
+  after the 'Edit Mode' step, then Object Mode still with Vertex (as a native Tab + button
+  pair: the next Tab enters Vertex mode). Screenshot ``plaza_mode_submenu``.
 - ``pm_recent_files``: a fixture ``recent-files.txt`` in the run's temp BLENDER_USER_CONFIG
   (a copy of the session saved to a temp .blend, plus a missing file); the centre-line
   'Recent Files' label lists it (file names, missing file enabled, More..., Clear Recent
@@ -208,7 +210,7 @@ def scenarios(drv):
             if len(panels) != 2:
                 yield from drv.close_plaza(xy, rec)
                 return
-            # (1) From Object Mode: Edge = Edit Mode + Edge, one undo step.
+            # (1) From Object Mode: Edge = Edit Mode + Edge, the two native steps.
             yield from drv.press_click(drv.dd_xy(st, (idx, 3)))
             yield 0.2
             drv.check(rec, "edit_mode", cube.mode == 'EDIT', cube.mode)
@@ -221,7 +223,7 @@ def scenarios(drv):
                                          "use_extend": False, "use_expand": False}), in_place)
             steps = drv.steps_since(marker)
             rec["submode_undo_steps"] = steps
-            drv.check(rec, "one_undo_step", steps == ["Set Object Mode and Select Mode"], steps)
+            drv.check(rec, "two_native_steps", steps == ["Edit Mode", "Select Mode"], steps)
             tsrow = {i.label: i.checked for i in st.model.row(M.ROW_TOOL_SETTINGS).items
                      if i.id.startswith("ts:select_mode:")}
             drv.check(rec, "tool_settings_edges", tsrow == {
@@ -259,16 +261,18 @@ def scenarios(drv):
                           st.menus and st.menus.mode_changes)
             steps = drv.steps_since(marker)
             rec["submode_undo_steps_all"] = steps
-            drv.check(rec, "one_step_per_pick", steps is not None and len(steps) == 4
-                      and steps[0] == "Set Object Mode and Select Mode"
+            drv.check(rec, "native_steps_per_pick", steps is not None and len(steps) == 5
+                      and steps[0] == "Edit Mode"
                       and all(step == "Select Mode" for step in steps[1:]), steps)
             drv.check(rec, "no_draw_error", not st.failed and st.error is None, st.error)
             yield from drv.release_space(xy)
             drv.check_ended(rec, "final")
-            # (3) One undo per step: the three 'Select Mode' steps give Edge back (edit-mesh
-            # undo restores the select mode), the fourth leaves Edit Mode (a memfile step
-            # keeps the tool settings, as after a native Tab + select mode change: recorded).
-            if steps is not None and len(steps) == 4:
+            # (3) One undo per step: the three in-mode 'Select Mode' steps give Edge back
+            # (edit-mesh undo restores the select mode), the pick's 'Select Mode' step gives
+            # Edit Mode with the old Vertex mode (the 'Edit Mode' step holds it), the last
+            # leaves Edit Mode with Vertex kept (the memfile step keeps the tool settings),
+            # exactly as after a native Tab + Edge button.
+            if steps is not None and len(steps) == 5:
                 for _ in range(3):
                     with bpy.context.temp_override(window=drv.win()):
                         bpy.ops.ed.undo()
@@ -281,9 +285,18 @@ def scenarios(drv):
                     bpy.ops.ed.undo()
                 yield 0.3
                 cube = bpy.data.objects.get("Cube")
+                drv.check(rec, "undo_pick_select_step", cube is not None and cube.mode == 'EDIT'
+                          and select_mode() == (True, False, False),
+                          [cube and cube.mode, select_mode()])
+                with bpy.context.temp_override(window=drv.win()):
+                    bpy.ops.ed.undo()
+                yield 0.3
+                cube = bpy.data.objects.get("Cube")
                 drv.check(rec, "undo_object_mode", cube is not None and cube.mode == 'OBJECT',
                           cube and cube.mode)
                 rec["select_mode_after_undo"] = select_mode()
+                drv.check(rec, "old_select_mode_back", select_mode() == (True, False, False),
+                          select_mode())
         finally:
             if bpy.context.mode != 'OBJECT':
                 drv.set_mode('OBJECT')

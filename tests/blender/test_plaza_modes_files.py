@@ -7,9 +7,9 @@ the built menus of core.tables.BUILT_MENUS; docs/phase4-interfaces.md "Built men
   only without an active object;
 - a pick on the factory cube through the live modal (real builders) switches to Edit Mode in
   place with the native call (INVOKE_REGION_WIN, the undo flag), keeps the Plaza open and
-  re-records every row for the new mode (the undo step itself is a GUI check: an undo push
-  under an area/region override segfaults in ``-b``, docs/verified-facts-5.2.md, so the
-  headless ``run_call`` drops it);
+  re-records every row for the new mode (the undo step itself is a GUI check: with the undo
+  flag ``object.mode_set`` pushes its step under the test's area/region override, which
+  segfaults in ``-b``, docs/verified-facts-5.2.md, so the headless ``run_call`` drops the flag);
 - Recent Files: a fixture ``recent-files.txt`` (written ONLY into this run's temp
   ``BLENDER_USER_CONFIG``, restored afterwards) is listed in order, capped like native, with
   file names, the ``wm.open_mainfile`` calls, More... and Clear Recent Files List...; the
@@ -138,6 +138,32 @@ def active(obj):
         view_layer.objects.active = old
 
 
+@contextlib.contextmanager
+def linked_mesh():
+    """A mesh object linked from a temp library .blend, in the scene (unlinked, removed and
+    its library removed afterwards)."""
+    tmp = tempfile.mkdtemp(prefix='meso_link_')
+    path = os.path.join(tmp, 'lib.blend')
+    src = new_object('MESH')
+    src.name = 'meso_test_linked_src'
+    try:
+        bpy.data.libraries.write(path, {src})
+    finally:
+        bpy.data.objects.remove(src)
+    with bpy.data.libraries.load(path, link=True) as (data_from, data_to):
+        data_to.objects = [n for n in data_from.objects if n == 'meso_test_linked_src']
+    linked = data_to.objects[0]
+    bpy.context.scene.collection.objects.link(linked)
+    try:
+        yield linked
+    finally:
+        bpy.context.scene.collection.objects.unlink(linked)
+        lib = linked.library
+        bpy.data.objects.remove(linked)
+        if lib is not None:
+            bpy.data.libraries.remove(lib)
+
+
 def mode_set(mode):
     with override(area_of('VIEW_3D')):
         bpy.ops.object.mode_set(mode=mode)
@@ -228,19 +254,7 @@ class TestModeSwitchModel(unittest.TestCase):
         self.assertEqual(D().label_role(item), D().ROLE_PASSIVE)
 
     def test_linked_object_rows_are_greyed(self):
-        tmp = tempfile.mkdtemp(prefix='meso_link_')
-        path = os.path.join(tmp, 'lib.blend')
-        src = new_object('MESH')
-        src.name = 'meso_test_linked_src'
-        try:
-            bpy.data.libraries.write(path, {src})
-        finally:
-            bpy.data.objects.remove(src)
-        with bpy.data.libraries.load(path, link=True) as (data_from, data_to):
-            data_to.objects = [n for n in data_from.objects if n == 'meso_test_linked_src']
-        linked = data_to.objects[0]
-        bpy.context.scene.collection.objects.link(linked)
-        try:
+        with linked_mesh() as linked:
             self.assertIsNotNone(linked.library)
             with active(linked):
                 model = mode_model()
@@ -249,12 +263,6 @@ class TestModeSwitchModel(unittest.TestCase):
             self.assertFalse(native_poll)
             self.assertEqual(mode_ids(model), EXPECTED_MODES[None])
             self.assertTrue(model.items and not any(it.enabled for it in model.items))
-        finally:
-            bpy.context.scene.collection.objects.unlink(linked)
-            lib = linked.library
-            bpy.data.objects.remove(linked)
-            if lib is not None:
-                bpy.data.libraries.remove(lib)
 
     def test_row_item_opens_the_custom_dropdown(self):
         item = _mod("record.rows").mode_switch_item(bpy.context, _info())
@@ -420,7 +428,7 @@ class _LiveCase(unittest.TestCase):
     """The modal with the real builders over the Layout's 3D View (as
     test_dropdowns.TestRealBuilders); the terminal ``execute`` / ``schedule`` are recorders,
     ``run_call`` runs the in-place call headless (without the undo flag, which segfaults in
-    ``-b``) and records the planned call."""
+    ``-b`` for REGISTER operators and their nested calls) and records the planned call."""
 
     def setUp(self):
         hb = _hb()

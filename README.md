@@ -31,7 +31,8 @@ Familiar workflows for artists coming from Autodesk Maya software. See
   opens a submenu: **Edit Mode ▸** Edit Mode, then Vertex, Edge and Face for a mesh (Point,
   Stroke, Segment for Grease Pencil; Control Point, Curve for hair curves, also in Sculpt
   Mode; Path, Point, Tip in Particle Edit), the current select mode checked. From another
-  mode a pick enters the mode with that select mode (one undo step); in the mode it only
+  mode a pick enters the mode with that select mode (the two undo steps of the header's mode
+  menu then its button, so undo gives the old select mode back); in the mode it only
   changes the select mode, like the header buttons. The mesh select modes follow the header's
   Vertex / Edge / Face buttons (a click picks one, Shift+click adds or removes one,
   Ctrl+click expands or contracts the selection) and keep the submenu open; the others pick

@@ -1,5 +1,5 @@
 """Unit tests for the edit submodes of the Plaza mode switcher (pure parts):
-core/modes.py (``SELECT_DOMAINS``, ``select_domains``, ``current_members``,
+core/modes.py (``SELECT_DOMAINS``, ``MODE_TOGGLE_OPERATORS``, ``select_domains``, ``current_members``,
 ``submode_action``), core/actions.py (``with_click_modifiers`` for the submode operator,
 ``plan_call``), core/dropdown_model.py (``has_check`` / ``radio_glyph``, roles) and
 core/dropdown_geometry.py (a checked-state cascade draws a radio).
@@ -88,6 +88,15 @@ class TestSelectDomainTable(unittest.TestCase):
                                (None, 'EDIT'), ('MESH', None)):
             with self.subTest(obj_type=obj_type, mode=mode):
                 self.assertIsNone(modes.select_domains(obj_type, mode))
+
+    def test_mode_toggles_cover_every_submode_mode(self):
+        # object_mode_op_string (object_modes.cc 5.2.2): the toggle object.mode_set runs,
+        # whose name meso.mode_set_select pushes as the mode step.
+        self.assertEqual(modes.MODE_TOGGLE_OPERATORS, {
+            'EDIT': 'object.editmode_toggle', 'PARTICLE_EDIT': 'particle.particle_edit_toggle',
+            'SCULPT_CURVES': 'curves.sculptmode_toggle'})
+        self.assertEqual({mode for _, mode in modes.SELECT_DOMAINS},
+                         set(modes.MODE_TOGGLE_OPERATORS))
 
     def test_lookup(self):
         self.assertIs(modes.select_domains('MESH', 'EDIT'),

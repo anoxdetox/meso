@@ -1531,14 +1531,21 @@ force:** the switch ends the stale one-shot first, so the press is a fresh D in 
 INFO "armed" report), a hold runs from the user's value; only a tap in Object Mode cancels; (b) end the armed
 one-shot whenever the user leaves Object Mode (decision 39 (b)); (c) a tap after the switch cancels it (the first
 round-5 behaviour: the user lands in Object Mode with origin editing off, the opposite of the press).
-- **Decision (round 5, submode undo step) (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus",
+- **Decision (round 5, submode undo steps) (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus",
   Submodes**).** A select mode picked in the mode switch from another mode (Object Mode ▸ Edit Mode ▸ Edge):
-  (a) **in force:** one undo step, 'Set Object Mode and Select Mode' (`meso.mode_set_select`, `{'UNDO',
-  'INTERNAL'}`, runs `object.mode_set` and `mesh.select_mode` nested: the standard nested-operator undo, no
-  hand-made push); one Ctrl Z undoes the whole pick; (b) the two native steps, 'Edit Mode' then 'Select Mode'
-  (the nested calls with `undo=True` and no UNDO flag on the wrapper, as decision 44 does), exactly what the
-  header's menu and buttons push one after the other. Unverified in the GUI this round (`pm_submode_pick`
-  counts the steps; headless has no undo stack).
+  (a) **in force:** the native header's two undo steps, 'Edit Mode' then 'Select Mode', exactly what the header's
+  mode menu and its select-mode button push one after the other: `meso.mode_set_select` (`{'INTERNAL'}`) runs
+  `object.mode_set` and the button's call without the undo flag and pushes each native step by hand
+  (`ed.undo_push` with the operator's name, what its own push does). One Ctrl Z gives the old select mode back
+  in Edit Mode, a second goes back to Object Mode with the old select mode kept, so the next Tab enters it
+  (measured headless against the native pair: `TestModeSetSelectUndo`; an unchanged select mode leaves the
+  'Edit Mode' step only, as the native button pushes none); (b) one step 'Set Object Mode and Select Mode'
+  (the wrapper with UNDO, the nested calls without steps): one Ctrl Z undoes the whole pick, but it lands on
+  the memfile step before it, which keeps the current tool settings, so the old select mode is lost (Object
+  Mode, Face kept: the next Tab enters Face mode; IC's 1 / 2 / 3 keys, `object.mode_set_with_submode`, lose it
+  the same way); (c) the two steps from the nested calls with the undo flag and no UNDO on the wrapper (as
+  decision 44): the same steps as (a) pushed by the native operators themselves, but with the undo flag the
+  REGISTER mode toggle and `mesh.select_mode` segfault in `-b`, so it could only be checked in the GUI.
 - **Decision (round 5, submode picks keep the submenu) (DEFAULT in force: a).** (a) **In force:** a mesh select
   mode picked inside Edit Mode keeps the submenu open (plain, Shift and Ctrl clicks alike, as every flag-enum
   member of the toggle cascades: Snap To ▸ Vertex), the checks update; a Grease Pencil / Curves / Particle

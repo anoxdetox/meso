@@ -33,7 +33,7 @@ from .tables import FILE_LOAD_OPERATORS
 
 # The custom setters (ops/actions.py): MESO_OT_toggle_flag, and MESO_OT_mode_set_select (the
 # Plaza mode switch's submode picks from another mode: enter the mode, then set the select
-# mode, one undo step; ``core.modes.submode_action``).
+# mode, the header's two undo steps; ``core.modes.submode_action``).
 TOGGLE_FLAG_OPERATOR = 'meso.toggle_flag'
 MODE_SELECT_OPERATOR = 'meso.mode_set_select'
 

@@ -8,15 +8,19 @@ docs/phase4-interfaces.md "Built menus", "Submodes").
   native names (the header operators' enum names; the mesh ones equal the native
   VIEW3D_MT_edit_mesh_select_mode menu), the current state checked; every other mode and
   type stays a plain radio;
-- picks through the live modal (real builders; ``run_call`` headless without the undo flag,
-  which segfaults in ``-b``, so the undo steps are the GUI scenario's ``pm_submode_pick``):
-  from Object Mode a select mode enters the mode and sets it (one ``meso.mode_set_select``
-  call; the Plaza stays open and is re-recorded, the chain closes); inside the mode only the
-  select mode changes with the native header call (mesh flags keep the submenu open, radios
-  close it); Shift / Ctrl extend / expand the mesh select mode, also from Object Mode;
-  keyboard navigation reaches the submenu;
+- picks through the live modal (real builders; ``run_call`` headless without the undo flag:
+  with it the REGISTER header operators segfault in ``-b``): from Object Mode a select mode
+  enters the mode and sets it (one ``meso.mode_set_select`` call; the Plaza stays open and is
+  re-recorded, the chain closes); inside the mode only the select mode changes with the
+  native header call (mesh flags keep the submenu open, radios close it: Grease Pencil,
+  Particle Edit, hair Curves in Sculpt Mode); Shift / Ctrl extend / expand the mesh select
+  mode, also from Object Mode; keyboard navigation reaches the submenu; a linked object's
+  cascade is greyed with its rows;
 - ``meso.mode_set_select`` itself, called headless for each type (and refusing modes
-  without select modes).
+  without select modes), and its undo steps: called as the Plaza calls it (the undo flag;
+  it is no REGISTER operator and its nested calls run without the flag, so this works in
+  ``-b``) it pushes the header's two steps 'Edit Mode' + 'Select Mode', and undo / redo walk
+  them exactly as the native pair does (undo gives the old select mode back).
 
 Runs inside Blender via tests/run_tests.py (factory startup). Never opens a popup.
 """
@@ -26,10 +30,11 @@ import unittest
 
 import bpy
 
+from tests.blender.test_actions import push_base, steps_since
 from tests.blender.test_dropdowns import Ev
-from tests.blender.test_header import area_of, in_mode, override, quiet
+from tests.blender.test_header import area_of, in_mode, mode_set, override, quiet
 from tests.blender.test_plaza_modes_files import (
-    B, D, M, T, _LiveCase, _hb, _mod, build, mode_ids, mode_model,
+    B, D, M, T, _LiveCase, _hb, _mod, active, build, linked_mesh, mode_ids, mode_model,
 )
 
 SELECT_OPERATOR = 'meso.mode_set_select'
@@ -172,7 +177,7 @@ class TestSubmodeModel(unittest.TestCase):
                 self.assertEqual([it.checked for it in children_of(model, mode)[2:]],
                                  [False, True], mode)
 
-    def test_no_active_object_or_greyed(self):
+    def test_no_active_object(self):
         view_layer = bpy.context.view_layer
         old = view_layer.objects.active
         try:
@@ -181,6 +186,21 @@ class TestSubmodeModel(unittest.TestCase):
         finally:
             view_layer.objects.active = old
         self.assertEqual([it.kind for it in model.items], [D().DD_RADIO])
+
+    def test_linked_object_cascade_is_greyed(self):
+        # object.mode_set's poll fails on a linked object: the cascade and every row in it
+        # are greyed (passive), as the native header's mode menu greys its rows.
+        d = D()
+        with linked_mesh() as linked, active(linked):
+            model = mode_model()
+        cascade = model.items[mode_ids(model).index('EDIT')]
+        self.assertEqual(cascade.kind, d.DD_ENUM_CASCADE)
+        self.assertFalse(cascade.enabled)
+        self.assertEqual(d.item_role(cascade), d.ROLE_PASSIVE)
+        self.assertEqual([it.label for it in cascade.children[2:]], ['Vertex', 'Edge', 'Face'])
+        self.assertFalse(any(it.enabled for it in cascade.children
+                             if it.kind != d.DD_SEPARATOR))
+        self.assertTrue(all(d.item_role(it) == d.ROLE_PASSIVE for it in cascade.children))
 
 
 class TestModeSetSelectOperator(unittest.TestCase):
@@ -232,11 +252,149 @@ class TestModeSetSelectOperator(unittest.TestCase):
                     self.assertEqual(self.call(mode=mode, select=ident), {'CANCELLED'})
                     self.assertEqual(bpy.context.mode, 'OBJECT')
 
-    def test_registered_with_undo_not_register(self):
+    def test_mode_step_names_are_the_native_toggles(self):
+        # The step a native mode change pushes is its toggle's name (ED_undo_push_op).
+        acts = _mod("ops.actions")
+        for mode, op in _modes().MODE_TOGGLE_OPERATORS.items():
+            with self.subTest(mode=mode):
+                mod, _, name = op.partition('.')
+                self.assertIn(name, dir(getattr(bpy.ops, mod)))
+                self.assertEqual(acts._mode_step_name(mode),
+                                 getattr(getattr(bpy.ops, mod), name).get_rna_type().name)
+        self.assertEqual(acts._mode_step_name('EDIT'), 'Edit Mode')
+        dom = _modes().SELECT_DOMAINS
+        self.assertEqual(acts._select_step_name(dom[('MESH', 'EDIT')]), 'Select Mode')
+        self.assertEqual(acts._select_step_name(dom[('MESH', 'PARTICLE_EDIT')]),
+                         bpy.ops.wm.context_set_enum.get_rna_type().name)
+
+    def test_registered_without_undo_or_register(self):
+        # It pushes the native steps itself (TestModeSetSelectUndo): an UNDO flag would add
+        # a third step, REGISTER a redo panel over a mode switch.
         rna = bpy.ops.meso.mode_set_select.get_rna_type()
         self.assertEqual(rna.name, 'Set Object Mode and Select Mode')
         cls = bpy.types.MESO_OT_mode_set_select
-        self.assertEqual(set(cls.bl_options), {'UNDO', 'INTERNAL'})
+        self.assertEqual(set(cls.bl_options), {'INTERNAL'})
+
+
+def mesh_select_mode():
+    return tuple(bpy.context.scene.tool_settings.mesh_select_mode)
+
+
+class TestModeSetSelectUndo(unittest.TestCase):
+    """The undo steps of a pick from another mode, called as the Plaza calls it
+    (``INVOKE_REGION_WIN`` with the undo flag). The native pair (the mode menu's pick, then
+    the header button) cannot run with the undo flag in ``-b`` (REGISTER operators segfault
+    there), so it is reproduced with the steps those operators push: ``object.mode_set`` +
+    ``ed.undo_push('Edit Mode')``, then the button's call + ``ed.undo_push(<its name>)``.
+    Steps are counted after a uniquely named marker (docs/phase3-interfaces.md, headless undo
+    counting); undo never goes past it."""
+
+    def pick(self, **props):
+        with override(area_of('VIEW_3D')), quiet():
+            return bpy.ops.meso.mode_set_select('INVOKE_REGION_WIN', True, **props)
+
+    def marker(self):
+        with override(area_of('VIEW_3D')):
+            return push_base()
+
+    def walk(self, read, count):
+        """``count`` undos then ``count`` redos: ``(context.mode, read())`` after each."""
+        out = []
+        with override(area_of('VIEW_3D')):
+            for op in [bpy.ops.ed.undo] * count + [bpy.ops.ed.redo] * count:
+                self.assertEqual(op(), {'FINISHED'})
+                out.append((bpy.context.mode, read()))
+        return out
+
+    def native_pair(self, mode, select_call, select_step):
+        mode_set(mode)
+        with override(area_of('VIEW_3D')):
+            bpy.ops.ed.undo_push(message='Edit Mode')
+            select_call()
+            bpy.ops.ed.undo_push(message=select_step)
+
+    def test_mesh_pick_pushes_the_two_native_steps(self):
+        with tool_setting('mesh_select_mode', (True, False, False)), in_mode(None, 'OBJECT'):
+            marker = self.marker()
+            self.assertEqual(self.pick(mode='EDIT', select='FACE'), {'FINISHED'})
+            self.assertEqual((bpy.context.mode, mesh_select_mode()),
+                             ('EDIT_MESH', (False, False, True)))
+            self.assertEqual(steps_since(marker), ['Edit Mode', 'Select Mode'])
+            ours = self.walk(mesh_select_mode, 2)
+            # One undo: still in Edit Mode, the old select mode back; two: Object Mode with
+            # the old select mode (the next Tab enters Vertex mode again, as natively).
+            self.assertEqual(ours[:2], [('EDIT_MESH', (True, False, False)),
+                                        ('OBJECT', (True, False, False))])
+            self.assertEqual([m for m, _ in ours[2:]], ['EDIT_MESH', 'EDIT_MESH'])
+            # The native pair from the same state walks the same way.
+            mode_set('OBJECT')
+            bpy.context.scene.tool_settings.mesh_select_mode = (True, False, False)
+            marker = self.marker()
+
+            def select_face():
+                bpy.ops.mesh.select_mode(type='FACE')
+            self.native_pair('EDIT', select_face, 'Select Mode')
+            self.assertEqual(steps_since(marker), ['Edit Mode', 'Select Mode'])
+            self.assertEqual(self.walk(mesh_select_mode, 2), ours)
+
+    def test_mesh_modifiers_from_object_mode(self):
+        # Shift extends, Ctrl expands: still the two steps, undo restores the old mode.
+        for extra, after in (({'use_extend': True}, (True, False, True)),
+                             ({'use_expand': True}, (False, False, True))):
+            with self.subTest(**extra), \
+                    tool_setting('mesh_select_mode', (True, False, False)), \
+                    in_mode(None, 'OBJECT'):
+                marker = self.marker()
+                self.assertEqual(self.pick(mode='EDIT', select='FACE', **extra), {'FINISHED'})
+                self.assertEqual(mesh_select_mode(), after)
+                self.assertEqual(steps_since(marker), ['Edit Mode', 'Select Mode'])
+                self.assertEqual(self.walk(mesh_select_mode, 1)[0],
+                                 ('EDIT_MESH', (True, False, False)))
+
+    def test_unchanged_select_mode_pushes_the_mode_step_only(self):
+        # The member is already the select mode: the native button changes nothing and
+        # pushes no step (mesh.select_mode is CANCELLED), so only 'Edit Mode' is left.
+        with tool_setting('mesh_select_mode', (False, False, True)), in_mode(None, 'OBJECT'):
+            marker = self.marker()
+            self.assertEqual(self.pick(mode='EDIT', select='FACE'), {'CANCELLED'})
+            self.assertEqual((bpy.context.mode, mesh_select_mode()),
+                             ('EDIT_MESH', (False, False, True)))
+            self.assertEqual(steps_since(marker), ['Edit Mode'])
+            self.assertEqual(self.walk(mesh_select_mode, 1)[0],
+                             ('OBJECT', (False, False, True)))
+
+    def test_refused_pick_pushes_nothing(self):
+        with in_mode(None, 'OBJECT'):
+            marker = self.marker()
+            self.assertEqual(self.pick(mode='SCULPT', select='VERT'), {'CANCELLED'})
+            self.assertEqual(steps_since(marker), [])
+
+    def test_grease_pencil_pick_walks_as_the_native_pair(self):
+        ts = bpy.context.scene.tool_settings
+        gp0 = ts.gpencil_selectmode_edit
+        self.addCleanup(lambda: setattr(bpy.context.scene.tool_settings,
+                                        'gpencil_selectmode_edit', gp0))
+
+        def gp_mode():
+            return bpy.context.scene.tool_settings.gpencil_selectmode_edit
+        with in_mode('GREASEPENCIL', 'OBJECT'):
+            bpy.context.scene.tool_settings.gpencil_selectmode_edit = 'POINT'
+            marker = self.marker()
+            self.assertEqual(self.pick(mode='EDIT', select='STROKE'), {'FINISHED'})
+            self.assertEqual((bpy.context.mode, gp_mode()), ('EDIT_GREASE_PENCIL', 'STROKE'))
+            step = bpy.ops.grease_pencil.set_selection_mode.get_rna_type().name
+            self.assertEqual(steps_since(marker), ['Edit Mode', step])
+            ours = self.walk(gp_mode, 2)
+            self.assertEqual(ours[1][0], 'OBJECT')
+            mode_set('OBJECT')
+            bpy.context.scene.tool_settings.gpencil_selectmode_edit = 'POINT'
+            marker = self.marker()
+
+            def select_stroke():
+                bpy.ops.grease_pencil.set_selection_mode(mode='STROKE')
+            self.native_pair('EDIT', select_stroke, step)
+            self.assertEqual(steps_since(marker), ['Edit Mode', step])
+            self.assertEqual(self.walk(gp_mode, 2), ours)
 
 
 class TestSubmodePickLive(_LiveCase):
@@ -279,7 +437,8 @@ class TestSubmodePickLive(_LiveCase):
         self.assertEqual([it.checked for it in sub.items[2:]], [True, False, False])
         with quiet():
             self.assertEqual(self.click(self.item_xy((index, 3))), {'RUNNING_MODAL'})
-        # One in-place call: enter Edit Mode and set Edge (one undo step, GUI-checked).
+        # One in-place call: enter Edit Mode and set Edge (its two undo steps:
+        # TestModeSetSelectUndo).
         self.assertEqual(len(self.calls), 1)
         call = self.calls[0]
         self.assertEqual((call.op_idname, call.operator_context, call.undo, call.kwargs),
@@ -314,6 +473,18 @@ class TestSubmodePickLive(_LiveCase):
                                                  'use_extend': True, 'use_expand': False})
         self.assertEqual(tuple(bpy.context.tool_settings.mesh_select_mode),
                          (True, False, True))
+
+    def test_ctrl_from_object_mode_expands(self):
+        index = self.open_submenu('EDIT')
+        with quiet():
+            self.click_mod(self.item_xy((index, 4)), ctrl=True)
+        self.assertEqual((self.calls[-1].op_idname, self.calls[-1].kwargs),
+                         (SELECT_OPERATOR, {'mode': 'EDIT', 'select': 'FACE',
+                                            'use_extend': False, 'use_expand': True}))
+        self.assertEqual(bpy.context.mode, 'EDIT_MESH')
+        self.assertEqual(tuple(bpy.context.tool_settings.mesh_select_mode),
+                         (False, False, True))
+        self.assertEqual(self.state.menus.mode_changes, ['EDIT_MESH'])
 
     def test_inside_edit_mode_only_the_select_mode_changes(self):
         with override(self.area):
@@ -374,6 +545,55 @@ class TestSubmodePickLive(_LiveCase):
             self.assertEqual(ts.gpencil_selectmode_edit, 'STROKE')
             self.assertEqual(self.state.menus.mode_changes, [])
             # A radio pick closes its own level: the mode dropdown stays open.
+            self.assertEqual([p.key for p in self.state.dropdowns.panels],
+                             [T().MODE_SWITCH_MENU])
+            self.assertTrue(_hb().is_running())
+            self._end_session()
+
+    def test_particle_edit_pick_inside_the_mode(self):
+        # The header draws a property here, not an operator: the pick sets it with
+        # wm.context_set_enum (its own undo step), a radio that closes its submenu.
+        ts = bpy.context.tool_settings
+        pe0 = ts.particle_edit.select_mode
+        self.addCleanup(setattr, ts.particle_edit, 'select_mode', pe0)
+        ts.particle_edit.select_mode = 'PATH'
+        with in_mode('PARTICLES', 'PARTICLE_EDIT', testcase=self, expect='PARTICLE'):
+            self._restart()
+            index = self.open_submenu('PARTICLE_EDIT')
+            sub = self.state.menus.models[1]
+            self.assertEqual([it.label for it in sub.items[2:]], ['Path', 'Point', 'Tip'])
+            self.assertEqual([it.checked for it in sub.items[2:]], [True, False, False])
+            with quiet():
+                self.click(self.item_xy((index, 4)))
+            self.assertEqual((self.calls[-1].op_idname, self.calls[-1].kwargs),
+                             ('wm.context_set_enum',
+                              {'data_path': 'tool_settings.particle_edit.select_mode',
+                               'value': 'TIP'}))
+            self.assertEqual(ts.particle_edit.select_mode, 'TIP')
+            self.assertEqual(bpy.context.mode, 'PARTICLE')
+            self.assertEqual(self.state.menus.mode_changes, [])
+            self.assertEqual([p.key for p in self.state.dropdowns.panels],
+                             [T().MODE_SWITCH_MENU])
+            self.assertTrue(_hb().is_running())
+            self._end_session()
+
+    def test_curves_pick_inside_sculpt_mode(self):
+        def point_domain(obj):
+            obj.data.selection_domain = 'POINT'
+        with in_mode('CURVES', 'SCULPT_CURVES', testcase=self, setup=point_domain) as obj:
+            self._restart()
+            index = self.open_submenu('SCULPT_CURVES')
+            sub = self.state.menus.models[1]
+            self.assertEqual([it.checked for it in sub.items], [True, None, True, False])
+            with quiet():
+                self.click(self.item_xy((index, 3)))
+            self.assertEqual((self.calls[-1].op_idname, self.calls[-1].operator_context,
+                              self.calls[-1].kwargs),
+                             ('curves.set_selection_domain', 'EXEC_DEFAULT',
+                              {'domain': 'CURVE'}))
+            self.assertEqual(obj.data.selection_domain, 'CURVE')
+            self.assertEqual(bpy.context.mode, 'SCULPT_CURVES')
+            self.assertEqual(self.state.menus.mode_changes, [])
             self.assertEqual([p.key for p in self.state.dropdowns.panels],
                              [T().MODE_SWITCH_MENU])
             self.assertTrue(_hb().is_running())

@@ -130,6 +130,17 @@ SELECT_DOMAINS: dict[tuple[str, str], SelectDomains] = {
 }
 
 
+# The mode toggle ``object.mode_set`` runs to enter a mode with select domains
+# (``object_mode_op_string``, object_modes.cc 5.2.2): its name is the undo step a native
+# mode change pushes ('Edit Mode'), which ``meso.mode_set_select`` pushes by hand once the
+# mode is entered, before the select mode changes (the header's two steps).
+MODE_TOGGLE_OPERATORS: dict[str, str] = {
+    'EDIT': 'object.editmode_toggle',
+    PARTICLE_EDIT: 'particle.particle_edit_toggle',
+    'SCULPT_CURVES': 'curves.sculptmode_toggle',
+}
+
+
 def select_domains(obj_type: str | None, mode: str | None) -> SelectDomains | None:
     """The select domains of ``mode`` for an object of type ``obj_type``, or None (no
     submodes: the mode switch row stays a plain radio)."""
@@ -165,7 +176,7 @@ def submode_action(domains: SelectDomains, mode: str, ident: str,
       (Particle Edit), ``Action(ACTION_SET_ENUM, data_path=state_path, value=ident)``.
     - Another mode: ``Action(ACTION_OPERATOR, MODE_SELECT_OPERATOR, props={'mode': mode,
       'select': ident}, operator_context='INVOKE_REGION_WIN')``: enter the mode, then set the
-      member, one undo step. A domain with ``modifiers`` also carries ``use_extend`` /
+      member, the two undo steps of the header's mode menu then its button. A domain with ``modifiers`` also carries ``use_extend`` /
       ``use_expand`` False, which ``with_click_modifiers`` turns on for Shift / Ctrl.
     All with the undo flag.
     """
