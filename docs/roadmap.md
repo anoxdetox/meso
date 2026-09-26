@@ -101,7 +101,7 @@ Goal: nothing personal and no legacy-branding references (beyond the allowed ref
 2. **Public identity:**
    - Manifest maintainer and commit author: `anoxdetox <5579531+anoxdetox@users.noreply.github.com>` (given by the user 2026-09-25). ✅ repo-local `git config user.email` and the manifest are set; the rewrite maps older commits to it.
    - Set `git config user.email` for this repo.
-3. **Rewrite history, keeping the per-phase commits** (`git filter-repo`, on a backup clone first):
+3. **Rewrite history, keeping the per-phase commits** (`git filter-repo`, on a backup clone first): ✅ 2026-09-26 on a fresh clone (`local/rewrite/run.sh <dir>`: rules in `local/rewrite/rules.py`, the path renames of the rename commit, then the checks below; the final tree is byte-identical to master, the unit and headless suites of old commits pass as before). This repo is replaced by the rewritten clone only on the user's go.
    - `--invert-paths` on every historical reference-image path (`docs/reference/`, and the earlier `notes/reference/`): drop the third-party screenshots from every commit.
    - `--replace-text local/rewrite/rules.txt`: reviewed, targeted rules for the legacy terms (`local/rewrite/terms.txt`), personal paths → `$HOME`, and the email → noreply. The allowed referential sentences exist only in the final README and docs, and are kept.
    - `--replace-message` with the same rules, for commit messages.
