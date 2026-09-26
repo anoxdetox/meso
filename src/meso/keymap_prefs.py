@@ -372,7 +372,8 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     _wrapped(hint, SHARED_EDITS_HINT)
     live = meso_keymap.live_bindings(context)
     off = tuple(b for b in mb.BINDINGS if b not in live) if meso_active else ()
-    for message in mb.warnings(live, off):
+    owner = getattr(addon_prefs, 'shift_rmb_owner', 'COMPASS') or 'COMPASS'
+    for message in mb.warnings(live, off, shift_rmb_owner=owner):
         warn = col.column(align=True)
         warn.alert = True
         _wrapped(warn, message, icon='ERROR')

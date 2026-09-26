@@ -29,7 +29,8 @@ from dataclasses import dataclass
 
 from .compass_rmb import CONTEXT_MENUS as COMPASS_CONTEXT_MENUS
 from .compass_rmb import IDNAME as COMPASS_RMB_IDNAME
-from .compass_rmb import KIND_CONTEXT, KIND_TOOLS, ROLE_CTRL_SHIFT, ROLE_SHIFT
+from .compass_rmb import KIND_CONTEXT, KIND_TOOLS, OWNER_COMPASS, OWNER_CURSOR, ROLE_CTRL_SHIFT
+from .compass_rmb import ROLE_SHIFT
 
 IC_NAME = 'Industry_Compatible'
 MESO_NAME = 'Meso'         # the keyconfig name (= the preset file name)
@@ -573,6 +574,8 @@ BINDINGS: tuple[Binding, ...] = (
 )
 
 _BY_ID = {b.id: b for b in BINDINGS}
+# The two items ``shift_rmb_owner`` swaps: (the Shift RMB item, the Ctrl Shift RMB one).
+_CURSOR_SWAP = ('compass_tools', 'reloc_cursor')
 
 
 def binding(binding_id: str) -> Binding:
@@ -692,17 +695,21 @@ def home_label(now: str) -> str:
     return f"{', '.join(keys)} ({b.label})"
 
 
-def warnings(active, inactive=()) -> tuple[str, ...]:
+def warnings(active, inactive=(), shift_rmb_owner: str = OWNER_COMPASS) -> tuple[str, ...]:
     """One message per active binding whose displaced action has no active new home, and one
     per switched-off binding (``inactive``) whose IC item stays switched off
     (``Displaced.off``), so its action has no key at all.
 
     ``active`` is the live bindings (an item switched on in the user keymap); ``inactive`` the
-    available bindings with every item switched off (empty unless Meso is the active keymap).
+    available bindings with every item switched off (empty unless Meso is the active keymap);
+    ``shift_rmb_owner`` the preference that swaps what the two Shift RMB items do: on CURSOR
+    the ``compass_tools`` item is the 3D cursor itself (no cursor warning), and with
+    ``reloc_cursor`` off it is the tool Compass that has no key (one message about it).
     E.g. select_all on and deselect_all off:
     "Select All takes Ctrl Shift A from object.select_all(action='DESELECT') ..."
     """
     ids = {b.id for b in active}
+    swapped = shift_rmb_owner == OWNER_CURSOR
     out = []
     for b in inactive:
         if b.id in ids:
@@ -716,6 +723,8 @@ def warnings(active, inactive=()) -> tuple[str, ...]:
         homeless: dict[str, list[Displaced]] = {}
         for d in b.displaces:
             if d.now != NOW_TAP and d.now not in ids:
+                if swapped and (b.id, d.now) == _CURSOR_SWAP:
+                    continue            # the Shift RMB item keeps the cursor
                 homeless.setdefault(d.now, []).append(d)
         for now, ds in homeless.items():
             first = ds[0]
@@ -723,6 +732,11 @@ def warnings(active, inactive=()) -> tuple[str, ...]:
             where = kms[0] if len(kms) == 1 else f"{kms[0]} and {len(kms) - 1} more keymaps"
             out.append(f"{b.label} takes {first.key.label()} from {first.native} in {where}, but "
                        f"its new home, {home_label(now)}, is off. The action stays in the menus")
+    if swapped and _CURSOR_SWAP[0] in ids and _CURSOR_SWAP[1] not in ids:
+        out.append("The Shift Right Click preference is on 3D Cursor: Shift Right Mouse keeps "
+                   f"the 3D cursor, and {binding(_CURSOR_SWAP[1]).label} (the tool Compass with "
+                   "that preference) is off, so the tool Compass has no key. The tools stay in "
+                   "the menus")
     return tuple(out)
 
 

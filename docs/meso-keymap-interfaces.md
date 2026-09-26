@@ -1107,12 +1107,15 @@ button (every item PRESS; the operator tells a tap from a hold or drag itself):
 - **Shift+RMB** in '3D View' (`compass_tools`): the tool Compass; a quick click places the 3D cursor. It displaces
   both IC Shift+RMB items (the PRESS cursor placement and the CLICK_DRAG cursor drag), listed under the Meso item's
   PRESS key: the shadow test matches every value of a chord against it.
-- **Ctrl+Shift+RMB** in '3D View' (`reloc_cursor`, `follows='compass_tools'`): IC's cursor, exactly (place on the
-  press, drag past the drag threshold to move it). Free in IC 5.2.2 (verified headless 2026-09-26).
+- **Ctrl+Shift+RMB** in '3D View' (`reloc_cursor`, `follows='compass_tools'`): IC's cursor (place on the press,
+  drag past Blender's drag threshold to move it; the differences from IC's CLICK_DRAG item and how the drag makes up
+  for them: `docs/phase5b-interfaces.md` "What the press does"). Free in IC 5.2.2 (verified headless 2026-09-26).
 - `shift_rmb_owner = CURSOR` swaps what the two Shift chords do (the items stay; `core.compass_rmb.behaviour`), so the
   cursor is on Shift+RMB again and the tool Compass on Ctrl+Shift+RMB. The cursor stays reachable in both states, and
   switching `compass_tools` off in the keymap editor gives Shift+RMB back to IC's own two items.
 - `warnings()` counts keymaps, not items: `compass_tools` on with `reloc_cursor` off is one message about '3D View'.
+  It takes `shift_rmb_owner`: on CURSOR the same state warns that the tool Compass has no key (the Shift+RMB item is
+  the cursor then).
 
 ## CLAUDE.md rule updates needed (applied in step 1; rule 1 replaced in step 4 by the keyconfig rule in CLAUDE.md)
 1. Keymaps rule, add: "Exception, explicit consent only: `meso.keymap_choose` may call `bpy.utils.keyconfig_set` on
@@ -1299,7 +1302,8 @@ Snapping and pivot (Xwayland):
   circle).
 
 Protected features (every Meso keymap PR, roadmap rule): Shift+I local view, the 3D cursor place and drag (Shift+RMB
-tap and Ctrl+Shift+RMB since Phase 5b), the
+tap and Ctrl+Shift+RMB since Phase 5b: the lead's `tests/gui/scenarios_compass_rmb.py`, still to be written, covers
+them; `sc_protected` leaves both chord owners out), the
 Cursor and Annotate tools in the toolbar, box/lasso/circle select, context menus, search, Quick Favorites, playback,
 maximize area, and typing in text fields, the Text editor, the Console and 3D text edit with every binding on.
 After the GUI run: `git checkout -- docs/screenshots` unless a screenshot is a new intended reference.

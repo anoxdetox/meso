@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import bpy
 import gpu
+import mathutils
 
 from tests.blender.test_header import area_of, in_mode, override, region_of
 
@@ -171,9 +172,11 @@ class TestToolCompass(unittest.TestCase):
 
 
 class Ev:
-    def __init__(self, type, value='PRESS', mouse_x=0, mouse_y=0, shift=False, ctrl=False):
+    def __init__(self, type, value='PRESS', mouse_x=0, mouse_y=0, shift=False, ctrl=False,
+                 is_repeat=False, is_tablet=False):
         self.type, self.value, self.mouse_x, self.mouse_y = type, value, mouse_x, mouse_y
         self.shift, self.ctrl = shift, ctrl
+        self.is_repeat, self.is_tablet = is_repeat, is_tablet
 
 
 class _Ctx:
@@ -236,6 +239,8 @@ class _RmbCase(unittest.TestCase):
             self.addCleanup(setattr, mod, name, getattr(mod, name))
             setattr(mod, name, fake)
         self.addCleanup(self._cleanup)
+        cursor = bpy.context.scene.cursor
+        self.addCleanup(setattr, cursor, 'location', tuple(cursor.location))
 
     def _cleanup(self):
         self.rmb._end(self.rmb.current_state(), 'test-cleanup')
@@ -245,18 +250,18 @@ class _RmbCase(unittest.TestCase):
         r = self.region
         return int(r.x + r.width // 2), int(r.y + r.height // 2)
 
-    def press(self, op, xy=None, area=None, region_type='WINDOW'):
+    def press(self, op, xy=None, area=None, region_type='WINDOW', etype='RIGHTMOUSE'):
         xy = xy or self.centre()
         with override(area or self.area, region_type):
             ctx = _Ctx()
-            result = op.invoke(ctx, Ev('RIGHTMOUSE', 'PRESS', *xy))
+            result = op.invoke(ctx, Ev(etype, 'PRESS', *xy))
         self.ctx = ctx
         return result
 
-    def ev(self, op, etype, value='NOTHING', xy=None):
+    def ev(self, op, etype, value='NOTHING', xy=None, **kw):
         xy = xy or self.centre()
         with override(self.area):
-            return op.modal(bpy.context, Ev(etype, value, *xy))
+            return op.modal(bpy.context, Ev(etype, value, *xy, **kw))
 
     def hold(self, op, dt=0.25):
         self.clock[0] += dt
@@ -434,6 +439,87 @@ class TestCompassRmbOperator(_RmbCase):
                           {'cursor_transform': True, 'release_confirm': True}))
         self.assertFalse(self.native[-1]['running'])
         self.assertEqual(self.rmb.last_session()['end'], 'drag')
+
+    def test_the_cursor_drag_rule_is_per_axis(self):
+        op = _op(kind='TOOLS', menu='', role='CTRL_SHIFT')
+        x, y = self.centre()
+        self.press(op, (x, y))
+        self.assertEqual(self.rmb.current_state().drag_px, 3, "drag_threshold_mouse, scale 1")
+        self.ev(op, 'MOUSEMOVE', xy=(x + 3, y - 3))
+        self.assertTrue(self.rmb.is_running(), "3 px on each axis is no drag (4.24 px away)")
+        self.assertEqual(self.ev(op, 'MOUSEMOVE', xy=(x + 3, y - 4)), {'FINISHED'})
+
+    def test_the_cursor_drag_catches_up_with_the_pointer(self):
+        """The translate starts at the pointer (a MOUSEMOVE, no CLICK_DRAG event): the cursor
+        first moves by the pointer's way from the press, in the view plane through it."""
+        from bpy_extras import view3d_utils
+        region = self.region
+        rv3d = region.data or self.area.spaces.active.region_3d    # no region data under -b
+        self.assertGreater(region.width * region.height, 0)
+        cursor = bpy.context.scene.cursor
+        start = mathutils.Vector((0.4, -0.3, 0.2))
+        cursor.location = start
+        before = view3d_utils.location_3d_to_region_2d(region, rv3d, start)
+        self.assertIsNotNone(before, "the cursor is in front of the view")
+        op = _op(kind='TOOLS', menu='', role='CTRL_SHIFT')
+        x, y = self.centre()
+        self.press(op, (x, y))
+        self.assertEqual((cursor.location - start).length, 0.0, "the stub placed nothing")
+        self.assertEqual(self.ev(op, 'MOUSEMOVE', xy=(x + 7, y - 4)), {'FINISHED'})
+        after = view3d_utils.location_3d_to_region_2d(region, rv3d, cursor.location)
+        self.assertAlmostEqual(after[0] - before[0], 7.0, places=2)
+        self.assertAlmostEqual(after[1] - before[1], -4.0, places=2)
+        pm = rv3d.perspective_matrix
+        self.assertAlmostEqual((pm @ cursor.location.to_4d()).w, (pm @ start.to_4d()).w,
+                               places=4, msg="in the view plane")
+        self.assertEqual(self.native[-1]['call'].op_idname, 'transform.translate')
+
+    def test_the_drag_threshold_of_the_press(self):
+        prefs = bpy.context.preferences
+        inputs = prefs.inputs
+        for button, tablet, want in (
+                ('RIGHTMOUSE', False, inputs.drag_threshold_mouse),
+                ('RIGHTMOUSE', True, inputs.drag_threshold_tablet),
+                ('BUTTON4MOUSE', False, inputs.drag_threshold_mouse),
+                ('Q', False, inputs.drag_threshold)):
+            with self.subTest(button=button, tablet=tablet):
+                got = self.rmb._drag_threshold(prefs, button, Ev(button, is_tablet=tablet), 1.0)
+                self.assertEqual(got, want)
+        self.assertEqual(self.rmb._drag_threshold(prefs, 'RIGHTMOUSE', Ev('RIGHTMOUSE'), 1.25),
+                         int(inputs.drag_threshold_mouse * 1.25))
+
+    def test_a_binding_moved_to_a_key_picks_on_its_release(self):
+        """A Compass binding moved to a key in the keymap editor: the key's release ends the
+        press (tap before the Compass, pick after it), its auto-repeat is no new press."""
+        op = _op()
+        self.assertEqual(self.press(op, etype='Q'), {'RUNNING_MODAL'})
+        self.assertEqual(self.rmb.current_state().button, 'Q')
+        self.hold(op)
+        self.assertIsNotNone(self.rmb.current_state().compass)
+        target = self.toward('W')
+        self.ev(op, 'MOUSEMOVE', xy=target)
+        self.assertEqual(self.ev(op, 'Q', 'PRESS', target, is_repeat=True), {'RUNNING_MODAL'})
+        self.clock[0] += 0.3
+        self.assertEqual(self.ev(op, 'Q', 'RELEASE', target), {'FINISHED'})
+        self.assertFalse(self.rmb.is_running())
+        self.assertEqual(self.executed[0]['action'].target, 'meso.mode_set_select')
+        # a quick release in the centre leaves it open; the key's next press + release picks
+        op = _op()
+        self.press(op, etype='Q')
+        self.hold(op)
+        self.clock[0] += 0.05
+        centre = self.rmb.current_state().compass.layout.centre
+        self.assertEqual(self.ev(op, 'Q', 'RELEASE', centre), {'RUNNING_MODAL'})
+        target = self.toward('W')
+        self.ev(op, 'MOUSEMOVE', xy=target)
+        self.ev(op, 'Q', 'PRESS', target)
+        self.assertEqual(self.ev(op, 'Q', 'RELEASE', target), {'FINISHED'})
+        self.assertEqual(len(self.executed), 2)
+        # before the Compass shows, the key's release is the tap
+        op = _op()
+        self.press(op, etype='Q')
+        self.assertEqual(self.ev(op, 'Q', 'RELEASE'), {'FINISHED'})
+        self.assertEqual(self.native[-1]['call'].op_idname, 'wm.call_menu')
 
     def test_ctrl_shift_tap_ends_with_the_cursor_placed(self):
         op = _op(kind='TOOLS', menu='', role='CTRL_SHIFT')

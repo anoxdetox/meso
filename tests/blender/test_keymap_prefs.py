@@ -459,6 +459,23 @@ class TestMesoKeymapPrefs(_PrefsCase):
         text = " ".join(self._labels(self._draw()))
         self.assertIn("new home, Alt D (Deselect All), is off", text)
 
+    def test_the_cursor_off_warning_follows_the_owner(self):
+        """``reloc_cursor`` off: the cursor has no key with ``shift_rmb_owner`` COMPASS, the
+        tool Compass has none with CURSOR (the Shift RMB item is the cursor then)."""
+        self._meso_on()
+        self.mk.set_binding_active('reloc_cursor', False)
+        try:
+            text = " ".join(self._labels(self._draw()))
+            self.assertIn("its new home, Ctrl Shift Right Mouse", text)
+            self.assertNotIn("the tool Compass has no key", text)
+            self.prefs.shift_rmb_owner = 'CURSOR'
+            text = " ".join(self._labels(self._draw()))
+            self.assertNotIn("its new home, Ctrl Shift Right Mouse", text)
+            self.assertIn("the tool Compass has no key", text)
+        finally:
+            self.prefs.shift_rmb_owner = 'COMPASS'
+            self.mk.set_binding_active('reloc_cursor', True)
+
     def test_set_all_row_warns_about_meso_keys(self):
         self._meso_on()
         self.prefs.space_items_key = 'A'

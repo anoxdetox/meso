@@ -381,6 +381,21 @@ class TestCompassMenus(unittest.TestCase):
         # the context Compass keeps the menu on a tap: nothing to warn about
         self.assertEqual(mb.warnings(live(off={'compass_tools'})), ())
 
+    def test_the_owner_cursor_warns_about_the_tool_compass_instead(self):
+        """``shift_rmb_owner`` CURSOR: the Shift RMB item is the cursor itself, so its
+        Ctrl Shift RMB item off leaves the tool Compass without a key, never the cursor."""
+        w = mb.warnings(live(off={'reloc_cursor'}), shift_rmb_owner='CURSOR')
+        self.assertEqual(len(w), 1, w)
+        self.assertNotIn("view3d.cursor3d", w[0])
+        self.assertIn("Shift Right Mouse keeps the 3D cursor", w[0])
+        self.assertIn("Ctrl Shift Right Click: 3D Cursor", w[0])
+        self.assertIn("the tool Compass has no key", w[0])
+        for off in ((), ('compass_tools',), ('compass_tools', 'reloc_cursor')):
+            with self.subTest(off=off):
+                self.assertEqual(mb.warnings(live(off=set(off)), shift_rmb_owner='CURSOR'), ())
+        self.assertEqual(mb.warnings(live(off={'reloc_cursor'}), shift_rmb_owner='COMPASS'),
+                         mb.warnings(live(off={'reloc_cursor'})), "COMPASS is the default")
+
     def test_merge_puts_the_compass_items_first(self):
         data = mb.merge_keyconfig_data(ic_like_data())
         by_name = {name: content["items"] for name, _a, content in data}

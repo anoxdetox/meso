@@ -114,7 +114,7 @@ Goal: nothing personal and no legacy-branding references (beyond the allowed ref
 Reuses the Phase 5 radial engine and the Phase 4 dropdown renderer. A tap (quick click) keeps Blender's native context menu; hold/drag opens the Compass. `shift_rmb_owner = COMPASS (default) | CURSOR`: the 3D cursor moves to Ctrl+Shift+RMB (free in Industry Compatible and Meso). Must work with the "Select with" left/right-click preference.
 References: `docs/reference/reference_plaza_and_rmb.jpg` (right half), `docs/reference/reference_shift_rmb_menus.jpg`.
 
-- **Right-click Compass menu (any editor, "Any – Right Click").** Radial component-mode menu at the cursor
+- **Right-click Compass menu (any editor; the reference DCC's right-click radial menu).** Radial component-mode menu at the cursor
   (Blender: Object Mode / Vertex / Edge / Face / UV / multi-select…) with a centre dot, gesture pick,
   and the editor's context menu drawn as a list **below** the radial (Blender: recorded
   `VIEW3D_MT_object_context_menu` / `VIEW3D_MT_edit_mesh_context_menu` etc.).

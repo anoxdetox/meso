@@ -11,8 +11,9 @@ operator and the content builders make from plain values:
   ``kind`` / ``role`` and the ``shift_rmb_owner`` preference;
 - the show rule (:func:`shows_compass`): held :data:`COMPASS_HOLD_DELAY` or moved more than
   :data:`COMPASS_DRAG_PX` (times the UI scale) from the press;
-- the drag rule of the cursor (:func:`is_drag`) and the native calls of a tap / a drag
-  (:func:`tap_call`, :func:`drag_call`): Industry Compatible's own items, exactly;
+- the drag rule of the cursor (:func:`drag_threshold_px`, :func:`is_drag`), the native calls
+  of a tap / a drag (:func:`tap_call`, :func:`drag_call`: Industry Compatible's own items) and
+  the cursor move the drag makes up for (:func:`view_delta`);
 - :func:`pick_action`: what a picked Compass item runs after the teardown;
 - the content tables: the context menu per mode keymap (:data:`CONTEXT_MENUS`), the mode's
   main menu (:func:`mode_menu`), the radial of modes (:func:`mode_slots`) and the tool
@@ -37,8 +38,8 @@ __all__ = (
     'COMPASS_HOLD_DELAY', 'CONTEXT_MENUS', 'CONTEXT_MENUS_BY_MODE', 'IDNAME', 'KIND_CONTEXT',
     'KIND_TOOLS', 'KINDS', 'OWNERS', 'OWNER_COMPASS', 'OWNER_CURSOR', 'ROLES', 'ROLE_CTRL_SHIFT',
     'ROLE_PLAIN', 'ROLE_SHIFT', 'TOOL_SLOTS', 'ToolSlot', 'behaviour', 'context_menu_for_mode',
-    'drag_call', 'enum_cascade_action', 'is_drag', 'mode_menu', 'mode_slots', 'pick_action',
-    'shows_compass', 'tap_call', 'tool_domain',
+    'drag_call', 'drag_threshold_px', 'enum_cascade_action', 'is_drag', 'mode_menu',
+    'mode_slots', 'pick_action', 'shows_compass', 'tap_call', 'tool_domain', 'view_delta',
 )
 
 # --- operator properties -------------------------------------------------------------------
@@ -85,11 +86,40 @@ def shows_compass(elapsed: float, press: tuple[float, float], xy: tuple[float, f
     return _moved(press, xy) > COMPASS_DRAG_PX * (scale or 1.0)
 
 
+def drag_threshold_px(threshold: float, scale: float = 1.0) -> int:
+    """Blender's drag threshold in pixels (``WM_event_drag_threshold``, wm_event_query.cc
+    5.2): the preference (``drag_threshold_mouse``, ``drag_threshold_tablet`` for a tablet,
+    ``drag_threshold`` for a key) times the UI scale, truncated to whole pixels (0 / None
+    scale -> 1)."""
+    return max(0, int(float(threshold) * (scale or 1.0)))
+
+
 def is_drag(press: tuple[float, float], xy: tuple[float, float], threshold_px: float) -> bool:
-    """The cursor's drag rule (Blender's CLICK_DRAG): the pointer is more than
-    ``threshold_px`` (the drag threshold times the UI scale) from the press. A release before
-    that is the tap (Blender's own click, whatever the time held)."""
-    return _moved(press, xy) > max(0.0, float(threshold_px))
+    """The cursor's drag rule (Blender's CLICK_DRAG, ``WM_event_drag_test``): the pointer is
+    more than ``threshold_px`` (:func:`drag_threshold_px`) from the press along either axis
+    (each axis on its own, not the straight-line distance). A release before that is the tap
+    (Blender's own click, whatever the time held)."""
+    limit = max(0.0, float(threshold_px))
+    return (abs(float(xy[0]) - float(press[0])) > limit
+            or abs(float(xy[1]) - float(press[1])) > limit)
+
+
+def view_delta(persmat: Sequence[Sequence[float]], persinv: Sequence[Sequence[float]],
+               size: tuple[float, float], co: Sequence[float],
+               delta_px: tuple[float, float]) -> tuple[float, float, float]:
+    """The world move of a pointer move ``delta_px`` (region pixels) in the view plane
+    through ``co``, as the translate of the 3D cursor computes it (``convertViewVec`` ->
+    ``ED_view3d_win_to_delta`` with ``ED_view3d_calc_zfac``, view3d_project.cc 5.2).
+    ``persmat`` / ``persinv``: ``RegionView3D.perspective_matrix`` and its inverse as rows
+    (``M[row][col]``, mathutils order); ``size``: the region's width and height."""
+    zfac = sum(float(persmat[3][j]) * float(co[j]) for j in range(3)) + float(persmat[3][3])
+    if -1e-6 < zfac < 1e-6:
+        zfac = 1.0
+    zfac = abs(zfac)                    # behind the viewpoint: the directions stay unflipped
+    width, height = (float(size[0]) or 1.0), (float(size[1]) or 1.0)
+    dx = 2.0 * float(delta_px[0]) * zfac / width
+    dy = 2.0 * float(delta_px[1]) * zfac / height
+    return tuple(float(persinv[i][0]) * dx + float(persinv[i][1]) * dy for i in range(3))
 
 
 # --- the native calls (Industry Compatible 5.2.2 items, exactly) -----------------------------

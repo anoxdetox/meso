@@ -1058,7 +1058,8 @@ def scenarios(drv):
             drv.check(rec, "shift_rmb_places_cursor", placed != cursor_before, placed)
             # Shift RMB drag (IC's cursor drag): the same with every Meso binding off and with
             # every binding on but the two that own the cursor chords (compass_tools on Shift
-            # RMB, reloc_cursor on Ctrl Shift RMB: scenarios_compass_rmb drives those), so no
+            # RMB, reloc_cursor on Ctrl Shift RMB: the planned scenarios_compass_rmb module,
+            # docs/phase5b-interfaces.md "Tests", is to drive those), so no
             # other Meso item swallows it (under event_simulate Industry Compatible's PRESS
             # cursor3d item may keep the drag from starting; what matters is that Meso changes
             # nothing)

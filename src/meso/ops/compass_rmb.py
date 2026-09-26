@@ -20,10 +20,16 @@ CONTEXT, ``menu`` the context menu it displaces) and on Shift / Ctrl Shift RMB i
   ``compass_step``) runs it: moves hover, the button's release picks or cancels (a quick
   release in the centre leaves it open for a click pick), Esc cancels. A Compass with nothing
   to offer here falls back to the tap at the release.
-- **'cursor'**: Industry Compatible's two Shift RMB items, exactly: the press places the 3D
-  cursor at once (``view3d.cursor3d``, its PRESS item); a drag past Blender's drag threshold
-  then moves it (``transform.translate(cursor_transform=True, release_confirm=True)``, its
-  CLICK_DRAG item), a release ends it.
+- **'cursor'**: Industry Compatible's two Shift RMB items: the press places the 3D cursor at
+  once (``view3d.cursor3d``, its PRESS item); a drag past Blender's drag threshold (its
+  CLICK_DRAG rule: ``core.compass_rmb.is_drag``) then moves it
+  (``transform.translate(cursor_transform=True, release_confirm=True)``, its CLICK_DRAG item),
+  a release ends it. Started from a MOUSEMOVE, the translate starts at the pointer, not at the
+  press as from a CLICK_DRAG event, so the cursor first moves by the pointer's way from the
+  press (:func:`_catch_up`): it stays under the pointer as with the native drag. Known
+  difference: the translate's launch key is the window's last key or button event, so a key
+  let go between the press and the drag (Ctrl, Shift) becomes it and the button's release
+  then does not confirm (a click or Enter does; the native CLICK_DRAG item has the button).
 
 A pick runs after the teardown (``handlers`` and timer removed), right before FINISHED, with
 ``ops.invoke.execute(core.compass_rmb.pick_action(item), window, area, region, 'VIEW_3D')``
@@ -74,6 +80,9 @@ MODAL_IDNAME = 'MESO_OT_compass_rmb'
 
 PRESS_VALUES = frozenset({'PRESS', 'DOUBLE_CLICK'})
 MOUSE_MOVES = frozenset({'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'})
+# Blender's mouse buttons (``ISMOUSE_BUTTON``): their drag threshold is the mouse / tablet one.
+_MOUSE_BUTTONS = frozenset({'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE',
+                            'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE'})
 # Invoking event types that are not a held button (no RELEASE follows): RIGHTMOUSE then.
 _NON_BUTTON_EVENTS = frozenset({'NONE', 'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE',
                                 'WINDOW_DEACTIVATE'})
@@ -100,7 +109,8 @@ class RmbState:
     the operator's ``kind`` / ``role`` / ``menu``; ``behaviour`` ('compass' / 'cursor');
     ``button`` (the pressed button: its RELEASE ends the press); ``press`` / ``t0`` (window
     coords and ``time.perf_counter()`` of the press); ``scale`` (UI scale, 1 headless);
-    ``drag_px`` (Blender's drag threshold times the scale: the cursor's drag); ``pointer``
+    ``drag_px`` (Blender's drag threshold of the button in whole pixels,
+    ``core.compass_rmb.drag_threshold_px``: the cursor's drag); ``pointer``
     (the last pointer); ``shown`` (the show rule fired; ``compass`` stays None when the
     Compass had nothing to offer). The ``view.draw_manager.DrawState`` fields: ``layout``
     None (no Plaza), ``compass`` (the open ``ops.compass.CompassSession``), ``palette`` and
@@ -117,7 +127,7 @@ class RmbState:
     press: tuple[float, float]
     t0: float
     scale: float = 1.0
-    drag_px: float = 3.0
+    drag_px: int = 3
     pointer: tuple[float, float] = (0.0, 0.0)
     shown: bool = False
     # --- DrawState ---
@@ -285,6 +295,46 @@ def _owner(context: Any) -> str:
                or rmb.OWNER_COMPASS)
 
 
+def _drag_threshold(preferences: Any, button: str, event: Any, scale: float) -> int:
+    """Blender's drag threshold of the press (``WM_event_drag_threshold``): the tablet one
+    for a tablet press, the mouse one for another mouse button, the generic one for a key
+    (a binding moved to a key in the keymap editor); times the UI scale, whole pixels."""
+    inputs = preferences.inputs
+    if button in _MOUSE_BUTTONS:
+        name = ('drag_threshold_tablet' if getattr(event, 'is_tablet', False)
+                else 'drag_threshold_mouse')
+    else:
+        name = 'drag_threshold'
+    return rmb.drag_threshold_px(float(getattr(inputs, name, 3)), scale)
+
+
+def _catch_up(context: Any, state: RmbState) -> None:
+    """Move the 3D cursor by the pointer's way from the press in the view plane through it
+    (``core.compass_rmb.view_delta``, the translate's own conversion): the translate started
+    from a MOUSEMOVE counts from the pointer (the window's event state is no CLICK_DRAG, so
+    ``initTransInfo`` takes its ``xy``, not the press), and the cursor then stays under the
+    pointer as with Industry Compatible's CLICK_DRAG item. Never raises (logged once)."""
+    try:
+        region = state.region
+        rv3d = getattr(region, 'data', None)          # the quadrant's in a quad view
+        if rv3d is None:
+            rv3d = state.area.spaces.active.region_3d
+        if rv3d is None or not region.width or not region.height:
+            return
+        delta = (state.pointer[0] - state.press[0], state.pointer[1] - state.press[1])
+        if delta == (0.0, 0.0):
+            return
+        persmat = rv3d.perspective_matrix
+        cursor = context.scene.cursor
+        co = tuple(cursor.location)
+        move = rmb.view_delta([tuple(r) for r in persmat],
+                              [tuple(r) for r in persmat.inverted()],
+                              (region.width, region.height), co, delta)
+        cursor.location = tuple(c + m for c, m in zip(co, move))
+    except Exception:
+        _log_once('catch_up', "moving the 3D cursor to the drag start failed", exc=True)
+
+
 def _area_index(window: Any, area: Any) -> int | None:
     ptr = area.as_pointer()
     return next((i for i, a in enumerate(window.screen.areas) if a.as_pointer() == ptr), None)
@@ -341,11 +391,11 @@ the pointer"""
             behaviour = rmb.behaviour(kind, role, _owner(context))
             preferences = context.preferences
             scale = float(preferences.system.ui_scale or 1.0)
-            drag_px = float(getattr(preferences.inputs, 'drag_threshold_mouse', 3)) * scale
             etype = getattr(event, 'type', '')
             button = (etype if getattr(event, 'value', '') in PRESS_VALUES
                       and etype not in _NON_BUTTON_EVENTS and not etype.startswith('TIMER')
                       else 'RIGHTMOUSE')
+            drag_px = _drag_threshold(preferences, button, event, scale)
             press = (float(event.mouse_x), float(event.mouse_y))
             state = RmbState(window_ptr=window.as_pointer(), area_ptr=area.as_pointer(),
                              area_index=_area_index(window, area), kind=kind, role=role,
@@ -408,7 +458,7 @@ the pointer"""
                     return {'RUNNING_MODAL'}
                 if state.behaviour == rmb.BEHAVIOUR_CURSOR:
                     if rmb.is_drag(state.press, state.pointer, state.drag_px):
-                        return self._drag(state)
+                        return self._drag(context, state)
                 elif rmb.shows_compass(now - state.t0, state.press, state.pointer,
                                        state.scale):
                     self._show(context, state, now)
@@ -441,10 +491,11 @@ the pointer"""
             _native(state, call[0], call[1], _native_undo(call[0]), window, area, region)
         return {'FINISHED'}
 
-    def _drag(self, state: RmbState) -> set[str]:
-        """The cursor's drag: the cursor translate after the teardown (the button still down:
-        its release confirms)."""
+    def _drag(self, context: Any, state: RmbState) -> set[str]:
+        """The cursor's drag: the cursor caught up with the pointer (:func:`_catch_up`), then
+        the cursor translate after the teardown (the button still down: its release confirms)."""
         window, area, region = state.window, state.area, state.region
+        _catch_up(context, state)
         _end(state, 'drag')
         self._state = None
         op, kwargs = rmb.drag_call()
@@ -504,7 +555,9 @@ the pointer"""
             state.handlers.redraw(rects=before + compass_ops._extent(state.compass))
 
     def _gesture(self, context: Any, state: RmbState, event: Any, now: float) -> set[str]:
-        """The Phase 5 gesture of the open Compass (``ops.compass.handle`` without a Plaza)."""
+        """The Phase 5 gesture of the open Compass (``ops.compass.handle`` without a Plaza).
+        The press's own button counts as a gesture button too (a binding moved to a key or
+        another mouse button in the keymap editor: its release picks, as the RMB release)."""
         cs = state.compass
         etype, value = event.type, event.value
         before = compass_ops._extent(cs)
@@ -522,7 +575,10 @@ the pointer"""
                 self._state = None
                 return {'FINISHED'}
             return {'RUNNING_MODAL'}
-        if etype in zones.BUTTONS and value in PRESS_VALUES | {'RELEASE'}:
+        if (etype in zones.BUTTONS or etype == state.button) \
+                and value in PRESS_VALUES | {'RELEASE'}:
+            if value != 'RELEASE' and getattr(event, 'is_repeat', False):
+                return {'RUNNING_MODAL'}        # a held key's auto-repeat: still the press
             x, y = float(event.mouse_x), float(event.mouse_y)
             _slot, _path, in_dead = compass_ops._hover(cs, x, y)
             kind = 'release' if value == 'RELEASE' else 'press'

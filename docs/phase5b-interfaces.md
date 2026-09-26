@@ -6,7 +6,7 @@ everything Phase 5b leaves alone. Reuses the Phase 5 radial engine (`core/compas
 `view.renderer.draw_compass`) and the Phase 4 dropdown items / roles.
 
 ## What the user asked for (roadmap "Phase 5b", user decisions 2026-09-25)
-- **Right-click Compass** (the reference DCC's "Any – Right Click"): a radial of the component / object modes at the
+- **Right-click Compass** (the reference DCC's right-click radial menu): a radial of the component / object modes at the
   pointer, with the editor's context menu as the list below the radial.
 - **Shift+right-click tool Compass** per component mode (Object / Vertex / Edge / Face): a radial of the most-used
   tools, with the mode's tool menu as the list below.
@@ -58,19 +58,29 @@ The pure decisions live in `core/compass_rmb.py` (`behaviour`, `shows_compass`, 
 - **What the press does** (`core.compass_rmb.behaviour(kind, role, owner)`, pure): CONTEXT -> `'compass'` (tap:
   the native `wm.call_menu(name=menu)`); TOOLS + SHIFT -> `'compass'` when `shift_rmb_owner == 'COMPASS'` else
   `'cursor'`; TOOLS + CTRL_SHIFT -> the other one (TOOLS + PLAIN: `'compass'`; an unknown owner counts as COMPASS).
-  `'cursor'` is Industry Compatible's two Shift RMB items, exactly: the PRESS places the cursor at once
+  `'cursor'` is Industry Compatible's two Shift RMB items: the PRESS places the cursor at once
   (`view3d.cursor3d('INVOKE_DEFAULT')`, from invoke: the cursor jumps to the press point, as the PRESS item does), a
-  drag past Blender's drag threshold (`preferences.inputs.drag_threshold_mouse * ui_scale`, the CLICK_DRAG rule;
-  `core.compass_rmb.is_drag`) then runs `transform.translate('INVOKE_DEFAULT', cursor_transform=True,
-  release_confirm=True)` after the teardown, a release ends it (the cursor already placed); it never shows a
-  Compass. A TOOLS `'compass'` tap places the cursor too (the native Shift+RMB click stays, decision 88; run at the
+  drag past Blender's drag threshold (the CLICK_DRAG rule of `WM_event_drag_test`, 5.2: either axis more than
+  `WM_event_drag_threshold` pixels from the press, i.e. `drag_threshold_mouse` (`drag_threshold_tablet` for a
+  tablet press, `drag_threshold` for a key) times `ui_scale`, truncated; `core.compass_rmb.drag_threshold_px`,
+  `is_drag`) then runs `transform.translate('INVOKE_DEFAULT', cursor_transform=True, release_confirm=True)` after
+  the teardown, a release ends it (the cursor already placed); it never shows a Compass. The translate started
+  from a MOUSEMOVE takes the window's event state, which is no CLICK_DRAG event: it counts from the pointer, not
+  from the press (`initTransInfo`, T_EVENT_DRAG_START), so the cursor is first moved by the pointer's way from
+  the press in the view plane through it (`ops.compass_rmb._catch_up`, `core.compass_rmb.view_delta`: the
+  translate's own `ED_view3d_win_to_delta`) and stays under the pointer as with the native drag. Known
+  difference (no bpy way around it): the translate's launch key is the event state's type, the window's last key
+  or button event, so a modifier let go between the press and the drag becomes it and the button's release then
+  does not confirm (a click or Enter does); the native CLICK_DRAG event carries the button. A TOOLS `'compass'` tap places the cursor too (the native Shift+RMB click stays, decision 88; run at the
   release, so at the release point, within the 8 px of a tap). The cursor calls pass the undo flag a keymap
   invocation has (`undo=True`); `wm.call_menu` none. Every native call goes through the seam
   `ops.compass_rmb.run_native` (`ops.invoke.run_call`).
 - **invoke:** only in a 3D View WINDOW region with a window (else PASS_THROUGH: the key goes on to the native item);
   records the press point and time, starts a modal with a 0.05 s timer (`TIMER_INTERVAL`: the hold check and the
   watchdog; TIMERs PASS_THROUGH). Never draws before the Compass shows (the `HandlerSet` starts at the show). The
-  button whose RELEASE ends the press is the invoking event's type (RIGHTMOUSE when invoked without a button press).
+  button whose RELEASE ends the press is the invoking event's type (RIGHTMOUSE when invoked without a button press;
+  any key or mouse button a binding was moved to in the keymap editor: the open Compass's gesture takes its press
+  and release as the button's, its auto-repeat presses are ignored).
   A failing invoke tears down and passes the key on.
 - **Compass shows** when the button is still down after `COMPASS_HOLD_DELAY` (0.2 s) or the pointer moved more than
   `COMPASS_DRAG_PX * ui_scale` (8 px) from the press: `record.compass.build_compass` of the built-in `meso:context`
@@ -147,7 +157,9 @@ the cursor (`prefs.shift_rmb_hint(owner)`), and in the Compass Menus group of th
 text editing and the 2D editors keep their menu).
 
 Binding-table helpers touched (`core/meso_bindings.py`, `keymap_prefs.py`): `Key.label()` names RIGHTMOUSE
-"Right Mouse" (Blender's own name); `warnings()` and `displaced_lines()` count keymaps, not items, so the two cursor
+"Right Mouse" (Blender's own name); `warnings(active, inactive, shift_rmb_owner)`: with the owner CURSOR the Shift
+RMB item is the cursor itself, so `reloc_cursor` off warns that the tool Compass has no key instead of the cursor
+(`keymap_prefs` passes the preference); `warnings()` and `displaced_lines()` count keymaps, not items, so the two cursor
 items of '3D View' are one keymap (one line lists both natives).
 
 ## Decisions (defaults in force until the user answers; numbering continues from docs/phase5-interfaces.md)
@@ -159,13 +171,14 @@ items of '3D View' are one keymap (one line lists both natives).
     (b) nothing.
 
 ## Tests
-- Unit (`tests/unit/test_compass_rmb.py`, new, 25 tests; `core/compass_rmb.py` pure): `behaviour` truth table (kind ×
+- Unit (`tests/unit/test_compass_rmb.py`, new, 30 tests; `core/compass_rmb.py` pure): `behaviour` truth table (kind ×
   role × owner), the show rule (hold delay, drag threshold at scale 1 and 2, headless scale 0), the cursor's drag
-  rule, the tap / drag calls, `pick_action` (plain, passive, submenu, operator / property enum cascades, label rows),
+  rule (per axis, whole-pixel threshold), `view_delta` (orthographic, perspective depth, degenerate), the tap / drag
+  calls, `pick_action` (plain, passive, submenu, operator / property enum cascades, label rows),
   the content tables (`CONTEXT_MENUS`, `mode_menu`, `mode_slots`, `tool_domain`, `TOOL_SLOTS`, the built-ins); the
   bindings table checks of `tests/unit/test_meso_bindings.py` (new group, the 10 new items, no duplicate chords,
   `follows`).
-- Headless (`tests/blender/test_compass_rmb.py`, new, 25 tests so far): `meso:context` in Object Mode / Edit Mesh / an
+- Headless (`tests/blender/test_compass_rmb.py`, new, 29 tests so far): `meso:context` in Object Mode / Edit Mesh / an
   armature (Object and Edit Mode; slots as specified, the overflow mode, the context menu as the list, the mode's
   menu by default); `meso:tools` in Object Mode, per mesh select mode and in armature Edit Mode; the operator through
   a stand-in (the class's own invoke / modal; recorders for `ops.compass_rmb.run_native`, `ops.invoke.execute` and
@@ -173,20 +186,27 @@ items of '3D View' are one keymap (one line lists both natives).
   and warped when it does not fit) -> drag + release picks -> execute after teardown, a drag shows it at once, a
   release in the centre cancels, a quick release stays open for a click pick, Esc (before and after it shows),
   WINDOW_DEACTIVATE, the lost area, nothing to offer -> the tap, the tool Compass tap places the cursor, Ctrl+Shift
-  places at the press and drags the cursor, owner CURSOR swaps the chords, PASS_THROUGH outside the 3D View WINDOW
+  places at the press and drags the cursor (per-axis threshold; the cursor caught up with the pointer, checked by
+  projecting it; the threshold of a mouse / tablet / key press), a binding moved to a key (its release taps and
+  picks, auto-repeat ignored), owner CURSOR swaps the chords, PASS_THROUGH outside the 3D View WINDOW
   region, while the Plaza runs and while another press runs; the pref default (read defensively); the draw manager
   without a Plaza layout (targets, an offscreen `draw_region`). With the bindings: the shadow test passes with the
   new `displaces`; `tests/blender/test_meso_keymap.py` `TestCompassRmbBindings` (replaces `TestShiftRmbStaysNative`):
   each item first on its chord in the Meso and the user keyconfig with the IC items after it, Ctrl+Shift+RMB unbound
   in IC, the items' properties, switching them off gives the chords back, the cursor-off warning, owner CURSOR swaps
   the two chords (`core.compass_rmb.behaviour`), no Plaza item on RIGHTMOUSE; `test_keymap_prefs.py`: the Compass
-  Menus group, the displaced lines, the `shift_rmb_owner` line in the "Compass menus" box. The GUI sweep
+  Menus group, the displaced lines, the `shift_rmb_owner` line in the "Compass menus" box, the cursor-off warning
+  per owner. The GUI sweep
   `scenarios_snap_hold.sc_protected` now compares the Shift+RMB drag with every binding on but `compass_tools` /
   `reloc_cursor`, and checks the Compass item first on Shift+RMB with IC's two cursor items after it.
 - GUI (lead only, never an agent): `tests/gui/scenarios_compass_rmb.py` with the Meso Keymap selected: RMB tap opens
   the native context menu, RMB hold + drag picks Edge (enters Edit Mode, edge select), Shift+RMB tap places the
-  cursor, Shift+RMB hold shows the tool Compass, Ctrl+Shift+RMB drag moves the cursor. Also to check there
+  cursor, Shift+RMB hold shows the tool Compass, Ctrl+Shift+RMB drag moves the cursor, owner CURSOR gives the Shift+RMB drag back. Until that module
+  exists no GUI check covers the relocated cursor (`scenarios_snap_hold.sc_protected` leaves both chord owners
+  out). Also to check there
   (unverifiable headless): the cursor translate started from a MOUSEMOVE confirms on the RMB release (its
-  `release_confirm` compares the launch event, taken from the window's event state); `object.origin_set` /
+  `release_confirm` compares the launch event, taken from the window's event state; with a modifier let go before
+  the drag it does not, the known difference above), the cursor stays under the pointer through the drag (the
+  catch-up); `object.origin_set` /
   `mesh.separate` INVOKE_DEFAULT open their enum popups; Blender sends the displaced CLICK_DRAG item no drag event
   after the handled press.

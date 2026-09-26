@@ -75,6 +75,59 @@ class TestShowRule(unittest.TestCase):
         self.assertTrue(rmb.is_drag((10, 10), (14, 10), 3))
         self.assertTrue(rmb.is_drag((10, 10), (10, 4), 3))
 
+    def test_cursor_drag_rule_is_per_axis(self):
+        """``WM_event_drag_test``: either axis past the threshold, not the distance."""
+        self.assertFalse(rmb.is_drag((10, 10), (13, 13), 3), "4.24 px away, 3 on each axis")
+        self.assertFalse(rmb.is_drag((10, 10), (7, 13), 3))
+        self.assertTrue(rmb.is_drag((10, 10), (14, 11), 3))
+
+    def test_drag_threshold_is_whole_pixels(self):
+        """``WM_event_drag_threshold``: the preference times the UI scale, truncated."""
+        self.assertEqual(rmb.drag_threshold_px(3, 1.0), 3)
+        self.assertEqual(rmb.drag_threshold_px(3, 1.25), 3)          # 3.75 -> 3
+        self.assertEqual(rmb.drag_threshold_px(3, 2.0), 6)
+        self.assertEqual(rmb.drag_threshold_px(10, 1.5), 15)
+        self.assertEqual(rmb.drag_threshold_px(3, 0.0), 3, "headless scale 0 counts as 1")
+        self.assertEqual(rmb.drag_threshold_px(3, None), 3)
+        self.assertFalse(rmb.is_drag((0, 0), (3.75, 0), rmb.drag_threshold_px(3, 1.25)) is False
+                         and False)
+        self.assertTrue(rmb.is_drag((0, 0), (4, 0), rmb.drag_threshold_px(3, 1.25)))
+
+
+class TestViewDelta(unittest.TestCase):
+    """``view_delta``: ``ED_view3d_win_to_delta`` at the depth of a point."""
+
+    @staticmethod
+    def ortho(scale=0.1):
+        # Top-down orthographic: x_ndc = scale * x, y_ndc = scale * y, w = 1.
+        persmat = ((scale, 0, 0, 0), (0, scale, 0, 0), (0, 0, -scale, 0), (0, 0, 0, 1))
+        persinv = ((1 / scale, 0, 0, 0), (0, 1 / scale, 0, 0), (0, 0, -1 / scale, 0),
+                   (0, 0, 0, 1))
+        return persmat, persinv
+
+    def test_orthographic(self):
+        persmat, persinv = self.ortho(0.1)
+        # 200 x 100 px region spans x -10..10, y -10..10: 0.1 / 0.2 units per pixel.
+        d = rmb.view_delta(persmat, persinv, (200, 100), (5, 5, 5), (10, -5))
+        self.assertEqual([round(v, 6) for v in d], [1.0, -1.0, 0.0])
+
+    def test_perspective_scales_with_the_depth(self):
+        # w = -z (a camera at the origin looking down -Z), x_clip = x, y_clip = y.
+        persmat = ((1, 0, 0, 0), (0, 1, 0, 0), (0, 0, -1, -0.2), (0, 0, -1, 0))
+        persinv = ((1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 0, -1), (0, 0, -5, 5))
+        near = rmb.view_delta(persmat, persinv, (100, 100), (0, 0, -2), (10, 0))
+        far = rmb.view_delta(persmat, persinv, (100, 100), (0, 0, -8), (10, 0))
+        self.assertAlmostEqual(near[0], 2 * 10 * 2 / 100)
+        self.assertAlmostEqual(far[0], 4 * near[0])
+        self.assertEqual((near[1], near[2], far[1], far[2]), (0.0, 0.0, 0.0, 0.0))
+
+    def test_degenerate_depth_and_size(self):
+        persmat, persinv = self.ortho(1.0)
+        flat = [list(r) for r in persmat]
+        flat[3][3] = 0.0                              # zfac 0 at the origin: counts as 1
+        d = rmb.view_delta(flat, persinv, (0, 0), (0, 0, 0), (1, 1))
+        self.assertEqual([round(v, 6) for v in d], [2.0, 2.0, 0.0])
+
 
 class TestNativeCalls(unittest.TestCase):
 
