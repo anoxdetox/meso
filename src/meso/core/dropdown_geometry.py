@@ -51,9 +51,9 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 
 from .dropdown_model import (
-    CHECK_KINDS, DD_COLUMN_HEADER, DD_LABEL, DD_NATIVE_MORE, DD_RADIO, DD_SEPARATOR,
+    CHECK_KINDS, DD_COLUMN_HEADER, DD_LABEL, DD_NATIVE_MORE, DD_SEPARATOR,
     DD_TOGGLE_ROW, MORE_LABEL, TABLE_KINDS, ZONE_ITEM, ZONE_LABEL, ZONE_NONE, ZONE_PANEL,
-    ZONE_STRIP, DropdownItem, DropdownModel, Path, has_arrow,
+    ZONE_STRIP, DropdownItem, DropdownModel, Path, has_arrow, has_check, radio_glyph,
 )
 from .geometry import FONT_SCALE_RANGE, Layout, Metrics, TextWidthFn, hit_test, round_px
 from .rects import Rect, bounding_box
@@ -160,8 +160,9 @@ class PlacedItem:
     ``rect``: the full-width hit rect (panel inner width x ``item_h`` / ``separator_h``);
     ``highlight``: the hover bar (``rect`` inset by ``border`` horizontally); ``text_x`` /
     ``text_y``: blf origin of the label (after the check column; DD_LABEL rows start at
-    ``pad_x``, outdented; vertically centred with ``cap_h``); ``check_rect`` / ``check_style``: the glyph of CHECK_KINDS items, centred in
-    the check column; ``arrow_rect``: the '▸' of the items ``core.dropdown_model.has_arrow``
+    ``pad_x``, outdented; vertically centred with ``cap_h``); ``check_rect`` /
+    ``check_style``: the glyph of ``core.dropdown_model.has_check`` items (CHECK_KINDS, a
+    checked-state cascade: a radio), centred in the check column; ``arrow_rect``: the '▸' of the items ``core.dropdown_model.has_arrow``
     accepts (cascades and native submenu hand-offs), centred in the arrow column;
     ``shortcut`` / ``shortcut_x``: right-aligned hint origin (left of the arrow column);
     ``line_rect``: the separator line of a DD_SEPARATOR row (``round(border)`` px high,
@@ -396,10 +397,10 @@ def place_items(model: DropdownModel, rect: Rect, dm: DropdownMetrics,
                 cells=_place_cells(item, cols, x1 - dm.pad_x, y, h, bi, dm)))
             continue
         check_rect, style = None, ''
-        if item.kind in CHECK_KINDS:
+        if has_check(item):
             cs = dm.check_size
             check_rect = Rect(x + (dm.check_col - cs) // 2, y + (h - cs) // 2, cs, cs)
-            style = GLYPH_RADIO if item.kind == DD_RADIO else GLYPH_BOX
+            style = GLYPH_RADIO if radio_glyph(item) else GLYPH_BOX
         arrow_rect = None
         arrow_x = x1 - dm.pad_x - dm.arrow_col
         if has_arrow(item):

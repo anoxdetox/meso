@@ -31,8 +31,11 @@ from .model import (
 )
 from .tables import FILE_LOAD_OPERATORS
 
-# The one custom setter (ops/actions.py MESO_OT_toggle_flag).
+# The custom setters (ops/actions.py): MESO_OT_toggle_flag, and MESO_OT_mode_set_select (the
+# Plaza mode switch's submode picks from another mode: enter the mode, then set the select
+# mode, one undo step; ``core.modes.submode_action``).
 TOGGLE_FLAG_OPERATOR = 'meso.toggle_flag'
+MODE_SELECT_OPERATOR = 'meso.mode_set_select'
 
 _INVOKE = 'INVOKE_DEFAULT'
 _EXEC = 'EXEC_DEFAULT'
@@ -146,6 +149,9 @@ def with_click_modifiers(action: Action | None, *, shift: bool = False,
       toggle the member (Shift-click);
     - ``operator`` in :data:`MODIFIER_OPERATORS` (``mesh.select_mode``): Shift ->
       ``use_extend=True``, Ctrl -> ``use_expand=True`` (a plain click switches the mode);
+    - :data:`MODE_SELECT_OPERATOR` whose props carry ``use_extend`` (a mesh select mode picked
+      from another mode, ``core.modes.submode_action``): the same, forwarded to
+      ``mesh.select_mode`` once the mode is entered;
     - anything else, or None: unchanged.
     """
     if action is None:
@@ -155,7 +161,8 @@ def with_click_modifiers(action: Action | None, *, shift: bool = False,
         if not shift:
             props['exclusive'] = True
         return replace(action, props=props)
-    if action.kind == ACTION_OPERATOR and normalize_op_idname(action.target) in MODIFIER_OPERATORS:
+    op = normalize_op_idname(action.target) if action.kind == ACTION_OPERATOR else ''
+    if op in MODIFIER_OPERATORS or (op == MODE_SELECT_OPERATOR and 'use_extend' in action.props):
         props = dict(action.props)
         if shift:
             props['use_extend'] = True

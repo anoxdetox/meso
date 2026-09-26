@@ -6,11 +6,19 @@ Loaded by ``tests/gui/gui_driver.py`` (module contract as scenarios_phase4.py). 
 ``hover_open`` False (clicks only), restore what they change in ``finally`` and use temp files
 only.
 
-- ``pm_mode_pick``: the mode dropdown in the Plaza over the 3D View; a click on 'Edit Mode'
-  switches the cube in place with exactly one undo step ('Toggle Edit Mode', as the native
+- ``pm_mode_pick``: the mode dropdown in the Plaza over the 3D View; 'Edit Mode ▸' opens
+  its submenu and a click on its 'Edit Mode' row switches the cube in place with exactly one undo step ('Toggle Edit Mode', as the native
   header menu pushes), the dropdown closes, the Plaza stays open and its rows are the Edit
   Mode rows (mode label, contextual menus, the select-mode buttons of the Tool Settings row);
   'Object Mode' from the re-recorded label switches back; the Space release finishes.
+- ``pm_submode_pick`` (edit submodes, user request 2026-09-26): from Object Mode, 'Edit Mode
+  ▸' opens on hover (after the submenu delay); 'Edge' enters Edit Mode with the Edge select
+  mode in ONE undo step ('Set Object Mode and Select Mode'), the Plaza stays open and
+  re-recorded (Tool Settings Edges checked), the chain closed. Inside Edit Mode the submenu
+  shows Edge checked: Shift+click Face extends (``mesh.select_mode`` use_extend, its own
+  'Select Mode' step) and the submenu stays open with the checks updated; Ctrl+click Vertex
+  expands; a plain click is exclusive. After the Plaza, one undo (``ed.undo``) per step
+  walks back to Object Mode with the old select mode. Screenshot ``plaza_mode_submenu``.
 - ``pm_recent_files``: a fixture ``recent-files.txt`` in the run's temp BLENDER_USER_CONFIG
   (a copy of the session saved to a temp .blend, plus a missing file); the centre-line
   'Recent Files' label lists it (file names, missing file enabled, More..., Clear Recent
@@ -46,6 +54,9 @@ def scenarios(drv):
         return cube
 
     def mode_of(it):
+        """The mode of a mode switcher row (a cascade: its first child, the mode radio)."""
+        if it.kind == D().DD_ENUM_CASCADE:
+            return mode_of(it.children[0]) if it.children else None
         return dict(it.action.props).get("mode") if it.action is not None else None
 
     # ------------------------------------------------------------------------ mode pick
@@ -71,7 +82,8 @@ def scenarios(drv):
                 yield from drv.close_plaza(xy, rec)
                 return
             items = drv.dd_models(st)[0].items
-            drv.check(rec, "radio_rows", all(it.kind == D().DD_RADIO for it in items),
+            drv.check(rec, "radio_rows", all(it.kind in (D().DD_RADIO, D().DD_ENUM_CASCADE)
+                                             for it in items),
                       [(it.kind, it.label) for it in items])
             drv.check(rec, "object_checked", [mode_of(it) for it in items if it.checked]
                       == ['OBJECT'])
@@ -80,7 +92,13 @@ def scenarios(drv):
             if idx is None:
                 yield from drv.close_plaza(xy, rec)
                 return
+            # 'Edit Mode ▸' opens its submenu; its first row enters the mode as it is.
             yield from drv.press_click(drv.dd_xy(st, (idx,)))
+            yield SUBMENU_WAIT
+            drv.check(rec, "edit_submenu_open", len(drv.dd_keys(st)) == 2, drv.dd_keys(st))
+            drv.check(rec, "submenu_first_row_mode", drv.dd_find(
+                st, 1, lambda it: mode_of(it) == 'EDIT') == 0)
+            yield from drv.press_click(drv.dd_xy(st, (idx, 0)))
             yield 0.2
             drv.check(rec, "edit_mode", cube.mode == 'EDIT', cube.mode)
             drv.check(rec, "plaza_open", drv.plaza().is_running())
@@ -129,6 +147,147 @@ def scenarios(drv):
         finally:
             if bpy.context.mode != 'OBJECT':
                 drv.set_mode('OBJECT')
+            yield 0.3
+
+    # ------------------------------------------------------------------------ submodes
+    def sc_submode_pick(rec):
+        if bpy.context.mode != 'OBJECT':
+            drv.set_mode('OBJECT')
+            yield 0.2
+        cube = cube_active()
+        drv.check(rec, "cube", cube is not None)
+        if cube is None:
+            return
+        ts = bpy.context.scene.tool_settings
+        msm0 = tuple(ts.mesh_select_mode)
+        ts.mesh_select_mode = (True, False, False)
+        marker = drv.undo_marker("Meso Mode GUI submode base")
+        yield 0.2
+        xy = drv.center_of("VIEW_3D")
+        M, d = md(), D()
+
+        def sub_model():
+            models = drv.dd_models(st)
+            return models[1] if len(models) > 1 else None
+
+        def select_mode():
+            return tuple(bpy.context.scene.tool_settings.mesh_select_mode)
+
+        try:
+            st = yield from drv.open_plaza(xy)
+            if st is None or st.layout is None:
+                drv.check(rec, "layout", False)
+                return
+            if not (yield from drv.open_dropdown(rec, st, M.MODE_SWITCH_ID)):
+                yield from drv.close_plaza(xy, rec)
+                return
+            idx = drv.dd_find(st, 0, lambda it: mode_of(it) == 'EDIT')
+            drv.check(rec, "edit_cascade", idx is not None and drv.dd_models(st)[0].items[idx]
+                      .kind == d.DD_ENUM_CASCADE)
+            if idx is None:
+                yield from drv.close_plaza(xy, rec)
+                return
+            # Hover-open of the new submenu (after the submenu delay), then its rows.
+            yield from drv.hover_to(drv.dd_xy(st, (idx,)))
+            yield SUBMENU_WAIT
+            drv.check(rec, "hover_opened", len(drv.dd_keys(st)) == 2, drv.dd_keys(st))
+            sub = sub_model()
+            drv.check(rec, "submenu_rows", sub is not None and [
+                (it.kind, it.label) for it in sub.items] == [
+                (d.DD_RADIO, "Edit Mode"), (d.DD_SEPARATOR, ""), (d.DD_FLAG, "Vertex"),
+                (d.DD_FLAG, "Edge"), (d.DD_FLAG, "Face")],
+                sub and [(it.kind, it.label) for it in sub.items])
+            drv.check(rec, "vertex_checked", sub is not None
+                      and [it.checked for it in sub.items[2:]] == [True, False, False])
+            panels = st.dropdowns.panels if st.dropdowns is not None else ()
+            drv.check(rec, "submenu_beside_parent", len(panels) == 2
+                      and (panels[1].rect.x >= panels[0].rect.x1 - 1
+                           or panels[1].rect.x1 <= panels[0].rect.x + 1),
+                      [repr(p.rect) for p in panels])
+            drv.save_screenshot("plaza_mode_submenu")
+            if len(panels) != 2:
+                yield from drv.close_plaza(xy, rec)
+                return
+            # (1) From Object Mode: Edge = Edit Mode + Edge, one undo step.
+            yield from drv.press_click(drv.dd_xy(st, (idx, 3)))
+            yield 0.2
+            drv.check(rec, "edit_mode", cube.mode == 'EDIT', cube.mode)
+            drv.check(rec, "edge_mode", select_mode() == (False, True, False), select_mode())
+            drv.check(rec, "plaza_open", drv.plaza().is_running())
+            drv.check(rec, "chain_closed", st.dropdowns is None, drv.dd_keys(st))
+            in_place = st.menus.in_place if st.menus is not None else []
+            drv.check(rec, "in_place_select", bool(in_place) and in_place[-1] == (
+                "meso.mode_set_select", {"mode": "EDIT", "select": "EDGE",
+                                         "use_extend": False, "use_expand": False}), in_place)
+            steps = drv.steps_since(marker)
+            rec["submode_undo_steps"] = steps
+            drv.check(rec, "one_undo_step", steps == ["Set Object Mode and Select Mode"], steps)
+            tsrow = {i.label: i.checked for i in st.model.row(M.ROW_TOOL_SETTINGS).items
+                     if i.id.startswith("ts:select_mode:")}
+            drv.check(rec, "tool_settings_edges", tsrow == {
+                "Verts": False, "Edges": True, "Faces": False}, tsrow)
+            # (2) Inside Edit Mode: Shift+click Face extends, the submenu stays open.
+            if (yield from drv.open_dropdown(rec, st, M.MODE_SWITCH_ID, prefix="reopen")):
+                idx = drv.dd_find(st, 0, lambda it: mode_of(it) == 'EDIT')
+                yield from drv.press_click(drv.dd_xy(st, (idx,)))
+                yield SUBMENU_WAIT
+                sub = sub_model()
+                drv.check(rec, "edit_checked", sub is not None and sub.items[0].checked
+                          and [it.checked for it in sub.items[2:]] == [False, True, False])
+                yield from drv.press_click(drv.dd_xy(st, (idx, 4)), shift=True)
+                yield 0.2
+                drv.check(rec, "shift_extends", select_mode() == (False, True, True),
+                          select_mode())
+                drv.check(rec, "submenu_stays_open", len(drv.dd_keys(st)) == 2, drv.dd_keys(st))
+                sub = sub_model()
+                drv.check(rec, "checks_updated", sub is not None
+                          and [it.checked for it in sub.items[2:]] == [False, True, True])
+                in_place = st.menus.in_place if st.menus is not None else []
+                drv.check(rec, "native_select_mode", bool(in_place) and in_place[-1] == (
+                    "mesh.select_mode", {"type": "FACE", "use_extend": True}), in_place)
+                yield from drv.press_click(drv.dd_xy(st, (idx, 2)), ctrl=True)
+                yield 0.2
+                drv.check(rec, "ctrl_expands", select_mode() == (True, False, False),
+                          select_mode())
+                yield from drv.press_click(drv.dd_xy(st, (idx, 3)))
+                yield 0.2
+                drv.check(rec, "plain_exclusive", select_mode() == (False, True, False),
+                          select_mode())
+                drv.check(rec, "still_edit_mode", cube.mode == 'EDIT', cube.mode)
+                drv.check(rec, "no_mode_change", st.menus is not None
+                          and st.menus.mode_changes == ['EDIT_MESH'],
+                          st.menus and st.menus.mode_changes)
+            steps = drv.steps_since(marker)
+            rec["submode_undo_steps_all"] = steps
+            drv.check(rec, "one_step_per_pick", steps is not None and len(steps) == 4
+                      and steps[0] == "Set Object Mode and Select Mode"
+                      and all(step == "Select Mode" for step in steps[1:]), steps)
+            drv.check(rec, "no_draw_error", not st.failed and st.error is None, st.error)
+            yield from drv.release_space(xy)
+            drv.check_ended(rec, "final")
+            # (3) One undo per step: the three 'Select Mode' steps give Edge back (edit-mesh
+            # undo restores the select mode), the fourth leaves Edit Mode (a memfile step
+            # keeps the tool settings, as after a native Tab + select mode change: recorded).
+            if steps is not None and len(steps) == 4:
+                for _ in range(3):
+                    with bpy.context.temp_override(window=drv.win()):
+                        bpy.ops.ed.undo()
+                    yield 0.2
+                cube = bpy.data.objects.get("Cube")
+                drv.check(rec, "undo_select_steps", cube is not None and cube.mode == 'EDIT'
+                          and select_mode() == (False, True, False),
+                          [cube and cube.mode, select_mode()])
+                with bpy.context.temp_override(window=drv.win()):
+                    bpy.ops.ed.undo()
+                yield 0.3
+                cube = bpy.data.objects.get("Cube")
+                drv.check(rec, "undo_object_mode", cube is not None and cube.mode == 'OBJECT',
+                          cube and cube.mode)
+                rec["select_mode_after_undo"] = select_mode()
+        finally:
+            if bpy.context.mode != 'OBJECT':
+                drv.set_mode('OBJECT')
+            bpy.context.scene.tool_settings.mesh_select_mode = msm0
             yield 0.3
 
     # ------------------------------------------------------------------------ recent files
@@ -294,5 +453,6 @@ def scenarios(drv):
 
     return [(name, click_only(fn)) for name, fn in (
         ("pm_mode_pick", sc_mode_pick),
+        ("pm_submode_pick", sc_submode_pick),
         ("pm_recent_files", sc_recent_files),
     )]

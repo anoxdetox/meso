@@ -6,6 +6,10 @@ Every setter pushes exactly one undo step via the positional undo flag (docs/spi
 (``space_data.*``) return CANCELLED with the value changed and no step (native parity).
 The Plaza operator itself never has UNDO.
 
+:class:`MESO_OT_mode_set_select` (``{'UNDO','INTERNAL'}``) is the Plaza mode switch's
+submode pick from another mode: ``object.mode_set`` then the select mode of that mode
+(``core.modes``), nested, so the pick is one undo step.
+
 :class:`MESO_OT_toggle_flag` (``{'UNDO','INTERNAL'}``, see the class) exists because
 ``wm.context_set_enum`` rejects flag enums ("expected a set, not a str") and assigning an
 empty set is silently ignored
@@ -25,7 +29,8 @@ import bpy
 from bpy.props import BoolProperty, StringProperty
 from bpy.types import Operator
 
-from ..core.actions import TOGGLE_FLAG_OPERATOR, normalize_op_idname
+from ..core import modes
+from ..core.actions import MODE_SELECT_OPERATOR, TOGGLE_FLAG_OPERATOR, normalize_op_idname
 from ..record import datapath
 
 _logged: set[str] = set()
@@ -129,6 +134,96 @@ class MESO_OT_toggle_flag(Operator):
         return {'FINISHED'} if new != old else {'CANCELLED'}
 
 
+def _apply_select(context: Any, domains: modes.SelectDomains, ident: str, extend: bool,
+                  expand: bool) -> bool:
+    """Set the member ``ident`` of ``domains`` in the current mode, as its header button
+    does: the operator (EXEC, nested: no undo step of its own; ``use_extend`` /
+    ``use_expand`` for a domain with ``modifiers``) or the property. True when it ran (a
+    CANCELLED call changed nothing: the member was already the select mode)."""
+    if domains.operator:
+        props: dict[str, Any] = {domains.op_prop: ident}
+        if domains.modifiers:
+            props.update(use_extend=bool(extend), use_expand=bool(expand))
+        return _call(domains.operator, modes.SUBMODE_OPERATOR_CONTEXT, None, props) is not None
+    owner_path, prop = datapath.split(domains.state_path)
+    owner = datapath.context_value(context, owner_path) if owner_path else None
+    if owner is None:
+        return False
+    try:
+        setattr(owner, prop, ident)
+    except (AttributeError, TypeError, ValueError) as ex:
+        _log_once(f"select:{domains.state_path}", f"setting {domains.state_path} failed: {ex!r}")
+        return False
+    return getattr(owner, prop, None) == ident
+
+
+class MESO_OT_mode_set_select(Operator):
+    """Enter an object mode with a select mode (the Plaza's mode switch submenus)"""
+
+    bl_idname = MODE_SELECT_OPERATOR
+    bl_label = 'Set Object Mode and Select Mode'
+    # One undo step for the whole pick: the nested object.mode_set / select-mode calls run
+    # inside this UNDO operator's depth and push none of their own. No REGISTER (like
+    # object.mode_set): no redo panel over a mode switch.
+    bl_options = {'UNDO', 'INTERNAL'}
+
+    mode: StringProperty(
+        name="Mode",
+        description="Object mode to enter (an object.mode_set mode)",
+        default='',
+        options={'SKIP_SAVE'},
+    )
+    select: StringProperty(
+        name="Select Mode",
+        description="Select mode of that mode to set once it is entered",
+        default='',
+        options={'SKIP_SAVE'},
+    )
+    use_extend: BoolProperty(
+        name="Extend",
+        description="Extend the mesh select mode (a Shift-click on the native button)",
+        default=False,
+        options={'SKIP_SAVE'},
+    )
+    use_expand: BoolProperty(
+        name="Expand/Contract",
+        description="Expand or contract the mesh selection (a Ctrl-click on the native button)",
+        default=False,
+        options={'SKIP_SAVE'},
+    )
+
+    @classmethod
+    def poll(cls, context) -> bool:
+        return bpy.ops.object.mode_set.poll()
+
+    def execute(self, context) -> set[str]:
+        """``object.mode_set(mode=)`` unless the active object is in ``mode`` already, then
+        the select mode ``select`` of that mode (``core.modes.select_domains``).
+
+        - no active object / a mode without select modes / an unknown member, or entering
+          the mode failed -> ``{'CANCELLED'}`` (reported; nothing changed, no step);
+        - otherwise ``{'FINISHED'}`` (one step), also when only the select mode could not be
+          set (reported: the mode did change)."""
+        obj = context.active_object
+        domains = modes.select_domains(obj.type if obj is not None else None, self.mode)
+        if domains is None or self.select not in domains.idents:
+            self.report({'WARNING'}, f"No select mode {self.select!r} in {self.mode!r}")
+            return {'CANCELLED'}
+        if obj.mode != self.mode:
+            try:
+                bpy.ops.object.mode_set('EXEC_DEFAULT', mode=self.mode)
+            except RuntimeError as ex:
+                self.report({'WARNING'}, f"Cannot enter {self.mode}: {ex}")
+                return {'CANCELLED'}
+            obj = context.active_object
+            if obj is None or obj.mode != self.mode:
+                self.report({'WARNING'}, f"Cannot enter {self.mode}")
+                return {'CANCELLED'}
+        if not _apply_select(context, domains, self.select, self.use_extend, self.use_expand):
+            self.report({'WARNING'}, f"Cannot set the select mode {self.select}")
+        return {'FINISHED'}
+
+
 def toggle(data_path: str) -> set[str] | None:
     """``wm.context_toggle('EXEC_DEFAULT', True, data_path=data_path)``."""
     return _call('wm.context_toggle', 'EXEC_DEFAULT', True, {'data_path': data_path})
@@ -196,6 +291,7 @@ def set_workspace(window: Any, name: str) -> bool:
 
 _classes = (
     MESO_OT_toggle_flag,
+    MESO_OT_mode_set_select,
 )
 
 

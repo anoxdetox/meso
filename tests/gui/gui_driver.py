@@ -1805,8 +1805,8 @@ def sc_p3_click_object_menu(rec):
 
 def sc_p3_mode_switch(rec):
     """Click the mode switcher: the custom mode dropdown opens (a built menu; no hand-off,
-    no native popup), one radio row per mode of the cube, the native labels, Object Mode
-    checked; ESC closes the chain only and the Space release finishes. The pick itself
+    no native popup), one row per mode of the cube (radios; Edit Mode a cascade of its
+    select modes), the native labels, Object Mode checked; ESC closes the chain only and the Space release finishes. The pick itself
     (Edit Mode in place, the rows re-recorded) is ``pm_mode_pick``
     (scenarios_plazamodes.py)."""
     md = model_mod()
@@ -1820,7 +1820,9 @@ def sc_p3_mode_switch(rec):
         yield from close_plaza(xy, rec)
         return
     items = dd_models(st)[0].items
-    check(rec, "radio_rows", items and all(it.kind == D.DD_RADIO for it in items),
+    # Edit Mode has submodes (Vertex / Edge / Face): a radio-glyph cascade; the rest radios.
+    check(rec, "radio_rows", [it.kind for it in items] == [
+        D.DD_RADIO, D.DD_ENUM_CASCADE, D.DD_RADIO, D.DD_RADIO, D.DD_RADIO, D.DD_RADIO],
           [(it.kind, it.label) for it in items])
     check(rec, "cube_modes", [it.label for it in items] == [
         "Object Mode", "Edit Mode", "Sculpt Mode", "Vertex Paint", "Weight Paint",

@@ -85,7 +85,10 @@ MORE_LABEL = 'More' + NATIVE_SUFFIX     # translate with pgettext_iface('More') 
 NATIVE_ONLY_MENUS: frozenset[str] = frozenset()
 
 # DropdownItem.source of the items of the built menus (``record.builtin_menus``).
-ITEM_SOURCE_MODE = 'mode_switch'        # a mode of the mode switcher (DD_RADIO)
+ITEM_SOURCE_MODE = 'mode_switch'        # a mode of the mode switcher (DD_RADIO; a mode with
+                                        # select domains: a DD_ENUM_CASCADE of its submodes)
+ITEM_SOURCE_SUBMODE = 'mode_submode'    # a select mode in a mode's submenu (DD_FLAG for the
+                                        # mesh select mode, else DD_RADIO; core.modes)
 ITEM_SOURCE_RECENT = 'recent_file'      # a file of Open Recent (DD_OP wm.open_mainfile)
 
 # DropdownItem.source of an inline DD_RADIO drawn by recorded popover content
@@ -161,7 +164,9 @@ class DropdownItem:
     - ``enabled`` False: dimmed and never runs (operator poll False under the override,
       ``layout.enabled`` False). ``active`` False (``layout.active = False``): dimmed but
       clickable.
-    - ``checked``: bool for :data:`CHECK_KINDS` (current state), else None.
+    - ``checked``: bool for :data:`CHECK_KINDS` (current state), else None; a cascade
+      (DD_ENUM_CASCADE / DD_SUBMENU) with a bool draws a radio glyph (:func:`has_check`: the
+      mode switch row of a mode with submodes, the current mode's filled).
     - ``shortcut``: optional right-aligned hint ('Ctrl A'), '' = none.
     - ``action``: what a click runs (:func:`item_role`): DD_OP ACTION_OPERATOR (recorded
       operator_context + props); DD_TOGGLE ACTION_TOGGLE (or ACTION_OPERATOR for a
@@ -281,6 +286,21 @@ def has_arrow(item: DropdownItem | None) -> bool:
         return False
     return item.kind in CASCADE_KINDS or (item.kind == DD_NATIVE
                                           and item.source in NATIVE_CASCADE_SOURCES)
+
+
+def has_check(item: DropdownItem | None) -> bool:
+    """True when ``item`` draws a glyph in the check column: :data:`CHECK_KINDS`, and a
+    cascade whose ``checked`` is a bool (a radio choice that opens submodes)."""
+    if item is None:
+        return False
+    return item.kind in CHECK_KINDS or (item.kind in CASCADE_KINDS and item.checked is not None)
+
+
+def radio_glyph(item: DropdownItem | None) -> bool:
+    """True when the check-column glyph of ``item`` is a radio (DD_RADIO, a checked-state
+    cascade); a box otherwise (toggles, flags)."""
+    return item is not None and (item.kind == DD_RADIO or (item.kind in CASCADE_KINDS
+                                                           and item.checked is not None))
 
 
 def label_source(item: Item | None) -> DropdownSource | None:

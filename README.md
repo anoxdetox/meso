@@ -27,7 +27,15 @@ Familiar workflows for artists coming from Autodesk Maya software. See
 - **Switch modes inside the Plaza:** in the 3D Viewport the first label of the header row
   (Object Mode, Edit Mode, ...) opens the same mode list as Blender's header menu, for the
   active object's type, with the current mode checked. Pick a mode and the Plaza stays open,
-  its menus and tool settings already those of the new mode.
+  its menus and tool settings already those of the new mode. A mode that has select modes
+  opens a submenu: **Edit Mode ▸** Edit Mode, then Vertex, Edge and Face for a mesh (Point,
+  Stroke, Segment for Grease Pencil; Control Point, Curve for hair curves, also in Sculpt
+  Mode; Path, Point, Tip in Particle Edit), the current select mode checked. From another
+  mode a pick enters the mode with that select mode (one undo step); in the mode it only
+  changes the select mode, like the header buttons. The mesh select modes follow the header's
+  Vertex / Edge / Face buttons (a click picks one, Shift+click adds or removes one,
+  Ctrl+click expands or contracts the selection) and keep the submenu open; the others pick
+  one and close it.
 - **Recent files inside the Plaza:** the **Recent Files** box on the centre line (under
   Recent Commands), and File ▸ Open Recent, list Blender's recent files as its Open Recent
   menu does, with More... and Clear Recent Files List.... Picking one closes the Plaza and

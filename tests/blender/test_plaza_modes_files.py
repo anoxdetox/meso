@@ -73,7 +73,8 @@ def mode_model():
 
 
 def mode_ids(model):
-    return [dict(it.action.props)['mode'] for it in model.items]
+    """The modes of the mode switcher rows (a mode with submodes: its cascade's mode radio)."""
+    return [B().item_mode(it) for it in model.items]
 
 
 def native_mode_labels():
@@ -153,8 +154,8 @@ class TestModeSwitchModel(unittest.TestCase):
                 self.assertEqual(mode_ids(model), itemf_ids(), "core.modes == the C itemf")
                 self.assertEqual([(i, it.label) for i, it in zip(mode_ids(model), model.items)],
                                  native_mode_labels())
-                self.assertTrue(all(it.kind == D().DD_RADIO and it.enabled
-                                    for it in model.items))
+                self.assertTrue(all(it.kind in (D().DD_RADIO, D().DD_ENUM_CASCADE)
+                                    and it.enabled for it in model.items))
                 self.assertEqual([it.checked for it in model.items],
                                  [m == 'OBJECT' for m in expected])
 
@@ -195,7 +196,13 @@ class TestModeSwitchModel(unittest.TestCase):
                           'Weight Paint', 'Texture Paint'])
         self.assertEqual(model.key, T().MODE_SWITCH_MENU)
         self.assertEqual(model.native_action, D().native_menu_action(T().MODE_SWITCH_MENU))
-        edit = model.items[1]
+        # Edit Mode has submodes: a cascade whose first child is the mode radio.
+        cascade = model.items[1]
+        self.assertEqual((cascade.kind, cascade.label, cascade.source, cascade.action),
+                         (D().DD_ENUM_CASCADE, 'Edit Mode', D().ITEM_SOURCE_MODE, None))
+        self.assertEqual(D().item_role(cascade), D().ROLE_SUBMENU)
+        edit = cascade.children[0]
+        self.assertEqual((edit.kind, edit.label), (D().DD_RADIO, 'Edit Mode'))
         self.assertEqual(edit.source, D().ITEM_SOURCE_MODE)
         self.assertEqual(D().item_role(edit), D().ROLE_APPLY_CLOSE)
         self.assertEqual((edit.action.kind, edit.action.target, dict(edit.action.props),
@@ -208,8 +215,8 @@ class TestModeSwitchModel(unittest.TestCase):
             with self.subTest(mode=mode), in_mode(None, mode, testcase=self):
                 self.assertEqual(bpy.context.mode, context_mode)
                 model = mode_model()
-                self.assertEqual([dict(it.action.props)['mode'] for it in model.items
-                                  if it.checked], [mode])
+                self.assertEqual([B().item_mode(it) for it in model.items if it.checked],
+                                 [mode])
 
     def test_no_active_object(self):
         with active(None):
@@ -520,8 +527,13 @@ class TestModePickLive(_LiveCase):
         self.assertEqual(model.key, T().MODE_SWITCH_MENU)
         self.assertEqual([it.checked for it in model.items][:2], [True, False])
         edit = mode_ids(model).index('EDIT')
+        # 'Edit Mode ▸' opens its submenu (no call yet); its first row is the mode itself.
+        self.assertEqual(self.click(self.item_xy((edit,))), {'RUNNING_MODAL'})
+        self.assertEqual(self.calls, [])
+        self.assertEqual([p.key for p in self.state.dropdowns.panels],
+                         [T().MODE_SWITCH_MENU, f"{T().MODE_SWITCH_MENU}/{edit}"])
         with quiet():
-            self.assertEqual(self.click(self.item_xy((edit,))), {'RUNNING_MODAL'})
+            self.assertEqual(self.click(self.item_xy((edit, 0))), {'RUNNING_MODAL'})
         # In place, the native call: INVOKE_REGION_WIN with the undo flag (headless run
         # without it); one call.
         self.assertEqual(len(self.calls), 1)

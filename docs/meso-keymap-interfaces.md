@@ -1531,3 +1531,28 @@ force:** the switch ends the stale one-shot first, so the press is a fresh D in 
 INFO "armed" report), a hold runs from the user's value; only a tap in Object Mode cancels; (b) end the armed
 one-shot whenever the user leaves Object Mode (decision 39 (b)); (c) a tap after the switch cancels it (the first
 round-5 behaviour: the user lands in Object Mode with origin editing off, the opposite of the press).
+- **Decision (round 5, submode undo step) (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus",
+  Submodes**).** A select mode picked in the mode switch from another mode (Object Mode ▸ Edit Mode ▸ Edge):
+  (a) **in force:** one undo step, 'Set Object Mode and Select Mode' (`meso.mode_set_select`, `{'UNDO',
+  'INTERNAL'}`, runs `object.mode_set` and `mesh.select_mode` nested: the standard nested-operator undo, no
+  hand-made push); one Ctrl Z undoes the whole pick; (b) the two native steps, 'Edit Mode' then 'Select Mode'
+  (the nested calls with `undo=True` and no UNDO flag on the wrapper, as decision 44 does), exactly what the
+  header's menu and buttons push one after the other. Unverified in the GUI this round (`pm_submode_pick`
+  counts the steps; headless has no undo stack).
+- **Decision (round 5, submode picks keep the submenu) (DEFAULT in force: a).** (a) **In force:** a mesh select
+  mode picked inside Edit Mode keeps the submenu open (plain, Shift and Ctrl clicks alike, as every flag-enum
+  member of the toggle cascades: Snap To ▸ Vertex), the checks update; a Grease Pencil / Curves / Particle
+  member (a radio) closes its submenu only, the mode dropdown stays; a pick that changes the mode re-records
+  the Plaza and closes the chain (decision 52); (b) every submode pick closes the mode dropdown; (c) a
+  Shift / Ctrl pick from another mode reopens the submenu after the mode change (panels would move under the
+  pointer: the rows are laid out anew).
+- **Decision (round 5, the Edit Mode row opens its submenu) (DEFAULT in force: a).** (a) **In force:** 'Edit
+  Mode ▸' is a cascade like every submenu row: hover or click opens it, its first row 'Edit Mode' enters the
+  mode with the current select mode (entering Edit Mode is one row further than before); (b) a click on 'Edit
+  Mode ▸' enters the mode at once and only hover opens the submenu (a split row, which no native menu has).
+- **Decision (round 5, which modes have submodes) (DEFAULT in force: a).** (a) **In force:** exactly the modes
+  whose native 3D View header draws a select-mode control: mesh Edit Mode, Particle Edit (Path / Point / Tip;
+  not named in the request, the header treats it as the select mode), hair Curves Edit and Sculpt Mode, Grease
+  Pencil Edit Mode; the Grease Pencil sculpt / vertex paint selection masks and the mesh paint masks are
+  independent toggles and stay in the Tool Settings row; (b) also those masks as submenus; (c) without
+  Particle Edit. The mode label stays the mode name, as the native header's mode menu.

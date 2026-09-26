@@ -21,6 +21,17 @@ invalidated after in-place changes).
   (``ED_operator_object_active_editable_ex``: a linked object). Without an active object the
   row label is disabled (``record.rows.mode_switch_item``); the model then holds Object Mode
   only, as the itemf does.
+  **Submodes** (user request 2026-09-26): a mode with a select-mode control in the native
+  header (``core.modes.SELECT_DOMAINS``: mesh Edit Mode, Particle Edit, hair Curves Edit /
+  Sculpt Mode, Grease Pencil Edit Mode) is a DD_ENUM_CASCADE 'Edit Mode ▸' (same check
+  state, drawn as a radio) whose submenu is the plain mode radio ('Edit Mode': enter with
+  the current select mode), a separator and the select modes in header order with the RNA
+  enum names (Vertex / Edge / Face as DD_FLAG checked from ``mesh_select_mode``; the other
+  domains DD_RADIO). In that mode a pick runs the header button's own call (Shift / Ctrl
+  extend / expand the mesh select mode, ``core.actions.with_click_modifiers``); from another
+  mode ``meso.mode_set_select`` enters the mode, then sets the select mode (one undo step).
+  The mode label stays the mode name, as the native header's (its select mode is the
+  separate V / E / F buttons, the Plaza's Tool Settings row).
 - **Open Recent** (:data:`core.tables.OPEN_RECENT_MENU`; ``recent_files_menu_draw``,
   space_topbar.cc): the history file (``core.recent_files``), the first
   ``min(Preferences > File Paths > Recent Files, 20)`` entries, each a DD_OP labelled with the
@@ -44,13 +55,13 @@ import bpy
 
 from ..core import modes, recent_files
 from ..core.dropdown_model import (
-    COVERAGE_CUSTOM, COVERAGE_NATIVE, DD_LABEL, DD_OP, DD_RADIO, DD_SEPARATOR,
-    DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_MODE, ITEM_SOURCE_RECENT, SOURCE_MENU,
-    DropdownItem, DropdownModel, native_menu_action,
+    COVERAGE_CUSTOM, COVERAGE_NATIVE, DD_ENUM_CASCADE, DD_FLAG, DD_LABEL, DD_OP, DD_RADIO,
+    DD_SEPARATOR, DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_MODE, ITEM_SOURCE_RECENT,
+    ITEM_SOURCE_SUBMODE, SOURCE_MENU, DropdownItem, DropdownModel, native_menu_action,
 )
 from ..core.model import ACTION_OPERATOR, Action
 from ..core.tables import BUILT_MENUS, MODE_SWITCH_MENU, OPEN_RECENT_MENU
-from . import recorder
+from . import datapath, recorder
 
 MODE_OPERATOR = 'object.mode_set'
 MODE_PROP = 'mode'
@@ -152,28 +163,99 @@ def mode_names() -> dict[str, str]:
     return {item.identifier: _iface(item.name, ctxt) for item in prop.enum_items}
 
 
+def item_mode(item: DropdownItem | None) -> str | None:
+    """The ``object.mode_set`` mode of a mode switcher row: its own action's, or, for a mode
+    with submodes (a DD_ENUM_CASCADE), that of its first child (the plain mode radio)."""
+    if item is None:
+        return None
+    if item.kind == DD_ENUM_CASCADE:
+        return item_mode(item.children[0]) if item.children else None
+    props = dict(item.action.props) if item.action is not None else {}
+    return props.get(MODE_PROP)
+
+
+# ``SelectDomains.state_path`` owners of the property domains -> their RNA struct (the names
+# of a property domain come from the property itself).
+_PROPERTY_OWNERS = {'tool_settings.particle_edit': 'ParticleEdit'}
+
+
+def _domain_labels(domains: modes.SelectDomains) -> tuple[str, ...]:
+    """The translated member names of ``domains``: its operator's (or property's) RNA enum
+    names, as the header buttons' tooltips show them; the English table labels where
+    unreadable."""
+    names: dict[str, str] = {}
+    try:
+        if domains.operator:
+            prop = _op(domains.operator).get_rna_type().properties[domains.op_prop]
+        else:
+            owner, name = domains.state_path.rsplit('.', 1)
+            prop = getattr(bpy.types, _PROPERTY_OWNERS[owner]).bl_rna.properties[name]
+        ctxt = getattr(prop, 'translation_context', None)
+        names = {item.identifier: _iface(item.name, ctxt) for item in prop.enum_items}
+    except Exception as ex:
+        _log_once(f"domain_labels:{domains.state_path}",
+                  f"reading the select-mode names failed: {ex!r}")
+    return tuple(names.get(ident) or _iface(label)
+                 for ident, label in zip(domains.idents, domains.labels))
+
+
+def submode_items(context: Any, obj_type: str | None, mode: str, current: str | None,
+                  enabled: bool) -> tuple[DropdownItem, ...]:
+    """The select-mode rows of ``mode``'s submenu (``core.modes.select_domains``; () when it
+    has none): DD_FLAG per member of a flag domain (the mesh select mode), DD_RADIO per
+    member otherwise, in header order, the current members checked (read from
+    ``state_path`` whatever the current mode: the tool settings and the curves domain
+    persist), each running ``core.modes.submode_action`` (the native header call when
+    ``current`` is ``mode``, else ``meso.mode_set_select``). ``enabled``: ``object.mode_set``'s
+    poll, for a pick from another mode; in ``mode`` the header operator's own poll."""
+    domains = modes.select_domains(obj_type, mode)
+    if domains is None:
+        return ()
+    on = modes.current_members(domains, datapath.context_value(context, domains.state_path))
+    kind = DD_FLAG if domains.kind == modes.DOMAIN_FLAG else DD_RADIO
+    if current == mode and domains.operator:
+        enabled = _op_poll(domains.operator, modes.SUBMODE_OPERATOR_CONTEXT)
+    return tuple(
+        DropdownItem(kind, label, enabled=enabled, checked=ident in on,
+                     action=modes.submode_action(domains, mode, ident, current),
+                     source=ITEM_SOURCE_SUBMODE)
+        for ident, label in zip(domains.idents, _domain_labels(domains)))
+
+
 def mode_switch_model(context: Any,
                       operator_context: str = DROPDOWN_OPERATOR_CONTEXT) -> DropdownModel:
     """The mode switcher dropdown (module doc): DD_RADIO per offered mode, the active object's
     mode checked, ``Action(ACTION_OPERATOR, 'object.mode_set', props={'mode': id},
-    operator_context='INVOKE_REGION_WIN', undo=True)``; ``enabled`` = the operator's poll."""
+    operator_context='INVOKE_REGION_WIN', undo=True)``; ``enabled`` = the operator's poll.
+    A mode with select domains (``core.modes.SELECT_DOMAINS``) is a DD_ENUM_CASCADE with the
+    same label, ``enabled`` and check state (drawn as a radio) instead, whose children are
+    that radio, a separator and :func:`submode_items`."""
     names = mode_names()
     ids = mode_ids(context)
     obj = getattr(context, 'active_object', None)
     if not ids:
         return _native(MODE_SWITCH_MENU, operator_context, 'unlistable_enum')
     current = getattr(obj, 'mode', None) if obj is not None else None
+    obj_type = getattr(obj, 'type', None) if obj is not None else None
     enabled = _op_poll(MODE_OPERATOR, MODE_OPERATOR_CONTEXT)
-    items = tuple(
-        DropdownItem(DD_RADIO, names.get(ident, ident), enabled=enabled,
-                     checked=(ident == current),
-                     action=Action(ACTION_OPERATOR, target=MODE_OPERATOR,
-                                   props={MODE_PROP: ident},
-                                   operator_context=MODE_OPERATOR_CONTEXT, undo=True),
-                     source=ITEM_SOURCE_MODE)
-        for ident in ids)
+    items: list[DropdownItem] = []
+    for ident in ids:
+        label = names.get(ident, ident)
+        radio = DropdownItem(DD_RADIO, label, enabled=enabled, checked=(ident == current),
+                             action=Action(ACTION_OPERATOR, target=MODE_OPERATOR,
+                                           props={MODE_PROP: ident},
+                                           operator_context=MODE_OPERATOR_CONTEXT, undo=True),
+                             source=ITEM_SOURCE_MODE)
+        subs = submode_items(context, obj_type, ident, current, enabled)
+        if not subs:
+            items.append(radio)
+            continue
+        items.append(DropdownItem(DD_ENUM_CASCADE, label, enabled=enabled,
+                                  checked=(ident == current),
+                                  children=(radio, DropdownItem(DD_SEPARATOR)) + subs,
+                                  source=ITEM_SOURCE_MODE))
     title = recorder.display_label(MODE_SWITCH_MENU) or 'Mode'
-    return DropdownModel(MODE_SWITCH_MENU, title, items, COVERAGE_CUSTOM,
+    return DropdownModel(MODE_SWITCH_MENU, title, tuple(items), COVERAGE_CUSTOM,
                          native_menu_action(MODE_SWITCH_MENU), operator_context, SOURCE_MENU)
 
 
