@@ -39,6 +39,9 @@ Meso Mode is developed and tested on Linux, and is meant to run on Windows and m
 unit tests and `tools/dev_link.py` run anywhere; the Blender test runners are bash scripts, and
 the GUI suite needs Linux (a nested KWin session).
 
+Help is welcome here: runners and GUI tests for Windows and macOS (an isolated session the tests
+can drive without touching your desktop) would let the suite cover every platform.
+
 ```
 . tools/env.sh      # B = blender on PATH (or set B=/path/to/blender in an untracked local.env), PY = its Python
 bl() { ( prlimit --core=1 --pid $BASHPID 2>/dev/null || ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
