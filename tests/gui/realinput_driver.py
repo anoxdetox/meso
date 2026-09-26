@@ -33,6 +33,23 @@ and a non-empty individual snap set):
 - ``ri_c_tweak_long`` / ``ri_j_tweak_long``: C (edge; C is also the Transform Modal Map's
   CONS_OFF) and J (increment) held long before a Tweak drag: the transform starts and moves.
 
+G16 (user item B of 2026-09-26, every drag snaps while the key is held;
+docs/spikes/meso-feedback-3.md): several drags during one X hold, with the Tweak tool and on the
+Move gizmo, a short hold with fast drags before the first repeat, the key released during and
+after a drag, Shift and Ctrl during a drag, a still pointer between drags, and another
+repeating key (W) tapped while X is held (the documented fallback: one snapped drag). Each
+checks which drags snapped, that nothing was written while a transform ran, and the exact
+restore after the release:
+
+- ``ri_x_multi_tweak`` / ``ri_x_multi_gizmo``: three drags snap, one after the release is free.
+- ``ri_x_multi_short``: a short hold, two fast drags (ending before the 0.6 s repeat delay) and a
+  normal one snap; after the release, free.
+- ``ri_x_up_during_drag`` / ``ri_x_up_after_drag``: the drag after the release is free.
+- ``ri_x_multi_modifiers``: Shift during drag 1 and Ctrl during drag 2 keep drags 2 and 3 snapped.
+- ``ri_x_multi_still``: 1.2 s without pointer motion between two snapped drags.
+- ``ri_x_other_key``: W tapped while X is held: drag 1 snaps, drag 2 is free (X no longer
+  repeats), the release restores.
+
 Every drag also checks it was a free move (``check_free_move``): the translate it ran finished
 with no axis constraint, and the cube moved off a single world axis. A key repeat that reached
 the Transform Modal Map (X = AXIS_X) would still move the cube, only along X. There is no
@@ -61,7 +78,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPO_NAME = "Meso Dev"
 REPO_MODULE = "meso_dev"
 ADDON_MODULE = f"bl_ext.{REPO_MODULE}.meso"
-DEADLINE = 150.0
+DEADLINE = 300.0
 T0 = time.monotonic()
 
 USER = dict(snap_elements={'VERTEX', 'EDGE_MIDPOINT', 'FACE_PROJECT'}, use_snap=False,
@@ -544,6 +561,177 @@ def sc_d_gizmo_long(rec):
     check_common(rec, case, 'D', True)
 
 
+# ------------------------------------------------------------------------------ G16: multi-drag
+
+def track(case, seconds):
+    """``wait()`` plus the transforms: start and end times, and every distinct snap state read
+    while one ran (a single state per transform: nothing was written during it)."""
+    end = time.monotonic() + seconds
+    while True:
+        ids = modal_ids()
+        running = 'TRANSFORM_OT_translate' in ids
+        tr = case["transforms"]
+        if running:
+            if not tr or tr[-1]["end"] is not None:
+                tr.append({"start": now(), "end": None, "states": []})
+            st = snap_state()
+            if st not in tr[-1]["states"]:
+                tr[-1]["states"].append(st)
+        elif tr and tr[-1]["end"] is None:
+            tr[-1]["end"] = now()
+        for i in ids:
+            if i not in case["modals_seen"]:
+                case["modals_seen"].append(i)
+        left = end - time.monotonic()
+        if left <= 0:
+            return
+        yield min(0.01, left)
+
+
+def multi_drag(case, label, path, key='x', fast=False, key_up_at=None, mod_mid=None):
+    """One LMB drag at the cube (``path`` 'tweak': the Tweak tool or whatever tool is active,
+    'gizmo': the Move gizmo centre). ``fast``: 3 quick moves (the drag ends within 0.2 s);
+    ``key_up_at``: release the hold key at that move; ``mod_mid``: hold that modifier key from
+    the 2nd move to the one before the last."""
+    cube = bpy.data.objects["Cube"]
+    start = [round(v, 4) for v in cube.location]
+    c = to_win(cube.location)
+    if path == "gizmo":                 # the gizmo highlights on a move onto it
+        XT.move_win((c[0] - 3, c[1] - 3))
+        yield from track(case, 0.1)
+    XT.move_win(c)
+    yield from track(case, 0.12)
+    d = {"label": label, "start": start, "t_down": now()}
+    n_tr = len(case["transforms"])
+    XT.button(1, True)
+    yield from track(case, 0.04 if fast else 0.12)
+    n, dx, dy, dt = (3, 34, -14, 0.025) if fast else (6, 17, -7, 0.05)
+    for i in range(1, n + 1):
+        XT.move_win((c[0] + dx * i, c[1] + dy * i))
+        if key_up_at == i:
+            XT.key(key, False)
+            d["t_key_up"] = now()
+        if mod_mid and i == 2:
+            XT.key(mod_mid, True)
+        if mod_mid and i == n - 1:
+            XT.key(mod_mid, False)
+        yield from track(case, dt)
+    XT.button(1, False)
+    d["t_up"] = now()
+    yield from track(case, 0.1)
+    loc = [round(v, 4) for v in cube.location]
+    d["end"] = loc
+    d["transformed"] = len(case["transforms"]) > n_tr
+    d["moved"] = loc != start
+    d["snapped"] = d["moved"] and all(abs(v - round(v)) < 1e-4 for v in cube.location)
+    d["states"] = case["transforms"][-1]["states"] if d["transformed"] else []
+    case["drags"].append(d)
+
+
+def multi(steps, expect, tool_id="builtin.select"):
+    """A G16 scenario: ``steps`` of ('key', True/False), ('wait', s), ('drag', kwargs),
+    ('tap', keysym); ``expect`` = which drags snap, in order."""
+    def run(rec):
+        case = {"modals_seen": [], "transforms": [], "drags": []}
+        rec["case"] = case
+        cube = bpy.data.objects["Cube"]
+        XT.autorepeat(True)
+        try:
+            hold_mod().end_all()
+            tool(tool_id)
+            cube.location = (0.0, 0.0, 0.0)
+            for o in bpy.context.view_layer.objects:
+                o.select_set(o is cube)
+            bpy.context.view_layer.objects.active = cube
+            set_user()
+            XT.move_win(to_win(cube.location))
+            yield 0.4
+            t0 = len(TRACE)
+            for kind, arg in steps:
+                if kind == "key":
+                    XT.key("x", arg)
+                    if arg:
+                        yield from track(case, 0.08)
+                        case["overlay"] = snap_state()
+                elif kind == "wait":
+                    yield from track(case, arg)
+                elif kind == "tap":
+                    XT.key(arg, True)
+                    yield from track(case, 0.06)
+                    XT.key(arg, False)
+                    yield from track(case, 0.1)
+                elif kind == "drag":
+                    kw = dict(arg)
+                    label = kw.pop("label", f"drag{len(case['drags']) + 1}")
+                    yield from multi_drag(case, label, kw.pop("path", "tweak"), **kw)
+            XT.release_all()
+            yield from track(case, 0.4)
+            case["after"] = snap_state()
+            case["holds_after"] = [i for i in modal_ids() if i and i.startswith("MESO_OT")]
+            case["repeats"] = [e for e in TRACE[t0:] if e["type"] == 'X' and e["is_repeat"]]
+        finally:
+            XT.release_all()
+            tool("builtin.select_box")
+            yield 0.2
+        drags = case["drags"]
+        check(rec, "overlay_grid", case.get("overlay", {}).get("use_snap") is True
+              and case["overlay"]["snap_elements"] == ['GRID'], case.get("overlay"))
+        check(rec, "every_drag_transformed", all(d["transformed"] and d["moved"] for d in drags),
+              [(d["label"], d["transformed"], d["end"]) for d in drags])
+        check(rec, "snapped_as_expected", [d["snapped"] for d in drags] == list(expect),
+              [(d["label"], d["snapped"], d["end"]) for d in drags])
+        # a snapped drag ran with the overlay, a free one with the user's state, and no
+        # transform ever saw a second state (nothing written while it ran)
+        check(rec, "no_write_during_transforms",
+              all(len(tr["states"]) == 1 for tr in case["transforms"]),
+              [tr["states"] for tr in case["transforms"] if len(tr["states"]) != 1])
+        check(rec, "transform_states",
+              all(d["states"] == [case.get("overlay") if want else user_state()]
+                  for d, want in zip(drags, expect)),
+              [(d["label"], d["states"]) for d in drags])
+        check(rec, "restored", case["after"] == user_state(), case["after"])
+        check(rec, "hold_ended", case["holds_after"] == [], case["holds_after"])
+        check(rec, "repeats_passed_through",
+              all(e["result"] == ['PASS_THROUGH'] for e in case["repeats"]),
+              [e["result"] for e in case["repeats"] if e["result"] != ['PASS_THROUGH']])
+    return run
+
+
+AFTER = {"label": "after_release"}
+MULTI_SCENARIOS = [
+    ("ri_x_multi_tweak", multi(
+        [("key", True), ("wait", LONG), ("drag", {}), ("wait", 0.5), ("drag", {}),
+         ("wait", 0.5), ("drag", {}), ("wait", 0.4), ("key", False), ("wait", 0.4),
+         ("drag", AFTER)], [True, True, True, False])),
+    ("ri_x_multi_gizmo", multi(
+        [("key", True), ("wait", LONG), ("drag", {"path": "gizmo"}), ("wait", 0.5),
+         ("drag", {"path": "gizmo"}), ("wait", 0.5), ("drag", {"path": "gizmo"}),
+         ("wait", 0.4), ("key", False), ("wait", 0.4), ("drag", dict(AFTER, path="gizmo"))],
+        [True, True, True, False], tool_id="builtin.move")),
+    ("ri_x_multi_short", multi(
+        [("key", True), ("wait", 0.05), ("drag", {"fast": True}), ("wait", 0.1),
+         ("drag", {"fast": True}), ("wait", 0.6), ("drag", {}), ("wait", 0.3),
+         ("key", False), ("wait", 0.4), ("drag", AFTER)], [True, True, True, False])),
+    ("ri_x_up_during_drag", multi(
+        [("key", True), ("wait", LONG), ("drag", {"key_up_at": 3}), ("wait", 0.6),
+         ("drag", AFTER)], [True, False])),
+    ("ri_x_up_after_drag", multi(
+        [("key", True), ("wait", LONG), ("drag", {}), ("wait", 0.3), ("key", False),
+         ("wait", 0.4), ("drag", AFTER)], [True, False])),
+    ("ri_x_multi_modifiers", multi(
+        [("key", True), ("wait", LONG), ("drag", {"mod_mid": "Shift_L"}), ("wait", 0.6),
+         ("drag", {"mod_mid": "Control_L"}), ("wait", 0.6), ("drag", {}), ("wait", 0.3),
+         ("key", False), ("wait", 0.3)], [True, True, True])),
+    ("ri_x_multi_still", multi(
+        [("key", True), ("wait", LONG), ("drag", {}), ("wait", 1.2), ("drag", {}),
+         ("wait", 0.3), ("key", False), ("wait", 0.3)], [True, True])),
+    ("ri_x_other_key", multi(
+        [("key", True), ("wait", 1.2), ("tap", "w"), ("wait", 0.8), ("drag", {}),
+         ("wait", 0.6), ("drag", {}), ("wait", 0.3), ("key", False), ("wait", 0.3)],
+        [True, False])),
+]
+
+
 SCENARIOS = [
     ("ri_x_tweak_long", x_drag("tweak", LONG)),
     ("ri_x_move_drag_long", x_drag("move_drag", LONG)),
@@ -555,7 +743,7 @@ SCENARIOS = [
     ("ri_d_gizmo_long", sc_d_gizmo_long),
     ("ri_c_tweak_long", sc_c_tweak_long),
     ("ri_j_tweak_long", sc_j_tweak_long),
-]
+] + MULTI_SCENARIOS
 _ONLY = [p for p in os.environ.get("MESO_GUI_ONLY", "").split(",") if p]
 if _ONLY:
     SCENARIOS = [(n, f) for n, f in SCENARIOS if any(p in n for p in _ONLY)]

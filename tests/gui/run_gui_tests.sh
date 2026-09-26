@@ -122,12 +122,12 @@ case "$MODE" in
     host) run_session main host "" 640 ;;
     xwayland)
         run_session main xwayland "" 640
-        run_session realinput xwayland "" 170 realinput
+        run_session realinput xwayland "" 320 realinput
         ;;
     nested)
         run_session main wayland skip 600
         run_session grab xwayland only 300
-        run_session realinput xwayland "" 170 realinput
+        run_session realinput xwayland "" 320 realinput
         ;;
 esac
 

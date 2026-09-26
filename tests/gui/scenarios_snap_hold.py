@@ -8,9 +8,12 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
 
 - G8 ``mk_snap_drag``: with X held a native transform (started like G), a Tweak-tool drag, a
   Move-gizmo drag and an Edit Mesh transform land on the grid; a control drag without the key
-  does not. The user's snap state (non-empty individual set) comes back exactly when the
-  transform ends, with the key released after it, during it (swallowed), and on a cancel;
-  nothing is written while the transform runs; the late release toggles nothing.
+  does not. The user's snap state (non-empty individual set) comes back exactly after the
+  transform, with the key released after it, during it (swallowed), and on a cancel; nothing
+  is written while the transform runs; the late release toggles nothing. Simulated events
+  carry no key auto-repeat, so after each transform the still-held check finds no sign of the
+  key and restores (``core.snap_hold.deadline``); every drag snapping while the key is really
+  held is the ``realinput`` session's job (``tests/gui/realinput_driver.py``, G16).
 - G9 ``mk_snap_taps``: taps replay the native keys (X toggles snapping, C the Cursor tool, V
   opens the View pie click-style, D the Annotate tool: the pivot hold is on by default); J does
   nothing; a long hold is not a tap; a second press while held is swallowed; Insert toggles
@@ -221,7 +224,7 @@ def scenarios(drv):
             loc = tuple(round(v, 4) for v in cube.location)
             drv.check(rec, f"{name}_moved", any(abs(v) > 1e-3 for v in loc), loc)
             drv.check(rec, f"{name}_on_grid", on_grid(cube.location), loc)
-        drv.check(rec, f"{name}_restored_when_transform_ended", state() == USER,
+        drv.check(rec, f"{name}_restored_after_the_check", state() == USER,
                   [state(), drv.modal_ops(), debug()])
         if not release_during:
             drv.sim('X', 'RELEASE', end_xy)
@@ -318,6 +321,8 @@ def scenarios(drv):
             yield 0.25
             end_xy = yield from keyboard_drag(c)
             yield 0.4
+            yield from wait_until(lambda: 'TRANSFORM_OT_translate' not in drv.modal_ops()
+                                  and state() == USER)
             drv.check(rec, "edit_restored", state() == USER, state())
             drv.sim('X', 'RELEASE', end_xy)
             yield 0.3
@@ -589,7 +594,7 @@ def scenarios(drv):
             drv.check(rec, "origin_moved", any(abs(v) > 1e-3 for v in loc), loc)
             drv.check(rec, "shape_in_place", world_verts(cube) == before,
                       [world_verts(cube)[:1], before[:1]])
-            drv.check(rec, "d_restored_when_drag_ended", state() == USER,
+            drv.check(rec, "d_restored_after_the_check", state() == USER,
                       [state(), drv.modal_ops(), debug()])
             drv.sim('D', 'RELEASE', end_xy)
             yield 0.3
