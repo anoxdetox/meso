@@ -1,19 +1,28 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The D tap: Affect Only Origins for one transform (pure; no bpy). Contract:
-docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot" (user item C of 2026-09-26).
+"""The D key: Affect Only Origins while D is held, or for one transform after a tap (pure; no
+bpy). Contract: docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot" (user item C of
+2026-09-26, and the hold of 2026-09-26: "as long as your finger is holding the key down, you can
+move the pivot").
 
-A tap of D in Object Mode *arms* the one-shot: Affect Only Origins goes on (an overlay of the
-user's value, kept by ``core.snap_hold.HoldSession`` under ``ONCE_KEY``) and the next transform
-moves only the object origins. When that transform is confirmed, the user's value comes back.
-A second tap before a transform cancels it; Insert makes it the persistent mode instead.
+The D press writes Affect Only Origins at once, as an overlay of the user's value held in
+``core.snap_hold.HoldSession`` under the D key (element PIVOT), so a gizmo drag or a keyboard
+transform started while D is down edits origins. The D key modal is a snap-hold-style hold
+(``hold_step``, built on ``core.snap_hold.step``: own repeats pass through, the still-held check
+after a foreign modal, the deadline, the learned repeat timing). Its release decides:
 
-Two small reducers:
+- **Tap**: released within the tap threshold (the ``hold_tap_threshold`` preference) with nothing
+  in between (no mouse button, no other key, modifiers included, no foreign modal): the overlay
+  goes and the *one-shot* is armed (or cancelled, when it was armed): Affect Only Origins goes on
+  again (under ``ONCE_KEY``) and the next transform moves only the origins. When that transform
+  is confirmed, the user's value comes back. Insert makes it the persistent mode instead.
+- **Hold**: anything else (held longer, or a click, key or transform while down): every
+  transform while D is down edits origins, and the release gives the user's own value back
+  (nothing else is undone). An armed one-shot ends with it (the hold replaced it).
 
-- ``tap_step``: the D key's own modal, from the press to the release. A release with nothing in
-  between is a tap, however long the key was held (the OS auto-repeats of D pass through and do
-  not count); a mouse button, another key, a foreign modal, Esc or a focus loss means D was a
-  held-key modifier (D + LMB draws an annotation natively) or something else: no tap, and the
-  modal ends at once, passing the event on.
+Reducers:
+
+- ``hold_step``: the D key modal; ``core.snap_hold.step`` plus "any other key press is not a tap".
+- ``tap``: the one-shot at a D tap (arm, cancel, or nothing when the option is on already).
 - ``tick``: the armed one-shot, from the watcher (``ops/snap_hold._watch``). A transform is seen
   in ``Window.modal_operators`` (``is_transform_id``); when it is gone, a newer registered
   operator (``WindowManager.operators``, compared by a plain marker value, never an RNA
@@ -29,6 +38,7 @@ Two small reducers:
   the geometry. So a transform in another editor or another mode leaves it armed, and a
   transform that runs without a modal (Repeat Last, a script: the registered operator stays
   the same) uses it when it edits origins.
+- ``hold_transform``: whether a hold ran a transform (Adjust Last Operation keeps origins for it).
 """
 
 from __future__ import annotations
@@ -98,24 +108,31 @@ def transform_running(windows_ids) -> bool:
 
 # ------------------------------------------------------------------------------ the D key modal
 
-TAP = sh.Effect(tap=True, finish=True, consume=True)
-NOT_A_TAP = sh.Effect(finish=True)
+# A modifier key (Shift, Ctrl, Alt, OS key, Hyper) went down while D is held: not a tap (Blender's
+# own click rule), but D keeps repeating (``core.snap_hold.NON_REPEATING_KEYS``): no ``blind``.
+EV_MODIFIER = 'MODIFIER'
 
 
-def tap_step(event: str) -> sh.Effect:
-    """The effect of one event on the D key modal (``core.snap_hold`` event names).
+def hold_step(state: sh.HoldState, event: str, now: float = 0.0, tap_threshold: float = 0.2):
+    """``(new state, Effect)`` for one event of the D key modal.
 
-    Own-key repeats pass through (a handled repeat would cancel Blender's pending click-drag);
-    a new press of the key (its release went unseen) is swallowed and the modal goes on.
+    ``core.snap_hold.step`` with no "other hold key" rule (a D tap with X held is still a tap),
+    and any other key press, a modifier too, makes the press a hold (``used``). The effect's
+    ``tap`` is the D tap (the caller arms or cancels the one-shot, ``tap()``); a ``release``
+    without ``tap`` is the end of a hold (the caller ends an armed one-shot too).
     """
-    if event == sh.EV_OWN_RELEASE:
-        return TAP
-    if event == sh.EV_OWN_PRESS:
-        return sh.Effect(consume=True)
-    if event in (sh.EV_MOUSE_PRESS, sh.EV_OTHER_KEY, sh.EV_FOREIGN_ON, sh.EV_DEACTIVATE,
-                 sh.EV_ESC, sh.EV_CANCEL):
-        return NOT_A_TAP
-    return sh.NOTHING
+    if event in (sh.EV_OTHER_KEY, EV_MODIFIER) and state.phase != sh.ENDED:
+        state = replace(state, used=True)
+    if event == EV_MODIFIER:
+        event = sh.EV_OTHER
+    return sh.step(state, event, now, tap_threshold)
+
+
+def hold_transform(press_marker, last) -> bool:
+    """A transform was registered since the D press: ``last`` = ``(marker, idname)`` of the
+    newest registered operator now (or ``None``), ``press_marker`` the newest one's marker at the
+    press. Adjust Last Operation on it then keeps Affect Only Origins (it ran with it on)."""
+    return last is not None and is_transform_id(last[1]) and last[0] != press_marker
 
 
 # ------------------------------------------------------------------------------ the one-shot

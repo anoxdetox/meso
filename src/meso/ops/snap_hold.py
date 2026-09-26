@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Pre-drag snap holds (X/C/V/J), the D tap (Affect Only Origins for one transform) and the
-Insert pivot toggle (docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot"; rules in
-``core/snap_hold.py`` and ``core/pivot_once.py``).
+"""Pre-drag snap holds (X/C/V/J), the D key (Affect Only Origins while held, or for one
+transform after a tap) and the Insert pivot toggle (docs/meso-keymap-interfaces.md, "Pre-drag
+snapping and pivot"; rules in ``core/snap_hold.py`` and ``core/pivot_once.py``).
 
 - ``meso.snap_hold`` starts on the key press, writes the overlay (snap on with the held
   elements) into ``scene.tool_settings`` and stays modal, passing every other event through, so
@@ -11,16 +11,21 @@ Insert pivot toggle (docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivo
   instead: the Meso keymap keeps Industry Compatible's item on the key after the Meso item (X
   toggles snapping, C the Cursor tool, V opens the View pie; J has none), and the user's edit
   of it is honoured.
-- ``meso.pivot_once`` (D in Object Mode) waits for the D release: a tap (nothing pressed in
-  between) arms the one-shot, which writes Affect Only Origins as an overlay held in the same
-  session (``pivot_once.ONCE_KEY``), so every restore point below covers it. The watcher sees
-  the next transform run and end; when it finished (a newer registered operator) and edited
-  origins (the ``depsgraph_update_post`` evidence, ``core.pivot_once.Evidence``) the user's
-  value comes back; when it was cancelled or edited no origin (another editor, Edit Mode) the
-  one-shot stays armed. Origins edited with no modal (Repeat Last, a script) use it too. A
-  second tap cancels it. Adjust Last Operation on that transform (the redo panel, F9) runs it
+- ``meso.pivot_once`` (D in Object Mode) is a hold of the same kind (element PIVOT, the D key
+  in the session): the press writes Affect Only Origins, so every transform while D is down
+  (a gizmo drag, a keyboard transform) edits only the origins, and the release gives the user's
+  value back (``core.pivot_once.hold_step``; the still-held check below covers a release
+  swallowed by a transform). A tap (within ``hold_tap_threshold``, nothing in between) arms the
+  one-shot instead: Affect Only Origins as an overlay held under ``pivot_once.ONCE_KEY``. The
+  watcher sees the next transform run and end; when it finished (a newer registered operator)
+  and edited origins (the ``depsgraph_update_post`` evidence, ``core.pivot_once.Evidence``) the
+  user's value comes back; when it was cancelled or edited no origin (another editor, Edit Mode)
+  the one-shot stays armed. Origins edited with no modal (Repeat Last, a script) use it too. A
+  second tap cancels it; a hold ends it. Adjust Last Operation (the redo panel, F9) on the
+  transform that used the one-shot, or on the last transform made while D was held, runs it
   again with Affect Only Origins on (``undo_post``, off again on the next timer tick).
-  Industry Compatible's D (Annotate tool) is on Ctrl Alt D in the Meso keymap.
+  Industry Compatible's D (Annotate tool) is on Ctrl Alt D in the Meso keymap; D + LMB off the
+  gizmo still draws an annotation (Blender's 'Grease Pencil' keymap), also while D is held.
 - A native transform swallows every event while it runs, the key release too, so a read-only
   watcher timer reads ``Window.modal_operators``. When the transform (or any foreign modal) is
   gone the hold keeps the overlay and runs the still-held check (``core.snap_hold.step``): the
@@ -37,7 +42,8 @@ Insert pivot toggle (docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivo
   saved file never holds the momentary state) and ``unregister()`` (from module state, before
   the classes go: ``cancel()`` is not called for an unregistered running modal).
 - ``meso.pivot_toggle`` (Insert) flips Affect Only Origins, the persistent mode, like the native
-  checkbox. Insert while the one-shot is armed makes it persistent (on, the one-shot ends).
+  checkbox. Insert while the one-shot is armed makes it persistent (on, the one-shot ends);
+  Insert while D is held flips the value the release gives back.
 
 Module state holds plain values only (the scene's ``session_uid``, snapshots, per-key states); no
 RNA pointer is kept. Hold-J snap inversion *during* a transform is not bound (not verified in a real
@@ -79,10 +85,14 @@ _session = sh.HoldSession()
 _timing = sh.RepeatTiming()             # the OS key repeat, learned this Blender session
 _ops: dict[str, sh.HoldState] = {}      # hold key -> state of its running operator
 _pending: list[str] = []                # keys whose release waits for a foreign modal to end
+_pivots: dict = {}                      # D key -> the newest registered operator's marker at
+                                        # its press (the running operator is a D hold)
 _state = {'missing': 0, 'logged': set(), 'once': po.Once(),
           'evidence': po.Evidence(),    # origin edits seen by depsgraph_update_post
-          'used': None,         # (marker, idname, scene key) of the transform that used the D tap
-          'redo': None}         # scene key: Affect Only Origins is on for a redo, back off next
+          'used': None,         # (marker, idname, scene key) of the transform that used the D
+                                # tap, or the last one made while D was held
+          'redo': None,         # scene key: Affect Only Origins is on for a redo, back off next
+          'tap': None}          # the core.pivot_once.tap action of the last D tap (its report)
 
 
 def session() -> sh.HoldSession:
@@ -95,6 +105,11 @@ def running_keys() -> tuple[str, ...]:
 
 def pending_keys() -> tuple[str, ...]:
     return tuple(_pending)
+
+
+def pivot_keys() -> tuple[str, ...]:
+    """The keys whose running operator is a D hold (``meso.pivot_once``)."""
+    return tuple(k for k in _ops if k in _pivots)
 
 
 def checking_keys() -> tuple[str, ...]:
@@ -232,21 +247,50 @@ def end_all(context=None, *, own=sh.OWN_IDS) -> bool:
 
 def _drive(key: str, event: str, now: float = 0.0, context=None, threshold=0.2,
            keymap: str = '') -> sh.Effect:
-    """One ``step`` of the hold operator of ``key`` and its effects (except the event result)."""
+    """One ``step`` of the hold operator of ``key`` and its effects (except the event result).
+
+    A snap hold's tap replays the key's native item. A D hold (``_pivots``) steps with
+    ``core.pivot_once.hold_step``: its tap arms or cancels the one-shot (``tap_once``; the action
+    is kept in ``_state['tap']`` for the modal's report), and any other end of it ends an armed
+    one-shot too and records the last transform it ran for Adjust Last Operation."""
     st = _ops.get(key)
     if st is None:
         return sh.Effect(finish=True)
-    others = any(k not in (key, po.ONCE_KEY) for k in _session.keys())
+    pivot = key in _pivots
     _timing.observe(st, event, now)
-    new, eff = sh.step(st, event, now, threshold, others_held=others)
+    if pivot:
+        new, eff = po.hold_step(st, event, now, threshold)
+    else:
+        others = any(k not in (key, po.ONCE_KEY) for k in _session.keys())
+        new, eff = sh.step(st, event, now, threshold, others_held=others)
     _ops[key] = new
     if eff.release:
+        scene = _session.scene
         release_key(key, context)
-    if eff.tap and context is not None:
+        if pivot and eff.tap:
+            _state['tap'] = tap_once(context) if context is not None else None
+        elif pivot:
+            _end_pivot_hold(_pivots.get(key), scene)
+    if eff.tap and not pivot and context is not None:
         replay_native(context, keymap, key)
     if eff.finish:
         _ops.pop(key, None)
+        _pivots.pop(key, None)
     return eff
+
+
+def _end_pivot_hold(press_marker, scene) -> None:
+    """A D hold ended (not a tap): an armed one-shot ends with it (the hold replaced it; its
+    restore waits for a foreign modal like every release), and the last transform made while D
+    was held is the one Adjust Last Operation keeps origins for."""
+    if once_armed():
+        if _session.holds(po.ONCE_KEY):
+            release_key(po.ONCE_KEY)
+        _set_once(po.Once())
+        _state['evidence'].clear()
+    last = last_registered()
+    if scene is not None and po.hold_transform(press_marker, last):
+        _state['used'] = (last[0], last[1], scene)
 
 
 # ------------------------------------------------------------------------------ tap replay
@@ -360,6 +404,7 @@ def _end_vanished_holds():
     """Every hold operator is gone (an add-on reload, a reset): end the holds. An armed D
     one-shot has no operator and stays."""
     _ops.clear()
+    _pivots.clear()
     if not once_armed():
         end_all()
         return
@@ -424,31 +469,36 @@ def _result(eff: sh.Effect) -> set[str]:
 
 def start_hold(context, key: str, element: str) -> bool:
     """The press: record/extend the session and write the overlay. False (nothing written)
-    while a foreign modal runs or without a scene."""
+    while a foreign modal runs or without a scene. The element PIVOT starts a D hold."""
     scene = getattr(context, 'scene', None)
     if scene is None or foreign_now(context):
         return False
     if _session.active and _session.scene != scene_key(scene):
         end_all(context)                    # the scene changed under a hold
     stale = _ops.pop(key, None)
+    _pivots.pop(key, None)
     if stale is not None and _session.holds(key):
         release_key(key, context)
     ts = scene.tool_settings
     apply_writes(ts, _session.press(key, element, scene_key(scene), snapshot(ts)))
     _ops[key] = sh.HoldState(key, time.monotonic())
+    if element == sh.PIVOT:
+        last = last_registered(context)
+        _pivots[key] = last[0] if last is not None else None
     _start_watch()
     return True
 
 
 class _HoldMixin:
+    """The key-hold modal of ``meso.snap_hold`` and ``meso.pivot_once`` (``_drive`` tells them
+    apart by ``_pivots``)."""
     bl_options = {'INTERNAL'}
-
-    keymap: StringProperty(
-        name="Keymap", description="The keymap of the item that started the hold (tap replay)",
-        options={'SKIP_SAVE', 'HIDDEN'})
 
     def _element(self) -> str:
         raise NotImplementedError
+
+    def _report(self, action) -> None:
+        pass
 
     def invoke(self, context, event):
         if not _is_key_event(event):
@@ -478,7 +528,12 @@ class _HoldMixin:
             _drive(key, sh.EV_FOREIGN_ON, now, context)
         elif not foreign and st.phase == sh.FOREIGN:
             _drive(key, sh.EV_FOREIGN_OFF, now, context)
-        eff = _drive(key, classify(event, key), now, context, self._threshold, self.keymap)
+        pivot = key in _pivots
+        ev = (_classify_tap if pivot else classify)(event, key)
+        eff = _drive(key, ev, now, context, getattr(self, '_threshold', 0.2),
+                     getattr(self, 'keymap', ''))
+        if pivot and eff.tap:
+            self._report(_state['tap'])
         return _result(eff)
 
     def cancel(self, context):
@@ -492,6 +547,10 @@ class MESO_OT_snap_hold(_HoldMixin, Operator):
     bl_idname = "meso.snap_hold"
     bl_label = "Hold to Snap"
     bl_options = {'INTERNAL'}
+
+    keymap: StringProperty(
+        name="Keymap", description="The keymap of the item that started the hold (tap replay)",
+        options={'SKIP_SAVE', 'HIDDEN'})
 
     element: EnumProperty(
         name="Element",
@@ -610,19 +669,14 @@ def once_tick(ids, last=None, *, read_last=True, moved=None):
 
 
 def _classify_tap(event, key: str) -> str:
-    """The ``core.snap_hold`` event for the D key modal: every other key press counts (also a
-    modifier: Blender's own click rule), unlike the holds' ``classify``."""
-    if event.type == key:
-        return classify(event, key)
-    if event.type in MOUSE_BUTTONS and event.value == 'PRESS':
-        return sh.EV_MOUSE_PRESS
-    if event.type == 'WINDOW_DEACTIVATE':
-        return sh.EV_DEACTIVATE
-    if event.type == 'ESC' and event.value == 'PRESS':
-        return sh.EV_ESC
-    if _is_key_event(event) and not event.is_repeat:
-        return sh.EV_OTHER_KEY
-    return sh.EV_OTHER
+    """The event for the D key modal (``core.pivot_once.hold_step``): the holds' ``classify``,
+    and a modifier press is ``EV_MODIFIER`` (not a tap: Blender's own click rule; D keeps
+    repeating)."""
+    ev = classify(event, key)
+    if (ev == sh.EV_OTHER and event.type != key and _is_key_event(event)
+            and not event.is_repeat):
+        return po.EV_MODIFIER
+    return ev
 
 
 _ONCE_REPORTS = {
@@ -632,16 +686,19 @@ _ONCE_REPORTS = {
 }
 
 
-class MESO_OT_pivot_once(Operator):
-    """Tap D in Object Mode: the next transform moves only the object origins, then your setting comes back; tap D again to cancel"""
+class MESO_OT_pivot_once(_HoldMixin, Operator):
+    """D in Object Mode: hold it and every move, rotate or scale edits only the object origins until you let go; tap it and only the next transform does (tap again to cancel)"""
     bl_idname = "meso.pivot_once"
-    bl_label = "Edit Origins Once"
+    bl_label = "Edit Origins"
     bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
         area = context.area
         return area is not None and area.type == 'VIEW_3D' and context.mode in PIVOT_MODES
+
+    def _element(self):
+        return sh.PIVOT
 
     def _report(self, action):
         if action in _ONCE_REPORTS:
@@ -656,22 +713,8 @@ class MESO_OT_pivot_once(Operator):
 
     def invoke(self, context, event):
         if not _is_key_event(event):
-            return self.execute(context)
-        if event.is_repeat:
-            return {'PASS_THROUGH'}         # a repeat never starts it (see the holds)
-        self._key = event.type
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
-
-    def modal(self, context, event):
-        key = getattr(self, '_key', None)
-        if foreign_now(context):
-            eff = po.tap_step(sh.EV_FOREIGN_ON)
-        else:
-            eff = po.tap_step(_classify_tap(event, key))
-        if eff.tap:
-            self._report(tap_once(context))
-        return _result(eff)
+            return self.execute(context)    # no key (a menu, a script): a tap
+        return _HoldMixin.invoke(self, context, event)
 
 
 def toggle_origins(context) -> bool | None:
@@ -871,6 +914,7 @@ def unregister():
         print(LOG_PREFIX, f"snap hold restore on unregister failed: {ex!r}")
     _reset_session()
     _ops.clear()
+    _pivots.clear()
     _pending.clear()
     for name, fn in _HANDLERS:
         try:

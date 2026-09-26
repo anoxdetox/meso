@@ -3,8 +3,9 @@
 docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot".
 
 Holding X, C, V or J before a drag turns snapping on with one element (grid, edge, vertex or
-increment); a D tap edits object origins for one transform (``core/pivot_once.py``, held here
-under its ``ONCE_KEY`` with the element PIVOT). The held state is an *overlay* on the user's own
+increment); holding D edits object origins while it is down (element PIVOT, the same hold rules)
+and a D tap edits them for one transform (``core/pivot_once.py``, held here under its
+``ONCE_KEY`` with the element PIVOT). The held state is an *overlay* on the user's own
 tool settings: the first press takes a ``Snapshot`` of them (the baseline), each press or
 release writes the overlay of the keys still held, and the last release writes the baseline
 back exactly. Only the fields in ``SNAP_FIELDS`` are ever written, and ``snap_elements`` is
@@ -32,10 +33,11 @@ SNAP_FIELDS = ('snap_elements', 'use_snap', 'use_snap_translate', 'use_snap_rota
                'use_snap_scale', 'use_transform_data_origin')
 AFFECT_FIELDS = ('use_snap_translate', 'use_snap_rotate', 'use_snap_scale')
 
-# Operator class names (Window.modal_operators ids): the hold operators, and every Meso modal
-# that is not "foreign" to a hold (the D tap's short key modal).
-HOLD_OP_IDS = frozenset({'MESO_OT_snap_hold'})
-OWN_IDS = HOLD_OP_IDS | {'MESO_OT_pivot_once'}
+# Operator class names (Window.modal_operators ids): the hold operators (the snap holds and the
+# D key, which holds Affect Only Origins while it is down), and every Meso modal that is not
+# "foreign" to a hold (the same set: no other Meso modal is a hold's own).
+HOLD_OP_IDS = frozenset({'MESO_OT_snap_hold', 'MESO_OT_pivot_once'})
+OWN_IDS = HOLD_OP_IDS
 
 
 @dataclass(frozen=True)

@@ -422,11 +422,12 @@ BINDINGS: tuple[Binding, ...] = (
     ),
     # -- Pivot (step 3; user item C of 2026-09-26) ------------------------------------------
     Binding(
-        'pivot_once', 'PIVOT', "Tap D: Edit Origins Once",
-        "Tap D in Object Mode: the next transform moves only the object origins (Affect Only "
-        "Origins), then your setting comes back; tap D again to cancel. It replaces Industry "
-        "Compatible's D Annotate tool there, which moves to Ctrl Alt D; D + drag still draws "
-        "an annotation",
+        'pivot_once', 'PIVOT', "Hold or Tap D: Edit Origins",
+        "Hold D in Object Mode: every move, rotate or scale while it is down moves only the "
+        "object origins (Affect Only Origins), and your setting comes back when you let go. A "
+        "quick tap: only the next transform does (tap D again to cancel). It replaces Industry "
+        "Compatible's D Annotate tool there, which moves to Ctrl Alt D; D + drag off the gizmo "
+        "still draws an annotation",
         True,
         (Item('Object Mode', Key('D'), 'meso.pivot_once'),),
         (Displaced('Object Mode', Key('D'), _ANNOTATE_CYCLE, 'reloc_annotate'),),

@@ -94,6 +94,7 @@ class HoldCase(unittest.TestCase):
         mod._state['used'] = None
         mod._state['evidence'].clear()
         mod._ops.clear()
+        mod._pivots.clear()
         t = ts()
         for name, value in self.saved.items():
             setattr(t, name, value)
@@ -888,56 +889,365 @@ class TestPivotOnce(HoldCase):
         finally:
             bpy.data.scenes.remove(loaded)
 
-    # the D key modal
-
-    def run_key_modal(self, op, event):
-        with ctx():
-            return hold().MESO_OT_pivot_once.modal(op, bpy.context, event)
-
-    def key_op(self):
-        self.reports = []
-        return SimpleNamespace(_key='D', _report=self.reports.append)
-
-    def test_key_modal_tap_however_long(self):
-        op = self.key_op()
-        for _ in range(25):                                  # a long still hold
-            self.assertEqual(self.run_key_modal(op, ev('D', is_repeat=True)), {'PASS_THROUGH'})
-        self.assertEqual(self.run_key_modal(op, ev('MOUSEMOVE')), {'PASS_THROUGH'})
-        self.assertEqual(ts().use_transform_data_origin, False)   # nothing before the release
-        self.assertEqual(self.run_key_modal(op, ev('D', 'RELEASE')), {'FINISHED'})
-        self.assertEqual(self.reports, ['ARM'])
-        self.assertTrue(ts().use_transform_data_origin and hold().once_armed())
-
-    def test_key_modal_no_tap_with_anything_in_between(self):
-        for etype in ('LEFTMOUSE', 'RIGHTMOUSE', 'W', 'LEFT_SHIFT', 'ESC', 'WINDOW_DEACTIVATE'):
-            with self.subTest(event=etype):
-                op = self.key_op()
-                value = 'NOTHING' if etype == 'WINDOW_DEACTIVATE' else 'PRESS'
-                self.assertEqual(self.run_key_modal(op, ev(etype, value)),
-                                 {'FINISHED', 'PASS_THROUGH'})
-                self.assertEqual(self.reports, [])
-                self.assertEqual(state(), USER)
-
-    def test_key_modal_ends_under_a_foreign_modal(self):
-        op = self.key_op()
-        with modal_ids(['GPENCIL_OT_annotate', 'MESO_OT_pivot_once']):
-            self.assertEqual(self.run_key_modal(op, ev('D', 'RELEASE')),
-                             {'FINISHED', 'PASS_THROUGH'})
-        self.assertEqual(state(), USER)
-
-    def test_key_modal_is_not_foreign_to_a_snap_hold(self):
-        self.press('X', 'GRID')
-        with modal_ids(['MESO_OT_pivot_once', 'MESO_OT_snap_hold']):
-            self.assertFalse(hold().foreign_now())
-            self.assertEqual(self.run_key_modal(self.key_op(), ev('D', 'RELEASE')), {'FINISHED'})
-        self.assertTrue(ts().use_snap and ts().use_transform_data_origin)
-
     def test_operator_exec(self):
         with ctx():
             self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})
             self.assertTrue(hold().once_armed())
             self.assertEqual(bpy.ops.meso.pivot_once(), {'FINISHED'})
         self.assertEqual(state(), USER)
+
+
+D_OP = 'MESO_OT_pivot_once'
+
+
+class TestPivotHold(HoldCase):
+    """The D key (the hold of 2026-09-26): D down writes Affect Only Origins at once, every
+    transform while it is down edits origins, the release gives the user's value back; a quick
+    release with nothing in between is the tap (the one-shot). The running D modal gets stand-in
+    events (``ev``); the watcher gets the modal ids (``modal_ids``)."""
+
+    TR = [['TRANSFORM_OT_translate', D_OP]]
+
+    def down(self, ago=0.0):
+        """D pressed ``ago`` seconds ago: the D hold runs; the op stand-in for its modal."""
+        with ctx():
+            self.assertTrue(hold().start_hold(bpy.context, 'D', 'PIVOT'))
+        if ago:
+            hold()._ops['D'] = dataclasses.replace(hold()._ops['D'],
+                                                   pressed_at=time.monotonic() - ago)
+        self.reports = []
+        return SimpleNamespace(_key='D', _threshold=0.2, _report=self.reports.append)
+
+    def key(self, op, event):
+        with ctx():
+            return hold().MESO_OT_pivot_once.modal(op, bpy.context, event)
+
+    def test_press_writes_at_once(self):
+        self.down()
+        self.assertEqual(state(), dict(USER, use_transform_data_origin=True))
+        self.assertEqual(hold().pivot_keys(), ('D',))
+        self.assertEqual(hold().session().keys(), ['D'])
+        self.assertTrue(hold().watching())
+
+    def test_quick_release_is_the_tap(self):
+        op = self.down()
+        with modal_ids([D_OP]):
+            self.assertEqual(self.key(op, ev('MOUSEMOVE', 'NOTHING')), {'PASS_THROUGH'})
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(self.reports, ['ARM'])
+        self.assertTrue(hold().once_armed() and ts().use_transform_data_origin)
+        self.assertEqual(hold().session().keys(), ['PIVOT_ONCE'])
+        self.assertEqual(hold().running_keys(), ())
+        self.assertEqual(hold().pivot_keys(), ())
+        op = self.down()                                    # a second tap cancels
+        with modal_ids([D_OP]):
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(self.reports, ['CANCEL'])
+        self.assertEqual(state(), USER)
+        self.assertFalse(hold().session().active)
+
+    def test_long_still_press_is_a_hold(self):
+        op = self.down(ago=1.5)
+        with modal_ids([D_OP]):
+            for _ in range(20):
+                self.assertEqual(self.key(op, ev('D', is_repeat=True)), {'PASS_THROUGH'})
+            self.assertTrue(ts().use_transform_data_origin)
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(self.reports, [])
+        self.assertEqual(state(), USER)
+        self.assertFalse(hold().once_armed() or hold().session().active)
+
+    def test_anything_in_between_makes_it_a_hold(self):
+        for etype in ('LEFTMOUSE', 'RIGHTMOUSE', 'W', 'LEFT_SHIFT', 'LEFT_CTRL'):
+            with self.subTest(event=etype):
+                op = self.down()
+                with modal_ids([D_OP]):
+                    self.assertEqual(self.key(op, ev(etype)), {'PASS_THROUGH'})
+                    self.assertTrue(ts().use_transform_data_origin)     # still held
+                    self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+                self.assertEqual(self.reports, [])
+                self.assertEqual(state(), USER)
+                self.assertFalse(hold().once_armed())
+
+    def test_esc_and_deactivate_end_the_hold(self):
+        for etype, value in (('ESC', 'PRESS'), ('WINDOW_DEACTIVATE', 'NOTHING')):
+            with self.subTest(event=etype):
+                op = self.down()
+                with modal_ids([D_OP]):
+                    self.assertEqual(self.key(op, ev(etype, value)),
+                                     {'FINISHED', 'PASS_THROUGH'})
+                self.assertEqual(state(), USER)
+                self.assertEqual(hold().running_keys(), ())
+
+    def test_classify(self):
+        sh, po = core(), hold().po
+        cls = hold()._classify_tap
+        self.assertEqual(cls(ev('D', is_repeat=True), 'D'), sh.EV_OWN_REPEAT)
+        self.assertEqual(cls(ev('D'), 'D'), sh.EV_OWN_PRESS)
+        self.assertEqual(cls(ev('D', 'RELEASE'), 'D'), sh.EV_OWN_RELEASE)
+        for mod in ('LEFT_SHIFT', 'RIGHT_CTRL', 'LEFT_ALT', 'OSKEY'):
+            self.assertEqual(cls(ev(mod), 'D'), po.EV_MODIFIER, mod)
+            self.assertEqual(cls(ev(mod, 'RELEASE'), 'D'), sh.EV_OTHER, mod)
+        for key in ('W', 'G', 'INSERT', 'SPACE', 'F9'):
+            self.assertEqual(cls(ev(key), 'D'), sh.EV_OTHER_KEY, key)
+        self.assertEqual(cls(ev('LEFTMOUSE'), 'D'), sh.EV_MOUSE_PRESS)
+        self.assertEqual(cls(ev('MOUSEMOVE', 'NOTHING'), 'D'), sh.EV_OTHER)
+
+    def test_every_transform_while_held_edits_origins(self):
+        """Three drags with D held (repeats between them), then the release: nothing is written
+        while a transform runs, the overlay stays between them, the release restores."""
+        op = self.down(ago=1.0)
+        overlay = state()
+        for n in range(3):
+            with modal_ids([D_OP]):
+                self.assertEqual(self.key(op, ev('LEFTMOUSE')), {'PASS_THROUGH'})
+            with modal_ids(self.TR[0]):
+                hold()._watch()
+                self.assertEqual(hold()._ops['D'].phase, core().FOREIGN)
+                self.assertEqual(self.key(op, ev('D', is_repeat=True)), {'PASS_THROUGH'})
+                self.assertEqual(state(), overlay, n)
+            with modal_ids([D_OP]):
+                hold()._watch()                             # the transform ended
+                self.assertEqual(hold().checking_keys(), ('D',))
+                self.assertEqual(state(), overlay, n)       # D may still be down
+                self.assertEqual(self.key(op, ev('D', is_repeat=True)), {'PASS_THROUGH'})
+                self.assertEqual(hold().checking_keys(), ())
+        with modal_ids([D_OP]):
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(state(), USER)
+        self.assertFalse(hold().once_armed())
+
+    def test_release_swallowed_by_the_transform_times_out(self):
+        op = self.down()
+        with modal_ids([D_OP]):
+            self.key(op, ev('LEFTMOUSE'))
+        with modal_ids(self.TR[0]):
+            hold()._watch()
+        with modal_ids([D_OP]):
+            hold()._watch()
+            self.assertTrue(ts().use_transform_data_origin)
+            hold()._watch(time.monotonic() + 60.0)       # the watcher then stops
+            self.assertEqual(state(), USER)                 # no repeat: counted as released
+            self.assertEqual(hold().running_keys(), ())
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})    # late, swallowed
+
+    def test_release_under_a_foreign_modal_waits(self):
+        op = self.down()
+        with modal_ids(['GPENCIL_OT_annotate', D_OP]):       # D + LMB: the annotate modal
+            hold()._watch()
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'RUNNING_MODAL'})
+            self.assertTrue(ts().use_transform_data_origin)     # never written under it
+        with modal_ids([D_OP]):
+            hold()._watch()
+        self.assertEqual(state(), USER)
+        self.assertEqual(self.reports, [])
+
+    def test_the_transform_reads_the_overlay_and_the_release_restores(self):
+        """Blender's own transform while D is held moves only the origin; after the release a
+        transform moves the object."""
+        cube = bpy.data.objects.get("Cube")
+        if cube is None:
+            self.skipTest("no Cube")
+        loc, co = tuple(cube.location), [tuple(v.co) for v in cube.data.vertices]
+        try:
+            for o in bpy.context.view_layer.objects:
+                o.select_set(o is cube)
+            bpy.context.view_layer.objects.active = cube
+            world = [tuple(cube.matrix_world @ v.co) for v in cube.data.vertices]
+            op = self.down()
+            with modal_ids([D_OP]):
+                self.key(op, ev('G'))                       # a key: a hold, not a tap
+            for _ in range(2):
+                with ctx():
+                    bpy.ops.transform.translate(value=(1.0, 0.0, 0.0))
+            bpy.context.view_layer.update()
+            self.assertAlmostEqual(cube.location.x, loc[0] + 2.0, places=4)
+            self.assertEqual([[round(x, 4) for x in a] for a in world],
+                             [[round(x, 4) for x in (cube.matrix_world @ v.co)]
+                              for v in cube.data.vertices])
+            with modal_ids([D_OP]):
+                self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+            self.assertEqual(state(), USER)
+            with ctx():
+                bpy.ops.transform.translate(value=(1.0, 0.0, 0.0))
+            bpy.context.view_layer.update()
+            self.assertNotEqual(world[0], tuple(cube.matrix_world @ cube.data.vertices[0].co))
+        finally:
+            cube.location = loc
+            for v, c in zip(cube.data.vertices, co):
+                v.co = c
+            cube.data.update()
+
+    def test_hold_while_armed_replaces_the_one_shot(self):
+        with ctx():
+            self.assertEqual(hold().tap_once(bpy.context), 'ARM')
+        op = self.down()
+        with modal_ids([D_OP]):
+            self.key(op, ev('LEFTMOUSE'))
+        with modal_ids(self.TR[0]):
+            hold()._watch()
+        with modal_ids([D_OP]):
+            hold()._watch()
+            self.key(op, ev('D', is_repeat=True))
+            self.assertTrue(ts().use_transform_data_origin)
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(state(), USER)
+        self.assertFalse(hold().once_armed() or hold().session().active)
+
+    def test_hold_with_the_persistent_mode_on_changes_nothing(self):
+        ts().use_transform_data_origin = True
+        op = self.down(ago=1.0)
+        with modal_ids([D_OP]):
+            self.key(op, ev('LEFTMOUSE'))
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(state(), dict(USER, use_transform_data_origin=True))
+        op = self.down()                                    # and a tap arms nothing
+        with modal_ids([D_OP]):
+            self.key(op, ev('D', 'RELEASE'))
+        self.assertEqual(self.reports, ['ALREADY_ON'])
+        self.assertTrue(ts().use_transform_data_origin)
+        self.assertFalse(hold().once_armed())
+
+    def test_insert_while_held_makes_it_persistent(self):
+        op = self.down()
+        with modal_ids([D_OP]):
+            self.key(op, ev('INSERT'))
+            with ctx():
+                self.assertEqual(bpy.ops.meso.pivot_toggle(), {'FINISHED'})
+            self.assertTrue(ts().use_transform_data_origin)
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertTrue(ts().use_transform_data_origin)     # on until Insert again
+        self.assertFalse(hold().session().active)
+        with ctx():
+            bpy.ops.meso.pivot_toggle()
+        self.assertEqual(state(), USER)
+
+    def test_with_a_snap_hold(self):
+        """X held, then D held: both overlays; each release gives back only its own fields."""
+        self.press('X', 'GRID')
+        op = self.down()
+        self.assertTrue(ts().use_snap and ts().use_transform_data_origin)
+        with modal_ids(['MESO_OT_snap_hold', D_OP]):
+            self.assertFalse(hold().foreign_now())
+            self.key(op, ev('LEFTMOUSE'))
+            self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+        self.assertTrue(ts().use_snap)
+        self.assertFalse(ts().use_transform_data_origin)
+        hold().release_key('X')
+        self.assertEqual(state(), USER)
+        op = self.down()                                    # a D tap with X held: still a tap
+        self.press('X', 'GRID')
+        with modal_ids(['MESO_OT_snap_hold', D_OP]):
+            self.key(op, ev('D', 'RELEASE'))
+        self.assertEqual(self.reports, ['ARM'])
+
+    def test_redo_of_a_transform_made_while_held_edits_origins(self):
+        """Adjust Last Operation on the last transform made while D was held runs it again with
+        Affect Only Origins on (the one-shot's ``undo_post`` rule)."""
+        mod = hold()
+        orig = mod.last_registered
+        try:
+            mod.last_registered = lambda context=None: (1, 'VIEW3D_OT_select')
+            op = self.down()
+            with modal_ids([D_OP]):
+                self.key(op, ev('LEFTMOUSE'))
+                mod.last_registered = lambda context=None: (2, 'TRANSFORM_OT_translate')
+                self.assertEqual(self.key(op, ev('D', 'RELEASE')), {'FINISHED'})
+            self.assertEqual(state(), USER)
+            self.assertEqual(mod._state['used'],
+                             (2, 'TRANSFORM_OT_translate', bpy.context.scene.session_uid))
+            mod._undo_post(bpy.context.scene)
+            self.assertTrue(ts().use_transform_data_origin and mod.redo_pending())
+            self.assertIsNone(mod._redo_restore())
+            self.assertEqual(state(), USER)
+            # a hold with no transform of its own records nothing
+            mod._state['used'] = None
+            op = self.down(ago=1.0)
+            with modal_ids([D_OP]):
+                self.key(op, ev('D', 'RELEASE'))
+            self.assertIsNone(mod._state['used'])
+        finally:
+            mod.last_registered = orig
+            mod.finish_redo()
+
+    def test_watcher_keeps_a_running_d_hold(self):
+        mod = hold()
+        self.down()
+        with modal_ids([D_OP]):
+            for _ in range(mod.MISSING_TICKS + 2):
+                mod._watch()
+        self.assertTrue(ts().use_transform_data_origin)
+        with modal_ids([]):                                 # its operator is gone
+            for _ in range(mod.MISSING_TICKS):
+                mod._watch()
+        self.assertEqual(state(), USER)
+        self.assertEqual(mod.pivot_keys(), ())
+
+    def test_teardown_restores(self):
+        sh = core()
+        for teardown in ('end_all', 'load_pre', 'cancel', 'unregister'):
+            with self.subTest(teardown=teardown):
+                self.down()
+                if teardown == 'end_all':
+                    hold().end_all()
+                elif teardown == 'load_pre':
+                    hold()._load_pre()
+                elif teardown == 'cancel':
+                    hold()._drive('D', sh.EV_CANCEL)
+                else:
+                    hold().unregister()
+                    try:
+                        self.assertEqual(state(), USER)
+                    finally:
+                        hold().register()
+                self.assertEqual(state(), USER)
+                self.assertFalse(hold().session().active)
+                hold()._ops.clear()
+                hold()._pivots.clear()
+
+    def test_saved_file_has_the_user_value(self):
+        self.down()
+        path = os.path.join(tempfile.mkdtemp(), "hold_d.blend")
+        bpy.ops.wm.save_as_mainfile(filepath=path, copy=True, check_existing=False)
+        self.assertTrue(ts().use_transform_data_origin)
+        name = bpy.context.scene.name
+        with bpy.data.libraries.load(path) as (src, dst):
+            dst.scenes = [name]
+        loaded = dst.scenes[0]
+        try:
+            self.assertFalse(loaded.tool_settings.use_transform_data_origin)
+        finally:
+            bpy.data.scenes.remove(loaded)
+
+    def test_no_press_under_a_foreign_modal(self):
+        with modal_ids(['VIEW3D_OT_rotate']), ctx():
+            self.assertFalse(hold().start_hold(bpy.context, 'D', 'PIVOT'))
+        self.assertEqual(state(), USER)
+
+    def test_a_repeat_never_starts_it(self):
+        op = SimpleNamespace(_element=lambda: 'PIVOT')
+        with ctx():
+            self.assertEqual(hold()._HoldMixin.invoke(op, bpy.context, ev('D', is_repeat=True)),
+                             {'PASS_THROUGH'})
+        self.assertFalse(hold().session().active)
+
+
+class TestAnnotateWhileDHeld(MesoKeymapCase):
+    """Native D + LMB (the 'Grease Pencil' keymap's held-key-modifier annotate) stays in the
+    Meso keyconfig, active, in a keymap that runs in the 3D View before the tool keymaps:
+    D + drag off the gizmo still annotates while the D hold runs (checked with real input,
+    ``ri_d_hold_annotate_*``)."""
+
+    def test_d_lmb_annotate_items(self):
+        self.meso_on()
+        found = []
+        for km in wm().keyconfigs.user.keymaps:
+            for kmi in km.keymap_items:
+                if kmi.key_modifier == 'D' and kmi.active:
+                    found.append((km.name, kmi.idname, kmi.type))
+        self.assertIn(('Grease Pencil', 'gpencil.annotate', 'LEFTMOUSE'), found)
+        self.assertIn(('Grease Pencil', 'gpencil.annotate', 'RIGHTMOUSE'), found)
+        self.assertFalse([f for f in found if f[1].startswith('meso.')])
 
 
 class TestAnnotateRelocation(MesoKeymapCase):

@@ -291,8 +291,8 @@ GROUP_HINTS = {
         "Every snap option stays in the header and the Plaza Tool Settings row.",
     ),
     'PIVOT': (
-        "Tap D: only the next transform moves the origins (tap D again to cancel). Insert: "
-        "on until Insert again.",
+        "Hold D: every transform moves only the origins until you let go. Tap D: only the "
+        "next transform does (tap D again to cancel). Insert: on until Insert again.",
         "Object Mode only. Affect Only Origins is also in the Options menu of the header and "
         "the Plaza Tool Settings row.",
     ),
@@ -302,6 +302,7 @@ _GROUP_EXTRAS = {
     'PROPERTIES': ('properties_cycle_order',),
     'ISOLATE': ('isolate_frame_selected',),
     'SNAPPING': ('hold_tap_threshold',),
+    'PIVOT': ('hold_tap_threshold',),
 }
 
 

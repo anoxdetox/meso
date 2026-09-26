@@ -304,8 +304,9 @@ class MesoAddonPreferences(AddonPreferences):
     )
     hold_tap_threshold: FloatProperty(
         name="Hold Key Tap Threshold",
-        description="A snap hold key released faster than this (seconds), with no "
-                    "click or drag in between, runs the key's native action instead",
+        description="A hold key (X, C, V, J, D) released faster than this (seconds), with "
+                    "nothing in between, is a tap: X, C and V run their native action, D edits "
+                    "origins for the next transform",
         default=0.20,
         min=0.0,
         max=1.0,
