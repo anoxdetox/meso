@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Keymap section of the add-on preferences (docs/phase4-interfaces.md, "Preferences keymap").
+"""Keymap section of the add-on preferences (local/docs/phase4-interfaces.md, "Preferences keymap").
 
 The add-on's items are shown as merged into ``wm.keyconfigs.user`` (where the user edits
 them, as in the hotkey editor), grouped by the hotkey editor's own nesting
@@ -10,7 +10,7 @@ them, as in the hotkey editor), grouped by the hotkey editor's own nesting
 and the paint/sculpt mode maps) at once, whatever key they carry now; the Text/Console chord
 items are never touched (they follow the ``text_chord`` preference).
 
-The "Meso Keymap" box above it (docs/meso-keymap-interfaces.md, "Preferences UI") holds the
+The "Meso Keymap" box above it (local/docs/meso-keymap-interfaces.md, "Preferences UI") holds the
 keymap choice, "Reset to default (Meso)", the binding list (grouped, collapsible; what each key
 does and what it displaces) with the Meso options, and the warnings. The bindings are items of
 the "Meso" keyconfig: users switch and rebind them in Blender's keymap editor, or in the
@@ -287,7 +287,7 @@ def _draw_cycle_hint(layout, text):
         _wrapped(col, line, indent=BODY_INDENT)
 
 
-# Greyed hints under a group's bindings (the hold-J blocker: docs/meso-keymap-interfaces.md).
+# Greyed hints under a group's bindings (the hold-J blocker: local/docs/meso-keymap-interfaces.md).
 GROUP_HINTS = {
     'SNAPPING': (
         "Every drag snaps while the key is held; your snap settings come back when you let go.",

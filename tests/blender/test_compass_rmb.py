@@ -1,4 +1,4 @@
-"""Phase 5b: the right-click and Shift+right-click Compass menus (docs/phase5b-interfaces.md):
+"""Phase 5b: the right-click and Shift+right-click Compass menus (local/docs/phase5b-interfaces.md):
 the ``meso:context`` / ``meso:tools`` content in real modes, the drawing without a Plaza, and
 ``meso.compass_rmb`` driven through a stand-in operator (the class's own invoke / modal on a
 plain object: headless runs no modal, so ``modal_handler_add`` only records it). The native

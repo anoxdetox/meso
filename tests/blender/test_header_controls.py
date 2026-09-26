@@ -1,6 +1,6 @@
 """record/header_controls.py: header recordings -> Tool Settings row (Phase 3, B).
 
-Goldens per docs/header-controls-5.2.md §1-§2 / §7: the centre controls of every 3D View
+Goldens per local/docs/header-controls-5.2.md §1-§2 / §7: the centre controls of every 3D View
 mode reachable headless (the GUI default tool set with ``wm.tool_set_by_id`` first, spikes.md
 "Headless tool state"), UV sync on/off, the Sequencer with and without ``sequencer_scene`` x 3
 view types, Graph F-Curves / Drivers, Dope Sheet, Timeline, NLA, Node trees and Clip; the

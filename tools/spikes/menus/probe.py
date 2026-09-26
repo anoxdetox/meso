@@ -3,7 +3,7 @@
 Run (GUI, event simulation, never saves prefs):
 
     tools/spikes/menus/run.sh RAW.json [SHOTS_DIR] [--host]     # nested virtual KWin by default
-    python3 tools/spikes/menus/build_json.py RAW.json docs/spikes/menus.json
+    python3 tools/spikes/menus/build_json.py RAW.json local/docs/spikes/menus.json
 
 or directly: BLENDER_USER_EXTENSIONS=$(mktemp -d) timeout 180 "$B" \
         --factory-startup --enable-event-simulate --python tools/spikes/menus/probe.py \
@@ -13,7 +13,7 @@ Everything is driven from one bpy.app.timers state machine (generator steps; eac
 `yield <seconds>` hands control back to the WM so simulated events are processed and
 the window redraws).  The script quits Blender itself; a hard deadline guards it.
 
-Spikes (see docs/verified-facts-5.2.md section 7):
+Spikes (see local/docs/verified-facts-5.2.md section 7):
   7  UILayout.introspect() schema inside real menu draws (VIEW3D_MT_add, VIEW3D_MT_object,
      modifier asset menus, and a header draw).
   8  operator_context seen by submenu draws (root via call_menu, probe roots that set a

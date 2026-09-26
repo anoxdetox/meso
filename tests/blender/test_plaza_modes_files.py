@@ -1,5 +1,5 @@
 """The mode switcher and Recent Files as Plaza custom dropdowns (record/builtin_menus.py,
-the built menus of core.tables.BUILT_MENUS; docs/phase4-interfaces.md "Built menus").
+the built menus of core.tables.BUILT_MENUS; local/docs/phase4-interfaces.md "Built menus").
 
 - the mode dropdown lists exactly the modes ``object.mode_set``'s itemf offers for each
   object type (as the native header menu, ``MESO_MT_mode_switch`` recorded natively), with
@@ -9,7 +9,7 @@ the built menus of core.tables.BUILT_MENUS; docs/phase4-interfaces.md "Built men
   place with the native call (INVOKE_REGION_WIN, the undo flag), keeps the Plaza open and
   re-records every row for the new mode (the undo step itself is a GUI check: with the undo
   flag ``object.mode_set``'s nested mode toggle, a REGISTER operator, segfaults in ``-b``
-  under the test's area override, docs/verified-facts-5.2.md, so the headless ``run_call`` drops the flag);
+  under the test's area override, local/docs/verified-facts-5.2.md, so the headless ``run_call`` drops the flag);
 - Recent Files: a fixture ``recent-files.txt`` (written ONLY into this run's temp
   ``BLENDER_USER_CONFIG``, restored afterwards) is listed in order, capped like native, with
   file names, the ``wm.open_mainfile`` calls, More... and Clear Recent Files List...; the

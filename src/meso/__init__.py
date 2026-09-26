@@ -55,5 +55,5 @@ def unregister():
     for mod in reversed(_modules):
         mod.unregister()
     # Last, with the operators gone: keep the operator properties of the user's keymap edits
-    # of Meso items (docs/spikes/meso-keyconfig-preset.md, section 5).
+    # of Meso items (local/docs/spikes/meso-keyconfig-preset.md, section 5).
     meso_keymap.keep_user_edits()

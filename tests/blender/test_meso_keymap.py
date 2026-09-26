@@ -1,5 +1,5 @@
 """The Meso keyconfig (meso_keymap.py, presets/keyconfig/Meso.py, core/meso_bindings.py;
-docs/meso-keymap-interfaces.md).
+local/docs/meso-keymap-interfaces.md).
 
 Runs inside Blender via tests/run_tests.py (the Blender keyconfig is active at the start; these
 tests select Meso themselves and always go back to Blender, with the user edits of the Meso
@@ -717,7 +717,7 @@ class TestApplyInPlaza(MesoKeymapCase):
 
 
 class TestCompassRmbBindings(MesoKeymapCase):
-    """Phase 5b (docs/phase5b-interfaces.md "Bindings"): the right-click Compass in the eight
+    """Phase 5b (local/docs/phase5b-interfaces.md "Bindings"): the right-click Compass in the eight
     3D View mode keymaps, the Shift+right-click tool Compass and the 3D cursor on
     Ctrl+Shift+RMB. Each Meso item is the first item on its chord in the Meso keyconfig, with
     Industry Compatible's own items after it (shadowed, never removed); switching the Meso items

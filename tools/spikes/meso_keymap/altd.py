@@ -1,6 +1,6 @@
 """Alt D through the 'User Interface' keymap: a pass-through wrapper for the driver removal
-(user item F of 2026-09-26, docs/spikes/meso-feedback-3.md; decision C13 in
-docs/meso-keymap-interfaces.md).
+(user item F of 2026-09-26, local/docs/spikes/meso-feedback-3.md; decision C13 in
+local/docs/meso-keymap-interfaces.md).
 
 Run ONLY through tools/spikes/meso_keymap/run.sh (nested kwin_wayland --virtual --xwayland, temp
 config dirs, private runtime dir and D-Bus; --enable-event-simulate):

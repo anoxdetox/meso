@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Keyconfig choice rules of the Meso Keymap (pure; no bpy).
 
-Contract: docs/meso-keymap-interfaces.md, "Delivery model" and "Keyconfig choice". The bpy side
+Contract: local/docs/meso-keymap-interfaces.md, "Delivery model" and "Keyconfig choice". The bpy side
 (``meso_keymap``) gathers plain values (the active keyconfig name, the loaded names, whether a
 preset file exists) and applies the returned plan.
 

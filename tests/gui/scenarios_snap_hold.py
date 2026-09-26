@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """GUI scenarios of the Meso Keymap step 3: pre-drag snap holds, the D tap one-shot pivot edit
-and the Insert toggle, and the protected-feature sweep (docs/meso-keymap-interfaces.md, "Test plan" G8-G13).
+and the Insert toggle, and the protected-feature sweep (local/docs/meso-keymap-interfaces.md, "Test plan" G8-G13).
 
 These scenarios start transforms (a cursor grab), so the module sets ``NEEDS_GRAB``:
 ``tests/gui/run_gui_tests.sh`` runs them in its Xwayland session (Blender on the X11 backend;
@@ -1059,7 +1059,7 @@ def scenarios(drv):
             # Shift RMB drag (IC's cursor drag): the same with every Meso binding off and with
             # every binding on but the two that own the cursor chords (compass_tools on Shift
             # RMB, reloc_cursor on Ctrl Shift RMB: the planned scenarios_compass_rmb module,
-            # docs/phase5b-interfaces.md "Tests", is to drive those), so no
+            # local/docs/phase5b-interfaces.md "Tests", is to drive those), so no
             # other Meso item swallows it (under event_simulate Industry Compatible's PRESS
             # cursor3d item may keep the drag from starting; what matters is that Meso changes
             # nothing)

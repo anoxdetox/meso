@@ -1,4 +1,4 @@
-"""Long-hold X before a translate: real keyboard auto-repeat (docs/spikes/meso-hold-long-press.md).
+"""Long-hold X before a translate: real keyboard auto-repeat (local/docs/spikes/meso-hold-long-press.md).
 
 Run ONLY through tools/spikes/meso_keymap/run.sh (nested kwin_wayland --virtual --xwayland, temp
 config dirs, private XDG_RUNTIME_DIR and D-Bus):
@@ -496,7 +496,7 @@ def run_case(name, path, hold, patched=False):
 
 # ------------------------------------------------------------------------------ pivot (hold D)
 #
-# MESO_SPIKE_SET=pivot (run.sh pivothold): UH2 of docs/meso-keymap-interfaces.md with real input.
+# MESO_SPIKE_SET=pivot (run.sh pivothold): UH2 of local/docs/meso-keymap-interfaces.md with real input.
 # Real events carry the held-key modifier (event_simulate never sets it), so these cases show what
 # D + LMB does while the pivot hold runs: the Move gizmo (the gizmo handler runs before the
 # 'Grease Pencil' keymap's D+LMB annotate), or an annotation stroke off the gizmo (native).
@@ -610,7 +610,7 @@ def run_pivot_case(name, path, hold, patched=False):
 # ------------------------------------------------------------------------------ multi-drag (hold X)
 #
 # MESO_SPIKE_SET=multidrag / multidrag_proto (run.sh multidrag / multidrag_proto): user item B of
-# 2026-09-26, docs/spikes/meso-feedback-3.md. While X stays down, a second and third drag must snap
+# 2026-09-26, local/docs/spikes/meso-feedback-3.md. While X stays down, a second and third drag must snap
 # too. The transform swallows the key release, so these cases record what reaches the window's
 # modal handlers AFTER a transform ends, with X still down or released during / after the drag:
 #   - an observer modal (mesospike.observe, PASS_THROUGH for everything) started right after the

@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Compass content: slot values -> ``core.compass.CompassModel`` (Phase 5; bpy).
 
-Contract: docs/phase5-interfaces.md "Compass content". :func:`build_compass` takes a slot
+Contract: local/docs/phase5-interfaces.md "Compass content". :func:`build_compass` takes a slot
 value (``core.zones.parse_slot``): a Menu idname (a pie menu -> radial slots in Blender's pie
 order; a plain menu -> the list) or a built-in id (``meso:layout`` ...). Everything is plain
 data (no RNA survives the call); operator items carry their poll result as ``enabled``.
 Runs with the invoking area's override held by the caller (``record.dropdown.invoking_context``).
 
-Phase 5b (docs/phase5b-interfaces.md "Content"): the right-click Compasses of
+Phase 5b (local/docs/phase5b-interfaces.md "Content"): the right-click Compasses of
 ``meso.compass_rmb``, ``meso:context`` (the modes around the pointer, the editor's context
 menu as the list; ``build_compass(menu=...)`` names that menu) and ``meso:tools`` (the most
 used tools of the mode / mesh select mode, the mode's tool menu as the list). Both are valid
@@ -404,7 +404,7 @@ def _mode_item(row: DropdownItem) -> DropdownItem:
 
 
 def _context(context: Any, plaza: Any, prefs: Any, menu: str = '') -> cp.CompassModel:
-    """``meso:context`` (docs/phase5b-interfaces.md "Content"): the mode switch
+    """``meso:context`` (local/docs/phase5b-interfaces.md "Content"): the mode switch
     (``record.builtin_menus.mode_switch_model``) around the pointer
     (``core.compass_rmb.mode_slots``: Object Mode NE, the Edit Mode label E, its select-mode
     cells W / N / S, the other modes SE / SW / NW; modes past those are listed first), then
@@ -469,7 +469,7 @@ def _tool_item(context: Any, slot: rmb.ToolSlot) -> DropdownItem | None:
 
 
 def _tools(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:
-    """``meso:tools`` (docs/phase5b-interfaces.md "Content"): Object Mode and the mesh
+    """``meso:tools`` (local/docs/phase5b-interfaces.md "Content"): Object Mode and the mesh
     select modes (the first selected of vertex, edge, face) have a radial of tools
     (``core.compass_rmb.TOOL_SLOTS``) and their tool menu as the list; every other mode has
     no radial and the mode's main menu (``core.compass_rmb.mode_menu``) as the list."""

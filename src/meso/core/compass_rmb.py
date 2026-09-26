@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The right-click and Shift+right-click Compass menus (Phase 5b, pure; no bpy).
 
-Contract: docs/phase5b-interfaces.md "The operator", "Content". ``meso.compass_rmb`` runs on
+Contract: local/docs/phase5b-interfaces.md "The operator", "Content". ``meso.compass_rmb`` runs on
 a mouse press in the 3D View: a quick click keeps Blender's native action (the context
 menu; the 3D cursor placement), a hold or a drag opens the Compass at the press point and
 the Phase 5 gesture (``core.compass``) takes over. This module holds the decisions the
@@ -191,7 +191,7 @@ def pick_action(item: DropdownItem | None) -> Action | None:
 # --- content tables ------------------------------------------------------------------------
 
 # The mode keymaps of the right-click Compass (decision 86 a) -> Industry Compatible's
-# context menu there (measured headless 2026-09-26, docs/phase5b-interfaces.md).
+# context menu there (measured headless 2026-09-26, local/docs/phase5b-interfaces.md).
 CONTEXT_MENUS: dict[str, str] = {
     'Object Mode': 'VIEW3D_MT_object_context_menu',
     'Mesh': 'VIEW3D_MT_edit_mesh_context_menu',

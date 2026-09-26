@@ -16,3 +16,6 @@ dist/
 
 # machine-specific paths for tools/env.sh (B=..., PY=...)
 /local.env
+
+# GUI test output (screenshots of the last runs)
+/tests/gui/out/

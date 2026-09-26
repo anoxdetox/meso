@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The Compass menus inside the running Plaza (Phase 5; docs/phase5-interfaces.md).
+"""The Compass menus inside the running Plaza (Phase 5; local/docs/phase5-interfaces.md).
 
 ``ops.dropdowns.handle_event`` hands every event to :func:`handle` first:
 

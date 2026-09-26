@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The right-click and Shift+right-click Compass menus (Phase 5b; docs/phase5b-interfaces.md
+"""The right-click and Shift+right-click Compass menus (Phase 5b; local/docs/phase5b-interfaces.md
 "The operator").
 
 ``meso.compass_rmb`` is what the Meso Keymap binds on RMB in the 3D View mode keymaps (``kind``

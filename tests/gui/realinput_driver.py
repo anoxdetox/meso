@@ -2,7 +2,7 @@
 """GUI regression suite with REAL input: key auto-repeat during the pre-drag holds, and
 real-hand Plaza menu exits.
 
-The long-hold bug (docs/spikes/meso-hold-long-press.md): holding X (or C, V, J) longer than
+The long-hold bug (local/docs/spikes/meso-hold-long-press.md): holding X (or C, V, J) longer than
 the OS auto-repeat delay before a drag moved nothing, because the hold consumed its key repeats
 and a handled key event cancels Blender's pending click-drag. ``Window.event_simulate`` cannot
 send a repeat (its events carry no flags, and ``--enable-event-simulate`` makes Blender drop every
@@ -34,7 +34,7 @@ and a non-empty individual snap set):
   CONS_OFF) and J (increment) held long before a Tweak drag: the transform starts and moves.
 
 G16 (user item B of 2026-09-26, every drag snaps while the key is held;
-docs/spikes/meso-feedback-3.md): several drags during one X hold, with the Tweak tool and on the
+local/docs/spikes/meso-feedback-3.md): several drags during one X hold, with the Tweak tool and on the
 Move gizmo, a short hold with fast drags before the first repeat, the key released during and
 after a drag, Shift and Ctrl during a drag, a still pointer between drags, and another
 repeating key (W) tapped while X is held (the documented fallback: one snapped drag). Each

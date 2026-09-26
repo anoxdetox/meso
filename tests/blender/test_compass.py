@@ -1,4 +1,4 @@
-"""Phase 5: Compass menus (docs/phase5-interfaces.md): pie slot recording, the built-in
+"""Phase 5: Compass menus (local/docs/phase5-interfaces.md): pie slot recording, the built-in
 Compasses in real contexts, and the Plaza modal driven through the Phase 4 stub
 (tests/blender/test_dropdowns.py ``_Case``: fake dropdown builders and run seams, the real
 reducer, geometry and Compass code). Never opens a popup (-b).

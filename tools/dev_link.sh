@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Symlink the Meso Mode source package into Blender 5.2's user_default extension repo
 # for GUI testing. The module becomes bl_ext.user_default.meso.
-# (docs/verified-facts-5.2.md section 6, "Dev install")
+# (local/docs/verified-facts-5.2.md section 6, "Dev install")
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

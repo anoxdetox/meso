@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for the right-click Compass menus (Phase 5b, docs/phase5b-interfaces.md) with
+"""GUI scenarios for the right-click Compass menus (Phase 5b, local/docs/phase5b-interfaces.md) with
 the Meso Keymap selected: a right-click tap keeps the native context menu, a hold opens the
 Compass (a drag north picks Edge), Shift+right-click taps place the 3D cursor and holds open
 the tool Compass, Ctrl+Shift+right-click drags move the cursor. The cursor drag starts a

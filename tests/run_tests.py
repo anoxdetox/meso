@@ -4,7 +4,7 @@ Usage (from the repo root):
     BLENDER_USER_EXTENSIONS=$(mktemp -d) "$B" -b --factory-startup \
         --python-exit-code 1 --python tests/run_tests.py -- [-k pattern] [-v]
 
-Steps (docs/verified-facts-5.2.md section 6, "Test harness"):
+Steps (local/docs/verified-facts-5.2.md section 6, "Test harness"):
   1. assert factory startup (so nothing below can persist user preferences),
   2. add an in-memory extension repo pointing at <repo>/src (module 'meso_dev'),
   3. enable 'bl_ext.meso_dev.meso' with default_set=True; any error exits non-zero,

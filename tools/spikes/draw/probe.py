@@ -7,8 +7,8 @@ Run (GUI, one backend per process; see run.sh):
 
 Everything is driven from a bpy.app.timers generator ("script"), events are injected with
 window.event_simulate (needs --enable-event-simulate), and the script quits Blender itself.
-Results are merged into docs/spikes/draw.json under runs[<BACKEND>]; screenshots go to
-docs/spikes/draw_<backend>*.png (downscaled to <= 800 px wide, minimal zlib PNG writer).
+Results are merged into local/docs/spikes/draw.json under runs[<BACKEND>]; screenshots go to
+local/docs/spikes/draw_<backend>*.png (downscaled to <= 800 px wide, minimal zlib PNG writer).
 
 Spike-only code: it deliberately keeps Area/Region references for a few ticks (forbidden in
 live Meso Mode code).
@@ -31,10 +31,10 @@ import numpy as np
 from gpu_extras.batch import batch_for_shader
 
 ROOT = Path(os.environ.get("MESO_ROOT", Path(__file__).resolve().parents[3]))
-NOTES = ROOT / "docs" / "spikes"
+NOTES = ROOT / "local" / "docs" / "spikes"
 DEADLINE = time.monotonic() + float(os.environ.get("MESO_SPIKE_DEADLINE", "150"))
 
-# docs/verified-facts-5.2.md section 5, "Valid draw_handler_add spaces and regions".
+# local/docs/verified-facts-5.2.md section 5, "Valid draw_handler_add spaces and regions".
 TABLE = {
     "SpaceView3D": ["WINDOW", "HEADER", "UI", "TOOLS", "ASSET_SHELF", "ASSET_SHELF_HEADER", "HUD",
                     "TOOL_HEADER", "XR"],

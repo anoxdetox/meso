@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """GUI scenarios for the built dropdowns: the mode switcher and Recent Files (record/
-builtin_menus.py; docs/phase4-interfaces.md "Built menus").
+builtin_menus.py; local/docs/phase4-interfaces.md "Built menus").
 
 Loaded by ``tests/gui/gui_driver.py`` (module contract as scenarios_phase4.py). Both run with
 ``hover_open`` False (clicks only), restore what they change in ``finally`` and use temp files

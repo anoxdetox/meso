@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""POST_PIXEL draw-handler lifecycle for the Plaza overlay (docs/spikes.md D2).
+"""POST_PIXEL draw-handler lifecycle for the Plaza overlay (local/docs/spikes.md D2).
 
 One handler per (Space subclass, region type) pair of verified-facts §5 (86 pairs) is
 installed when the Plaza opens and removed when it closes. A handler fires in every
@@ -123,13 +123,13 @@ class DrawState(Protocol):
     transparency: int               # pref 0..100 (already folded into ``palette``)
     draw_calls: int                 # debug: callbacks that passed the filters (drawn or culled)
     draw_filtered: int              # debug: callbacks rejected (other window / inactive / 1x1)
-    # Phase 2 (docs/phase2-interfaces.md); read with getattr(state, name, default).
+    # Phase 2 (local/docs/phase2-interfaces.md); read with getattr(state, name, default).
     layout: Any                     # core.geometry.Layout | None (None -> nothing to draw)
     palette: Any                    # view.theme.Palette | None (None -> theme.MESO_PALETTE)
     hover_id: str | None            # hovered item id (renderer highlight)
     debug_timing: bool              # time each drawing callback into ``timing``
     timing: Any                     # core.timing.TimingStats
-    # Phase 4 (docs/phase4-interfaces.md); read with getattr(state, name, None). C draws
+    # Phase 4 (local/docs/phase4-interfaces.md); read with getattr(state, name, None). C draws
     # them after the Plaza in the same pass (panels above strips); culling uses the union
     # of ``layout.extent`` and ``dropdowns.extent``.
     dropdowns: Any                  # core.dropdown_geometry.ChainLayout | None (open chain)

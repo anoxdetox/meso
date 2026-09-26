@@ -1,12 +1,12 @@
 # Meso Mode for Blender — the Plaza and Compass menus on Space (Blender 5.2 LTS)
 
 Extension id `meso` (source in `src/meso/`), operator prefix `meso.`. Spec: the approved plan
-(phases 0–7) plus `docs/verified-facts-5.2.md` and `docs/header-controls-5.2.md` — these notes are the
+(phases 0–7) plus `local/docs/verified-facts-5.2.md` and `local/docs/header-controls-5.2.md` — these notes are the
 verified ground truth for Blender 5.2.2 API behaviour; read the relevant section before touching an area.
 
 Terminology: the Space overlay is the **Plaza** (`meso.plaza`); gesture/zone menus are **Compass menus**; never
-"Glyph". Another DCC may be named only in the README "coming from" sentence + non-affiliation notice and in
-`docs/comparison.md`; everywhere else (code, UI strings, docs, commit messages) use neutral terms
+"Glyph". Another DCC may be named only in the README "Why" section ("coming from" sentence and its wink) + non-affiliation
+notice and in `docs/comparison.md`; everywhere else (code, UI strings, docs, commit messages) use neutral terms
 (legacy-term list: `local/rewrite/terms.txt`). Plaza controls mirror the native control they replace, including
 click/modifier conventions.
 
@@ -19,9 +19,13 @@ click/modifier conventions.
 - API reference (online, not stored locally): https://docs.blender.org/api/5.2/ (e.g. `.../bpy.types.UILayout.html`,
   `.../change_log.html`). Blender source for the 5.2 branch: https://projects.blender.org/blender/blender/src/branch/blender-v5.2-release
   (GitHub mirror: https://github.com/blender/blender/tree/blender-v5.2-release). The installed `bl_ui` scripts above stay the local ground truth.
-- Project docs and verified facts live in `docs/` (`docs/verified-facts-5.2.md`, `docs/header-controls-5.2.md`,
-  `docs/spikes.md`, `docs/roadmap.md`, `docs/phase*-interfaces.md`). `docs/reference/` (third-party screenshots) and
-  `local/` (private research) are gitignored and must never be committed.
+- `docs/` holds only the user docs (`docs/guide.md`, `docs/keymap.md`, `docs/comparison.md`, `docs/images/`). The developer
+  notes are private (user decision 2026-09-26, "get rid of dev shit altogether"): `local/docs/` has the verified facts
+  (`verified-facts-5.2.md`, `header-controls-5.2.md`), the contracts (`phase*-interfaces.md`, `meso-keymap-interfaces.md`),
+  `spikes.md` + `spikes/` and `roadmap.md`; code and tests cite them by that path. `local/` (private research, the dev
+  notes) and `docs/reference/` (third-party screenshots) are gitignored and must never be committed. GUI screenshots go to
+  `tests/gui/out/screenshots/` (gitignored); only chosen images for the user docs are committed, in `docs/images/`.
+  Test fixture data lives in `tests/data/`.
 
 ## Commands
 ```
@@ -31,7 +35,7 @@ $NODESK BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B
 $NODESK $B --command extension validate src/meso                  # positional path
 timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules + a real-input session; ~5-8 min)
 timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Keymap restart check (real start-ups, temp config)
-$PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate docs/inventory_5_2.json (subprocesses)
+$PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate tests/data/inventory_5_2.json (subprocesses)
 $B --command extension build --source-dir src/meso --output-dir dist
 tools/dev_link.sh                                                     # symlink into user_default for GUI testing
 ```
@@ -123,11 +127,11 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   `event_simulate` cannot send key auto-repeat or the held-key modifier: such checks go in the third, real-input
   session (`tests/gui/realinput_driver.py`: no `--enable-event-simulate`, XTEST on the nested Xwayland, nested only,
   never `--host`).
-- Phase 0 decisions in `docs/spikes.md` (D1–D5) supersede the plan where they differ.
+- Phase 0 decisions in `local/docs/spikes.md` (D1–D5) supersede the plan where they differ.
 - Commits: `git commit -s` as `anoxdetox <5579531+anoxdetox@users.noreply.github.com>`; the message may end with a
   `Co-Authored-By:` trailer but never a `Claude-Session:` line or any other session link (user decision 2026-09-26).
 - IP hygiene: never commit third-party screenshots, icons, docs text or sampled colours; never implement
-  multi-touch finger-chord gesture recognition (live third-party patent until 2031). See `docs/roadmap.md`.
+  multi-touch finger-chord gesture recognition (live third-party patent until 2031). See `local/docs/roadmap.md`.
 - Never erase native Blender features: Meso adds or relocates, and every displaced action (e.g. the 3D cursor,
   selection tools, Apply menu) stays reachable and each Meso binding can be switched off (Meso Keymap items in
-  Blender's keymap editor, which gives the key back to the native item). See `docs/roadmap.md`.
+  Blender's keymap editor, which gives the key back to the native item). See `local/docs/roadmap.md`.

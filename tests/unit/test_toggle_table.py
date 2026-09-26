@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Unit tests for toggle tables (docs/phase4-interfaces.md "Toggle tables"): the
+"""Unit tests for toggle tables (local/docs/phase4-interfaces.md "Toggle tables"): the
 DD_COLUMN_HEADER / DD_TOGGLE_ROW model kinds and roles (core/dropdown_model.py), their column
 geometry and cell hit testing (core/dropdown_geometry.py) and the cell threading of the
 reducer (core/menubar.py: Target / HoverItem / RunItem ``cell``, keyboard focus).

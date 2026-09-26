@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Pre-drag snap holds and the one-shot pivot edit (pure; no bpy). Contract:
-docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot".
+local/docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot".
 
 Holding X, C, V or J before a drag turns snapping on with one element (grid, edge, vertex or
 increment); holding D edits object origins while it is down (element PIVOT, the same hold rules)
@@ -224,7 +224,7 @@ EV_ESC = 'ESC'
 EV_CANCEL = 'CANCEL'                # Operator.cancel(): file load, window closed
 
 # Keys the OS never auto-repeats: pressing one leaves the hold key's repeats running (verified
-# on X11; Wayland: GHOST's repeat timer ignores non-repeating keys, docs/spikes/meso-feedback-3.md).
+# on X11; Wayland: GHOST's repeat timer ignores non-repeating keys, local/docs/spikes/meso-feedback-3.md).
 # Every other key counts as repeating (the safe side: it only costs the later drags' snap).
 NON_REPEATING_KEYS = frozenset({'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'RIGHT_SHIFT',
                                 'LEFT_ALT', 'RIGHT_ALT', 'OSKEY', 'HYPER'})
@@ -285,7 +285,7 @@ def step(state: HoldState, event: str, now: float = 0.0, tap_threshold: float = 
     An auto-repeat of its own key (the OS repeats a held key, 600 ms delay, 25 Hz on X11) always
     passes through, in every phase: a handled key event cancels Blender's pending click-drag, so
     a consumed repeat just after the mouse press stopped every tool and gizmo drag of a long hold
-    (docs/spikes/meso-hold-long-press.md). The native items on the bare hold keys ignore repeats
+    (local/docs/spikes/meso-hold-long-press.md). The native items on the bare hold keys ignore repeats
     (``repeat=False``), so nothing else runs on them. It only records the evidence.
     """
     phase = state.phase
@@ -348,7 +348,7 @@ def step(state: HoldState, event: str, now: float = 0.0, tap_threshold: float = 
 
 # ------------------------------------------------------------------------------ key repeat timing
 
-# The OS key auto-repeat as measured on X11 / KDE (docs/spikes/meso-feedback-3.md): the first
+# The OS key auto-repeat as measured on X11 / KDE (local/docs/spikes/meso-feedback-3.md): the first
 # repeat 0.60 s after the press, then every 0.04 s; after a transform ends with the key still
 # down the repeats come back within 0.07 s (60 transform ends).
 DEFAULT_REPEAT_DELAY = 0.60

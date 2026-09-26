@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Ctrl A Properties tab cycle (pure; no bpy). Contract: docs/meso-keymap-interfaces.md,
+"""Ctrl A Properties tab cycle (pure; no bpy). Contract: local/docs/meso-keymap-interfaces.md,
 "Properties cycle".
 
 The cycle order is a preference string of ``SpaceProperties.context`` ids. The bpy side

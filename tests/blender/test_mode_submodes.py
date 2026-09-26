@@ -1,6 +1,6 @@
 """Select modes in the Plaza's mode switcher: the row 'Edit Mode [V] [E] [F]'
 (record/builtin_menus.py ``mode_cells``, core/modes.py ``SELECT_DOMAINS``, ops/actions.py
-``MESO_OT_mode_set_select``; docs/phase4-interfaces.md "Built menus", select-mode cells).
+``MESO_OT_mode_set_select``; local/docs/phase4-interfaces.md "Built menus", select-mode cells).
 
 - the model per object type: a mode with a native header select-mode control is ONE label
   row (a DD_TOGGLE_ROW with its own action: mesh Edit Mode, Particle Edit, hair Curves Edit
@@ -286,9 +286,9 @@ class TestModeSetSelectUndo(unittest.TestCase):
     """The undo steps of a pick from another mode, called as the Plaza calls it
     (``INVOKE_REGION_WIN`` with the undo flag). The native pair (the mode menu's pick, then
     the header button) cannot run with the undo flag in ``-b`` (REGISTER operators segfault
-    there under an area override, docs/verified-facts-5.2.md), so it is reproduced with the steps those operators push: ``object.mode_set`` +
+    there under an area override, local/docs/verified-facts-5.2.md), so it is reproduced with the steps those operators push: ``object.mode_set`` +
     ``ed.undo_push('Edit Mode')``, then the button's call + ``ed.undo_push(<its name>)``.
-    Steps are counted after a uniquely named marker (docs/phase3-interfaces.md, headless undo
+    Steps are counted after a uniquely named marker (local/docs/phase3-interfaces.md, headless undo
     counting); undo never goes past it."""
 
     def pick(self, **props):

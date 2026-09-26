@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Alt D over a driven property, and past it (decision C13; docs/meso-keymap-interfaces.md,
-"Alt D pass-through"; the evidence is docs/spikes/meso-feedback-3.md, section F).
+"""Alt D over a driven property, and past it (decision C13; local/docs/meso-keymap-interfaces.md,
+"Alt D pass-through"; the evidence is local/docs/spikes/meso-feedback-3.md, section F).
 
 Blender's 'User Interface' keymap runs before the editor keymaps in the Outliner, Node, Clip,
 File Browser, Info and channel regions. Its Alt D item, ``anim.driver_button_remove``, has no

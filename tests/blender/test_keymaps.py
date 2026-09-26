@@ -1,4 +1,4 @@
-"""Keymap registration tests (docs/spikes.md D1; docs/phase1-interfaces.md, keymaps.py).
+"""Keymap registration tests (local/docs/spikes.md D1; local/docs/phase1-interfaces.md, keymaps.py).
 
 Runs inside Blender via tests/run_tests.py (which enables the add-on and loads the
 Blender keyconfig preset first).

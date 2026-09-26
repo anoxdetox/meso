@@ -14,7 +14,7 @@ from collections.abc import Iterable
 # Factory workspace tab order (general template). ``bpy.data.workspaces`` iterates
 # alphabetically and ``WorkSpace.order`` (DNA, "custom order in the UI") is not exposed in RNA;
 # verified by saving the --factory-startup file and reading each WorkSpace block's ``order``
-# field from its SDNA: 0 Layout ... 10 Scripting (docs/phase2-interfaces.md, "Tables").
+# field from its SDNA: 0 Layout ... 10 Scripting (local/docs/phase2-interfaces.md, "Tables").
 FACTORY_WORKSPACE_ORDER: tuple[str, ...] = (
     'Layout', 'Modeling', 'Sculpting', 'UV Editing', 'Texture Paint', 'Shading',
     'Animation', 'Rendering', 'Compositing', 'Geometry Nodes', 'Scripting',
@@ -80,7 +80,7 @@ def ordered_workspaces(names: Iterable[str]) -> list[str]:
 
 
 # ----------------------------------------------------------------------------- Phase 3
-# Header / editor-menu classes per editor (docs/verified-facts-5.2.md §2; bl_ui space_*.py).
+# Header / editor-menu classes per editor (local/docs/verified-facts-5.2.md §2; bl_ui space_*.py).
 # Live code guards every id with hasattr(bpy.types, id).
 
 # area.type -> the HEADER-region Header class (bl_region_type 'HEADER'). STATUSBAR/TOPBAR are

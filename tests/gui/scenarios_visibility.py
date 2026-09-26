@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenario for toggle tables (docs/phase4-interfaces.md "Toggle tables"): the 3D View
+"""GUI scenario for toggle tables (local/docs/phase4-interfaces.md "Toggle tables"): the 3D View
 "Selectability & Visibility" popover opens as a table, as natively: a column header
 'Sel' / 'Vis' and one row per object type with a check box per column. A click on a cell
 applies that toggle in place; the Plaza and the dropdown stay open and the check updates.

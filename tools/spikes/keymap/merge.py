@@ -1,6 +1,6 @@
-"""Merge probe.py result files into docs/spikes/keymap.json (pure stdlib, run with the bundled python).
+"""Merge probe.py result files into local/docs/spikes/keymap.json (pure stdlib, run with the bundled python).
 
-    $PY tools/spikes/keymap/merge.py <results_dir> docs/spikes/keymap.json
+    $PY tools/spikes/keymap/merge.py <results_dir> local/docs/spikes/keymap.json
 
 Cases are keyed by (suite, spacebar_action, stage, config, target, variant/binding/chord/step); the
 verdict of every run is kept so repeat-run consistency is visible (`stable`).
@@ -60,7 +60,7 @@ def main(src, dst):
         out_cases.append(c)
     doc = {
         "about": "Meso Mode Phase 0.5 keymap spikes 1-3 + Text/Console chords; produced by "
-                 "tools/spikes/keymap/run_all.sh (probe.py + merge.py). See docs/spikes/keymap.md.",
+                 "tools/spikes/keymap/run_all.sh (probe.py + merge.py). See local/docs/spikes/keymap.md.",
         "legend": {
             "PROBE[km,...]": "probe item(s) in these add-on keymaps were invoked (first = highest priority)",
             "PLAY": "screen.is_animation_playing became True",

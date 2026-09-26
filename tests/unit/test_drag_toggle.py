@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Unit tests for the checkbox drag-toggle stroke (core/drag_toggle.py; docs/phase4-interfaces.md
+"""Unit tests for the checkbox drag-toggle stroke (core/drag_toggle.py; local/docs/phase4-interfaces.md
 "Drag-toggle"): what strokes, the column lock of toggle tables, when a stroke starts and
 what each move sets.
 

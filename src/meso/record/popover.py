@@ -3,7 +3,7 @@
 
 Replaces the Phase 3 ``wm.call_panel`` / ``wm.context_menu_enum`` hand-off of the Tool
 Settings row cascades (``KIND_CASCADE`` items of ``record.header_controls``) with custom
-cascades (docs/header-controls-5.2.md §4, docs/phase4-interfaces.md "Tool Settings
+cascades (local/docs/header-controls-5.2.md §4, local/docs/phase4-interfaces.md "Tool Settings
 cascades"). Built when the cascade opens and re-built after every in-place change (snapping
 rows depend on the snap target and the mode): never cached across a change.
 

@@ -198,7 +198,7 @@ class TestTable(unittest.TestCase):
 
     def test_pivot_once_moves_annotate_to_ctrl_alt_d(self):
         """User item C of 2026-09-26: D tap = one-shot pivot edit, IC's D Annotate tool moves
-        to Ctrl Alt D (the audit in docs/spikes/meso-keymap-conflicts.md). Round 5: D is in
+        to Ctrl Alt D (the audit in local/docs/spikes/meso-keymap-conflicts.md). Round 5: D is in
         every 3D View mode keymap but Sculpt and Font (it switches to Object Mode first)."""
         b = mb.binding('pivot_once')
         self.assertEqual([(i.keymap, i.key, i.idname, i.props) for i in b.items],
@@ -292,7 +292,7 @@ class TestTable(unittest.TestCase):
 
 
 class TestCompassMenus(unittest.TestCase):
-    """Phase 5b (docs/phase5b-interfaces.md "Bindings"): the right-click Compass in the eight
+    """Phase 5b (local/docs/phase5b-interfaces.md "Bindings"): the right-click Compass in the eight
     3D View mode keymaps, the Shift+right-click tool Compass and the cursor on Ctrl+Shift+RMB."""
 
     CONTEXT_MENUS = {

@@ -1,4 +1,4 @@
-"""Ctrl 1 isolate (ops/isolate.py, core/isolate.py; docs/meso-keymap-interfaces.md "Isolate").
+"""Ctrl 1 isolate (ops/isolate.py, core/isolate.py; local/docs/meso-keymap-interfaces.md "Isolate").
 
 Runs inside Blender via tests/run_tests.py. Exact round trips per kind (mesh in the three select
 modes with elements already hidden, bezier / NURBS path / NURBS surface, edit bones, pose bones,
@@ -615,7 +615,7 @@ class TestEditIsolatesObjects(IsolateCase):
 
 def keymap_ctrl_1():
     """Ctrl 1 as the keymap runs it (INVOKE_DEFAULT; the operator has no invoke). No undo flag:
-    headless, an undo push under an area override segfaults (docs/verified-facts-5.2.md)."""
+    headless, an undo push under an area override segfaults (local/docs/verified-facts-5.2.md)."""
     with ctx():
         return bpy.ops.meso.isolate_toggle('INVOKE_DEFAULT')
 
@@ -984,7 +984,7 @@ class TestStackedIsolate(IsolateCase):
             self.assertEqual(bpy.context.mode, 'EDIT_MESH')
         finally:
             # headless, back_to_previous from a maximized view in Edit Mode drops Edit Mode
-            # and leaks the edit data at exit (Blender's; docs/verified-facts-5.2.md)
+            # and leaks the edit data at exit (Blender's; local/docs/verified-facts-5.2.md)
             run(bpy.ops.object.mode_set, mode='OBJECT')
             w2, big, big_region = view3d()
             with bpy.context.temp_override(window=w2, area=big, region=big_region):

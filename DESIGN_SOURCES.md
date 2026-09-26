@@ -34,4 +34,4 @@ icons or artwork, their documentation text, or their scripts and configuration.
 
 ## Layout metrics
 Strip heights, paddings and gaps are expressed in Blender UI units and scale with
-`preferences.system.ui_scale` (`docs/phase2-interfaces.md`), chosen for legibility at 1x and 2x.
+`preferences.system.ui_scale` (`local/docs/phase2-interfaces.md`), chosen for legibility at 1x and 2x.

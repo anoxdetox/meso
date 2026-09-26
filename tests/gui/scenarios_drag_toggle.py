@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for the checkbox drag-toggle (docs/phase4-interfaces.md "Drag-toggle"): press
+"""GUI scenarios for the checkbox drag-toggle (local/docs/phase4-interfaces.md "Drag-toggle"): press
 a toggle of a Plaza dropdown and drag across its neighbours; every toggle passed gets the
 pressed one's new value, the checks update live, the Plaza and the dropdown stay open, and
 the stroke is ONE undo step (none for the editor's own display settings). Loaded by
@@ -103,7 +103,7 @@ def scenarios(drv):
     def sc_snap_stroke(rec):
         """Snap To ▸ Vertex dragged down to Edge: both are added (a stroke never makes a
         member exclusive), Increment stays, one undo step for the stroke. (Ctrl+Z keeps tool
-        settings natively, docs/spikes.md 14; the headless TestDragToggleUndo undoes a
+        settings natively, local/docs/spikes.md 14; the headless TestDragToggleUndo undoes a
         stroke over Scene data.)"""
         ts = bpy.context.scene.tool_settings
         before = set(ts.snap_elements)

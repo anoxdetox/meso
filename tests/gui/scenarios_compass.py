@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for the Compass menus (Phase 5, docs/phase5-interfaces.md): a press in a
+"""GUI scenarios for the Compass menus (Phase 5, local/docs/phase5-interfaces.md): a press in a
 zone around the Plaza opens that zone's Compass at the pointer; a drag toward a slot and a
 release picks it; a quick tap leaves it open for a click. Loaded by ``tests/gui/gui_driver.py``
 like every ``scenarios_*.py``; each scenario restores what it changed.

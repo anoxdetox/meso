@@ -1,5 +1,5 @@
 """Phase 4 (D): the Plaza modal driven by the dropdown session (ops/dropdowns.py,
-docs/phase4-interfaces.md "Event flow", "Run semantics").
+local/docs/phase4-interfaces.md "Event flow", "Run semantics").
 
 The modal runs on a plain stub (as in test_plaza.py) against hand-built PlazaModels and
 DropdownModels: ``record.dropdown.build_dropdown`` / ``classify_rows``,
@@ -600,7 +600,7 @@ def aim_dropdowns():
 
 
 class TestAimGuard(_Case):
-    """Label switching while a chain is open (docs/phase4-interfaces.md "Aim guard"): a
+    """Label switching while a chain is open (local/docs/phase4-interfaces.md "Aim guard"): a
     straight path from the open Object label to the top of its panel crosses the Help label
     (the reported case) and keeps Object open; resting on Help or moving over it away from
     the chain switches. Real geometry and the real modal, on :func:`aim_model`."""
@@ -811,7 +811,7 @@ class TestAimGuard(_Case):
 
 
 class TestHoverOpen(_Case):
-    """Hover-open (docs/phase4-interfaces.md "Hover-open") through the real modal: labels
+    """Hover-open (local/docs/phase4-interfaces.md "Hover-open") through the real modal: labels
     with a custom dropdown open after hover_open_delay on the watchdog TIMER, a hover-opened
     chain closes hover_close_delay after the pointer left it, clicks pin."""
 
@@ -1095,7 +1095,7 @@ class TestHoverOpen(_Case):
 
 
 class TestStickyExit(_Case):
-    """User report 2026-09-26 ("menus still do close"; docs/phase4-interfaces.md
+    """User report 2026-09-26 ("menus still do close"; local/docs/phase4-interfaces.md
     "Hover-open": "Sticky exits"): File ▸ Import hover-opened and entered, then hand-like
     walks (6 px every 8 ms, a watchdog TIMER every 0.05 s) from the submenu to outside the
     Plaza across other rows' dropdown labels, and a rest there well past the close delay:
@@ -2357,7 +2357,7 @@ class TestToggleTableModal(_Case):
 
 
 class TestDragToggleModal(_Case):
-    """Checkbox drag-toggle through the real modal (docs/phase4-interfaces.md "Drag-toggle"):
+    """Checkbox drag-toggle through the real modal (local/docs/phase4-interfaces.md "Drag-toggle"):
     press a toggle and drag across its neighbours; each passed toggle is SET to the pressed
     one's new value, without undo steps, and the stroke pushes one undo step at its end."""
 
@@ -2583,7 +2583,7 @@ class TestDragToggleUndo(unittest.TestCase):
     """The real calls of a stroke (no fakes): each set runs without the undo flag, and the
     one ``push_undo_step`` at the end makes the whole stroke one step: one undo reverts every
     toggle it set, one redo sets them again (Scene data: the memfile undo restores it; tool
-    settings keep their value on undo natively, docs/spikes.md 14)."""
+    settings keep their value on undo natively, local/docs/spikes.md 14)."""
 
     PATHS = ('scene.render.use_simplify', 'scene.render.use_motion_blur',
              'scene.render.use_border')

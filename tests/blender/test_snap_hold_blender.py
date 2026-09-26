@@ -1,5 +1,5 @@
 """Pre-drag snap holds, the D tap one-shot pivot edit and the Insert toggle (ops/snap_hold.py,
-core/snap_hold.py, core/pivot_once.py; docs/meso-keymap-interfaces.md "Pre-drag snapping and
+core/snap_hold.py, core/pivot_once.py; local/docs/meso-keymap-interfaces.md "Pre-drag snapping and
 pivot").
 
 Runs inside Blender via tests/run_tests.py. Timers do not fire and no modal can run headless,
@@ -260,7 +260,7 @@ def ev(etype, value='PRESS', is_repeat=False):
 
 
 class TestAutoRepeat(HoldCase):
-    """The long-hold bug (docs/spikes/meso-hold-long-press.md): the OS auto-repeats a held key
+    """The long-hold bug (local/docs/spikes/meso-hold-long-press.md): the OS auto-repeats a held key
     (600 ms delay, 25 Hz on X11); a hold that consumed those repeats cancelled Blender's pending
     click-drag, so after a long hold no tool or gizmo drag started. The running hold modal gets
     the OS repeat pattern here (stand-in events; ``event_simulate`` cannot set ``is_repeat``)."""
@@ -1561,7 +1561,7 @@ class TestDKeymaps(MesoKeymapCase):
 class TestAnnotateRelocation(MesoKeymapCase):
     """IC's D Annotate tool is on Ctrl Alt D in the Meso keyconfig, in every IC keymap where D
     annotates; nothing else is on Ctrl Alt D in the keymaps that run there
-    (docs/spikes/meso-keymap-conflicts.md, "Annotate relocation")."""
+    (local/docs/spikes/meso-keymap-conflicts.md, "Annotate relocation")."""
 
     # Where the Annotate items run: the 3D View and the Image Editor. Every keymap of those
     # spaces, and every space-independent one (modes, paint modes, Window, Screen, User

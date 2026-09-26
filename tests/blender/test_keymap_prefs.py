@@ -1,4 +1,4 @@
-"""Preferences keymap section (keymap_prefs.py; docs/phase4-interfaces.md "Preferences keymap").
+"""Preferences keymap section (keymap_prefs.py; local/docs/phase4-interfaces.md "Preferences keymap").
 
 The add-on's 13 items are drawn under the hotkey editor's nesting, each exactly once, with
 rna_keymap_ui.draw_kmi; "Set all Space items" rebinds the 11 Space items and leaves the

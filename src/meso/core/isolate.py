@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Ctrl 1 isolate decisions (pure; no bpy). Contract: docs/meso-keymap-interfaces.md, "Isolate".
+"""Ctrl 1 isolate decisions (pure; no bpy). Contract: local/docs/meso-keymap-interfaces.md, "Isolate".
 
 Object Mode (and the edit modes without a per-element hide) isolate with the native local view.
 The element kinds hide the unselected elements with the native ``hide(unselected=True)`` and

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenario for the preferences keymap section (docs/phase4-interfaces.md
+"""GUI scenario for the preferences keymap section (local/docs/phase4-interfaces.md
 "Preferences keymap").
 
 Headless tests draw it into a recording stand-in; this one draws the real thing into a real
@@ -8,7 +8,7 @@ expanded and the Window item's details open (the path that queries the window-sy
 capabilities). ``prefs_wrap`` opens the real Preferences window on the add-on (as the Plaza's
 Meso Settings box does) and checks on the rendered pixels that the help text wraps to the full
 width of its row, at UI scale 1 and 1.5 and back and in a narrower area
-(``docs/screenshots/prefs_wrap*.png``). Loaded by
+(``tests/gui/out/screenshots/prefs_wrap*.png``). Loaded by
 ``tests/gui/gui_driver.py`` like every ``scenarios_*.py``.
 """
 

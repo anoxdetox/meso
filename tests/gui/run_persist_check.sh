@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Meso Keymap restart check (docs/meso-keymap-interfaces.md, GUI case G2):
+# Meso Keymap restart check (local/docs/meso-keymap-interfaces.md, GUI case G2):
 #   1. disable Meso Mode in the Preferences after choosing the Meso Keymap, quit: the restored
 #      keyconfig ('Blender') is what the next start reads;
 #   2. control: choose the Meso Keymap, edit two of its items, quit: the next start is on the

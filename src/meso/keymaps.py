@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Plaza key bindings (docs/spikes.md D1; evidence in docs/spikes/keymap.md).
+"""Plaza key bindings (local/docs/spikes.md D1; evidence in local/docs/spikes/keymap.md).
 
 Every item lives in ``wm.keyconfigs.addon`` only: ``meso.plaza``, ``SPACE``, ``PRESS``,
 ``repeat=False``, never ``head=True``. Each keymap is created with the built-in's

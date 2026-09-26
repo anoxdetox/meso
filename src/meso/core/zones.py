@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The Compass zones around the Plaza and their menu slots (Phase 5, pure; no bpy).
 
-Contract: docs/phase5-interfaces.md "Zones", "Slot values". While the Plaza is open, a mouse
+Contract: local/docs/phase5-interfaces.md "Zones", "Slot values". While the Plaza is open, a mouse
 press in a zone opens that zone's Compass menu for the pressed button. The zones are the
 centre box ('C') and the four quarters around it split by the 45-degree diagonals through the
 centre box's centre (the zone ticks of ``core.geometry``): N, E, S, W.
@@ -36,7 +36,7 @@ def slot_key(zone: str, button: str) -> str:
 SLOT_KEYS = tuple(slot_key(z, b) for z in ZONES for b in ('L', 'M', 'R'))
 
 # Built-in Compass ids (``record.compass`` builds them). 'context' and 'tools' are the
-# right-click Compasses of ``meso.compass_rmb`` (docs/phase5b-interfaces.md): valid slot
+# right-click Compasses of ``meso.compass_rmb`` (local/docs/phase5b-interfaces.md): valid slot
 # values, never zone defaults.
 BUILTIN_PREFIX = 'meso:'
 BUILTIN_COMPASSES = ('layout', 'editors', 'select', 'toggles', 'tool_settings', 'views',
@@ -109,7 +109,7 @@ def zone_at(layout, x: float, y: float) -> str | None:
 
 def opens_compass(button: str, hit_zone: str | None, on_center: bool) -> bool:
     """True when a press of ``button`` on a Plaza hit of ``hit_zone`` (a
-    ``core.dropdown_model.ZONE_*``) may open a Compass (docs/phase5-interfaces.md "Zones"):
+    ``core.dropdown_model.ZONE_*``) may open a Compass (local/docs/phase5-interfaces.md "Zones"):
     LMB only on empty space (ZONE_STRIP / ZONE_NONE) or on the centre box (``on_center``: the
     ZONE_LABEL hit is the centre box); MMB / RMB anywhere but inside an open dropdown panel
     (ZONE_ITEM / ZONE_PANEL). Other buttons never."""

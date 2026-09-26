@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The Meso Keymap binding table (pure; no bpy). Contract: docs/meso-keymap-interfaces.md.
+"""The Meso Keymap binding table (pure; no bpy). Contract: local/docs/meso-keymap-interfaces.md.
 
 The Meso Keymap is a real keyconfig named "Meso" (``presets/keyconfig/Meso.py``): Blender's
 Industry Compatible keymap data (IC) with every item of this table put first in its keymap
@@ -16,7 +16,7 @@ editor keymap, so a shadowing item ahead of it cannot pass Alt D on. Meso's
 ``meso.driver_button_remove`` does exactly the native removal over a driven property and passes
 the key on everywhere else (``driver_remove_pass``, the only Meso item in 'User Interface').
 
-The Compass Menus group (Phase 5b, docs/phase5b-interfaces.md "Bindings") puts
+The Compass Menus group (Phase 5b, local/docs/phase5b-interfaces.md "Bindings") puts
 ``meso.compass_rmb`` on the right mouse button: a quick click keeps the native action (the
 context menu, the 3D cursor placement), a hold or a drag opens a Compass. The 3D cursor's
 Shift RMB items move to Ctrl Shift RMB (``reloc_cursor``); the ``shift_rmb_owner`` preference
@@ -230,7 +230,7 @@ EXTRA_KEYMAPS: tuple[tuple[str, str], ...] = (
 # Clip Editor's Mask mode, not in the Image Editor). IC's Alt D item there
 # (``anim.driver_button_remove``) returns CANCELLED over empty space and stops the key, so an
 # Alt D item of these keymaps fires only because ``driver_remove_pass`` replaces it (C13;
-# verified in the GUI suite, mk_alt_d_reach, and docs/spikes/meso-feedback-3.md section F).
+# verified in the GUI suite, mk_alt_d_reach, and local/docs/spikes/meso-feedback-3.md section F).
 UI_FIRST_KEYMAPS = frozenset({
     'Outliner', 'Node Editor', 'Clip Editor', 'Clip Graph Editor', 'Info', 'Animation Channels',
     'File Browser Main', 'Mask Editing',
@@ -277,7 +277,7 @@ _PROPERTIES_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Curves', 'Armature', 'Po
                        'Paint Vertex Selection (Weight, Vertex)', '3D View')
 _EDGE_SNAP_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves', '3D View')
 _EDGE_SNAP_CURSOR_MAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves')
-# The keymaps where IC's D is the Annotate tool cycle (docs/spikes/meso-keymap-conflicts.md,
+# The keymaps where IC's D is the Annotate tool cycle (local/docs/spikes/meso-keymap-conflicts.md,
 # "Annotate relocation"): Ctrl Alt D is free in all of them and in every keymap that runs there.
 ANNOTATE_KEYMAPS = ('Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves',
                     'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Image',

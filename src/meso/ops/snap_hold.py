@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Pre-drag snap holds (X/C/V/J), the D key (Affect Only Origins while held, or for one
-transform after a tap) and the Insert pivot toggle (docs/meso-keymap-interfaces.md, "Pre-drag
+transform after a tap) and the Insert pivot toggle (local/docs/meso-keymap-interfaces.md, "Pre-drag
 snapping and pivot"; rules in ``core/snap_hold.py`` and ``core/pivot_once.py``).
 
 - ``meso.snap_hold`` starts on the key press, writes the overlay (snap on with the held
@@ -41,12 +41,12 @@ snapping and pivot"; rules in ``core/snap_hold.py`` and ``core/pivot_once.py``).
   gone the hold keeps the overlay and runs the still-held check (``core.snap_hold.step``): the
   key's OS repeats prove it is still down, so every drag snaps while it is held; its release
   ends the hold; no sign by ``core.snap_hold.deadline()`` (the watcher's ``EV_TIMEOUT``) counts
-  as released. After another repeating key went down, one snapped drag (docs/spikes/
+  as released. After another repeating key went down, one snapped drag (local/docs/spikes/
   meso-feedback-3.md). **Nothing is ever written to tool_settings while a foreign modal
   operator runs** (a transform, the Plaza, a box select): such writes wait for it to end.
 - The OS auto-repeats a held key: the hold passes those repeats through and never starts on one.
   A handled repeat would cancel Blender's pending click-drag, so after a long hold no tool or
-  gizmo drag would start (docs/spikes/meso-hold-long-press.md).
+  gizmo drag would start (local/docs/spikes/meso-hold-long-press.md).
 - Other restore points: ``WINDOW_DEACTIVATE`` (a focus loss never sends the key release), Esc,
   ``cancel()`` (window closed, file load), ``load_pre``, a ``save_pre``/``save_post`` swap (a
   saved file never holds the momentary state) and ``unregister()`` (from module state, before
@@ -706,7 +706,7 @@ def to_object_mode(context):
     UNDO flag, so the undo depth is 0) the push runs; nested in an operator called from Python
     without ``undo=True`` it pushes no step. Under ``-b`` without the undo flag: with it the
     nested mode toggle (REGISTER + UNDO) segfaults there under an area context override
-    (verified 5.2.2, docs/verified-facts-5.2.md; the headless tests call ``invoke`` under such an
+    (verified 5.2.2, local/docs/verified-facts-5.2.md; the headless tests call ``invoke`` under such an
     override); with no override or a window-only one it works.
     The one-undo-step claim is covered only by the GUI scenario G19
     (``edit_d_undo_back_in_edit_mode``). Mode changes are no ``tool_settings`` write, and the

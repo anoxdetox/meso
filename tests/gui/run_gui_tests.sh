@@ -26,7 +26,7 @@
 # (quit.blend); vblank_mode=0 (Mesa EGL on Wayland blocks in eglSwapBuffers otherwise). Exit 0
 # only if every scenario of every session passed.
 # The temp dir (logs, reports, full-size screenshots in shots/) is removed on success and kept
-# (path printed) on failure; the downscaled screenshots stay in docs/screenshots/.
+# (path printed) on failure; the downscaled screenshots stay in tests/gui/out/screenshots/.
 # The whole run takes a few minutes: wrap it in `timeout 700`.
 set -u
 # No crash reports: a test Blender crash must never reach the desktop crash handler (DrKonqi),

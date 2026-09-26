@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The UI recorder: run a Menu / Panel / Header ``draw`` against a fake ``UILayout`` and log
-what it would draw (Phase 3, implementer A; docs/verified-facts-5.2.md §4 is the spec).
+what it would draw (Phase 3, implementer A; local/docs/verified-facts-5.2.md §4 is the spec).
 
 Nothing is ever drawn: ``draw(fake_self, context)`` is called with a :class:`FakeSelf` whose
 ``layout`` is a :class:`FakeLayout`. Every recorded leaf appends one :class:`Record` to the
@@ -29,7 +29,7 @@ Layout semantics mirror UILayout (probed in the 5.2.2 GUI inside real menu / pop
   layout and in children created afterwards (``Record.context_pointers``); an inline
   ``menu_contents`` draw sees them through ``context.temp_override``.
 
-Rules (verified-facts §4, docs/spikes.md D4):
+Rules (verified-facts §4, local/docs/spikes.md D4):
 - **FakeSelf**: names resolve with ``inspect.getattr_static`` over ``cls.__mro__``: plain
   functions bound with ``types.MethodType(fn, fake)``, staticmethods unbound (``__func__``),
   classmethods bound to ``cls``, Python properties evaluated on the fake, other class

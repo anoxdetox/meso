@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for Hover-open (docs/phase4-interfaces.md "Hover-open").
+"""GUI scenarios for Hover-open (local/docs/phase4-interfaces.md "Hover-open").
 
 Loaded by ``tests/gui/gui_driver.py`` like every ``scenarios_*.py`` (module contract as
 ``scenarios_phase4.py``). Every scenario restores the prefs it changes in ``finally``.

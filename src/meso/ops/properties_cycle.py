@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Ctrl A Properties tab cycle (docs/meso-keymap-interfaces.md, "Properties cycle"; the pure
+"""Ctrl A Properties tab cycle (local/docs/meso-keymap-interfaces.md, "Properties cycle"; the pure
 rules are ``core/properties_cycle.py``).
 
 ``meso.properties_cycle`` (bound in the 3D View only) moves the Properties editor of the

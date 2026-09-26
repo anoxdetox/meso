@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Axis-aligned rectangle math for draw coverage (docs/spikes.md D2).
+"""Axis-aligned rectangle math for draw coverage (local/docs/spikes.md D2).
 
 Coordinates are pixels with the origin at the bottom-left (Blender window space, the
 same space as ``region.x/y`` and ``event.mouse_x/y``). Rects are half-open:

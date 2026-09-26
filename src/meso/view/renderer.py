@@ -16,11 +16,11 @@ are uniforms, so batches depend only on geometry: hovering rebuilds (or re-fetch
 hover batch. Translucent fills get ``core.rects.linear_blend_alpha`` (colour-aware) when ``linear_blend``
 (the region is in ``draw_manager.LINEAR_BLEND_REGIONS``); text and opaque fills never.
 
-Phase 4 dropdowns (:func:`draw_dropdowns`, docs/phase4-interfaces.md "Look"): drawn ABOVE the
+Phase 4 dropdowns (:func:`draw_dropdowns`, local/docs/phase4-interfaces.md "Look"): drawn ABOVE the
 strips in the same callback pass (``view.draw_manager.draw_region`` calls ``draw_plaza`` then
 ``draw_dropdowns`` per visible piece); colours come from :func:`dropdown_colors`, derived from
 the session :class:`view.theme.Palette` only (the palette itself is frozen: user-approved).
-Toggle tables (docs/phase4-interfaces.md "Toggle tables"): a DD_TOGGLE_ROW draws its label
+Toggle tables (local/docs/phase4-interfaces.md "Toggle tables"): a DD_TOGGLE_ROW draws its label
 left and one GLYPH_BOX check box per cell (the DD_TOGGLE primitive; a GLYPH_RADIO for a radio
 cell; inactive / disabled cells dimmed), followed by the cell's text when it has one (the
 mode row's 'V' / 'E' / 'F', in the row's label colour); a label row also draws its radio in
@@ -29,7 +29,7 @@ box (``cell_hover``) under the check box; a DD_COLUMN_HEADER draws its titles di
 centred over the columns.
 
 Headless: needs ``gpu.init()`` + a bound ``GPUOffScreen`` with a pixel-ortho projection
-(tests/blender/test_render_offscreen.py, docs/spikes/draw.md). Never call from ``register()``.
+(tests/blender/test_render_offscreen.py, local/docs/spikes/draw.md). Never call from ``register()``.
 """
 
 from __future__ import annotations
@@ -548,7 +548,7 @@ def _draw_labels(layout: Layout, palette: Palette, hover_id: str | None, ox: int
 
 # --------------------------------------------------------------------------- Phase 4 dropdowns
 
-# Derived tones (docs/phase4-interfaces.md "Colours"): our own ratios on the session palette,
+# Derived tones (local/docs/phase4-interfaces.md "Colours"): our own ratios on the session palette,
 # a darker 1 px outline and separator lines a little LIGHTER than the panel, so they work for
 # every palette style.
 DD_BORDER_FACTOR = 0.3          # border RGB = strip RGB x this (a darker strip grey)
@@ -1023,7 +1023,7 @@ def compass_extent(compass: Any) -> Rect | None:
 
 def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
                  linear_blend: bool, clip: Rect | None = None) -> bool:
-    """Draw an open Compass (docs/phase5-interfaces.md "Draw"): the centre ring (radius
+    """Draw an open Compass (local/docs/phase5-interfaces.md "Draw"): the centre ring (radius
     ``dead_r``) and, once the pointer is outside it, a line from the centre to the pointer,
     both in ``palette.ticks``; each slot box filled with the dropdown panel colour and a
     border, the hovered one with ``item_hover`` and a 2-scale-px ``text_hover`` outline; its

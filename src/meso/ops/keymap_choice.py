@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The Meso Keymap operators (docs/meso-keymap-interfaces.md, "Operators").
+"""The Meso Keymap operators (local/docs/meso-keymap-interfaces.md, "Operators").
 
 - ``meso.keymap_choose(choice='MESO'|'KEEP')``: selects the Meso keyconfig on user input, or
   gives the recorded keymap back (``meso_keymap.choose``). Used by the preferences box and the

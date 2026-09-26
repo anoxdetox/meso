@@ -1,5 +1,5 @@
-"""Theme + renderer tests (docs/phase2-interfaces.md; view/theme.py, view/renderer.py; Phase 4
-dropdown chains, docs/phase4-interfaces.md "Look").
+"""Theme + renderer tests (local/docs/phase2-interfaces.md; view/theme.py, view/renderer.py; Phase 4
+dropdown chains, local/docs/phase4-interfaces.md "Look").
 
 Runs inside Blender via tests/run_tests.py (which enables the add-on first). The renderer
 draws a fixed plaza model into an 800x500 ``GPUOffScreen`` after ``gpu.init()`` with the

@@ -1,6 +1,6 @@
 """Merge the keyconfig preset spike outputs (run.sh keyconfig OUT_DIR) into one JSON file.
 
-    $PY tools/spikes/meso_keymap/keyconfig_merge.py OUT_DIR [--dst docs/spikes/meso-keyconfig-preset.json]
+    $PY tools/spikes/meso_keymap/keyconfig_merge.py OUT_DIR [--dst local/docs/spikes/meso-keyconfig-preset.json]
 
 Home and temp paths are replaced with $HOME / <tmp>; call stacks are kept (they show the start-up and
 exit order).
@@ -13,7 +13,7 @@ import re
 import sys
 
 args = sys.argv[1:]
-dst = pathlib.Path(__file__).resolve().parents[3] / "docs" / "spikes" / "meso-keyconfig-preset.json"
+dst = pathlib.Path(__file__).resolve().parents[3] / "local" / "docs" / "spikes" / "meso-keyconfig-preset.json"
 if "--dst" in args:
     i = args.index("--dst")
     dst = pathlib.Path(args[i + 1])

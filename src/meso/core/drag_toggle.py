@@ -3,7 +3,7 @@
 
 Blender's own drag-toggle: press on a check box and drag across its neighbours, and every
 toggle the pointer passes gets the pressed toggle's NEW value (it is set, not flipped), then
-let go. The Plaza mirrors it (spec: docs/phase4-interfaces.md "Drag-toggle"):
+let go. The Plaza mirrors it (spec: local/docs/phase4-interfaces.md "Drag-toggle"):
 
 - **What strokes.** A toggle of an open panel (:func:`toggle_group`): an enabled DD_TOGGLE /
   DD_FLAG item whose action sets a property (ACTION_TOGGLE / ACTION_TOGGLE_FLAG; operator

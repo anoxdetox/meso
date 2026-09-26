@@ -22,7 +22,7 @@ report and always quits Blender itself (hard deadline); preferences are never sa
 
 Arguments after ``--``: ``--out FILE`` (JSON report), ``--shots DIR`` (full-size screenshots;
 default ``<dir of --out>/shots``). Screenshots are also copied, downscaled to <= 1200 px wide,
-to ``docs/screenshots/phase3_<backend>_<ui scale>.png`` and ``phase3_<editor/mode>.png``.
+to ``tests/gui/out/screenshots/phase3_<backend>_<ui scale>.png`` and ``phase3_<editor/mode>.png``.
 
 Scenario modules: every ``tests/gui/scenarios_*.py`` exports ``scenarios(drv) -> [(name, fn)]``
 (``drv`` = this module); their scenarios run before the add-on disable/enable scenarios
@@ -164,7 +164,7 @@ def ensure_blender_keyconfig():
 def warm_previews():
     """Render every data-block preview now, on the main thread (``wm.previews_ensure``).
 
-    Blender 5.2.2 race (docs/verified-facts-5.2.md, "Preview render race"): the first preview
+    Blender 5.2.2 race (local/docs/verified-facts-5.2.md, "Preview render race"): the first preview
     of a data-block (e.g. the cube's material icon, drawn when the Properties editor first shows
     the Material tab) is rendered by a worker thread that adds a ``Render`` to the global render
     list without a lock, while the main thread walks that list after every notifier pass
@@ -1053,7 +1053,7 @@ def sc_disable_addon(rec):
 # ----------------------------------------------------------------------------- Phase 2 helpers
 
 FILE_MENU = "TOPBAR_MT_file"
-SHOT_MAX_W = 1200     # docs/screenshots copies are downscaled to at most this width
+SHOT_MAX_W = 1200     # tests/gui/out/screenshots copies are downscaled to at most this width
 
 # Draws of the native File menu (TOPBAR_MT_file.append probe, as in tools/spikes/menus).
 MENU_PROBE = {"file": 0}
@@ -1107,7 +1107,7 @@ def backend_name():
 
 def save_screenshot(name, window=None):
     """Save the window (the main one by default) as <shots>/<name>.png (full size) and
-    docs/screenshots/<name>.png (downscaled to <= SHOT_MAX_W wide). Returns both paths."""
+    tests/gui/out/screenshots/<name>.png (downscaled to <= SHOT_MAX_W wide). Returns both paths."""
     import imbuf
     pixels = (window or win()).screenshot()
     h, w = pixels.shape[0], pixels.shape[1]
@@ -1122,7 +1122,7 @@ def save_screenshot(name, window=None):
     if w > SHOT_MAX_W:
         ibuf.resize((SHOT_MAX_W, max(1, round(h * SHOT_MAX_W / w))), method='BILINEAR')
     ibuf.compress = 100
-    notes = ROOT / "docs" / "screenshots"
+    notes = ROOT / "tests" / "gui" / "out" / "screenshots"
     notes.mkdir(parents=True, exist_ok=True)
     small = notes / f"{name}.png"
     imbuf.write(ibuf, filepath=str(small))

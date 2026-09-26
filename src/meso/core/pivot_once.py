@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The D key: Affect Only Origins while D is held, or for one transform after a tap (pure; no
-bpy). Contract: docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot" (user item C of
+bpy). Contract: local/docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot" (user item C of
 2026-09-26, and the hold of 2026-09-26: "as long as your finger is holding the key down, you can
 move the pivot").
 

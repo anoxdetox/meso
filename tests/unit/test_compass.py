@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Unit tests for the Compass zones and menus (core/zones.py, core/compass.py;
-docs/phase5-interfaces.md): zone octants and the centre box, which presses open a Compass,
+local/docs/phase5-interfaces.md): zone octants and the centre box, which presses open a Compass,
 slot values, the radial placement, picking by direction and the gesture.
 
 Run with the bundled interpreter (no bpy available):

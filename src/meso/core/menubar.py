@@ -8,7 +8,7 @@ the cursor into a :class:`Target` (zone, label id / item path, role, action) wit
 ``core.dropdown_geometry.resolve_hit`` + ``core.dropdown_model.label_role`` / ``item_role``,
 and tells the reducer about opened levels with :class:`Opened`.
 
-Behaviour (spec: docs/phase4-interfaces.md "Menu-bar semantics"; every row is unit-tested in
+Behaviour (spec: local/docs/phase4-interfaces.md "Menu-bar semantics"; every row is unit-tested in
 tests/unit/test_menubar.py). "Chain" = the open root dropdown plus its open submenus;
 ``depth`` = number of open levels (0 = closed). ``L`` = ``len(path)`` = depth of the panel
 holding an item. LMB = ``'LEFTMOUSE'``; other buttons never produce effects.
@@ -125,7 +125,7 @@ Open (depth >= 1):
   with ``execute_on_release``) gives ``RunItem(path, keep_open=False)`` instead of
   ``Handoff(None)``: D runs that item's own (native) action after teardown.
 
-Toggle tables (docs/phase4-interfaces.md "Toggle tables"): a DD_TOGGLE_ROW item has one
+Toggle tables (local/docs/phase4-interfaces.md "Toggle tables"): a DD_TOGGLE_ROW item has one
 cell per column; the cell is threaded through ``Target.cell`` / ``HoverItem.cell`` (the cell
 under the pointer, None on the row label) -> ``hover_cell`` -> ``RunItem.cell`` (D applies
 that cell's action). The pointer target of a row is its cell: its role is the cell's
@@ -151,7 +151,7 @@ cells), keyboard entry lands on the label, RIGHT on the label focuses the first 
 on the first cell focuses the label, and LEFT on the label is the plain LEFT; RETURN on the
 label runs the row's pick.
 
-Hover-open (``hover_open``; spec: docs/phase4-interfaces.md "Hover-open"): ``opened_by`` is
+Hover-open (``hover_open``; spec: local/docs/phase4-interfaces.md "Hover-open"): ``opened_by`` is
 None when closed, else how the chain was opened: 'hover' (transient: closes on its own once
 the pointer has been outside the open label and every panel for ``hover_close_delay``, as
 long as it never entered a panel: ``entered`` makes it sticky), or 'click' / 'key' (sticky:
@@ -165,7 +165,7 @@ switches at once as before, but a label crossed from another row (or toward the 
 switches after a rest of the fixed :data:`SWITCH_REST_MIN` (:func:`switch_rest`; the Hover
 Open Delay pref plays no part), on a click, and never on a mere crossing.
 
-Drag-toggle (docs/phase4-interfaces.md "Drag-toggle"): a checkbox stroke is not a reducer
+Drag-toggle (local/docs/phase4-interfaces.md "Drag-toggle"): a checkbox stroke is not a reducer
 gesture. D arms ``core.drag_toggle.Stroke`` next to the Press here; once the stroke starts,
 D takes the moves (none reach this reducer) and ends it with a Release over nothing
 (``Target(ZONE_PANEL)``: ``pressed`` is dropped, nothing runs twice).

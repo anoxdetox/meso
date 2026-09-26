@@ -1,5 +1,5 @@
 """core/snap_hold.py: the pre-drag snap/pivot hold overlay, the session and the per-operator
-reducer (docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot"). Pure; run with $PY."""
+reducer (local/docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot"). Pure; run with $PY."""
 
 import importlib
 import math
@@ -258,7 +258,7 @@ class TestStep(unittest.TestCase):
                         self.assertEqual(new, want, (phase, used, pending, after))
 
     def test_os_key_repeat_pattern_long_hold_then_drag(self):
-        """The OS pattern of a long hold (docs/spikes/meso-hold-long-press.md): X down, repeats
+        """The OS pattern of a long hold (local/docs/spikes/meso-hold-long-press.md): X down, repeats
         from 0.6 s at 25 Hz, the mouse press at 1.5 s with repeats before and after it, a
         transform that swallows the rest, the transform ends with X still held (more repeats),
         then the late release. Every repeat passes through; nothing is a tap."""
@@ -349,7 +349,7 @@ _ORDER = {sh.EV_FOREIGN_OFF: 0, sh.EV_OWN_RELEASE: 1, sh.EV_OTHER_KEY: 1, sh.EV_
 def timeline(up=None, drags=(), other_keys=(), extra=(), delay=0.6, interval=0.04,
              repeat=True, horizon=None):
     """The events one hold operator sees for a key held from 0.0 to ``up`` (``None``: still
-    down), as the OS and Blender deliver them (docs/spikes/meso-feedback-3.md): repeats from
+    down), as the OS and Blender deliver them (local/docs/spikes/meso-feedback-3.md): repeats from
     ``delay`` every ``interval`` while the key is down, stopped for good by another repeating
     key; each drag ``(press, end)`` is a mouse press, a transform from ``press + 0.03`` to
     ``end`` that swallows everything (the repeats and a release during it, which is then never
@@ -439,7 +439,7 @@ def sim(**kw):
 
 class TestStillHeld(unittest.TestCase):
     """User item B of 2026-09-26: every drag snaps while the key is held; the release restores.
-    The rows of docs/spikes/meso-feedback-3.md (``multidrag_proto``) as event sequences."""
+    The rows of local/docs/spikes/meso-feedback-3.md (``multidrag_proto``) as event sequences."""
 
     GAP = sh.MIN_REPEAT_GAP
 

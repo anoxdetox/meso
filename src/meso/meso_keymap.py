@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Meso Keymap: the "Meso" keyconfig, the first-enable choice and "Reset to default (Meso)".
 
-Contract: docs/meso-keymap-interfaces.md ("Delivery model", "Lifecycle", "Keyconfig choice").
+Contract: local/docs/meso-keymap-interfaces.md ("Delivery model", "Lifecycle", "Keyconfig choice").
 
 - The Meso Keymap is a real keyconfig named "Meso", listed in Preferences > Keymap next to
   Blender and Industry Compatible. The extension ships its preset

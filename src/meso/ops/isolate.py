@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Ctrl 1 isolate (docs/meso-keymap-interfaces.md, "Isolate"; decisions in ``core/isolate.py``).
+"""Ctrl 1 isolate (local/docs/meso-keymap-interfaces.md, "Isolate"; decisions in ``core/isolate.py``).
 
 ``meso.isolate_toggle``:
 - Object Mode, and the edit modes without a per-element hide (lattice, Curves, point cloud,

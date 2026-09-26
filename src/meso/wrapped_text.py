@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Help text as label rows that use the full width of the preferences (docs/phase4-interfaces.md,
+"""Help text as label rows that use the full width of the preferences (local/docs/phase4-interfaces.md,
 "Preferences keymap", wrapped help text).
 
 A Blender label never wraps; a line longer than its row loses its middle ("Keep, or disa...").

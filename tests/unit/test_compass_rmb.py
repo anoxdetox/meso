@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Unit tests for the right-click Compass menus (core/compass_rmb.py;
-docs/phase5b-interfaces.md): what a press is for, the show rule, the tap / drag calls, what
+local/docs/phase5b-interfaces.md): what a press is for, the show rule, the tap / drag calls, what
 a pick runs, and the content tables.
 
 Run with the bundled interpreter (no bpy available):

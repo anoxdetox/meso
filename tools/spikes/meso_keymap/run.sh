@@ -1,5 +1,5 @@
 #!/bin/sh
-# Meso Keymap API spikes (docs/spikes/meso-keymap-api.md).
+# Meso Keymap API spikes (local/docs/spikes/meso-keymap-api.md).
 #
 #   tools/spikes/meso_keymap/run.sh headless OUT_DIR          # headless.py -> OUT_DIR/headless.json
 #   tools/spikes/meso_keymap/run.sh gui OUT_DIR [--host]      # gui.py      -> OUT_DIR/gui.json
@@ -97,7 +97,7 @@ echo \"blender_exit=\$?\" >> \"$T/$1.log\""
     run_headless read2 "$T/cfg2"
     ;;
 keyconfig)
-    # docs/spikes/meso-keyconfig-preset.md. An extension that ships presets/keyconfig/Meso.py
+    # local/docs/spikes/meso-keyconfig-preset.md. An extension that ships presets/keyconfig/Meso.py
     # (keyconfig_ext/, in the temp user_default repo); phases in keyconfig_phase.py. One config dir:
     #   h_api, h_read (headless), then real GUI restarts: select on / select off / extension removed /
     #   extension back, each followed by h_peek (what the quit saved); then two h_read variants
@@ -140,7 +140,7 @@ echo \"blender_exit=\$?\" >> \"$T/kc_$1.log\""
     kc_headless h_read read_other_ops "MESO_KC_KEEP=1 MESO_KC_READ_NONE=0 MESO_KC_OTHER_OP_REMOVAL=3"
     ;;
 altd)
-    # docs/spikes/meso-feedback-3.md, item F: simulated events (Alt D) in the nested session only.
+    # local/docs/spikes/meso-feedback-3.md, item F: simulated events (Alt D) in the nested session only.
     if [ "$MODE" = "--host" ]; then echo "altd: nested only" >&2; exit 2; fi
     gui_session "unset WAYLAND_DISPLAY; vblank_mode=0 TMPDIR=\"$T/tmp\" BLENDER_USER_CONFIG=\"$T/cfg\" BLENDER_USER_EXTENSIONS=\"$T/ext\" \
 timeout 200 \"$B\" --factory-startup --enable-event-simulate --python \"$HERE/altd.py\" -- --out \"$OUT/altd.json\" \
@@ -152,7 +152,7 @@ echo \"blender_exit=\$?\" >> \"$T/blender.log\""
     tail -1 "$T/blender.log"
     ;;
 longhold|pivothold|multidrag|multidrag_proto)
-    # docs/spikes/meso-hold-long-press.md: real X11 input through XTEST with key auto-repeat, so
+    # local/docs/spikes/meso-hold-long-press.md: real X11 input through XTEST with key auto-repeat, so
     # Blender runs WITHOUT --enable-event-simulate (it drops every real GHOST event). Nested only:
     # XTEST input must never reach the desktop session (longhold.py refuses to run otherwise).
     if [ "$MODE" = "--host" ]; then echo "longhold: nested only" >&2; exit 2; fi

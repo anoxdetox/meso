@@ -1118,7 +1118,7 @@ class TestStickyOnceEntered(unittest.TestCase):
     """User feedback 2026-09-26: once the pointer has entered a panel of a hover-opened
     chain, moving onto nothing (the viewport, empty strip space, a non-eligible label) never
     closes it; a chain the pointer never entered keeps the hover_close_delay close
-    (docs/phase4-interfaces.md "Hover-open")."""
+    (local/docs/phase4-interfaces.md "Hover-open")."""
 
     def entered_submenu(self):
         s = hover_opened(FILE, 1.0, submenu_delay=0.0, close=0.3)
@@ -1224,7 +1224,7 @@ class TestStickyExit(unittest.TestCase):
     leaving a submenu for the viewport crosses the row labels stacked around the Plaza; a
     crossing that switched at once opened a transient chain that then closed on its own.
     While the chain is sticky only a slide along the open label's row switches at once; a
-    crossed label switches after a rest or on a click (docs/phase4-interfaces.md
+    crossed label switches after a rest or on a click (local/docs/phase4-interfaces.md
     "Hover-open": "Sticky exits")."""
 
     def entered_submenu(self):
@@ -1384,7 +1384,7 @@ HELP = 'TOPBAR_MT_help'
 class TestAimGuard(unittest.TestCase):
     """Label switching while a chain is open: a label crossed on the way to the open chain
     (``HoverLabel.aiming``) does not steal it; resting on it or a move over it that does
-    not head for the chain switches (docs/phase4-interfaces.md "Aim guard")."""
+    not head for the chain switches (local/docs/phase4-interfaces.md "Aim guard")."""
 
     def assert_open(self, s, label):
         self.assertEqual(s.open_label, label, s)

@@ -145,7 +145,7 @@ class MesoAddonPreferences(AddonPreferences):
                     "the centre box) opens that zone's Compass menu for the pressed button",
         default=True,
     )
-    # Phase 5b (docs/phase5b-interfaces.md "Preferences"): which one Shift+RMB opens under the
+    # Phase 5b (local/docs/phase5b-interfaces.md "Preferences"): which one Shift+RMB opens under the
     # Meso Keymap; the other one is on Ctrl+Shift+RMB (``core.compass_rmb.behaviour``).
     shift_rmb_owner: EnumProperty(
         name="Shift Right Click",
@@ -287,7 +287,7 @@ class MesoAddonPreferences(AddonPreferences):
     space_items_alt: BoolProperty(name="Alt", default=False)
     space_items_oskey: BoolProperty(name="OS", default=False)
 
-    # -- Meso Keymap (docs/meso-keymap-interfaces.md "Preferences"). The bindings themselves
+    # -- Meso Keymap (local/docs/meso-keymap-interfaces.md "Preferences"). The bindings themselves
     # are items of the "Meso" keyconfig, switched and rebound in Blender's keymap editor.
     keymap_choice: EnumProperty(
         name="Meso Keymap Choice",
@@ -415,7 +415,7 @@ def shift_rmb_hint(owner: str) -> str:
             "it); Shift Right Click opens the tool Compass")
 
 
-# One slot per zone and mouse button (docs/phase5-interfaces.md "Preferences").
+# One slot per zone and mouse button (local/docs/phase5-interfaces.md "Preferences").
 for _key in zones.SLOT_KEYS:
     _zone, _letter = _key.split('_')[1:]
     MesoAddonPreferences.__annotations__[_key] = StringProperty(

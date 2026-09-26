@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """gdb script: the Blender 5.2.2 preview render race, made deterministic (run.sh drives it).
 
-The race (docs/verified-facts-5.2.md, "Preview render race"): ``RE_NewRender`` (render
+The race (local/docs/verified-facts-5.2.md, "Preview render race"): ``RE_NewRender`` (render
 pipeline.cc) adds a new ``Render`` to the global ``std::forward_list`` ``render_list`` with no
 lock. It is called from the preview job's worker thread (``shader_preview_render``) the first
 time a data-block's preview is rendered, while the main thread walks the same list after every

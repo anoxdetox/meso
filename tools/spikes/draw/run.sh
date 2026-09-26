@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the DRAW spike probe under both GPU backends (GUI; needs a display). Each run merges its
-# results into docs/spikes/draw.json (runs[<BACKEND>]) and writes docs/spikes/draw_<backend>*.png.
+# results into local/docs/spikes/draw.json (runs[<BACKEND>]) and writes local/docs/spikes/draw_<backend>*.png.
 set -u
 # No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
 # which would pop up on the user's session and offer to restart Blender there.
@@ -27,7 +27,7 @@ for be in ${BACKENDS:-vulkan opengl}; do
   echo "$be exit=$rc log=$LOGDIR/draw_probe_$be.log"
   if [ $rc -ne 0 ]; then
     # Record the failed launch (e.g. timeout 124) so draw.json shows every attempted backend.
-    "$PY" - "$HERE/../../../docs/spikes/draw.json" "$be" "$rc" \
+    "$PY" - "$HERE/../../../local/docs/spikes/draw.json" "$be" "$rc" \
       "$LOGDIR/draw_probe_$be.log" <<'PY'
 import json, sys, pathlib
 out, be, rc, logf = pathlib.Path(sys.argv[1]), sys.argv[2].upper(), int(sys.argv[3]), pathlib.Path(sys.argv[4])

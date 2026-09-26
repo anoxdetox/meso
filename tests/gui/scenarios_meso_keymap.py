@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios of the Meso Keymap, steps 1 and 2 (docs/meso-keymap-interfaces.md, "Test plan"
+"""GUI scenarios of the Meso Keymap, steps 1 and 2 (local/docs/meso-keymap-interfaces.md, "Test plan"
 G1, G3-G7; G2 is the separate restart check tests/gui/run_persist_check.sh).
 
 - G1 ``mk_first_enable_dialog``: a fresh enable opens the choice dialog once; Esc leaves it

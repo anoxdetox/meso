@@ -1,5 +1,5 @@
 """Ctrl A Properties tab cycle (ops/properties_cycle.py, core/properties_cycle.py;
-docs/meso-keymap-interfaces.md "Properties cycle").
+local/docs/meso-keymap-interfaces.md "Properties cycle").
 
 Runs inside Blender via tests/run_tests.py on the factory screen (one Properties editor). The
 dynamic tab list is computed while drawing, so headless it is the one of the start-up file (a
@@ -195,7 +195,7 @@ class TestCtrlAKeys(MesoKeymapCase):
 
 class TestPreviewWarmFact(unittest.TestCase):
     """The GUI suite's guard against the Blender 5.2.2 preview render race
-    (tests/gui/gui_driver.py ``warm_previews``; docs/verified-facts-5.2.md, "Preview render
+    (tests/gui/gui_driver.py ``warm_previews``; local/docs/verified-facts-5.2.md, "Preview render
     race") relies on ``wm.previews_ensure`` rendering the previews inside the call, on the
     calling (main) thread: the start-up material has only its 32 px icon until then."""
 

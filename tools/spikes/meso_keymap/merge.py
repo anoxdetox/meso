@@ -1,6 +1,6 @@
-"""Merge the Meso Keymap spike outputs into docs/spikes/meso-keymap-api.json.
+"""Merge the Meso Keymap spike outputs into local/docs/spikes/meso-keymap-api.json.
 
-    $PY tools/spikes/meso_keymap/merge.py OUT_DIR [GUI_RUN2.json ...] [--dst docs/spikes/meso-keymap-api.json]
+    $PY tools/spikes/meso_keymap/merge.py OUT_DIR [GUI_RUN2.json ...] [--dst local/docs/spikes/meso-keymap-api.json]
 
 OUT_DIR holds headless.json, gui.json and startup_*.json from run.sh. Extra gui JSON files are
 repeat runs: only their per-scenario verdicts are kept, to show the runs agree. Home and temp
@@ -14,7 +14,7 @@ import re
 import sys
 
 args = sys.argv[1:]
-dst = pathlib.Path(__file__).resolve().parents[3] / "docs" / "spikes" / "meso-keymap-api.json"
+dst = pathlib.Path(__file__).resolve().parents[3] / "local" / "docs" / "spikes" / "meso-keymap-api.json"
 if "--dst" in args:
     i = args.index("--dst")
     dst = pathlib.Path(args[i + 1])

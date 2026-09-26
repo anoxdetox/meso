@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Blender 5.2.2 preview render race, made deterministic under gdb (race_gdb.py has the details;
-# docs/verified-facts-5.2.md, "Preview render race").
+# local/docs/verified-facts-5.2.md, "Preview render race").
 #
 #   tools/spikes/meso_keymap/preview_race/run.sh [--no-warm] [--mode widen|count] [--runs N] [--only a,b]
 #

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Setters behind the Tool Settings row and the workspace row (Phase 3, implementer C).
 
-Every setter pushes exactly one undo step via the positional undo flag (docs/spikes.md D5):
+Every setter pushes exactly one undo step via the positional undo flag (local/docs/spikes.md D5):
 ``bpy.ops.wm.context_toggle('EXEC_DEFAULT', True, data_path=...)`` etc. Space-owned paths
 (``space_data.*``) return CANCELLED with the value changed and no step (native parity).
 The Plaza operator itself never has UNDO.
@@ -205,7 +205,7 @@ class MESO_OT_mode_set_select(Operator):
     # select mode: undo would land on the memfile step before it, which keeps the current
     # tool settings. The nested object.mode_set / select-mode calls run without the undo
     # flag (REGISTER operators with it, the mode toggle and mesh.select_mode, segfault in
-    # -b under an area override, docs/verified-facts-5.2.md, so that could never be tested
+    # -b under an area override, local/docs/verified-facts-5.2.md, so that could never be tested
     # headless) and execute() pushes both steps by hand
     # under the native names (ed.undo_push, what an operator's own push does). No UNDO flag
     # (it would push a third step), no REGISTER (like object.mode_set: no redo panel).

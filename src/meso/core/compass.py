@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Compass menus: the radial menu of a Plaza zone (Phase 5, pure; no bpy).
 
-Contract: docs/phase5-interfaces.md "Compass content", "Geometry", "Gesture". A Compass has up
+Contract: local/docs/phase5-interfaces.md "Compass content", "Geometry", "Gesture". A Compass has up
 to eight radial slots (one item per direction, N NE E SE S SW W NW) and a list below the
 radial (Phase 4 dropdown items). It opens at the press point; drag toward a slot and release
 to pick it, or release on a list item; release in the centre to cancel. A quick MMB / RMB tap
@@ -35,7 +35,7 @@ TextWidthFn = Callable[[str], float]
 DIRECTIONS = ('N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW')
 DIRECTION_ANGLE = {'E': 0.0, 'NE': 45.0, 'N': 90.0, 'NW': 135.0, 'W': 180.0, 'SW': 225.0,
                    'S': 270.0, 'SE': 315.0}
-# Blender's pie slot order (docs/spikes.md 10): slot i of a menu_pie() is PIE_ORDER[i].
+# Blender's pie slot order (local/docs/spikes.md 10): slot i of a menu_pie() is PIE_ORDER[i].
 PIE_ORDER = ('W', 'E', 'S', 'N', 'NW', 'NE', 'SW', 'SE')
 
 COMPASS_DEAD_PX = 10.0          # dead-zone radius at 1x (the plan)
@@ -225,7 +225,7 @@ def _shift_panel(panel: Panel, dx: int, dy: int) -> Panel:
 
 def place_compass(model: CompassModel, centre: tuple[float, float], dm: DropdownMetrics,
                   bounds: Rect | None, width: TextWidthFn) -> CompassLayout:
-    """Place ``model`` around ``centre`` (module doc / docs/phase5-interfaces.md "Geometry"),
+    """Place ``model`` around ``centre`` (module doc / local/docs/phase5-interfaces.md "Geometry"),
     then shift everything into ``bounds`` inset by ``dm.margin`` (the centre moves with it;
     a Compass larger than the bounds keeps its top-left inside)."""
     cx, cy = float(centre[0]), float(centre[1])
@@ -274,7 +274,7 @@ def _ang_dist(a: float, b: float) -> float:
 
 def pick_slot(layout: CompassLayout | None, x: float, y: float,
               enabled_only: bool = True) -> int | None:
-    """The slot index the pointer at ``(x, y)`` picks (docs/phase5-interfaces.md
+    """The slot index the pointer at ``(x, y)`` picks (local/docs/phase5-interfaces.md
     "Geometry"): None inside the dead zone or inside the list panel; else the populated
     (and, with ``enabled_only``, enabled) direction angularly nearest to the pointer, ties to
     the earlier direction."""
@@ -311,13 +311,13 @@ def list_path_at(layout: CompassLayout | None, x: float, y: float) -> Path | Non
 
 @dataclass(frozen=True, slots=True)
 class CompassState:
-    """The running gesture (docs/phase5-interfaces.md "Gesture"). ``button``: the opening
+    """The running gesture (local/docs/phase5-interfaces.md "Gesture"). ``button``: the opening
     mouse button; ``t0``: open time; ``sticky``: click-open (released in the dead zone
     quickly); ``left_dead``: the pointer has left the dead zone; ``hover_slot`` /
     ``hover_path``: what a release would pick now; ``pressed``: a click of the sticky
     Compass is in progress (its release picks). ``tap_sticky``: a quick tap leaves it open
     (the MMB / RMB Compasses; a LMB tap cancels: a click on empty space keeps meaning "close
-    the dropdown", docs/phase5-interfaces.md decision 81)."""
+    the dropdown", local/docs/phase5-interfaces.md decision 81)."""
 
     button: str
     t0: float

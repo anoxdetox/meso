@@ -1,5 +1,5 @@
 """Alt D pass-through in the 'User Interface' keymap (ops/driver_remove.py; decision C13,
-docs/meso-keymap-interfaces.md "Alt D pass-through").
+local/docs/meso-keymap-interfaces.md "Alt D pass-through").
 
 Runs inside Blender via tests/run_tests.py. Headless there is no hovered button, so this covers
 the operator itself (label, flags, the ``all`` property), its result mapping (FINISHED only when

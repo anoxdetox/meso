@@ -59,7 +59,7 @@ which stay in ``ops.plaza``) to :func:`handle_event`, which
    ``dropdowns``, and the Phase 2 ``pressed_id``) by swapping whole values (the draw
    callbacks read them; they never see a half-built chain).
 
-Toggle tables (docs/phase4-interfaces.md "Toggle tables"): a hit on a DD_TOGGLE_ROW names
+Toggle tables (local/docs/phase4-interfaces.md "Toggle tables"): a hit on a DD_TOGGLE_ROW names
 its cell (``Hit.cell``); :func:`target_for` makes the Target that cell's (role
 ``cell_role``, the cell's action, ``cell``), and ROLE_PASSIVE on the row label, except on a
 label row (``label_row``: the mode switch's 'Edit Mode [V] [E] [F]'), whose label is the
@@ -69,7 +69,7 @@ action, or the label row's with no cell (in place: the re-record updates the che
 chain stays open). ``Opened`` carries ``model_cell_roles`` and ``model_label_rows`` for
 keyboard navigation between the label and the cells.
 
-Drag-toggle (docs/phase4-interfaces.md "Drag-toggle"; ``core.drag_toggle``): a LMB press
+Drag-toggle (local/docs/phase4-interfaces.md "Drag-toggle"; ``core.drag_toggle``): a LMB press
 on a toggle of an open panel (a check box, a toggle-table cell or a table row's label)
 arms a :class:`core.drag_toggle.Stroke` (``session.stroke``) next to the reducer's press.
 While the button is down, the moves feed :func:`_stroke_move` first: once the pointer
@@ -84,7 +84,7 @@ hover, so ``execute_on_release`` does not flip the last toggle again) and every 
 (``ops.plaza._end`` -> :func:`end_stroke`) end a started stroke the same way first. A
 press that is released before reaching another toggle stays the plain click.
 
-Hover-open (docs/phase4-interfaces.md "Hover-open"): the pref snapshots ``hover_open`` /
+Hover-open (local/docs/phase4-interfaces.md "Hover-open"): the pref snapshots ``hover_open`` /
 ``hover_open_delay`` / ``hover_close_delay`` go into the reducer; the reducer opens a
 ROLE_DROPDOWN label after the delay (on the watchdog Timer) and closes a hover-opened chain
 once the pointer has left it, so D only adds the ``aiming`` / ``along`` of HoverLabel.

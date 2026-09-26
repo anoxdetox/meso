@@ -469,7 +469,7 @@ class TestToggleTable(unittest.TestCase):
             self.assertIs(by_name["Camera"].cells[0].checked, space.show_object_select_camera)
 
             # Space-owned paths: wm.context_toggle returns CANCELLED with the value changed
-            # (docs/spikes.md D5), so the value is what is checked.
+            # (local/docs/spikes.md D5), so the value is what is checked.
             inv = _mod("ops.invoke")
             res = inv.apply_in_place(vis.action, info.window, info.area, info.region)
             self.assertEqual(res.call[0], 'wm.context_toggle')

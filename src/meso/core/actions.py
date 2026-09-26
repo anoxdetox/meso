@@ -6,7 +6,7 @@
 unit-tested with the bundled interpreter; ``ops.invoke`` only runs the returned
 :class:`OpCall` under ``context.temp_override(window, area, region)``.
 
-Rules (docs/spikes.md D3/D5, docs/header-controls-5.2.md §5):
+Rules (local/docs/spikes.md D3/D5, local/docs/header-controls-5.2.md §5):
 - context setters and ``meso.toggle_flag`` run ``('EXEC_DEFAULT', True, ...)``: the
   positional ``True`` pushes the undo step (D5);
 - hand-offs (menus, panels, the enum popup, repeat history) run ``'INVOKE_DEFAULT'`` with no
