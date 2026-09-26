@@ -402,10 +402,14 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     after the gizmos and before the tool keymaps. So while D is held a Move / Rotate / Scale **gizmo** drag edits the
     origin, and an LMB drag **anywhere else**, in empty space and on the object (Tweak tool), draws an annotation
     stroke as before (no transform); the release still gives the user's value back. The native D + drag annotate
-    stays reachable unchanged; decision 48.
+    stays reachable unchanged; decision 48. The Move tool does the same (`ri_d_hold_annotate_move_empty`,
+    `ri_d_hold_annotate_move_object`: from a point on the cube's front face off every gizmo handle).
   - **Known limit (the snap holds' decision 34):** another repeating key pressed while D is held (W, E, R to pick a
-    tool, G Repeat Last, Insert) stops D's OS repeats, so the next transform is the last one of that hold (its
-    overlay goes when that transform ends, or at the release if it comes first). Pick the tool first, then hold D.
+    tool, G Repeat Last, Insert, Space for the Plaza; not a modifier) stops D's OS repeats, so the hold is `blind`
+    and ends when the next foreign modal of any kind ends (a transform, an orbit or pan, a box select, the Plaza, a
+    D + LMB annotate stroke), or at the release if that comes first. A transform started with a key is therefore
+    the last one of that hold, and after W an orbit before the gizmo drag already ends it. Pick the tool first,
+    then hold D.
   - `core/pivot_once.py`: `hold_step`, `EV_MODIFIER`, `hold_transform` (the `tap_step` reducer of step 9 is gone);
     `core/snap_hold.py`: `HOLD_OP_IDS` = `OWN_IDS` = {`MESO_OT_snap_hold`, `MESO_OT_pivot_once`}. `ops/snap_hold.py`:
     `_pivots` (the D hold keys and the registered-operator marker at the press), `pivot_keys()`, `_drive` steps a D
@@ -567,7 +571,7 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 | `snap_hold_vertex` | Snapping | '3D View' | V (hold) | `meso.snap_hold(element='VERTEX')` | **on** (C2) | IC V View pie → **tap V** opens it click-style on release + the Plaza View ▸ Viewpoint menu + numpad views; the press-drag-release pie gesture is lost |
 | `snap_hold_increment` | Snapping | '3D View' | J (hold) | `meso.snap_hold(element='INCREMENT')` | **on** | nothing (J unbound in IC) |
 | ~~`pivot_hold`~~ | — | removed in step 9 (user item C): no D hold any more | | | | |
-| `pivot_once` | Pivot | 'Object Mode' | D (hold, and tap) | `meso.pivot_once` | **on** (step 9; the hold since step 11) | IC D annotate tool cycle → `reloc_annotate` (Ctrl+Alt+D) + toolbar; D + LMB annotate stays native off the gizmo while D is held (the modal passes the mouse press on; verified with real input, G17, G18) |
+| `pivot_once` | Pivot | 'Object Mode' | D (hold, and tap) | `meso.pivot_once` | **on** (step 9; the hold since step 11) | IC D annotate tool cycle → `reloc_annotate` (Ctrl+Alt+D) + toolbar; D + LMB annotate stays native off the gizmo while D is held (the modal passes the mouse press on; verified with real input, G18: the Tweak and the Move tool) |
 | `reloc_annotate` | Pivot | `ANNOTATE_KEYMAPS`: 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Metaball', 'Curves', 'Sculpt Curves', 'Image Paint', 'Vertex Paint', 'Weight Paint', 'Image', 'UV Editor' | Ctrl+Alt+D | `wm.tool_set_by_id(name='builtin.annotate', cycle=True)` | on, `follows='pivot_once'` | nothing (free in every keymap that runs there; audit in `docs/spikes/meso-keymap-conflicts.md`) |
 | `pivot_toggle` | Pivot | 'Object Mode' | Insert | `meso.pivot_toggle` | **on** | nothing (Insert only bound in 'Text') |
 
@@ -593,7 +597,7 @@ silently erase a native action.
 | ~~`bind_<id>`~~ | removed in step 4 | Users switch items in Blender's keymap editor; `Binding.default_on` is the item's initial `active` flag |
 | `properties_cycle_order` | String `"OBJECT,DATA,MODIFIER,MATERIAL"` | `core.properties_cycle.parse` keeps known ids in order, drops unknown/duplicates, empty → default. The prefs show the valid ids under the field |
 | `isolate_frame_selected` | Bool False | Passed to `view3d.localview(frame_selected=)` (DEFAULT: no framing, the view does not move) |
-| `hold_tap_threshold` | Float 0.20 s (0.0–1.0) | A hold key released within this time, with no mouse button and no transform in between, is a tap and replays the native action. Separate from the Plaza's `tap_threshold` |
+| `hold_tap_threshold` | Float 0.20 s (0.0–1.0) | Shared by X / C / V / J and D (shown in the Snapping and the Pivot group). A hold key released within this time, with no mouse button and no foreign modal (a transform) in between, is a tap: X, C and V replay the native action (J has none); a D tap replays nothing and arms the one-shot instead (a second tap cancels it, step 9). For D, any other key press, a modifier too, also makes the press a hold (for X / C / V / J a modifier does not). Separate from the Plaza's `tap_threshold` |
 | `shift_rmb_owner` | **not added now** | Recorded design only (see "Shift+RMB") |
 
 Preferences never keep RNA pointers; the restore data for holds and isolate lives in module memory (below) and is
@@ -1144,7 +1148,10 @@ Snapping and pivot (Xwayland):
   press), `ri_d_hold_up_during_drag` (the release swallowed by the drag: restored by the still-held check),
   `ri_d_long_still_hold` (no tap), `ri_d_hold_while_armed`, `ri_d_hold_insert_on`, `ri_d_annotate_drag` and
   `ri_d_hold_annotate_object` (D + LMB drag with the Tweak tool in empty space and from the cube: a native annotation
-  stroke, no transform, the value back at the release).
+  stroke, no transform, the value back at the release), `ri_d_hold_annotate_move_empty` and
+  `ri_d_hold_annotate_move_object` (the same with the Move tool; the object drag starts on the cube's front face off
+  every gizmo handle, checked on the screen: the ray hits the cube, opposite each axis handle, outside the centre
+  circle).
 
 Protected features (every Meso keymap PR, roadmap rule): Shift+I local view, Shift+RMB cursor place and drag, the
 Cursor and Annotate tools in the toolbar, box/lasso/circle select, context menus, search, Quick Favorites, playback,
@@ -1391,8 +1398,9 @@ anything in Phase 5+.
     (origin only), taking annotate over objects (it stays in empty space and on Ctrl Alt D).
 49. **New in step 11 (DEFAULT in force: a).** Another repeating key pressed while D is held (W / E / R to pick a
     tool, G Repeat Last, Insert, Space for the Plaza): (a) **in force:** as the snap holds (decision 34), D's OS
-    repeats stop, so the next transform is the last one of that hold (the overlay goes when it ends, or at the
-    release if that comes first); (b) the options of decision 34.
+    repeats stop, so the hold ends when the next foreign modal ends (a transform, an orbit or pan, a box select,
+    the Plaza, a D + LMB annotate stroke), or at the release if that comes first; a transform started with a key
+    is the last one of that hold; (b) the options of decision 34.
 50. **New in step 11 (DEFAULT in force: a).** Esc or a focus loss while D is held with the one-shot armed: (a) **in
     force:** the D press ends as a hold, so both end (the user's value); (b) Esc ends only the hold and the one-shot
     stays armed.
