@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios of the Meso Keymap step 3: pre-drag snap holds, the pivot hold and toggle, and
-the protected-feature sweep (docs/meso-keymap-interfaces.md, "Test plan" G8-G13).
+"""GUI scenarios of the Meso Keymap step 3: pre-drag snap holds, the D tap one-shot pivot edit
+and the Insert toggle, and the protected-feature sweep (docs/meso-keymap-interfaces.md, "Test plan" G8-G13).
 
 These scenarios start transforms (a cursor grab), so the module sets ``NEEDS_GRAB``:
 ``tests/gui/run_gui_tests.sh`` runs them in its Xwayland session (Blender on the X11 backend;
@@ -15,17 +15,22 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
   key and restores (``core.snap_hold.deadline``); every drag snapping while the key is really
   held is the ``realinput`` session's job (``tests/gui/realinput_driver.py``, G16).
 - G9 ``mk_snap_taps``: taps replay the native keys (X toggles snapping, C the Cursor tool, V
-  opens the View pie click-style, D the Annotate tool: the pivot hold is on by default); J does
-  nothing; a long hold is not a tap; a second press while held is swallowed; Insert toggles
-  Affect Only Origins; a switched-off binding gives the key back (X, D).
+  opens the View pie click-style); J does nothing; a long hold is not a tap; a second press
+  while held is swallowed; a D tap arms Affect Only Origins and a second tap cancels it; Ctrl
+  Alt D is the Annotate tool (IC's D); Insert toggles Affect Only Origins; a switched-off
+  binding gives the key back (X, D).
 - G11 ``mk_snap_teardown``: X and V together snap to both (release order both ways); J adds
   Affect Rotate/Scale; a window deactivate, Esc, and Space (the Plaza opens; the restore waits
   until it closes) end the hold with an exact restore. File load: covered headless (load_pre)
   and by the API spike (the driver's timer does not survive a load).
 - G12 ``mk_snap_pie_limit``: a pie opened by another key during a hold (the known limit): what
   happens to the release is recorded; the next tap of the hold key restores exactly.
-- G13 ``mk_pivot``: Insert toggles Affect Only Origins; the D hold is on by default: D held +
-  Move-gizmo drag moves only the origin, and the release restores the option.
+- G13 ``mk_pivot`` (user item C of 2026-09-26): a D tap arms Affect Only Origins for one
+  transform: a Move-gizmo drag moves only the origin, the option is the user's again after it,
+  and the next drag moves the object normally; a cancelled drag (Esc) keeps it armed for the
+  next one; two taps cancel; Insert toggles the persistent mode, and Insert while armed makes
+  it persistent; Ctrl Alt D picks the Annotate tool; in Edit Mode D stays IC's Annotate tool
+  and Insert does nothing.
 - ``mk_protected_features``: with every binding on, Shift RMB places and drags the 3D cursor
   (and no add-on item uses Shift RMB, IC's cursor items fire first),
   RMB opens the context menu, Tab the search, Shift Tab (Quick Favorites) reaches no hold, a box
@@ -36,9 +41,9 @@ on the nested Wayland backend a grab segfaults, there is no pointer device).
 Not simulable: key auto-repeat while X is held during a drag (UH1: ``event_simulate`` has no
 repeat flag; the long-hold regression runs with real input in ``tests/gui/realinput_driver.py``,
 the ``realinput`` session of the runner), and D + LMB annotate while D is held (UH2: simulated
-events never set the held-key modifier). Both were measured with real X11 input in the nested XTEST spikes
-(``docs/spikes/meso-hold-long-press.md``, ``docs/spikes/meso-pivot-hold.md``: D + drag on the
-gizmo edits the origin, D + drag elsewhere still annotates).
+events never set the held-key modifier). Both run with real X11 input in the ``realinput``
+session (``tests/gui/realinput_driver.py``: a long D press counts as a tap, D + drag in empty
+space still annotates and arms nothing).
 
 Every scenario starts and ends on the Blender keyconfig with the choice undecided and the
 user edits of the Meso keymap reset.
@@ -56,7 +61,7 @@ USER = dict(snap_elements={'VERTEX', 'EDGE_MIDPOINT', 'FACE_PROJECT'}, use_snap=
             use_transform_data_origin=False)
 FIELDS = tuple(USER)
 HOLD_OP = 'MESO_OT_snap_hold'
-PIVOT_OP = 'MESO_OT_pivot_hold'
+PIVOT_OP = 'MESO_OT_pivot_once'
 
 
 def scenarios(drv):
@@ -398,16 +403,27 @@ def scenarios(drv):
             drv.check(rec, "j_tap_nothing", state() == USER
                       and len(bpy.context.window_manager.operators) == ops_before, state())
             drv.check(rec, "j_tap_no_popup", (yield from drv.canary_ok(c)))
-            # D tap (the pivot hold is on by default): the Annotate tool (cycle)
-            drv.check(rec, "pivot_hold_live", 'pivot_hold' in mk().live_ids())
+            # D tap (user item C): Affect Only Origins for the next transform; again: cancelled
+            drv.check(rec, "pivot_once_live", 'pivot_once' in mk().live_ids())
             yield from key(c, 'D')
-            drv.check(rec, "d_tap_annotate_tool", active_tool() == "builtin.annotate",
+            drv.check(rec, "d_tap_armed", ts().use_transform_data_origin
+                      and hold_mod().once_armed(), [state(), debug()])
+            drv.check(rec, "d_tap_no_tool_change", active_tool() == "builtin.select_box",
                       active_tool())
-            drv.check(rec, "d_tap_state_untouched", state() == USER, state())
+            drv.check(rec, "d_key_modal_ended", holds_running() == [], drv.modal_ops())
+            yield from key(c, 'D')
+            drv.check(rec, "d_second_tap_cancels", state() == USER
+                      and not hold_mod().once_armed(), state())
+            # Ctrl Alt D: Industry Compatible's D, the Annotate tool (cycle)
+            drv.check(rec, "reloc_annotate_live", 'reloc_annotate' in mk().live_ids())
+            yield from key(c, 'D', ctrl=True, alt=True)
+            drv.check(rec, "ctrl_alt_d_annotate_tool", active_tool() == "builtin.annotate",
+                      active_tool())
+            drv.check(rec, "ctrl_alt_d_state_untouched", state() == USER, state())
             tool("builtin.select_box")
             yield 0.2
             # switched off in the keymap editor: D is Industry Compatible's Annotate on the press
-            mk().set_binding_active('pivot_hold', False)
+            mk().set_binding_active('pivot_once', False)
             yield 0.2
             drv.sim('D', 'PRESS', c)
             yield 0.3
@@ -416,7 +432,7 @@ def scenarios(drv):
             drv.sim('D', 'RELEASE', c)
             yield 0.2
             tool("builtin.select_box")
-            mk().set_binding_active('pivot_hold', True)
+            mk().set_binding_active('pivot_once', True)
             yield 0.2
             # Insert: Affect Only Origins, sticky
             yield from key(c, 'INSERT')
@@ -563,59 +579,142 @@ def scenarios(drv):
         mw = obj.matrix_world
         return [tuple(round(x, 4) for x in (mw @ v.co)) for v in obj.data.vertices]
 
+    def gizmo_drag(c, cancel=False):
+        """A Move-gizmo drag from ``c`` (the gizmo highlights on a move onto it); ``cancel``:
+        Esc before the release. The end point."""
+        drv.sim('MOUSEMOVE', 'NOTHING', (c[0] - 3, c[1] - 3))
+        yield 0.15
+        drv.sim('MOUSEMOVE', 'NOTHING', c)
+        yield 0.3
+        drv.sim('LEFTMOUSE', 'PRESS', c)
+        yield 0.1
+        end_xy = yield from moves(c, n=4)
+        if cancel:
+            drv.sim('ESC', 'PRESS', end_xy)
+            yield 0.05
+            drv.sim('ESC', 'RELEASE', end_xy)
+            yield 0.1
+        drv.sim('LEFTMOUSE', 'RELEASE', end_xy)
+        yield 0.2
+        yield from wait_until(lambda: 'TRANSFORM_OT_translate' not in drv.modal_ops())
+        yield 0.15                      # a watcher tick after the transform
+        return end_xy
+
+    def rounded(v):
+        return tuple(round(x, 4) for x in v)
+
     def sc_pivot(rec):
         cube = bpy.data.objects.get("Cube")
-        p = drv.addon_prefs()
         me = cube.data
         original = [tuple(v.co) for v in me.vertices]
-        try:
-            begin(rec, cube)
-            yield 0.3
-            drv.check(rec, "pivot_hold_on_by_default", 'pivot_hold' in mk().live_ids())
-            tool("builtin.move")
-            yield 0.3
-            c = to_win(cube.location)
-            drv.sim('MOUSEMOVE', 'NOTHING', (c[0] - 3, c[1] - 3))
-            yield 0.15
-            drv.sim('MOUSEMOVE', 'NOTHING', c)
-            yield 0.3
-            before = world_verts(cube)
-            drv.sim('D', 'PRESS', c)
-            yield 0.3
-            drv.check(rec, "d_overlay", ts().use_transform_data_origin, state())
-            drv.check(rec, "d_hold_running", holds_running() == [PIVOT_OP], drv.modal_ops())
-            drv.sim('LEFTMOUSE', 'PRESS', c)
-            yield 0.1
-            end_xy = yield from moves(c, n=4)
-            drv.sim('LEFTMOUSE', 'RELEASE', end_xy)
-            yield 0.2
-            yield from wait_until(lambda: not ts().use_transform_data_origin)
-            loc = tuple(round(v, 4) for v in cube.location)
-            drv.check(rec, "origin_moved", any(abs(v) > 1e-3 for v in loc), loc)
-            drv.check(rec, "shape_in_place", world_verts(cube) == before,
-                      [world_verts(cube)[:1], before[:1]])
-            drv.check(rec, "d_restored_after_the_check", state() == USER,
-                      [state(), drv.modal_ops(), debug()])
-            drv.sim('D', 'RELEASE', end_xy)
-            yield 0.3
-            drv.check(rec, "d_release_restored", state() == USER and holds_running() == [],
-                      state())
-            # Insert still toggles, sticky
-            yield from key(end_xy, 'INSERT')
-            drv.check(rec, "insert_on", ts().use_transform_data_origin)
-            yield from key(end_xy, 'INSERT')
-            drv.check(rec, "insert_off", not ts().use_transform_data_origin)
-            # the pivot keys are Object Mode only: in Edit Mode D stays native, Insert nothing
-            drv.set_mode('EDIT')
-            yield 0.3
-            yield from key(c, 'INSERT')
-            drv.check(rec, "edit_insert_nothing", not ts().use_transform_data_origin)
-            drv.set_mode('OBJECT')
-            yield 0.2
-        finally:
+
+        def reset_cube():
             for v, co in zip(me.vertices, original):
                 v.co = co
             me.update()
+            cube.location = (0.0, 0.0, 0.0)
+
+        try:
+            begin(rec, cube)
+            yield 0.3
+            drv.check(rec, "pivot_once_on_by_default", 'pivot_once' in mk().live_ids()
+                      and 'reloc_annotate' in mk().live_ids(), mk().live_ids())
+            tool("builtin.move")
+            yield 0.3
+            c = to_win(cube.location)
+            drv.sim('MOUSEMOVE', 'NOTHING', c)
+            yield 0.2
+            before = world_verts(cube)
+            # D tap: armed, nothing else
+            yield from key(c, 'D')
+            drv.check(rec, "d_tap_armed", ts().use_transform_data_origin
+                      and hold_mod().once_armed(), [state(), debug()])
+            drv.check(rec, "d_tap_no_modal_left", holds_running() == [], drv.modal_ops())
+            # drag 1: only the origin moves; the option is the user's again after it
+            end_xy = yield from gizmo_drag(c)
+            yield from wait_until(lambda: not ts().use_transform_data_origin)
+            loc = rounded(cube.location)
+            drv.check(rec, "origin_moved", any(abs(v) > 1e-3 for v in loc), loc)
+            drv.check(rec, "shape_in_place", world_verts(cube) == before,
+                      [world_verts(cube)[:1], before[:1]])
+            drv.check(rec, "restored_after_one_transform", state() == USER
+                      and not hold_mod().once_armed(), [state(), debug()])
+            # drag 2: a normal move, the shape goes with the object
+            moved_before = world_verts(cube)
+            loc2 = rounded(cube.location)
+            yield from gizmo_drag(to_win(cube.location))
+            drv.check(rec, "second_drag_moves_the_object", rounded(cube.location) != loc2
+                      and world_verts(cube) != moved_before, rounded(cube.location))
+            drv.check(rec, "second_drag_state_untouched", state() == USER, state())
+            # a cancelled drag keeps it armed; the next confirmed one uses it
+            reset_cube()
+            yield 0.2
+            c = to_win(cube.location)
+            drv.sim('MOUSEMOVE', 'NOTHING', c)
+            yield 0.2
+            yield from key(c, 'D')
+            yield from gizmo_drag(c, cancel=True)
+            drv.check(rec, "cancelled_in_place", rounded(cube.location) == (0.0, 0.0, 0.0),
+                      rounded(cube.location))
+            drv.check(rec, "cancelled_keeps_it_armed", ts().use_transform_data_origin
+                      and hold_mod().once_armed(), [state(), debug()])
+            before = world_verts(cube)
+            yield from gizmo_drag(c)
+            yield from wait_until(lambda: not ts().use_transform_data_origin)
+            drv.check(rec, "after_cancel_origin_moved",
+                      any(abs(v) > 1e-3 for v in cube.location) and world_verts(cube) == before,
+                      rounded(cube.location))
+            drv.check(rec, "after_cancel_restored", state() == USER, [state(), debug()])
+            # two taps: cancelled
+            reset_cube()
+            yield from key(c, 'D')
+            yield from key(c, 'D')
+            drv.check(rec, "two_taps_cancel", state() == USER and not hold_mod().once_armed(),
+                      state())
+            # Insert: the persistent mode, until Insert again
+            yield from key(c, 'INSERT')
+            drv.check(rec, "insert_on", ts().use_transform_data_origin)
+            yield from gizmo_drag(c)
+            drv.check(rec, "insert_stays_on_after_a_transform", ts().use_transform_data_origin)
+            yield from key(c, 'INSERT')
+            drv.check(rec, "insert_off", not ts().use_transform_data_origin)
+            # D tap while Insert's mode is on: nothing to arm
+            yield from key(c, 'INSERT')
+            yield from key(c, 'D')
+            drv.check(rec, "d_tap_when_on_arms_nothing", ts().use_transform_data_origin
+                      and not hold_mod().once_armed(), debug())
+            yield from key(c, 'INSERT')
+            # Insert while armed: persistent
+            reset_cube()
+            yield from key(c, 'D')
+            yield from key(c, 'INSERT')
+            drv.check(rec, "insert_while_armed_persistent", ts().use_transform_data_origin
+                      and not hold_mod().once_armed(), debug())
+            yield from gizmo_drag(c)
+            drv.check(rec, "insert_while_armed_stays_on", ts().use_transform_data_origin)
+            yield from key(c, 'INSERT')
+            drv.check(rec, "insert_while_armed_off_again", state() == USER, state())
+            # Ctrl Alt D: the Annotate tool (Industry Compatible's D)
+            yield from key(c, 'D', ctrl=True, alt=True)
+            drv.check(rec, "ctrl_alt_d_annotate", active_tool() == "builtin.annotate",
+                      active_tool())
+            tool("builtin.move")
+            yield 0.2
+            # the pivot keys are Object Mode only: in Edit Mode D stays native, Insert nothing
+            drv.set_mode('EDIT')
+            yield 0.3
+            tool("builtin.select_box")
+            yield 0.2
+            yield from key(c, 'D')
+            drv.check(rec, "edit_d_annotate_tool", active_tool() == "builtin.annotate"
+                      and not hold_mod().once_armed(), [active_tool(), debug()])
+            yield from key(c, 'INSERT')
+            drv.check(rec, "edit_insert_nothing", not ts().use_transform_data_origin)
+            tool("builtin.select_box")
+            drv.set_mode('OBJECT')
+            yield 0.2
+        finally:
+            reset_cube()
             end(cube)
             yield 0.3
 

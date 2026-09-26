@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """GUI regression suite with REAL input: key auto-repeat during the pre-drag holds.
 
-The long-hold bug (docs/spikes/meso-hold-long-press.md): holding X (or C, V, J, D) longer than
+The long-hold bug (docs/spikes/meso-hold-long-press.md): holding X (or C, V, J) longer than
 the OS auto-repeat delay before a drag moved nothing, because the hold consumed its key repeats
 and a handled key event cancels Blender's pending click-drag. ``Window.event_simulate`` cannot
 send a repeat (its events carry no flags, and ``--enable-event-simulate`` makes Blender drop every
@@ -29,7 +29,6 @@ and a non-empty individual snap set):
 - ``ri_x_long_no_drag``: a long hold with repeats and no drag: no tap (snapping stays off),
   exact restore.
 - ``ri_v_tweak_long``: V (vertex) held long before a Tweak drag: the transform starts.
-- ``ri_d_gizmo_long``: D held long before a Move-gizmo drag: only the origin moves.
 - ``ri_c_tweak_long`` / ``ri_j_tweak_long``: C (edge; C is also the Transform Modal Map's
   CONS_OFF) and J (increment) held long before a Tweak drag: the transform starts and moves.
 
@@ -49,6 +48,20 @@ restore after the release:
 - ``ri_x_multi_still``: 1.2 s without pointer motion between two snapped drags.
 - ``ri_x_other_key``: W tapped while X is held: drag 1 snaps, drag 2 is free (X no longer
   repeats), the release restores.
+
+G17 (user item C of 2026-09-26, the D tap: Affect Only Origins for one transform; the key
+timing and D + LMB need real input, simulated events carry no repeats and no held-key
+modifier):
+
+- ``ri_d_tap_gizmo``: a D tap, a Move-gizmo drag moves only the origin, the user's value is back
+  after it, and a second drag moves the object normally.
+- ``ri_d_long_tap``: D held 1.5 s (repeats running, all passed through) with no other input is
+  still a tap; the drag after it moves only the origin.
+- ``ri_d_annotate_drag``: D held + LMB drag in empty space with the Tweak tool draws an
+  annotation stroke natively and arms nothing.
+- ``ri_d_tap_twice``: two taps cancel.
+- ``ri_d_cancel_keeps``: a gizmo drag cancelled with Esc keeps it armed; the next drag moves the
+  origin and restores.
 
 Every drag also checks it was a free move (``check_free_move``): the translate it ran finished
 with no axis constraint, and the cube moved off a single world axis. A key repeat that reached
@@ -294,19 +307,37 @@ TRACE = []
 
 def wrap_hold_modal():
     mixin = hold_mod()._HoldMixin
-    if getattr(mixin.modal, "_realinput", False):
-        return
-    orig = mixin.modal
+    if not getattr(mixin.modal, "_realinput", False):
+        orig = mixin.modal
 
-    def modal(self, context, event):
-        res = orig(self, context, event)
-        key = getattr(self, "_key", None)
-        if event.type == key or event.type == 'LEFTMOUSE':
-            TRACE.append({"t": now(), "key": key, "type": event.type, "value": event.value,
-                          "is_repeat": bool(event.is_repeat), "result": sorted(res)})
-        return res
-    modal._realinput = True
-    mixin.modal = modal
+        def modal(self, context, event):
+            res = orig(self, context, event)
+            key = getattr(self, "_key", None)
+            if event.type == key or event.type == 'LEFTMOUSE':
+                TRACE.append({"t": now(), "key": key, "type": event.type, "value": event.value,
+                              "is_repeat": bool(event.is_repeat), "result": sorted(res)})
+            return res
+        modal._realinput = True
+        mixin.modal = modal
+    # The D key modal is a registered class (patching its ``modal`` crashed Blender): trace its
+    # own-key events at the pure reducer instead (a module attribute, looked up at each call).
+    mod = hold_mod()
+    po = mod.po
+    if not getattr(po.tap_step, "_realinput", False):
+        orig_step = po.tap_step
+        sh = mod.sh
+        names = {sh.EV_OWN_REPEAT: ('PRESS', True), sh.EV_OWN_PRESS: ('PRESS', False),
+                 sh.EV_OWN_RELEASE: ('RELEASE', False)}
+
+        def tap_step(event):
+            eff = orig_step(event)
+            if event in names:
+                value, rep = names[event]
+                TRACE.append({"t": now(), "key": 'D', "type": 'D', "value": value,
+                              "is_repeat": rep, "result": sorted(mod._result(eff))})
+            return eff
+        tap_step._realinput = True
+        po.tap_step = tap_step
 
 
 # ------------------------------------------------------------------------------ setup
@@ -550,15 +581,188 @@ def sc_j_tweak_long(rec):
     check_common(rec, case, 'J', True)
 
 
-def sc_d_gizmo_long(rec):
-    case = yield from scenario(rec, 'D', 'gizmo', LONG)
-    check(rec, "overlay_origins", case["overlay"]["use_transform_data_origin"], case["overlay"])
-    check(rec, "transform_ran", 'TRANSFORM_OT_translate' in case["modals_seen"],
-          case["modals_seen"])
-    check(rec, "origin_moved", any(abs(v) > 1e-3 for v in case["location"]), case["location"])
-    check(rec, "shape_in_place", case["shape_in_place"])
-    check_free_move(rec, case)
-    check_common(rec, case, 'D', True)
+# ------------------------------------------------------------------------------ G17: D tap
+
+def annotation_strokes():
+    n = 0
+    for ann in getattr(bpy.data, "annotations", ()):
+        for layer in ann.layers:
+            for frame in layer.frames:
+                n += len(frame.strokes)
+    return n
+
+
+def armed():
+    return hold_mod().once_armed()
+
+
+def d_press(case, seconds=0.08):
+    """D down for ``seconds`` with no other input, then up."""
+    XT.key("d", True)
+    yield from track(case, seconds)
+    XT.key("d", False)
+    yield from track(case, 0.3)
+
+
+def p_drag(case, label, where="gizmo", cancel=False):
+    """An LMB drag on the Move gizmo at the cube (``where`` 'gizmo') or in empty space
+    ('empty'); ``cancel``: Esc before the button goes up. Records what moved."""
+    cube = bpy.data.objects["Cube"]
+    if where == "gizmo":
+        c = to_win(cube.location)
+        XT.move_win((c[0] - 3, c[1] - 3))
+        yield from track(case, 0.12)
+    else:
+        r = region(area3d())
+        c = (r.x + r.width // 6, r.y + r.height // 6)
+    XT.move_win(c)
+    yield from track(case, 0.15)
+    d = {"label": label, "start": [round(v, 4) for v in cube.location],
+         "verts": world_verts(cube), "strokes": annotation_strokes(),
+         "value_before": ts().use_transform_data_origin}
+    n_tr = len(case["transforms"])
+    XT.button(1, True)
+    yield from track(case, 0.12)
+    for i in range(1, 7):
+        XT.move_win((c[0] + 17 * i, c[1] - 7 * i))
+        yield from track(case, 0.05)
+    if cancel:
+        XT.key("Escape", True)
+        yield from track(case, 0.05)
+        XT.key("Escape", False)
+        yield from track(case, 0.05)
+    XT.button(1, False)
+    yield from track(case, 0.4)
+    d["end"] = [round(v, 4) for v in cube.location]
+    d["transformed"] = len(case["transforms"]) > n_tr
+    d["moved"] = d["end"] != d["start"]
+    d["shape_in_place"] = world_verts(cube) == d["verts"]
+    d["strokes_added"] = annotation_strokes() - d["strokes"]
+    d["states"] = case["transforms"][-1]["states"] if d["transformed"] else []
+    d["value_after"] = ts().use_transform_data_origin
+    d["armed_after"] = armed()
+    del d["verts"]
+    case["drags"].append(d)
+    return d
+
+
+def d_case(body, tool_id="builtin.move"):
+    """A G17 scenario: ``body(rec, case)`` drives it; this sets up and restores."""
+    def run(rec):
+        case = {"modals_seen": [], "transforms": [], "drags": []}
+        rec["case"] = case
+        cube = bpy.data.objects["Cube"]
+        me = cube.data
+        original = [tuple(v.co) for v in me.vertices]
+        XT.autorepeat(True)
+        try:
+            hold_mod().end_all()
+            tool(tool_id)
+            cube.location = (0.0, 0.0, 0.0)
+            for o in bpy.context.view_layer.objects:
+                o.select_set(o is cube)
+            bpy.context.view_layer.objects.active = cube
+            set_user()
+            XT.move_win(to_win(cube.location))
+            yield 0.4
+            case["t0"] = len(TRACE)
+            yield from body(rec, case)
+            XT.release_all()
+            yield from track(case, 0.3)
+            case["after"] = snap_state()
+            case["modals_after"] = [i for i in modal_ids() if i and i.startswith("MESO_OT")]
+            case["repeats"] = [e for e in TRACE[case["t0"]:]
+                               if e["type"] == 'D' and e["is_repeat"]]
+        finally:
+            XT.release_all()
+            hold_mod().end_all()
+            for v, co in zip(me.vertices, original):
+                v.co = co
+            me.update()
+            cube.location = (0.0, 0.0, 0.0)
+            tool("builtin.select_box")
+            yield 0.2
+        check(rec, "no_write_during_transforms",
+              all(len(tr["states"]) == 1 for tr in case["transforms"]),
+              [tr["states"] for tr in case["transforms"] if len(tr["states"]) != 1])
+        check(rec, "restored", case["after"] == user_state() and not armed(), case["after"])
+        check(rec, "no_modal_left", case["modals_after"] == [], case["modals_after"])
+        check(rec, "repeats_passed_through",
+              all(e["result"] == ['PASS_THROUGH'] for e in case["repeats"]),
+              [e["result"] for e in case["repeats"] if e["result"] != ['PASS_THROUGH']])
+    return run
+
+
+def origins_drag(rec, d, name):
+    """``d`` moved only the origin, with the option on during it and back after it."""
+    check(rec, f"{name}_transformed", d["transformed"] and d["moved"], d)
+    check(rec, f"{name}_shape_in_place", d["shape_in_place"], d)
+    check(rec, f"{name}_origins_during",
+          [s["use_transform_data_origin"] for s in d["states"]] == [True], d["states"])
+    check(rec, f"{name}_user_value_after", d["value_after"] is False and not d["armed_after"], d)
+
+
+def normal_drag(rec, d, name):
+    check(rec, f"{name}_transformed", d["transformed"] and d["moved"], d)
+    check(rec, f"{name}_shape_moved", not d["shape_in_place"], d)
+    check(rec, f"{name}_user_state_during", d["states"] == [user_state()], d["states"])
+
+
+def _d_tap_gizmo(rec, case):
+    yield from d_press(case)
+    check(rec, "tap_armed", armed() and ts().use_transform_data_origin)
+    d = yield from p_drag(case, "drag1")
+    origins_drag(rec, d, "drag1")
+    d = yield from p_drag(case, "drag2")
+    normal_drag(rec, d, "drag2")
+
+
+def _d_long_tap(rec, case):
+    yield from d_press(case, LONG)
+    n = sum(1 for e in TRACE[case["t0"]:] if e["type"] == 'D' and e["is_repeat"])
+    check(rec, "repeats_seen", n >= 10, n)
+    check(rec, "long_press_is_a_tap", armed() and ts().use_transform_data_origin)
+    d = yield from p_drag(case, "drag1")
+    origins_drag(rec, d, "drag1")
+
+
+def _d_annotate_drag(rec, case):
+    XT.key("d", True)
+    yield from track(case, 0.2)
+    d = yield from p_drag(case, "annotate", where="empty")
+    XT.key("d", False)
+    yield from track(case, 0.3)
+    check(rec, "annotated", d["strokes_added"] > 0, d["strokes_added"])
+    check(rec, "no_transform", not d["transformed"] and not d["moved"], d)
+    check(rec, "arms_nothing", not armed() and not ts().use_transform_data_origin, d)
+    check(rec, "annotate_ran", 'GPENCIL_OT_annotate' in case["modals_seen"], case["modals_seen"])
+
+
+def _d_tap_twice(rec, case):
+    yield from d_press(case)
+    check(rec, "first_tap_armed", armed())
+    yield from d_press(case)
+    check(rec, "second_tap_cancels", not armed() and snap_state() == user_state(), snap_state())
+    d = yield from p_drag(case, "drag")
+    normal_drag(rec, d, "drag")
+
+
+def _d_cancel_keeps(rec, case):
+    yield from d_press(case)
+    d = yield from p_drag(case, "cancelled", cancel=True)
+    check(rec, "cancelled_in_place", not d["moved"], d)
+    check(rec, "cancel_keeps_it_armed", d["armed_after"] and d["value_after"] is True, d)
+    d = yield from p_drag(case, "drag")
+    origins_drag(rec, d, "drag")
+
+
+D_SCENARIOS = [
+    ("ri_d_tap_gizmo", d_case(_d_tap_gizmo)),
+    ("ri_d_long_tap", d_case(_d_long_tap)),
+    ("ri_d_annotate_drag", d_case(_d_annotate_drag, tool_id="builtin.select")),
+    ("ri_d_tap_twice", d_case(_d_tap_twice)),
+    ("ri_d_cancel_keeps", d_case(_d_cancel_keeps)),
+]
 
 
 # ------------------------------------------------------------------------------ G16: multi-drag
@@ -740,10 +944,9 @@ SCENARIOS = [
     ("ri_x_tweak_long_norepeat", x_drag("tweak", LONG, repeats=False)),
     ("ri_x_long_no_drag", sc_x_long_no_drag),
     ("ri_v_tweak_long", sc_v_tweak_long),
-    ("ri_d_gizmo_long", sc_d_gizmo_long),
     ("ri_c_tweak_long", sc_c_tweak_long),
     ("ri_j_tweak_long", sc_j_tweak_long),
-] + MULTI_SCENARIOS
+] + MULTI_SCENARIOS + D_SCENARIOS
 _ONLY = [p for p in os.environ.get("MESO_GUI_ONLY", "").split(",") if p]
 if _ONLY:
     SCENARIOS = [(n, f) for n, f in SCENARIOS if any(p in n for p in _ONLY)]
@@ -755,6 +958,7 @@ def main_gen():
     if SCENARIOS:
         yield from setup()
     for name, fn in SCENARIOS:
+        print(f"GUITEST start {name}", flush=True)
         rec = {"name": name, "checks": {}}
         t = time.monotonic()
         try:
