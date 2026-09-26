@@ -90,6 +90,9 @@ class HoldCase(unittest.TestCase):
     def _cleanup(self):
         mod = hold()
         mod.end_all()
+        mod.finish_redo()
+        mod._state['used'] = None
+        mod._state['evidence'].clear()
         mod._ops.clear()
         t = ts()
         for name, value in self.saved.items():
@@ -572,7 +575,7 @@ class TestPivotOnce(HoldCase):
         self.assertIsNone(mod.once_tick(self.TR, (1, 'OBJECT_OT_select_all')))
         self.assertEqual(mod.once_state().phase, 'TRANSFORM')
         self.assertTrue(ts().use_transform_data_origin)     # never written during it
-        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate'), moved=True), 'USED')
         self.assertEqual(state(), USER)
         self.assertFalse(mod.once_armed())
         self.assertFalse(mod.session().active)
@@ -587,7 +590,7 @@ class TestPivotOnce(HoldCase):
         self.assertEqual(mod.once_tick([[]], marker), 'KEPT')
         self.assertTrue(ts().use_transform_data_origin and mod.once_armed())
         mod.once_tick(self.TR, marker)
-        self.assertEqual(mod.once_tick([[]], (3, 'TRANSFORM_OT_rotate')), 'USED')
+        self.assertEqual(mod.once_tick([[]], (3, 'TRANSFORM_OT_rotate'), moved=True), 'USED')
         self.assertEqual(state(), USER)
 
     def test_second_tap_cancels(self):
@@ -621,8 +624,8 @@ class TestPivotOnce(HoldCase):
         self.tap()
         mod.once_tick(self.TR, (1, 'X'))
         with modal_ids(['VIEW3D_OT_rotate']):             # an orbit right after the drag
-            self.assertEqual(mod.once_tick([['VIEW3D_OT_rotate']], (2, 'TRANSFORM_OT_translate')),
-                             'USED')
+            self.assertEqual(mod.once_tick([['VIEW3D_OT_rotate']], (2, 'TRANSFORM_OT_translate'),
+                                           moved=True), 'USED')
             self.assertTrue(ts().use_transform_data_origin)
             self.assertEqual(mod.pending_keys(), ('PIVOT_ONCE',))
         with modal_ids([]):
@@ -636,7 +639,7 @@ class TestPivotOnce(HoldCase):
         self.press('X', 'GRID')
         self.assertTrue(ts().use_snap and ts().use_transform_data_origin)
         mod.once_tick(self.TR, (1, 'X'))
-        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate'), moved=True), 'USED')
         self.assertTrue(ts().use_snap)
         self.assertFalse(ts().use_transform_data_origin)
         mod.release_key('X')
@@ -653,7 +656,7 @@ class TestPivotOnce(HoldCase):
         self.press('X', 'GRID')
         self.assertEqual(set(ts().snap_elements), {'GRID'})
         mod.once_tick(self.TR, (1, 'X'))
-        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate'), moved=True), 'USED')
         mod.release_key('X')
         self.assertEqual(state(), dict(header, use_transform_data_origin=False))
         self.assertFalse(mod.session().active)
@@ -670,7 +673,7 @@ class TestPivotOnce(HoldCase):
         self.assertIsNone(mod.once_tick([[]], (1, 'X')))
         self.assertTrue(mod.once_armed())
         mod.once_tick(self.TR, (1, 'X'))
-        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'USED')
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate'), moved=True), 'USED')
         self.assertEqual(state(), USER)
         self.assertFalse(mod.session().active)
         self.assertEqual(self.tap(), 'ARM')                 # not "already on"
@@ -723,6 +726,138 @@ class TestPivotOnce(HoldCase):
             for v, c in zip(cube.data.vertices, co):
                 v.co = c
             cube.data.update()
+
+    def _cube(self):
+        cube = bpy.data.objects.get("Cube")
+        if cube is None:
+            self.skipTest("no Cube")
+        me = cube.data
+        loc, co = tuple(cube.location), [tuple(v.co) for v in me.vertices]
+
+        def restore():
+            if bpy.context.mode != 'OBJECT':
+                with ctx():
+                    bpy.ops.object.mode_set(mode='OBJECT')
+            cube.animation_data_clear()
+            cube.location = loc
+            for v, c in zip(me.vertices, co):
+                v.co = c
+            me.update()
+        self.addCleanup(restore)
+        for o in bpy.context.view_layer.objects:
+            o.select_set(o is cube)
+        bpy.context.view_layer.objects.active = cube
+        bpy.context.view_layer.update()                     # no pending updates before a tap
+        return cube
+
+    def test_exec_transform_without_a_modal_uses_it(self):
+        """Review finding: Repeat Last (IC's G) re-executes a translate without a modal and
+        registers nothing new; the depsgraph evidence (the object moved, its mesh moved back)
+        ends the one-shot, so only that one transform edits origins."""
+        self._cube()
+        mod = hold()
+        self.tap()
+        with ctx():
+            bpy.ops.transform.translate(value=(1.0, 0.0, 0.0))
+        bpy.context.view_layer.update()                     # depsgraph_update_post
+        self.assertEqual(mod.once_tick([[]], None, read_last=False), 'USED')
+        self.assertEqual(state(), USER)
+        self.assertEqual(mod._state['used'], None)          # nothing registered to redo
+
+    def test_evidence_is_only_an_origin_edit(self):
+        """A plain move, a sidebar value, a selection: no evidence (the one-shot stays)."""
+        cube = self._cube()
+        mod = hold()
+        self.tap()
+        ts().use_transform_data_origin = True
+        cube.location.x += 0.5                              # a value typed in the sidebar
+        cube.select_set(False)
+        bpy.context.view_layer.update()
+        self.assertFalse(mod.take_moved())
+        self.assertIsNone(mod.once_tick([[]], None, read_last=False))
+        self.assertTrue(mod.once_armed())
+
+    def test_edit_mode_transform_keeps_it(self):
+        """Review finding: Tab into Edit Mode, move a vertex, Tab back: that transform moved no
+        origin, the one-shot stays armed for the next object transform."""
+        cube = self._cube()
+        mod = hold()
+        self.tap()
+        with ctx():
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+        bpy.context.view_layer.update()
+        mod.once_tick([[]], (1, 'OBJECT_OT_mode_set'))
+        mod.once_tick(self.TR, (1, 'OBJECT_OT_mode_set'))
+        with ctx():
+            bpy.ops.transform.translate(value=(0.0, 1.0, 0.0))
+        bpy.context.view_layer.update()
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate')), 'OTHER')
+        with ctx():
+            bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.context.view_layer.update()
+        self.assertIsNone(mod.once_tick([[]], (3, 'OBJECT_OT_mode_set')))
+        self.assertTrue(mod.once_armed() and ts().use_transform_data_origin)
+        self.assertEqual(tuple(cube.location), (0.0, 0.0, 0.0))
+
+    def test_time_transform_keeps_it(self):
+        """Review finding: a key drag in the Timeline / Dope Sheet is a transform that edits no
+        origin: the one-shot stays armed."""
+        cube = self._cube()
+        cube.keyframe_insert('location', frame=1)
+        bpy.context.view_layer.update()
+        w = bpy.context.window_manager.windows[0]
+        area = next((a for a in w.screen.areas if a.type == 'DOPESHEET_EDITOR'), None)
+        if area is None:
+            self.skipTest("no Timeline")
+        region = next(r for r in area.regions if r.type == 'WINDOW')
+        mod = hold()
+        self.tap()
+        bpy.context.view_layer.update()
+        mod.once_tick(self.TR, (1, 'X'))
+        with bpy.context.temp_override(window=w, area=area, region=region):
+            result = bpy.ops.transform.transform(mode='TIME_TRANSLATE', value=(4.0, 0, 0, 0))
+        bpy.context.view_layer.update()
+        self.assertEqual(result, {'FINISHED'})
+        from bpy_extras import anim_utils
+        bag = anim_utils.action_get_channelbag_for_slot(cube.animation_data.action,
+                                                        cube.animation_data.action_slot)
+        self.assertEqual([k.co.x for k in bag.fcurves[0].keyframe_points], [5.0])
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_transform')), 'OTHER')
+        self.assertTrue(mod.once_armed() and ts().use_transform_data_origin)
+
+    def test_redo_of_the_used_transform_edits_origins(self):
+        """Review finding: Adjust Last Operation undoes the transform that used the D tap and
+        runs it again; it reads Affect Only Origins from the scene. ``undo_post`` switches it
+        on for that run when the last registered operator is that transform, and the next timer
+        tick switches it off (the GUI suite runs the real redo, ``pivot_redo_*``)."""
+        mod = hold()
+        self.tap()
+        mod.once_tick(self.TR, (1, 'X'))
+        self.assertEqual(mod.once_tick([[]], (2, 'TRANSFORM_OT_translate'), moved=True), 'USED')
+        self.assertEqual(state(), USER)
+        orig = mod.last_registered
+        try:
+            mod.last_registered = lambda context=None: (3, 'VIEW3D_OT_select')
+            mod._undo_post(bpy.context.scene)                   # another operator since
+            self.assertFalse(ts().use_transform_data_origin or mod.redo_pending())
+            mod.last_registered = lambda context=None: (2, 'TRANSFORM_OT_translate')
+            mod._undo_post(bpy.context.scene)
+            self.assertTrue(ts().use_transform_data_origin and mod.redo_pending())
+            self.assertTrue(bpy.app.timers.is_registered(mod._redo_restore))
+            mod._undo_post(bpy.context.scene)                   # once per redo
+            self.assertIsNone(mod._redo_restore())
+            self.assertEqual(state(), USER)
+            self.assertFalse(mod.redo_pending())
+            with modal_ids(['VIEW3D_OT_rotate']):               # never under a foreign modal
+                mod._undo_post(bpy.context.scene)
+            self.assertEqual(state(), USER)
+            self.tap()                                          # armed again: its own rules
+            mod._undo_post(bpy.context.scene)
+            self.assertFalse(mod.redo_pending())
+        finally:
+            mod.last_registered = orig
+            mod.finish_redo()
 
     def test_load_pre_and_unregister_restore(self):
         mod = hold()

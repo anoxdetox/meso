@@ -14,8 +14,12 @@ Insert pivot toggle (docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivo
 - ``meso.pivot_once`` (D in Object Mode) waits for the D release: a tap (nothing pressed in
   between) arms the one-shot, which writes Affect Only Origins as an overlay held in the same
   session (``pivot_once.ONCE_KEY``), so every restore point below covers it. The watcher sees
-  the next transform run and end; when it finished (a newer registered operator) the user's
-  value comes back, when it was cancelled the one-shot stays armed. A second tap cancels it.
+  the next transform run and end; when it finished (a newer registered operator) and edited
+  origins (the ``depsgraph_update_post`` evidence, ``core.pivot_once.Evidence``) the user's
+  value comes back; when it was cancelled or edited no origin (another editor, Edit Mode) the
+  one-shot stays armed. Origins edited with no modal (Repeat Last, a script) use it too. A
+  second tap cancels it. Adjust Last Operation on that transform (the redo panel, F9) runs it
+  again with Affect Only Origins on (``undo_post``, off again on the next timer tick).
   Industry Compatible's D (Annotate tool) is on Ctrl Alt D in the Meso keymap.
 - A native transform swallows every event while it runs, the key release too, so a read-only
   watcher timer reads ``Window.modal_operators``. When the transform (or any foreign modal) is
@@ -75,7 +79,10 @@ _session = sh.HoldSession()
 _timing = sh.RepeatTiming()             # the OS key repeat, learned this Blender session
 _ops: dict[str, sh.HoldState] = {}      # hold key -> state of its running operator
 _pending: list[str] = []                # keys whose release waits for a foreign modal to end
-_state = {'missing': 0, 'logged': set(), 'once': po.Once()}
+_state = {'missing': 0, 'logged': set(), 'once': po.Once(),
+          'evidence': po.Evidence(),    # origin edits seen by depsgraph_update_post
+          'used': None,         # (marker, idname, scene key) of the transform that used the D tap
+          'redo': None}         # scene key: Affect Only Origins is on for a redo, back off next
 
 
 def session() -> sh.HoldSession:
@@ -150,8 +157,7 @@ def scene_key(scene) -> int:
     return scene.session_uid
 
 
-def _session_scene():
-    key = _session.scene
+def scene_by_key(key):
     if key is None:
         return None
     try:
@@ -159,6 +165,10 @@ def _session_scene():
     except AttributeError:            # bpy.data restricted
         return None
     return next((s for s in scenes if s.session_uid == key), None)
+
+
+def _session_scene():
+    return scene_by_key(_session.scene)
 
 
 def _session_tool_settings():
@@ -178,6 +188,7 @@ def _reset_session():
     _session.scene, _session.baseline, _session.held = None, None, []
     _session.written, _session.swapped = set(), False
     _state['once'] = po.Once()
+    _state['evidence'].clear()
 
 
 def release_key(key: str, context=None) -> bool:
@@ -537,6 +548,8 @@ def tap_once(context) -> str | None:
         if _session.active and _session.scene != scene_key(scene):
             end_all(context)                # the scene changed under a hold
         apply_writes(ts, _session.press(po.ONCE_KEY, sh.PIVOT, scene_key(scene), snapshot(ts)))
+        _state['evidence'].clear()
+        _state['used'] = None
         _start_watch()
     elif action == po.CANCEL:
         release_key(po.ONCE_KEY, context)
@@ -544,12 +557,35 @@ def tap_once(context) -> str | None:
     return action
 
 
-def once_tick(ids, last=None, *, read_last=True):
+def origin_updates(updates):
+    """``(xf, geo)`` data ids of one depsgraph update (``core.pivot_once.Evidence``): the data of
+    each object with a pure transform update (a whole-ID update, e.g. leaving Edit Mode or
+    inserting a key, also flags the geometry), and each data-block with a geometry-only update
+    (a data-block has no transform: a flagged one is a whole-ID update)."""
+    xf, geo = [], []
+    for u in updates:
+        idb = getattr(u.id, 'original', None) or u.id
+        if isinstance(idb, bpy.types.Object):
+            if u.is_updated_transform and not u.is_updated_geometry and idb.data is not None:
+                xf.append(idb.data.session_uid)
+        elif u.is_updated_geometry and not u.is_updated_transform:
+            geo.append(idb.session_uid)
+    return xf, geo
+
+
+def take_moved(now=None) -> bool:
+    """Origins were edited lately (the evidence pairs up)."""
+    return _state['evidence'].paired(time.monotonic() if now is None else now)
+
+
+def once_tick(ids, last=None, *, read_last=True, moved=None):
     """One watcher tick of the armed one-shot: ``ids`` is ``modal_ids_by_window()``; ``last``
-    the newest registered operator (read from the window manager unless given, for tests).
-    Ends the one-shot (restore; deferred while a foreign modal runs) when the transform
-    finished or the user switched the option off. The action, or None."""
+    the newest registered operator (read from the window manager unless given, for tests);
+    ``moved`` the origin-edit evidence (``take_moved()`` unless given). Ends the one-shot
+    (restore; deferred while a foreign modal runs) when a transform edited origins or the user
+    switched the option off. The action, or None."""
     st = _state['once']
+    evidence = take_moved() if moved is None else moved
     if st.phase == po.IDLE:
         return None
     if not _session.holds(po.ONCE_KEY):
@@ -562,8 +598,12 @@ def once_tick(ids, last=None, *, read_last=True):
     if last is None and read_last:
         last = last_registered()
     new, action = po.tick(st, po.transform_running(ids), last,
-                          bool(ts.use_transform_data_origin))
+                          bool(ts.use_transform_data_origin), evidence)
     _set_once(new)
+    if action == po.USED:
+        _state['used'] = (last[0], last[1], _session.scene) if last is not None else None
+    if action is not None:          # a transform or the one-shot ended: fresh evidence from now
+        _state['evidence'].clear()
     if action in (po.USED, po.USER_OFF):
         release_key(po.ONCE_KEY)
     return action
@@ -683,6 +723,8 @@ class MESO_OT_pivot_toggle(Operator):
 def _load_pre(*_args):
     """Restore into the old scene before it is freed; the new file's settings stay untouched."""
     try:
+        finish_redo()
+        _state['used'] = None
         end_all()
     except Exception as ex:
         _log_once('load_pre', f"snap hold restore on file load failed: {ex!r}")
@@ -715,7 +757,80 @@ def _save_post(*_args):
         _log_once('save_post', f"snap hold save swap failed: {ex!r}")
 
 
-_HANDLERS = (('load_pre', _load_pre), ('save_pre', _save_pre), ('save_post', _save_post))
+@persistent
+def _depsgraph_post(scene, depsgraph):
+    """While the D tap is armed: record the origin-edit evidence (``origins_edited``)."""
+    try:
+        if _state['once'].phase == po.IDLE:
+            return
+        if scene is None or scene.session_uid != _session.scene:
+            return
+        xf, geo = origin_updates(depsgraph.updates)
+        if xf or geo:
+            _state['evidence'].record(xf, geo, time.monotonic())
+    except Exception as ex:
+        _log_once('depsgraph', f"the D tap's transform evidence failed: {ex!r}")
+
+
+# ------------------------------------------------------------------------------ redo
+
+
+def redo_pending() -> bool:
+    return _state['redo'] is not None
+
+
+def _redo_restore():
+    """The timer after a redo of the D tap's transform: Affect Only Origins back off."""
+    try:
+        key = _state['redo']
+        if key is None:
+            return None
+        if foreign_now():
+            return 0.05
+        _state['redo'] = None
+        scene = scene_by_key(key)
+        if scene is not None and scene.tool_settings.use_transform_data_origin:
+            scene.tool_settings.use_transform_data_origin = False
+    except Exception as ex:
+        _log_once('redo_restore', f"the redo restore of Affect Only Origins failed: {ex!r}")
+    return None
+
+
+def finish_redo():
+    """Run the pending redo restore now (file load, unregister)."""
+    if _state['redo'] is not None:
+        if bpy.app.timers.is_registered(_redo_restore):
+            bpy.app.timers.unregister(_redo_restore)
+        _redo_restore()
+    _state['redo'] = None
+
+
+@persistent
+def _undo_post(*_args):
+    """Adjust Last Operation (the redo panel, F9, ``ed.undo_redo``) undoes the transform that
+    used the D tap and executes it again, and the transform reads Affect Only Origins from the
+    scene (it is no operator property; an undo does not restore tool settings): switch it on
+    for that execution and back off on the next timer tick, so the redone transform still edits
+    only origins. A plain Ctrl Z passes here too: on and off again with nothing in between."""
+    try:
+        used = _state['used']
+        if used is None or once_armed() or _state['redo'] is not None:
+            return
+        marker, idname, key = used
+        if last_registered() != (marker, idname) or foreign_now():
+            return
+        scene = scene_by_key(key)
+        if scene is None or scene.tool_settings.use_transform_data_origin:
+            return
+        scene.tool_settings.use_transform_data_origin = True
+        _state['redo'] = key
+        bpy.app.timers.register(_redo_restore, first_interval=0.0)
+    except Exception as ex:
+        _log_once('undo_post', f"the redo of the D tap's transform failed: {ex!r}")
+
+
+_HANDLERS = (('load_pre', _load_pre), ('save_pre', _save_pre), ('save_post', _save_post),
+             ('depsgraph_update_post', _depsgraph_post), ('undo_post', _undo_post))
 
 _classes = (MESO_OT_snap_hold, MESO_OT_pivot_once, MESO_OT_pivot_toggle)
 
@@ -737,6 +852,11 @@ def unregister():
     """Restore the hold baseline from module state first (a running modal whose class goes is
     not cancelled), then remove the watcher, the handlers and the classes. Never raises."""
     _stop_watch()
+    try:
+        finish_redo()
+    except Exception as ex:
+        print(LOG_PREFIX, f"redo restore on unregister failed: {ex!r}")
+    _state['used'] = None
     try:
         if _session.active:
             ts = _session_tool_settings()

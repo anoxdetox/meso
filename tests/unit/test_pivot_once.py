@@ -85,29 +85,54 @@ class TestTap(unittest.TestCase):
 
 class TestTick(unittest.TestCase):
     def test_idle_does_nothing(self):
-        self.assertEqual(po.tick(po.Once(), True, (8, TRANSLATE)), (po.Once(), None))
+        self.assertEqual(po.tick(po.Once(), True, (8, TRANSLATE), moved=True), (po.Once(), None))
 
-    def test_confirmed_transform_uses_it(self):
+    def test_confirmed_transform_that_edited_origins_uses_it(self):
         st, action = po.tick(armed(), True, (7, 'OBJECT_OT_select_all'))
         self.assertEqual((st.phase, action), (po.TRANSFORM, None))
+        st, action = po.tick(st, True, (7, 'OBJECT_OT_select_all'), moved=True)
+        self.assertEqual((st.phase, st.moved, action), (po.TRANSFORM, True, None))
         st, action = po.tick(st, True, (7, 'OBJECT_OT_select_all'))
-        self.assertEqual((st.phase, action), (po.TRANSFORM, None))
+        self.assertTrue(st.moved)                       # the evidence is kept
         st, action = po.tick(st, False, (8, TRANSLATE))
         self.assertEqual((st, action), (po.Once(), po.USED))
 
+    def test_evidence_in_the_ending_tick_counts(self):
+        """The last evaluation of a transform lands with the tick that sees it end."""
+        st, _ = po.tick(armed(), True, (7, 'X'))
+        self.assertEqual(po.tick(st, False, (8, TRANSLATE), moved=True), (po.Once(), po.USED))
+
+    def test_transform_that_edited_no_origin_keeps_it(self):
+        """Review finding: a key drag in the Dope Sheet, a UV move, an Edit Mode vertex move is
+        a finished transform too, but it edits no origin: still armed, on the new marker."""
+        st = armed()
+        for marker, idname in ((8, TRANSLATE), (9, 'TRANSFORM_OT_transform')):
+            st, _ = po.tick(st, True, (marker - 1, 'OBJECT_OT_editmode_toggle'))
+            st, action = po.tick(st, False, (marker, idname))
+            self.assertEqual((st, action), (po.Once(po.ARMED, marker), po.OTHER), idname)
+            st, _ = po.tick(st, True, (marker, idname))
+            st, action = po.tick(st, False, (marker, idname))     # cancelled
+            self.assertEqual(action, po.KEPT)
+        # ... and the next one that edits origins uses it
+        st, _ = po.tick(st, True, (8, 'X'), moved=True)
+        self.assertEqual(po.tick(st, False, (9, TRANSLATE))[1], po.USED)
+
     def test_cancelled_transform_keeps_it_armed(self):
-        st, _ = po.tick(armed(), True, (7, 'OBJECT_OT_select_all'))
-        st, action = po.tick(st, False, (7, 'OBJECT_OT_select_all'))
+        st, _ = po.tick(armed(), True, (7, 'OBJECT_OT_select_all'), moved=True)
+        st, action = po.tick(st, False, (7, 'OBJECT_OT_select_all'), moved=True)   # the restore
         self.assertEqual((st, action), (po.Once(po.ARMED, 7), po.KEPT))
+        self.assertFalse(st.moved)
         # ... and the next confirmed one uses it
-        st, _ = po.tick(st, True, (7, 'OBJECT_OT_select_all'))
+        st, _ = po.tick(st, True, (7, 'OBJECT_OT_select_all'), moved=True)
         st, action = po.tick(st, False, (9, 'TRANSFORM_OT_rotate'))
         self.assertEqual(action, po.USED)
 
-    def test_no_marker_counts_as_used(self):
-        """Nothing registered before or after: the safe side gives the user's value back."""
-        st, _ = po.tick(armed(None), True, None)
+    def test_no_marker(self):
+        """Nothing registered before or after: the evidence decides."""
+        st, _ = po.tick(armed(None), True, None, moved=True)
         self.assertEqual(po.tick(st, False, None), (po.Once(), po.USED))
+        st, _ = po.tick(armed(None), True, None)
+        self.assertEqual(po.tick(st, False, None), (po.Once(po.ARMED, None), po.OTHER))
 
     def test_the_marker_is_taken_when_the_transform_starts(self):
         """A click registered just before the drag began (between two ticks) is the marker."""
@@ -116,8 +141,10 @@ class TestTick(unittest.TestCase):
         self.assertEqual(po.tick(st, False, (8, 'VIEW3D_OT_select'))[1], po.KEPT)
 
     def test_a_transform_finished_as_the_next_began(self):
-        st, action = po.tick(armed(), True, (8, TRANSLATE))
+        st, action = po.tick(armed(), True, (8, TRANSLATE), moved=True)
         self.assertEqual((st, action), (po.Once(), po.USED))
+        st, action = po.tick(armed(), True, (8, TRANSLATE))
+        self.assertEqual((st, action), (po.Once(po.TRANSFORM, 8), None))
 
     def test_value_is_ignored_during_the_transform(self):
         st, _ = po.tick(armed(), True, (7, 'X'), value_on=False)
@@ -130,8 +157,17 @@ class TestTick(unittest.TestCase):
         st, action = po.tick(st, False, (8, 'VIEW3D_OT_select_box'))
         self.assertEqual((st, action), (po.Once(po.ARMED, 8), None))
 
-    def test_a_transform_between_two_ticks_uses_it(self):
+    def test_a_transform_between_two_ticks(self):
+        st, action = po.tick(armed(), False, (8, TRANSLATE), moved=True)
+        self.assertEqual((st, action), (po.Once(), po.USED))
+        # one that edited no origin (another editor) only moves the marker
         st, action = po.tick(armed(), False, (8, TRANSLATE))
+        self.assertEqual((st, action), (po.Once(po.ARMED, 8), None))
+
+    def test_origins_edited_without_a_modal_use_it(self):
+        """Review finding: Repeat Last (IC's G) re-executes the last translate without a modal
+        and registers nothing new: the evidence alone ends the one-shot."""
+        st, action = po.tick(armed(), False, (7, TRANSLATE), moved=True)
         self.assertEqual((st, action), (po.Once(), po.USED))
 
     def test_user_switched_it_off(self):
@@ -145,6 +181,44 @@ class TestTick(unittest.TestCase):
         for _ in range(5):
             st, action = po.tick(st, False, (7, 'X'))
             self.assertEqual((st.phase, action), (po.ARMED, None))
+
+
+class TestEvidence(unittest.TestCase):
+    """The origin-edit evidence: an object's transform and its data's geometry, paired within
+    ``PAIR_WINDOW`` (the GUI delivers them as separate depsgraph updates)."""
+
+    def test_pairs_across_updates(self):
+        ev = po.Evidence()
+        ev.record(xf_ids=[1], now=10.0)                 # the object moved
+        self.assertFalse(ev.paired(10.0))
+        ev.record(geo_ids=[1], now=10.02)               # its mesh moved back
+        self.assertTrue(ev.paired(10.03))
+
+    def test_one_side_alone_is_no_evidence(self):
+        ev = po.Evidence()
+        for t in range(20):                             # a key drag: transforms only
+            ev.record(xf_ids=[1], now=t * 0.03)
+        self.assertFalse(ev.paired(0.6))
+        ev = po.Evidence()
+        for t in range(20):                             # an Edit Mode move: geometry only
+            ev.record(geo_ids=[1], now=t * 0.03)
+        self.assertFalse(ev.paired(0.6))
+
+    def test_other_data_or_too_far_apart(self):
+        ev = po.Evidence()
+        ev.record(xf_ids=[1], geo_ids=[2], now=1.0)     # another object's data
+        self.assertFalse(ev.paired(1.0))
+        ev = po.Evidence()
+        ev.record(xf_ids=[1], now=1.0)                  # a sidebar value, then much later
+        ev.record(geo_ids=[1], now=1.0 + po.PAIR_WINDOW + 0.1)   # an Edit Mode move
+        self.assertFalse(ev.paired(1.0 + po.PAIR_WINDOW + 0.1))
+        self.assertEqual(ev.xf, {})                     # pruned
+
+    def test_clear(self):
+        ev = po.Evidence()
+        ev.record([1], [1], 1.0)
+        ev.clear()
+        self.assertFalse(ev.paired(1.0))
 
 
 if __name__ == '__main__':
