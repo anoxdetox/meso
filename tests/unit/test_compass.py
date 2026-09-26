@@ -254,11 +254,46 @@ class TestGesture(unittest.TestCase):
         self.assertIsNone(done)
         self.assertEqual(fx, (cp.Pick(slot=3),))
 
-    def test_list_pick(self):
-        s = cp.open_state('LEFTMOUSE', 0.0)
-        s, _ = cp.compass_step(s, 'move', path=(2,), in_dead=False)
-        self.assertEqual(cp.compass_step(s, 'release', button='LEFTMOUSE', now=1)[1],
+    def test_the_gesture_wins_over_the_list(self):
+        """A drag onto the list picks the direction until the pointer rests there."""
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), in_dead=False, now=0.1)
+        self.assertEqual((s.hover_slot, s.hover_path), (4, None), "south, not the list")
+        self.assertEqual(cp.compass_step(s, 'release', button='RIGHTMOUSE', now=0.2)[1],
+                         (cp.Pick(slot=4),), "a flick south picks the south slot")
+
+    def test_a_rest_on_the_list_arms_it(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), in_dead=False, now=1.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), in_dead=False,
+                               now=1.0 + cp.LIST_DWELL)
+        self.assertEqual((s.hover_slot, s.hover_path), (None, (2,)))
+        self.assertEqual(cp.compass_step(s, 'release', button='RIGHTMOUSE', now=2)[1],
                          (cp.Pick(path=(2,)),))
+        # leaving the list and coming back starts the rest again
+        s, _ = cp.compass_step(s, 'move', slot=4, path=None, in_dead=False, now=2.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(1,), in_dead=False, now=2.1)
+        self.assertEqual(s.hover_path, None)
+
+    def test_a_still_pointer_arms_the_list_on_the_timer(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(3,), in_dead=False, now=1.0)
+        same, fx = cp.compass_step(s, 'tick', now=1.1)
+        self.assertEqual((same, fx), (s, ()))
+        s, fx = cp.compass_step(s, 'tick', now=1.0 + cp.LIST_DWELL)
+        self.assertEqual((s.hover_path, s.hover_slot, fx), ((3,), None, ('redraw',)))
+
+    def test_a_click_opened_list_reacts_at_once(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'release', button='RIGHTMOUSE', now=0.1, in_dead=True)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), in_dead=False, now=0.2)
+        self.assertEqual((s.hover_slot, s.hover_path), (None, (2,)))
+
+    def test_direction_through_the_list(self):
+        lay = cp.place_compass(compass(8, 3), (800, 450), metrics(), BOUNDS, width_fn)
+        it = lay.panel.items[1]
+        x, y = it.rect.x + 5, it.rect.y + 2
+        self.assertEqual(cp.DIRECTIONS[cp.pick_slot(lay, x, y, through_list=True)], 'S')
 
     def test_back_in_the_centre_cancels(self):
         s = cp.open_state('LEFTMOUSE', 0.0)

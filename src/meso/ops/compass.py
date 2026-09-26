@@ -166,8 +166,8 @@ def _hover(cs: CompassSession, x: float, y: float) -> tuple[int | None, Any, boo
     lay = cs.layout
     cx, cy = lay.centre
     in_dead = math.hypot(x - cx, y - cy) < lay.dead_r
-    slot = cp.pick_slot(lay, x, y)
-    path = cp.list_path_at(lay, x, y) if slot is None else None
+    slot = cp.pick_slot(lay, x, y, through_list=True)
+    path = cp.list_path_at(lay, x, y)
     return slot, path, in_dead
 
 
@@ -183,6 +183,10 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
                 return _try_open(op, state, context, event)
             return NOT_OURS
         if etype.startswith('TIMER'):
+            before = _extent(cs)
+            cs.gesture, effects = cp.compass_step(cs.gesture, 'tick', now=time.perf_counter())
+            if effects:
+                _redraw(state, before)
             return PASS_ON
         if etype == state.release_key:
             if value == 'RELEASE':
@@ -195,7 +199,7 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
             x, y = float(event.mouse_x), float(event.mouse_y)
             slot, path, in_dead = _hover(cs, x, y)
             cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                              in_dead=in_dead)
+                                              in_dead=in_dead, now=now)
             cs.pointer = (x, y)
             _redraw(state, before)
             return {'RUNNING_MODAL'}
@@ -207,7 +211,11 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
             session.shift = bool(getattr(event, 'shift', False))
             session.ctrl = bool(getattr(event, 'ctrl', False))
             x, y = float(event.mouse_x), float(event.mouse_y)
-            _slot, _path, in_dead = _hover(cs, x, y)
+            slot, path, in_dead = _hover(cs, x, y)
+            if value == 'RELEASE':
+                # The mark's end decides (a flick may release before its last move arrives).
+                cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
+                                                  in_dead=in_dead, now=now)
             kind = 'release' if value == 'RELEASE' else 'press'
             gesture, effects = cp.compass_step(cs.gesture, kind, now=now, button=etype,
                                                in_dead=in_dead)

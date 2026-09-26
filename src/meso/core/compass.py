@@ -43,10 +43,13 @@ COMPASS_TAP_TIMEOUT = 0.25      # s: a release in the dead zone before this leav
 
 # Slot box anchors in row-height units: (dx, dy, align) with align 'C' centred, 'L' the box's
 # left edge at the anchor, 'R' its right edge (the reference layout: boxes beside the centre).
-_OFFSETS = {'N': (0.0, 2.6, 'C'), 'S': (0.0, -2.6, 'C'), 'E': (1.8, 0.0, 'L'),
-            'W': (-1.8, 0.0, 'R'), 'NE': (1.2, 1.4, 'L'), 'SE': (1.2, -1.4, 'L'),
-            'NW': (-1.2, 1.4, 'R'), 'SW': (-1.2, -1.4, 'R')}
-LIST_GAP_ROWS = 1.0             # list top: this many rows below the S box
+_OFFSETS = {'N': (0.0, 3.1, 'C'), 'S': (0.0, -3.1, 'C'), 'E': (2.6, 0.0, 'L'),
+            'W': (-2.6, 0.0, 'R'), 'NE': (2.0, 1.7, 'L'), 'SE': (2.0, -1.7, 'L'),
+            'NW': (-2.0, 1.7, 'R'), 'SW': (-2.0, -1.7, 'R')}
+LIST_GAP_ROWS = 1.5             # list top: this many rows below the S box
+# A drag reaches the list only after resting on it this long (s): until then the direction
+# picks, so a flick south never lands on a list item (the gesture always wins).
+LIST_DWELL = 0.35
 
 
 def direction_index(direction: str) -> int:
@@ -273,17 +276,18 @@ def _ang_dist(a: float, b: float) -> float:
 
 
 def pick_slot(layout: CompassLayout | None, x: float, y: float,
-              enabled_only: bool = True) -> int | None:
+              enabled_only: bool = True, through_list: bool = False) -> int | None:
     """The slot index the pointer at ``(x, y)`` picks (local/docs/phase5-interfaces.md
-    "Geometry"): None inside the dead zone or inside the list panel; else the populated
-    (and, with ``enabled_only``, enabled) direction angularly nearest to the pointer, ties to
-    the earlier direction."""
+    "Geometry"): None inside the dead zone, and inside the list panel unless
+    ``through_list`` (the gesture: only the direction counts, wherever the pointer is); else
+    the populated (and, with ``enabled_only``, enabled) direction angularly nearest to the
+    pointer, ties to the earlier direction. How far the pointer is never matters."""
     if layout is None:
         return None
     cx, cy = layout.centre
     if math.hypot(x - cx, y - cy) < layout.dead_r:
         return None
-    if layout.panel is not None and layout.panel.rect.contains(x, y):
+    if not through_list and layout.panel is not None and layout.panel.rect.contains(x, y):
         return None
     boxes = [b for b in layout.boxes if b.enabled or not enabled_only]
     if not boxes:
@@ -317,7 +321,10 @@ class CompassState:
     ``hover_path``: what a release would pick now; ``pressed``: a click of the sticky
     Compass is in progress (its release picks). ``tap_sticky``: a quick tap leaves it open
     (the MMB / RMB Compasses; a LMB tap cancels: a click on empty space keeps meaning "close
-    the dropdown", local/docs/phase5-interfaces.md decision 81)."""
+    the dropdown", local/docs/phase5-interfaces.md decision 81). ``list_since``: when the
+    pointer (dragging) came onto the list, None off it; ``list_path`` / ``dir_slot``: the list
+    item under the pointer and the direction's slot at the last move (the list arms after
+    :data:`LIST_DWELL`)."""
 
     button: str
     t0: float
@@ -327,6 +334,9 @@ class CompassState:
     hover_path: Path | None = None
     pressed: bool = False
     tap_sticky: bool = True
+    list_since: float | None = None
+    list_path: Path | None = None
+    dir_slot: int | None = None
 
 
 def open_state(button: str, now: float) -> CompassState:
@@ -361,13 +371,31 @@ def compass_step(s: CompassState, kind: str, *, now: float = 0.0, button: str = 
                  in_dead: bool = False) -> tuple[CompassState | None, tuple]:
     """One event of the gesture -> ``(new state or None when closed, effects)``. Effects:
     :class:`Pick` / :class:`CancelCompass` (terminal: the state becomes None) and the string
-    'redraw'. ``kind``: 'move' (``slot`` / ``path`` / ``in_dead`` resolved by the caller with
-    :func:`pick_slot`, :func:`list_path_at` and the dead-zone test), 'press' / 'release'
-    (``button``), 'esc', 'space' (the Plaza's key release)."""
+    'redraw'. ``kind``: 'move' (``slot``: the direction's slot, :func:`pick_slot` with
+    ``through_list``; ``path``: :func:`list_path_at`; ``in_dead`` and ``now``, resolved by the
+    caller), 'tick' (``now``: a watchdog timer, arms the list after a rest), 'press' /
+    'release' (``button``; callers send a 'move' for the release point first), 'esc',
+    'space' (the Plaza's key release).
+
+    The gesture always wins: while dragging, the direction picks (``hover_slot``) even over
+    the list; the list item under the pointer (``hover_path``) takes over only once the
+    pointer has rested on the list for :data:`LIST_DWELL`. A click-opened (sticky) Compass is
+    pointed at deliberately: its list reacts at once."""
     if kind == 'move':
-        new = replace(s, hover_slot=slot, hover_path=None if slot is not None else path,
-                      left_dead=s.left_dead or not in_dead)
-        return new, ('redraw',)         # the pointer line follows every move
+        s = replace(s, left_dead=s.left_dead or not in_dead, list_path=path, dir_slot=slot)
+        if s.sticky:
+            return replace(s, hover_path=path, hover_slot=None if path else slot), ('redraw',)
+        if path is None:
+            return replace(s, list_since=None, hover_path=None, hover_slot=slot), ('redraw',)
+        since = s.list_since if s.list_since is not None else float(now)
+        armed = now - since >= LIST_DWELL
+        return replace(s, list_since=since, hover_path=path if armed else None,
+                       hover_slot=None if armed else slot), ('redraw',)
+    if kind == 'tick':
+        if (not s.sticky and s.hover_path is None and s.list_path is not None
+                and s.list_since is not None and now - s.list_since >= LIST_DWELL):
+            return replace(s, hover_path=s.list_path, hover_slot=None), ('redraw',)
+        return s, ()
     if kind in ('esc', 'space'):
         return None, (CancelCompass(),)
     if kind == 'press':
