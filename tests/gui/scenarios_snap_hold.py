@@ -579,9 +579,14 @@ def scenarios(drv):
         mw = obj.matrix_world
         return [tuple(round(x, 4) for x in (mw @ v.co)) for v in obj.data.vertices]
 
+    LAST_DRAG = {"transformed": False}
+
     def gizmo_drag(c, cancel=False):
         """A Move-gizmo drag from ``c`` (the gizmo highlights on a move onto it); ``cancel``:
-        Esc before the release. The end point."""
+        Esc before the release. The end point; ``LAST_DRAG["transformed"]``: a translate ran
+        before the release or the Esc (a missed gizmo or a drag under the threshold starts
+        none, and a check on the result would then pass for nothing)."""
+        LAST_DRAG["transformed"] = False
         drv.sim('MOUSEMOVE', 'NOTHING', (c[0] - 3, c[1] - 3))
         yield 0.15
         drv.sim('MOUSEMOVE', 'NOTHING', c)
@@ -589,6 +594,7 @@ def scenarios(drv):
         drv.sim('LEFTMOUSE', 'PRESS', c)
         yield 0.1
         end_xy = yield from moves(c, n=4)
+        LAST_DRAG["transformed"] = 'TRANSFORM_OT_translate' in drv.modal_ops()
         if cancel:
             drv.sim('ESC', 'PRESS', end_xy)
             yield 0.05
@@ -625,6 +631,8 @@ def scenarios(drv):
             drv.sim('MOUSEMOVE', 'NOTHING', c)
             yield 0.2
             before = world_verts(cube)
+            with v3d_ctx():         # the redo below undoes to exactly this state
+                bpy.ops.ed.undo_push(message="Meso pivot test")
             # D tap: armed, nothing else
             yield from key(c, 'D')
             drv.check(rec, "d_tap_armed", ts().use_transform_data_origin
@@ -639,6 +647,26 @@ def scenarios(drv):
                       [world_verts(cube)[:1], before[:1]])
             drv.check(rec, "restored_after_one_transform", state() == USER
                       and not hold_mod().once_armed(), [state(), debug()])
+            # Adjust Last Operation (the redo panel's and F9's call, ``ed.undo_redo``) undoes
+            # the move and runs it again: it still edits only the origin (review finding)
+            op = bpy.context.window_manager.operators[-1]
+            drv.check(rec, "redo_last_is_the_move", op.bl_idname == 'TRANSFORM_OT_translate',
+                      op.bl_idname)
+            value = tuple(op.properties.value)
+            op.properties.value = tuple(2.0 * v for v in value)
+            with v3d_ctx():
+                redo = bpy.ops.ed.undo_redo()
+            yield 0.2
+            yield from wait_until(lambda: not hold_mod().redo_pending())
+            cube = bpy.data.objects["Cube"]              # the undo may re-read the IDs
+            me = cube.data
+            drv.check(rec, "redo_ran", redo == {'FINISHED'}
+                      and rounded(cube.location) == rounded(tuple(2.0 * v for v in value)),
+                      [redo, rounded(cube.location), value])
+            drv.check(rec, "redo_edits_only_origins", world_verts(cube) == before,
+                      [world_verts(cube)[:1], before[:1]])
+            drv.check(rec, "redo_restored", state() == USER and not hold_mod().once_armed(),
+                      [state(), debug()])
             # drag 2: a normal move, the shape goes with the object
             moved_before = world_verts(cube)
             loc2 = rounded(cube.location)
@@ -646,6 +674,84 @@ def scenarios(drv):
             drv.check(rec, "second_drag_moves_the_object", rounded(cube.location) != loc2
                       and world_verts(cube) != moved_before, rounded(cube.location))
             drv.check(rec, "second_drag_state_untouched", state() == USER, state())
+            # transforms that edit no origin leave the D tap armed (review finding): an Edit
+            # Mode move and a key drag in the Timeline
+            reset_cube()
+            yield 0.2
+            c = to_win(cube.location)
+            drv.sim('MOUSEMOVE', 'NOTHING', c)
+            yield 0.2
+            yield from key(c, 'D')
+            drv.set_mode('EDIT')
+            with v3d_ctx():
+                bpy.ops.mesh.select_all(action='SELECT')
+            yield 0.3
+            start_translate()
+            yield 0.25
+            e_xy = yield from moves(c)
+            ran = 'TRANSFORM_OT_translate' in drv.modal_ops()
+            drv.sim('LEFTMOUSE', 'PRESS', e_xy)
+            drv.sim('LEFTMOUSE', 'RELEASE', e_xy)
+            yield 0.3
+            yield from wait_until(lambda: 'TRANSFORM_OT_translate' not in drv.modal_ops())
+            yield 0.15
+            drv.set_mode('OBJECT')
+            yield 0.3
+            last = bpy.context.window_manager.operators[-1].bl_idname
+            drv.check(rec, "edit_move_ran", ran and [tuple(v.co) for v in me.vertices] != original,
+                      [ran, last])
+            drv.check(rec, "edit_move_keeps_it_armed", hold_mod().once_armed()
+                      and ts().use_transform_data_origin, [state(), debug()])
+            cube.keyframe_insert('location', frame=1)
+            yield 0.2
+            t_area = drv.area_by('TIMELINE')
+            with bpy.context.temp_override(window=drv.win(), area=t_area,
+                                           region=drv.region_of(t_area, 'WINDOW')):
+                bpy.ops.transform.transform('INVOKE_DEFAULT', mode='TIME_TRANSLATE')
+            yield 0.2
+            ran = 'TRANSFORM_OT_transform' in drv.modal_ops()
+            e_xy = yield from moves(c, n=3, dx=40, dy=0)
+            drv.sim('LEFTMOUSE', 'PRESS', e_xy)
+            drv.sim('LEFTMOUSE', 'RELEASE', e_xy)
+            yield 0.3
+            yield from wait_until(lambda: 'TRANSFORM_OT_transform' not in drv.modal_ops())
+            yield 0.15
+            last = bpy.context.window_manager.operators[-1].bl_idname
+            drv.check(rec, "key_drag_ran", ran and last == 'TRANSFORM_OT_transform', [ran, last])
+            drv.check(rec, "key_drag_keeps_it_armed", hold_mod().once_armed()
+                      and ts().use_transform_data_origin, [state(), debug()])
+            cube.animation_data_clear()
+            yield 0.2
+            before = world_verts(cube)
+            yield from gizmo_drag(c)
+            yield from wait_until(lambda: not ts().use_transform_data_origin)
+            drv.check(rec, "then_the_object_drag_edits_the_origin", LAST_DRAG["transformed"]
+                      and any(abs(v) > 1e-3 for v in cube.location)
+                      and world_verts(cube) == before, rounded(cube.location))
+            drv.check(rec, "then_restored", state() == USER and not hold_mod().once_armed(),
+                      [state(), debug()])
+            # Repeat Last (G) runs the move again without a modal: it uses the D tap, once
+            reset_cube()
+            yield 0.2
+            c = to_win(cube.location)
+            yield from gizmo_drag(c)                     # a plain move: the one to repeat
+            loc_a = rounded(cube.location)
+            c = to_win(cube.location)
+            drv.sim('MOUSEMOVE', 'NOTHING', c)
+            yield 0.2
+            yield from key(c, 'D')
+            before = world_verts(cube)
+            yield from key(c, 'G')
+            yield from wait_until(lambda: not ts().use_transform_data_origin)
+            drv.check(rec, "repeat_last_edits_the_origin", rounded(cube.location) != loc_a
+                      and world_verts(cube) == before, [rounded(cube.location), loc_a])
+            drv.check(rec, "repeat_last_uses_it", state() == USER
+                      and not hold_mod().once_armed(), [state(), debug()])
+            before = world_verts(cube)
+            yield from gizmo_drag(to_win(cube.location))
+            drv.check(rec, "after_repeat_last_the_drag_moves_the_object",
+                      LAST_DRAG["transformed"] and world_verts(cube) != before,
+                      rounded(cube.location))
             # a cancelled drag keeps it armed; the next confirmed one uses it
             reset_cube()
             yield 0.2
@@ -654,6 +760,7 @@ def scenarios(drv):
             yield 0.2
             yield from key(c, 'D')
             yield from gizmo_drag(c, cancel=True)
+            drv.check(rec, "cancelled_drag_was_a_transform", LAST_DRAG["transformed"])
             drv.check(rec, "cancelled_in_place", rounded(cube.location) == (0.0, 0.0, 0.0),
                       rounded(cube.location))
             drv.check(rec, "cancelled_keeps_it_armed", ts().use_transform_data_origin
@@ -674,7 +781,11 @@ def scenarios(drv):
             # Insert: the persistent mode, until Insert again
             yield from key(c, 'INSERT')
             drv.check(rec, "insert_on", ts().use_transform_data_origin)
+            before = world_verts(cube)
             yield from gizmo_drag(c)
+            drv.check(rec, "insert_drag_edits_the_origin", LAST_DRAG["transformed"]
+                      and any(abs(v) > 1e-3 for v in cube.location)
+                      and world_verts(cube) == before, rounded(cube.location))
             drv.check(rec, "insert_stays_on_after_a_transform", ts().use_transform_data_origin)
             yield from key(c, 'INSERT')
             drv.check(rec, "insert_off", not ts().use_transform_data_origin)
@@ -691,7 +802,8 @@ def scenarios(drv):
             drv.check(rec, "insert_while_armed_persistent", ts().use_transform_data_origin
                       and not hold_mod().once_armed(), debug())
             yield from gizmo_drag(c)
-            drv.check(rec, "insert_while_armed_stays_on", ts().use_transform_data_origin)
+            drv.check(rec, "insert_while_armed_stays_on", LAST_DRAG["transformed"]
+                      and ts().use_transform_data_origin)
             yield from key(c, 'INSERT')
             drv.check(rec, "insert_while_armed_off_again", state() == USER, state())
             # Ctrl Alt D: the Annotate tool (Industry Compatible's D)
