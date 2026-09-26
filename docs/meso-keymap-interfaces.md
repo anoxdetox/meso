@@ -240,7 +240,7 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     --xwayland`, Blender on X11 **without** `--enable-event-simulate`, real X11 input through XTEST (ctypes
     libXtst), the private kwinrc with `[Xwayland] XwaylandEisNoPrompt=true` (KWin accepts the XTEST input Xwayland
     forwards through libei). The driver refuses to run unless `MESO_REALINPUT_NESTED=1` (set by the runner only
-    for a nested session) and `XDG_RUNTIME_DIR` is the run's private dir; `--host` never runs it. About 35 s.
+    for a nested session) and `XDG_RUNTIME_DIR` is the run's private dir; `--host` never runs it. About 35 s (about 85 s with G16, step 8).
   - Side effect (decision 31): while a hold runs and the pointer is over an editor whose keymap takes repeats of
     the bare key (the Text editor, the Console: TEXTINPUT with `repeat=True`), those repeats type the letter, as
     for any held key in Blender. The first press is still the hold's.
@@ -267,6 +267,43 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     over Help keeps Object; rest and move-away switch; a hover-opened chain); GUI G15. Without the reducer
     guard 4 of the 5 headless cases and the GUI scenario fail; without the trail and slack the headless walk
     fails (Help opens on the first straight-up step).
+
+- **Step 8 implemented** (user item B of 2026-09-26: "long-holding then translating works, but doing a move after
+  reclicking and continuing is not bound by that keypress anymore"; `docs/spikes/meso-feedback-3.md`):
+  - **Cause:** the "one snapped drag per hold" rule (decision 4): when the transform ended, the hold released the
+    overlay at once, whether or not the key was still down, because the transform swallows the key release.
+  - **Fix, the still-held check (`core.snap_hold.step`, pure):** when a foreign modal ends with no release seen,
+    the hold keeps its overlay and stays HELD with `after` = the end time (`HoldState.checking`). An own-key
+    repeat (they pass through, step 6) or a new own press proves the key down and ends the check; the release ends
+    the hold as before; `EV_TIMEOUT` counts the key as released. The watcher sends it once
+    `deadline(state, timing) = max(after, pressed_at + delay) + gap` has passed and no foreign modal runs; a
+    `bpy.app.timers` tick runs after every queued event, so a stall never times out a key whose repeats are queued.
+    A new foreign modal inside the window makes the phase FOREIGN again and re-arms the check at its end. So every
+    drag snaps while the key is held, and the release restores the user's settings exactly.
+  - **Another repeating key** (`EV_OTHER_KEY`: a non-repeat key press that is not a modifier, `NON_REPEATING_KEYS`)
+    stops the hold key's OS repeats, so its silence proves nothing: the hold becomes `blind` and falls back to one
+    snapped drag (the overlay goes when the next foreign modal ends); during a check it ends the hold at once. An
+    own repeat clears `blind`. Modifiers (Shift, Ctrl, Alt, OS key, Hyper) change nothing (decision 34).
+  - **Timing:** `RepeatTiming` learns the OS repeat delay (the first repeat of a hold with no foreign modal and no
+    other key yet) and interval (consecutive repeats while HELD) per Blender session: the median of the newest 15
+    samples once there are 3, never below the defaults 0.60 s / 0.04 s (a short sample only comes from a stall at the
+    press) and capped at 2.0 s / 0.25 s; `gap = max(0.20 s, 5 × interval)` (decision 35).
+  - **Decision 24 answered by the same rule:** every foreign modal (orbit, pan, zoom, box select, the Plaza) ends
+    in the still-held check, not only transforms.
+  - `ops/snap_hold.py`: `_watch(now=None)` passes the time to every step (it passed 0.0 before) and sends the
+    timeouts; `_drive` feeds `RepeatTiming.observe`; `classify` returns `EV_OTHER_KEY`; `checking_keys()`,
+    `repeat_timing()`. `_is_key_event` also skips `TEXTINPUT`, `MOUSE*` gestures and action zones. Restore points
+    are unchanged (release, timeout, deactivate, Esc, `cancel()`, `load_pre`, the save swap, `unregister()`), and
+    nothing is written while a foreign modal runs.
+  - **Tests:** unit `TestStillHeld` (the spike's rows as timed event sequences through the reducer plus a
+    watcher-tick model that asserts no write while a foreign modal runs: three drags, a still pointer, release during
+    and after a drag, a short hold with fast drags, a release during a fast drag, modifiers, another key before and
+    during the check, a second hold key, auto-repeat off, a drag inside the window, a slow OS repeat that is
+    learned) and `TestRepeatTiming`; headless (the watcher's check and timeout on a fake clock, no timeout while a
+    foreign modal runs and the re-arm, three drags through the running modal, `classify` of modifiers and other
+    keys, the learned timing from the modal, teardown and `unregister()` during the check); GUI G16 in the
+    `realinput` session (below). The simulated G8 / G13 checks now read "restored after the check" (simulated
+    events have no repeats, so the check times out).
 
 ## Delivery model (user decision 1; step 4)
 - The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
@@ -584,18 +621,22 @@ fields Meso wrote go back to the baseline.
 
 ### Hold operator reducer (`step`)
 State per running hold operator: `key`, `pressed_at`, `phase` (HELD / FOREIGN / ENDED), `used` (a mouse button or a
-transform happened), `release_pending`. Events → effects:
+transform happened), `release_pending`, and since step 8 `after` (the still-held check runs since this time;
+`checking`), `blind` (another repeating key went down), `clean` and `last_repeat` (for the learned repeat timing).
+Events → effects:
 
 | Event (as the modal sees it) | Effect |
 |---|---|
 | Release of its own key, HELD, `now − pressed_at ≤ hold_tap_threshold`, not `used` | **tap**: release the overlay, replay the native action, FINISH, consume |
 | Release of its own key, HELD, otherwise | release the overlay, FINISH, consume |
 | Press of its own key (not a repeat: the release went unseen) | consume while HELD or FOREIGN; in ENDED finish and PASS_THROUGH (a new hold starts) |
-| Auto-repeat of its own key (`is_repeat`), any phase | PASS_THROUGH, no state change (step 6: a handled repeat cancels Blender's pending click-drag; the native items on the bare keys have `repeat=False`) |
+| Auto-repeat of its own key (`is_repeat`), any phase | PASS_THROUGH (step 6: a handled repeat cancels Blender's pending click-drag; the native items on the bare keys have `repeat=False`); while HELD it proves the key down: the check ends, `blind` clears (step 8) |
 | A mouse button press | `used = True`, PASS_THROUGH (the tool/gizmo drag starts) |
-| Any other event (G/R/S, Space, other hold keys, navigation) | PASS_THROUGH |
+| Another repeating key pressed (`EV_OTHER_KEY`: not a repeat, not a modifier; e.g. W, Space, another hold key) | PASS_THROUGH; `blind = True` (HELD, FOREIGN); during the check: release the overlay, FINISH (step 8) |
+| Any other event (mouse moves, modifiers, navigation) | PASS_THROUGH |
 | Watcher: `foreign_above(modal_ids, OWN_IDS)` became True | phase FOREIGN, `used = True` |
-| Watcher: the foreign modal is gone | release the overlay **now** (one snapped drag per hold, DEFAULT), phase ENDED; the modal finishes on its next event and swallows a late own-key release |
+| Watcher: the foreign modal is gone | release seen during it or `blind`: release the overlay now, phase ENDED (the modal finishes on its next event and swallows a late release). Otherwise (step 8): keep the overlay, phase HELD, the still-held check from now (`after`) |
+| Watcher: `timed_out(state, now, timing)` and no foreign modal (`EV_TIMEOUT`) | no sign of the key: release the overlay, FINISH (step 8) |
 | Release arriving while FOREIGN | `release_pending`; the restore waits for the watcher |
 | `WINDOW_DEACTIVATE` | release the overlay (deferred while FOREIGN), FINISH |
 | `ESC` with no foreign modal | release the overlay, FINISH, PASS_THROUGH |
@@ -621,7 +662,8 @@ transform happened), `release_pending`. Events → effects:
   Origins is Object Mode only; in edit modes D/Insert stay native: annotate cycle / nothing).
 
 ### Restore points (all verified in spike c)
-1. own-key release; 2. the watcher when a foreign modal ends (or a deferred release); 3. `WINDOW_DEACTIVATE`;
+1. own-key release; 2. the watcher: the still-held check's timeout after a foreign modal (step 8), a deferred
+release or a `blind` hold when the foreign modal ends; 3. `WINDOW_DEACTIVATE`;
 4. `load_pre` (restore into the old scene, end the session, so `cancel()` later does nothing); 5. `save_pre` writes
 the baseline and `save_post` puts the overlay back, so a saved file never holds the temporary state; 6.
 `ops/snap_hold.unregister()` from module state (defensive: skip with a log line if `bpy.data` is restricted).
@@ -768,6 +810,7 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
   restores exactly; mid release writes the remaining overlay; `restore_writes` writes `snap_elements` first and once
   and only changed fields; `step` table rows (tap, long hold, used by mouse, FOREIGN defer, deactivate, ESC, cancel,
   own-key press consumed; own-key repeat passes through in every phase; the OS repeat pattern of a long hold, step 6);
+  the still-held check and the learned repeat timing (`TestStillHeld`, `TestRepeatTiming`, step 8);
   `foreign_above` with `None` entries, own ids, Plaza.
 - `test_isolate.py`: `ISOLATE_KIND_BY_MODE`; `decide` rows; Flags equality; `edit_plan` rows (step 5).
 - `test_properties_cycle.py`: `parse` (unknown, duplicate, empty); `next_tab` wrap, skip missing (camera, empty, none
@@ -858,6 +901,13 @@ Snapping and pivot (Xwayland):
   to X and the old checks still passed (`[3, 0, 0]` is moved and on the grid); the new ones fail. The short-hold
   control checks no repeat before the drag (one may come as the transform ends). No keyboard translate exists
   in the Meso keymap (Industry Compatible: G is Repeat Last, W picks the Move tool).
+- G16 (step 8, `realinput` session): every drag snaps while X is held. `ri_x_multi_tweak` / `ri_x_multi_gizmo`
+  (three drags snap, the drag after the release is free), `ri_x_multi_short` (a short hold, two fast drags before
+  the first repeat and a normal one), `ri_x_up_during_drag` / `ri_x_up_after_drag` (the drag after the release is
+  free), `ri_x_multi_modifiers` (Shift in drag 1, Ctrl in drag 2), `ri_x_multi_still` (1.2 s without pointer
+  motion), `ri_x_other_key` (W tapped while X is held: drag 1 snaps, drag 2 is free, the fallback). Each checks
+  which drags snapped, that every transform saw a single snap state (nothing written while it ran; the overlay
+  for a snapped drag, the user's state for a free one), the exact restore, and that the hold ended.
 - G15 (step 7, `tests/gui/scenarios_hover.py` `hover_aim_guard_diagonal`, main session): Object clicked open in
   the Plaza, a straight path (3 px steps, 15 px per frame) from the Object label to the top of its panel crosses
   `TOPBAR_MT_help`: Object stays open, Help never opens, the path reaches the panel; a second session
@@ -922,6 +972,11 @@ for the scenarios it adds, a docs update (this page's "Status" notes + README ke
   `AIM_SLACK_PX`), `ops/dropdowns.py` (`MenuSession.trail`, `_aiming_chain`), the tests above,
   `docs/phase4-interfaces.md` "Aim guard".
 
+### Step 8 — every drag snaps while the key is held (✅ implemented, see Status; user item B of 2026-09-26)
+- Files: `core/snap_hold.py` (`step`, `HoldState` fields, `EV_OTHER_KEY`, `EV_TIMEOUT`, `NON_REPEATING_KEYS`,
+  `RepeatTiming`, `deadline`, `timed_out`), `ops/snap_hold.py` (`_watch`, `_drive`, `classify`), the tests above,
+  `tests/gui/realinput_driver.py` (G16), `tests/gui/run_gui_tests.sh` (realinput session limit 320 s).
+
 ## Out of scope (unchanged)
 Mid-drag snap-type switching, transform adapters or custom transform/gizmo code, B-drag radius, MMB virtual sliders,
 live-transform duplication, D+V pivot-to-vertex, RMB/Shift+RMB Compass menus (Phase 5b), the rest of the parity
@@ -934,8 +989,10 @@ anything in Phase 5+.
 2. First-enable dialog: Enter = Keep (default button); Esc = undecided, asked once, the prefs box stays.
 3. Disable restore only while Meso is still active; previous missing → assign / preset / 'Blender' fallback; every
    start and an add-on reload or update re-select Meso for the MESO choice.
-4. One snapped drag per hold (restore when the transform ends); the `key_modifier` "still held" check needs one run
-   with a real keyboard before it could keep snapping for a second drag.
+4. **Answered (user item B of 2026-09-26, step 8):** every drag snaps while the key is held. The hold keeps its
+   overlay after a transform and proves the key down from its OS repeats (the still-held check); the release, or
+   no repeat by the deadline, restores. The `key_modifier` probe items were not used (positive evidence only, they
+   miss mouse moves over gizmos, and would add visible items per hold key).
 5. J: pre-drag INCREMENT hold only (blocker); J also enables Affect Rotate and Scale while held; X/C/V do not.
 6. Several hold keys at once snap to the union of their elements.
 7. **C2** V hold on; tap V opens the View pie click-style (the drag-release gesture is lost).
@@ -974,7 +1031,9 @@ anything in Phase 5+.
       those six editors.
     - (c) Take Ctrl Shift A for select all there too and give deselect another key in those editors (a new
       inconsistency; no free candidate was audited).
-24. **New in step 3 (DEFAULT in force: a).** Every foreign modal operator ends a hold when it finishes, not only
+24. **Answered by step 8** (the user asked that every drag while the key is held snaps): after every foreign modal
+    the hold runs the still-held check; the evidence rule covers the risk (b) named (a release swallowed during an
+    orbit ends the hold at the timeout). The original text: **New in step 3 (DEFAULT in force: a).** Every foreign modal operator ends a hold when it finishes, not only
     transforms: an orbit, pan or zoom drag (MMB, Alt+LMB), a box select or the Plaza during a hold also give the
     snap settings back when they end, so a drag after them does not snap until the key is pressed again. Options:
     - (a) **In force now:** any foreign modal ends the hold (the verified "one snapped drag per hold" rule; simple
@@ -1020,3 +1079,17 @@ anything in Phase 5+.
     so they stay (an F19 item added to 'Window' under Blender survives; so does a Transform Modal Map edit made
     under Meso); (b) every keymap with an edit, with a confirmation that lists the keymaps whose edits are also
     lost under the other keymaps.
+34. **New in step 8 (DEFAULT in force: a).** Another repeating key pressed while a hold key is down (W, Space, a
+    second hold key such as C after X) stops the hold key's OS repeats, so its silence proves nothing. (a) **In
+    force:** that hold falls back to one snapped drag (its overlay goes when the next foreign modal ends; with X and
+    C both held, drag 2 then snaps to C's element only, C's own hold goes on); (b) key-modifier probe items on
+    MOUSEMOVE, one per hold key: positive evidence only, they miss mouse moves over gizmos and show in the keymap
+    editor; (c) let a newer hold key's repeats also keep the older holds alive until it ends (an X released during
+    a drag would then snap until C is released).
+35. **New in step 8 (DEFAULT in force: a).** The still-held check's window: (a) **in force:** `gap = max(0.20 s,
+    5 × interval)` after `max(transform end, press + delay)`, the delay and interval learned per session but never
+    below 0.60 s / 0.04 s. So after a release *during* a drag, a drag started within that window (at most 0.2 s after
+    a long hold's transform; up to press + 0.8 s after a short hold) still snaps once, and is then restored (measured
+    in 1 of 2 spike runs); (b) a shorter gap (0.15 s: no false timeout in the spike's 60 transform ends, less margin
+    for a slow system); (c) also learn values below the defaults (a faster OS repeat shortens the window, but a stall
+    at the press could then shorten it too much).

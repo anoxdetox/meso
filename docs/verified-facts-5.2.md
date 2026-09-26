@@ -245,6 +245,18 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   XwaylandEisNoPrompt=true` in the (private) kwinrc. KWin drops an EI press of a key that is already down, so the
   repeats come from Xwayland's own auto-repeat (`XAutoRepeatOff` for a no-repeat control). Real events carry the
   held-key modifier (`keymodifier`), simulated ones never do.
+- After a transform with the hold key still down (`docs/spikes/meso-feedback-3.md`, real X11 input, 2 runs x 10
+  cases): the key's repeats resume at once when it had been held past the repeat delay (first one 0.000-0.069 s
+  after the transform end over 60 ends, then about every 41 ms, p99 0.052 s); after a short hold whose drag ended
+  before the delay nothing arrives until press + 0.60 s. A release *during* the drag is swallowed for good (no
+  release event, no repeat afterwards); a release after the drag arrives as the release event. Shift or Ctrl
+  during the drag do not stop the repeats (X11; Wayland: non-repeating keys leave GHOST's repeat timer alone,
+  source); another repeating key (W) stops the held key's repeats for good although it is still down (X11;
+  Wayland: `timer_action = CANCEL`, source). `bpy.app.timers` run after every queued event (`WM_main`: events,
+  then notifiers, then `BLI_timer_execute`; source), so a timer never sees a gap a stalled event queue caused.
+  `type_prev` of the first event after a transform is the LMB release, so it cannot show a swallowed key release.
+  Key-modifier items (`key_modifier='X'`) fire only while X is held but miss most mouse moves over a gizmo, so
+  their silence proves nothing. This is the evidence behind the holds' still-held check (step 8).
 - Plaza aim test (step 7): MOUSEMOVE `mouse_x` / `mouse_y` are integer window pixels, so a steep path toward a
   tall panel beside the pointer (the Object dropdown opens beside its label and reaches above the root row; in the
   nested GUI session a path from Object to the top of it crosses `TOPBAR_MT_help`) is mostly steps straight up
