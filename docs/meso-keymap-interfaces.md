@@ -455,7 +455,7 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     Ctrl 1 in a pending local view) and the topology rows (subdivide, extrude + delete, sort, a bone added, a curve
     point deleted); GUI (written, py_compile only) G5b `mk_isolate_stacked`: the user's flow with real keys, a
     real Ctrl Z of an isolate in a Shift I local view, a quad view quadrant, a maximized 3D View. Quad view is GUI only: headless
-    `screen.region_quadview` segfaults (verified facts).
+    `screen.region_quadview` segfaults (verified facts). Decisions 67–72.
 
 - **Round 5 implemented: D outside Object Mode** (user request of 2026-09-26: "tapping d or hold d in non object mode
   should yank you to object mode"; "hold d (in object mode) works great", so Object Mode is unchanged):
@@ -1617,22 +1617,21 @@ anything in Phase 5+.
     decision 44): the same steps as (a) pushed by the native operators themselves, but with the undo flag the
     REGISTER mode toggle and `mesh.select_mode` segfault in `-b` under an area override, so it could only be
     checked in the GUI.
-64. **Superseded by Decision (round 6, in-mode select-mode picks) (user request of 2026-09-26: "Edit Mode:
-    [V] [E] [F]"; there is no submenu any more).** The original text: **New in round 5, submode picks keep the
-    submenu (DEFAULT in force: a).** (a) **In force:** a mesh select
-    mode picked inside Edit Mode keeps the submenu open (plain, Shift and Ctrl clicks alike, as every flag-enum
-    member of the toggle cascades: Snap To ▸ Vertex), the checks update; a Grease Pencil / Curves / Particle
-    member (a radio) closes its submenu only, the mode dropdown stays; a pick that changes the mode re-records
-    the Plaza and closes the chain (decision 52); (b) every submode pick closes the mode dropdown; (c) a
+64. **Superseded by decision 76 (user request of 2026-09-26: "Edit Mode: [V] [E] [F]"; there is no submenu any
+    more).** The original text: **New in round 5, submode picks keep the submenu (DEFAULT in force: a).** (a) **In
+    force:** a mesh select mode picked inside Edit Mode keeps the submenu open (plain, Shift and Ctrl clicks alike,
+    as every flag-enum member of the toggle cascades: Snap To ▸ Vertex), the checks update; a Grease Pencil / Curves
+    / Particle member (a radio) closes its submenu only, the mode dropdown stays; a pick that changes the mode
+    re-records the Plaza and closes the chain (decision 52); (b) every submode pick closes the mode dropdown; (c) a
     Shift / Ctrl pick from another mode reopens the submenu after the mode change (panels would move under the
     pointer: the rows are laid out anew).
-65. **Superseded by Decision (round 6, the mode row shape) (user request of 2026-09-26: "edit should not
-    expand ... clicking on edit mode (label) gets you in edit mode, clicking of V gets you Vertex Edit Mode";
-    option (b)'s direct click on the label, without any submenu).** The original text: **New in round 5, the Edit
-    Mode row opens its submenu (DEFAULT in force: a).** (a) **In force:** 'Edit
-    Mode ▸' is a cascade like every submenu row: hover or click opens it, its first row 'Edit Mode' enters the
-    mode with the current select mode (entering Edit Mode is one row further than before); (b) a click on 'Edit
-    Mode ▸' enters the mode at once and only hover opens the submenu (a split row, which no native menu has).
+65. **Superseded by decision 73 (user request of 2026-09-26: "edit should not expand ... clicking on edit mode
+    (label) gets you in edit mode, clicking of V gets you Vertex Edit Mode"; option (b)'s direct click on the label,
+    without any submenu).** The original text: **New in round 5, the Edit Mode row opens its submenu (DEFAULT in
+    force: a).** (a) **In force:** 'Edit Mode ▸' is a cascade like every submenu row: hover or click opens it, its
+    first row 'Edit Mode' enters the mode with the current select mode (entering Edit Mode is one row further than
+    before); (b) a click on 'Edit Mode ▸' enters the mode at once and only hover opens the submenu (a split row,
+    which no native menu has).
 66. **New in round 5, which modes have submodes (DEFAULT in force: a).** (a) **In force:** exactly the modes
     whose native 3D View header draws a select-mode control: mesh Edit Mode, Particle Edit (Path / Point / Tip;
     not named in the request, the header treats it as the select mode), hair Curves Edit and Sculpt Mode, Grease
@@ -1640,64 +1639,67 @@ anything in Phase 5+.
     independent toggles and stay in the Tool Settings row; (b) also those masks as submenus; (c) without
     Particle Edit. The mode label stays the mode name, as the native header's mode menu. (Round 6: the same modes
     get the row shape 'Edit Mode [V] [E] [F]' instead of a submenu; (b) would then mean mask cells.)
-- **Decision (round 6, isolate stacking) (DEFAULT in force: a).** The Ctrl 1 that leaves an element isolate: (a)
-  **in force:** leaves every local view an element isolate entered or took over (an element isolate in a local view
-  takes it over, so the Object Mode Ctrl 1 or Shift I local view under it goes too); a local view the isolate never
-  took stays, in any 3D View, also the one Ctrl 1 is pressed in (the user's own local view of a second 3D View, the
-  restore pressed there); (b) also leave the local view of the 3D View it is pressed in, whoever entered it (the
-  first round 6 draft): throws a second 3D View's own local view away when the restore is pressed there; (c) leave
-  only the local views an element isolate or an Object Mode Ctrl 1 entered (a Shift I local view under the isolate
-  stays): needs every Object Mode entry tracked, and a stale or missed key traps the user again; (d) the
-  pre-round-6 rule (only a local view the element isolate entered), the reported trap.
-- **Decision (round 6, undo of an isolate that took a local view over) (DEFAULT in force: a).** An element isolate
-  in a local view that was there (Object Mode Ctrl 1, Shift I), then Ctrl Z (or Alt H): the hide flags are back, the
-  local view stays (screen data). The next Ctrl 1: (a) **in force:** isolates in that local view again, as the press
-  before the isolate did (nothing selected or everything selected: leaves it, never a trap); (b) leaves the local
-  view (as for a local view the isolate entered): the undo would cost the user the Object Mode isolate they had.
-- **Decision (round 6, nothing to isolate in a local view) (DEFAULT in force: a).** Ctrl 1 in an edit mode inside a
-  local view with nothing to isolate (nothing selected, or every visible element selected): (a) **in force:** leaves
-  the local view, as in Object Mode, so a select-all Ctrl 1 always gets out; (b) INFO and CANCELLED (the old rows).
-- **Decision (round 6, topology change) (DEFAULT in force: a).** A restore after the element structure changed
-  while isolated (extrude, subdivide, delete, sort): (a) **in force:** by position: what was hidden before stays
-  hidden (matched by rounded vertex / point positions, bone names), the rest is shown, a WARNING says so (and counts
-  the unmatched); (b) reveal everything with the warning (before round 6). Both leave the local view.
-- **Decision (round 6, selection on the restore) (DEFAULT in force: a).** (a) **In force (the existing contract,
-  now written down):** the selection of what stays visible is kept, the revealed elements come back unselected
-  (`mesh.reveal(select=False)`), what is hidden is deselected; (b) select the revealed elements, as the native
-  reveal's default (`select=True`, Alt H): the selection made for the isolate would grow on the way out.
-- **Decision (round 6, a local view no window shows) (DEFAULT in force: a).** The isolate's local view sits on a
-  screen no window shows at the restore (another workspace): (a) **in force:** left by a timer as soon as a window
-  shows it again, or by a Ctrl 1 there before that; (b) left only by the next Ctrl 1 there (it is still ours) or Object Mode Ctrl 1.
-- **Decision (round 6, the mode row shape) (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus",
-  select-mode cells**; replaces decision 65).** A mode with select modes in the Plaza's mode switch: (a) **in
-  force:** one row, the mode label followed by one cell per select mode ('Edit Mode [V] [E] [F]'): a click on
-  the label enters the mode with the current select mode (the mode radio, as the other rows; the current mode's
-  radio checked), a click on a cell enters the mode with that select mode from any mode, or only sets it inside
-  the mode; the cells are the toggle tables' multi-cell rows (`DD_TOGGLE_ROW`) with a clickable label (a label
-  row), no parallel mechanism; (b) the label row plus a hover submenu with the long names (two ways to the same
-  pick, and a submenu the user asked to remove); (c) cells only, the label passive like a toggle-table row's
-  (entering the mode as it is would need a cell click on the checked member, which changes nothing in the mode).
-- **Decision (round 6, cell texts) (DEFAULT in force: a).** The text of each select-mode cell (the Plaza draws
-  no built-in icons): (a) **in force:** mesh V / E / F (the user's letters, not translated); Particle Edit Path /
-  Point / Tip; hair Curves Point / Curve ('Control Point' without its qualifier); Grease Pencil Point / Stroke /
-  Segment; each a word of the native name and distinct within its row (a unit test holds this); (b) one letter
-  everywhere (Particle P / Pt / T, Grease Pencil P / S / Sg: single letters clash there, so some would need two
-  and none would be native-derived); (c) the full RNA names ('Vertex', 'Control Point': the mesh row becomes
-  about twice as wide, against the request's [V] [E] [F]).
-- **Decision (round 6, the cell glyphs) (DEFAULT in force: a).** (a) **In force:** the mesh cells are check
-  boxes (several can be on, as `mesh_select_mode`), the Particle / Curves / Grease Pencil cells radios (exactly
-  one, as their enums), the Plaza's rule that exclusive and multi-select groups read apart; the label's own
-  radio in the check column says which mode is current; (b) boxes everywhere, as the toggle tables.
-- **Decision (round 6, in-mode select-mode picks) (DEFAULT in force: a; replaces decision 64).** A cell clicked
-  inside its mode: (a) **in force:** the select mode changes and the mode dropdown stays open with the checks
-  re-recorded, for every domain (plain, Shift and Ctrl clicks alike; the toggle-table behaviour the request asks
-  for; round 5 closed the submenu of the radio domains); a cell or label that changes the mode re-records the
-  whole Plaza and closes the chain (decision 52); the label of the current mode changes nothing and closes the
-  dropdown, like a radio pick; (b) the radio domains' cells close the dropdown (a native radio menu closes on a
-  pick; the row stays a toggle table only for the mesh).
-- **Decision (round 6, keyboard on the mode row) (DEFAULT in force: a).** (a) **In force:** Up / Down onto the
-  row focus its label (the mode pick, as on the plain mode rows; a move between two rows of as many cells keeps
-  the column: Curves Edit / Sculpt), Right from the label focuses the first cell, Left from the first cell goes
-  back to the label, Left on the label is the plain Left (closes a submenu level; nothing at the root), Return
-  runs the focused label or cell; (b) arrive on the last cell, as a toggle table (its eye column), which would
-  make Return change the select mode instead of entering the mode.
+67. **New in round 6, isolate stacking (DEFAULT in force: a).** The Ctrl 1 that leaves an element isolate: (a) **in
+    force:** leaves every local view an element isolate entered or took over (an element isolate in a local view
+    takes it over, so the Object Mode Ctrl 1 or Shift I local view under it goes too); a local view the isolate
+    never took stays, in any 3D View, also the one Ctrl 1 is pressed in (the user's own local view of a second 3D
+    View, the restore pressed there); (b) also leave the local view of the 3D View it is pressed in, whoever entered
+    it (the first round 6 draft): throws a second 3D View's own local view away when the restore is pressed there;
+    (c) leave only the local views an element isolate or an Object Mode Ctrl 1 entered (a Shift I local view under
+    the isolate stays): needs every Object Mode entry tracked, and a stale or missed key traps the user again; (d)
+    the pre-round-6 rule (only a local view the element isolate entered), the reported trap.
+68. **New in round 6, undo of an isolate that took a local view over (DEFAULT in force: a).** An element isolate in
+    a local view that was there (Object Mode Ctrl 1, Shift I), then Ctrl Z (or Alt H): the hide flags are back, the
+    local view stays (screen data). The next Ctrl 1: (a) **in force:** isolates in that local view again, as the
+    press before the isolate did (nothing selected or everything selected: leaves it, never a trap); (b) leaves the
+    local view (as for a local view the isolate entered): the undo would cost the user the Object Mode isolate they
+    had.
+69. **New in round 6, nothing to isolate in a local view (DEFAULT in force: a).** Ctrl 1 in an edit mode inside a
+    local view with nothing to isolate (nothing selected, or every visible element selected): (a) **in force:**
+    leaves the local view, as in Object Mode, so a select-all Ctrl 1 always gets out; (b) INFO and CANCELLED (the
+    old rows).
+70. **New in round 6, topology change (DEFAULT in force: a).** A restore after the element structure changed while
+    isolated (extrude, subdivide, delete, sort): (a) **in force:** by position: what was hidden before stays hidden
+    (matched by rounded vertex / point positions, bone names), the rest is shown, a WARNING says so (and counts the
+    unmatched); (b) reveal everything with the warning (before round 6). Both leave the local view.
+71. **New in round 6, selection on the restore (DEFAULT in force: a).** (a) **In force (the existing contract, now
+    written down):** the selection of what stays visible is kept, the revealed elements come back unselected
+    (`mesh.reveal(select=False)`), what is hidden is deselected; (b) select the revealed elements, as the native
+    reveal's default (`select=True`, Alt H): the selection made for the isolate would grow on the way out.
+72. **New in round 6, a local view no window shows (DEFAULT in force: a).** The isolate's local view sits on a
+    screen no window shows at the restore (another workspace): (a) **in force:** left by a timer as soon as a window
+    shows it again, or by a Ctrl 1 there before that; (b) left only by the next Ctrl 1 there (it is still ours) or
+    Object Mode Ctrl 1.
+73. **New in round 6, the mode row shape (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus",
+    select-mode cells**; replaces decision 65).** A mode with select modes in the Plaza's mode switch: (a) **in
+    force:** one row, the mode label followed by one cell per select mode ('Edit Mode [V] [E] [F]'): a click on the
+    label enters the mode with the current select mode (the mode radio, as the other rows; the current mode's radio
+    checked), a click on a cell enters the mode with that select mode from any mode, or only sets it inside the
+    mode; the cells are the toggle tables' multi-cell rows (`DD_TOGGLE_ROW`) with a clickable label (a label row),
+    no parallel mechanism; (b) the label row plus a hover submenu with the long names (two ways to the same pick,
+    and a submenu the user asked to remove); (c) cells only, the label passive like a toggle-table row's (entering
+    the mode as it is would need a cell click on the checked member, which changes nothing in the mode).
+74. **New in round 6, cell texts (DEFAULT in force: a).** The text of each select-mode cell (the Plaza draws no
+    built-in icons): (a) **in force:** mesh V / E / F (the user's letters, not translated); Particle Edit Path /
+    Point / Tip; hair Curves Point / Curve ('Control Point' without its qualifier); Grease Pencil Point / Stroke /
+    Segment; each a word of the native name and distinct within its row (a unit test holds this); (b) one letter
+    everywhere (Particle P / Pt / T, Grease Pencil P / S / Sg: single letters clash there, so some would need two
+    and none would be native-derived); (c) the full RNA names ('Vertex', 'Control Point': the mesh row becomes about
+    twice as wide, against the request's [V] [E] [F]).
+75. **New in round 6, the cell glyphs (DEFAULT in force: a).** (a) **In force:** the mesh cells are check boxes
+    (several can be on, as `mesh_select_mode`), the Particle / Curves / Grease Pencil cells radios (exactly one, as
+    their enums), the Plaza's rule that exclusive and multi-select groups read apart; the label's own radio in the
+    check column says which mode is current; (b) boxes everywhere, as the toggle tables.
+76. **New in round 6, in-mode select-mode picks (DEFAULT in force: a; replaces decision 64).** A cell clicked inside
+    its mode: (a) **in force:** the select mode changes and the mode dropdown stays open with the checks
+    re-recorded, for every domain (plain, Shift and Ctrl clicks alike; the toggle-table behaviour the request asks
+    for; round 5 closed the submenu of the radio domains); a cell or label that changes the mode re-records the
+    whole Plaza and closes the chain (decision 52); the label of the current mode changes nothing and closes the
+    dropdown, like a radio pick; (b) the radio domains' cells close the dropdown (a native radio menu closes on a
+    pick; the row stays a toggle table only for the mesh).
+77. **New in round 6, keyboard on the mode row (DEFAULT in force: a).** (a) **In force:** Up / Down onto the row
+    focus its label (the mode pick, as on the plain mode rows; a move between two rows of as many cells keeps the
+    column: Curves Edit / Sculpt), Right from the label focuses the first cell, Left from the first cell goes back
+    to the label, Left on the label is the plain Left (closes a submenu level; nothing at the root), Return runs the
+    focused label or cell; (b) arrive on the last cell, as a toggle table (its eye column), which would make Return
+    change the select mode instead of entering the mode.
