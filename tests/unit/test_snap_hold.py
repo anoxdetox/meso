@@ -2,7 +2,9 @@
 reducer (docs/meso-keymap-interfaces.md, "Pre-drag snapping and pivot"). Pure; run with $PY."""
 
 import importlib
+import math
 import unittest
+from dataclasses import replace
 
 from tests.unit.test_keymap_tree import _load_core
 
@@ -202,14 +204,19 @@ class TestStep(unittest.TestCase):
 
     def test_own_repeat_passes_through_in_every_phase(self):
         # A handled repeat cancels Blender's pending click-drag (the long-hold bug): repeats
-        # pass through and change nothing, whatever the phase and flags.
+        # pass through, whatever the phase and flags. While HELD they only record the evidence
+        # (the key is down: no still-held check, not blind, the time of the repeat).
         for phase in (sh.HELD, sh.FOREIGN, sh.ENDED):
             for used in (False, True):
                 for pending in (False, True):
-                    st = self.st(phase=phase, used=used, release_pending=pending)
-                    new, eff = sh.step(st, sh.EV_OWN_REPEAT, 12.0, others_held=pending)
-                    self.assertEqual((new, eff), (st, sh.NOTHING), (phase, used, pending))
-                    self.assertFalse(eff.consume or eff.finish or eff.release or eff.tap)
+                    for after in (None, 11.5):
+                        st = self.st(phase=phase, used=used, release_pending=pending,
+                                     after=after, blind=pending)
+                        new, eff = sh.step(st, sh.EV_OWN_REPEAT, 12.0, others_held=pending)
+                        self.assertEqual(eff, sh.NOTHING, (phase, used, pending, after))
+                        want = (replace(st, after=None, blind=False, last_repeat=12.0)
+                                if phase == sh.HELD else st)
+                        self.assertEqual(new, want, (phase, used, pending, after))
 
     def test_os_key_repeat_pattern_long_hold_then_drag(self):
         """The OS pattern of a long hold (docs/spikes/meso-hold-long-press.md): X down, repeats
@@ -230,10 +237,12 @@ class TestStep(unittest.TestCase):
         for ev, eff in effects:
             if ev == sh.EV_OWN_REPEAT:
                 self.assertEqual(eff, sh.NOTHING)
-        self.assertEqual([e for ev, e in effects if e.release], [sh.Effect(release=True)])
+        # the key is still down after the transform: the overlay stays (every drag snaps)
+        self.assertEqual([e for ev, e in effects if e.release], [])
+        self.assertEqual((st.phase, st.checking), (sh.HELD, False))
+        st, eff = sh.step(st, sh.EV_OWN_RELEASE, t0 + 2.4, 0.2)
+        self.assertEqual(eff, sh.Effect(release=True, finish=True, consume=True))
         self.assertEqual(st.phase, sh.ENDED)
-        _st, eff = sh.step(st, sh.EV_OWN_RELEASE, t0 + 2.4, 0.2)
-        self.assertEqual(eff, sh.Effect(finish=True, consume=True))    # the late release
 
     def test_long_hold_with_repeats_then_release_is_not_a_tap(self):
         st = sh.HoldState('X', 10.0)
@@ -256,9 +265,11 @@ class TestStep(unittest.TestCase):
         self.assertFalse(eff.release)
         st3, eff = sh.step(st2, sh.EV_FOREIGN_OFF, 10.5)
         self.assertEqual((st3.phase, eff), (sh.ENDED, sh.Effect(release=True)))
-        # one snapped drag per hold: also without a release during the transform
+        # no release seen: the overlay stays and the still-held check runs
         st4, eff = sh.step(st, sh.EV_FOREIGN_OFF, 10.5)
-        self.assertEqual((st4.phase, eff), (sh.ENDED, sh.Effect(release=True)))
+        self.assertEqual((st4.phase, st4.after, st4.checking, eff),
+                         (sh.HELD, 10.5, True, sh.NOTHING))
+        self.assertTrue(st4.used)                           # never a tap afterwards
 
     def test_ended_swallows_late_release_and_finishes_on_anything(self):
         ended = self.st(phase=sh.ENDED, used=True)
@@ -286,6 +297,320 @@ class TestStep(unittest.TestCase):
             self.assertEqual(eff, sh.Effect(release=True, finish=True), phase)
         foreign = self.st(phase=sh.FOREIGN)
         self.assertEqual(sh.step(foreign, sh.EV_ESC)[1], sh.NOTHING)
+
+
+# ------------------------------------------------------------------------------ still held
+
+TICK = 0.03                 # the watcher interval (ops/snap_hold.WATCH_INTERVAL)
+DRAG_THRESHOLD = 0.03       # mouse press -> the transform starts (the watcher sees it)
+_ORDER = {sh.EV_FOREIGN_OFF: 0, sh.EV_OWN_RELEASE: 1, sh.EV_OTHER_KEY: 1, sh.EV_OWN_REPEAT: 2,
+          sh.EV_MOUSE_PRESS: 3, sh.EV_FOREIGN_ON: 4}
+
+
+def timeline(up=None, drags=(), other_keys=(), extra=(), delay=0.6, interval=0.04,
+             repeat=True, horizon=None):
+    """The events one hold operator sees for a key held from 0.0 to ``up`` (``None``: still
+    down), as the OS and Blender deliver them (docs/spikes/meso-feedback-3.md): repeats from
+    ``delay`` every ``interval`` while the key is down, stopped for good by another repeating
+    key; each drag ``(press, end)`` is a mouse press, a transform from ``press + 0.03`` to
+    ``end`` that swallows everything (the repeats and a release during it, which is then never
+    seen)."""
+    windows = [(t + DRAG_THRESHOLD, end) for t, end in drags]
+
+    def swallowed(t):
+        return any(a <= t < b for a, b in windows)
+    events = list(extra)
+    for t, end in drags:
+        events += [(t, sh.EV_MOUSE_PRESS), (t + DRAG_THRESHOLD, sh.EV_FOREIGN_ON),
+                   (end, sh.EV_FOREIGN_OFF)]
+    for t in other_keys:
+        if not swallowed(t):
+            events.append((t, sh.EV_OTHER_KEY))
+    if up is not None and not swallowed(up):
+        events.append((up, sh.EV_OWN_RELEASE))
+    last = max([t for t, _e in events] + [0.0])
+    horizon = horizon if horizon is not None else last + 2.0
+    stop = min([up if up is not None else math.inf] + list(other_keys) + [horizon])
+    if repeat:
+        t = delay
+        while t < stop:
+            if not swallowed(t):
+                events.append((round(t, 4), sh.EV_OWN_REPEAT))
+            t += interval
+    events.sort(key=lambda e: (e[0], _ORDER.get(e[1], 5)))
+    return events, horizon
+
+
+class Sim:
+    """One running hold operator and its watcher: the events in time order, watcher ticks every
+    ``TICK`` s in between (the timeout only while no foreign modal runs, as ``_watch``). The
+    overlay is on until the first release effect; a drag snaps if it is on when its transform
+    starts."""
+
+    def __init__(self, timing=None, key='X'):
+        self.st = sh.HoldState(key, 0.0)
+        self.timing = timing if timing is not None else sh.RepeatTiming()
+        self.t = 0.0
+        self.foreign = False
+        self.overlay = True
+        self.released_at = None
+        self.finished = False
+        self.snapped = []
+        self.timeouts = []
+
+    def _apply(self, ev, t):
+        self.timing.observe(self.st, ev, t)
+        self.st, eff = sh.step(self.st, ev, t)
+        if eff.release and self.overlay:
+            assert not self.foreign, "a write while a foreign modal runs"
+            self.overlay, self.released_at = False, t
+        if eff.finish:
+            self.finished = True
+        return eff
+
+    def _until(self, t):
+        tick = (math.floor(self.t / TICK) + 1) * TICK
+        while tick <= t:
+            if (not self.finished and not self.foreign
+                    and sh.timed_out(self.st, tick, self.timing)):
+                self.timeouts.append(round(tick, 3))
+                self._apply(sh.EV_TIMEOUT, tick)
+            tick += TICK
+        self.t = t
+
+    def run(self, events, horizon):
+        for t, ev in events:
+            self._until(t)
+            if ev == sh.EV_FOREIGN_ON:
+                self.foreign = True
+                self.snapped.append(self.overlay)
+            elif ev == sh.EV_FOREIGN_OFF:
+                self.foreign = False
+            if not self.finished:
+                self._apply(ev, t)
+        self._until(horizon)
+        return self
+
+
+def sim(**kw):
+    timing = kw.pop('timing', None)
+    events, horizon = timeline(**kw)
+    return Sim(timing).run(events, horizon)
+
+
+class TestStillHeld(unittest.TestCase):
+    """User item B of 2026-09-26: every drag snaps while the key is held; the release restores.
+    The rows of docs/spikes/meso-feedback-3.md (``multidrag_proto``) as event sequences."""
+
+    GAP = sh.MIN_REPEAT_GAP
+
+    def test_long_hold_three_drags(self):
+        r = sim(up=4.4, drags=[(1.5, 1.95), (2.5, 2.95), (3.5, 3.95), (4.8, 5.25)])
+        self.assertEqual(r.snapped, [True, True, True, False])
+        self.assertEqual(r.released_at, 4.4)                # the release itself
+        self.assertEqual(r.timeouts, [])
+
+    def test_still_mouse_between_drags(self):
+        r = sim(drags=[(1.5, 1.95), (3.15, 3.6)], up=4.0)
+        self.assertEqual(r.snapped, [True, True])
+        self.assertEqual(r.released_at, 4.0)
+
+    def test_release_during_drag(self):
+        # the transform swallows the release: nothing follows it, the check times out
+        r = sim(up=1.7, drags=[(1.5, 1.95), (2.55, 3.0)])
+        self.assertEqual(r.snapped, [True, False])
+        self.assertGreaterEqual(r.released_at, 1.95 + self.GAP)
+        self.assertLess(r.released_at, 1.95 + self.GAP + TICK + 1e-9)
+
+    def test_release_after_drag(self):
+        r = sim(up=2.25, drags=[(1.5, 1.95), (2.65, 3.1)])
+        self.assertEqual(r.snapped, [True, False])
+        self.assertEqual(r.released_at, 2.25)
+
+    def test_short_hold_fast_drags(self):
+        # drag 1 ends before the first repeat (0.6 s): the check waits for it
+        r = sim(up=2.0, drags=[(0.1, 0.35), (0.45, 0.65), (1.3, 1.75), (2.4, 2.85)])
+        self.assertEqual(r.snapped, [True, True, True, False])
+        self.assertEqual(r.released_at, 2.0)
+        self.assertEqual(r.timeouts, [])
+
+    def test_short_hold_release_during_fast_drag(self):
+        r = sim(up=0.2, drags=[(0.1, 0.35), (1.5, 1.95)])
+        self.assertEqual(r.snapped, [True, False])
+        self.assertGreaterEqual(r.released_at, 0.6 + self.GAP)      # press + delay + gap
+        self.assertLess(r.released_at, 0.6 + self.GAP + TICK + 1e-9)
+
+    def test_modifiers_during_the_drag_change_nothing(self):
+        # Shift / Ctrl are EV_OTHER (not repeating: X's repeats go on)
+        r = sim(up=3.0, drags=[(1.5, 1.95), (2.3, 2.75)],
+                extra=[(1.6, sh.EV_OTHER), (1.8, sh.EV_OTHER), (2.1, sh.EV_OTHER)])
+        self.assertEqual(r.snapped, [True, True])
+        self.assertEqual(r.released_at, 3.0)
+
+    def test_other_repeating_key_falls_back_to_one_drag(self):
+        # W (the Move tool) tapped while X is held: X never repeats again
+        r = sim(drags=[(2.0, 2.45), (2.8, 3.25)], other_keys=[1.2], up=3.6)
+        self.assertEqual(r.snapped, [True, False])
+        self.assertEqual(r.released_at, 2.45)               # at once, not after a timeout
+        self.assertEqual(r.timeouts, [])
+
+    def test_second_hold_key_makes_the_first_blind(self):
+        # X, then C: the OS repeats C now; X falls back to one snapped drag (C's own hold goes on)
+        st = sh.HoldState('X', 0.0)
+        st, _ = sh.step(st, sh.EV_OTHER_KEY, 0.8)
+        self.assertTrue(st.blind)
+        st, _ = sh.step(st, sh.EV_FOREIGN_ON, 1.5)
+        st, eff = sh.step(st, sh.EV_FOREIGN_OFF, 1.9)
+        self.assertEqual((st.phase, eff), (sh.ENDED, sh.Effect(release=True)))
+
+    def test_other_key_during_the_check_ends_the_hold(self):
+        st = sh.HoldState('X', 0.0, used=True, after=1.95)
+        st, eff = sh.step(st, sh.EV_OTHER_KEY, 1.96)
+        self.assertEqual((st.phase, eff), (sh.ENDED, sh.Effect(release=True, finish=True)))
+        self.assertFalse(eff.consume)                       # the key goes on to its item
+
+    def test_other_key_during_a_foreign_modal_makes_it_blind(self):
+        st = sh.HoldState('X', 0.0, phase=sh.FOREIGN, used=True)
+        st, eff = sh.step(st, sh.EV_OTHER_KEY, 1.6)
+        self.assertEqual((st.blind, eff), (True, sh.NOTHING))
+        st, eff = sh.step(st, sh.EV_FOREIGN_OFF, 1.9)
+        self.assertEqual((st.phase, eff), (sh.ENDED, sh.Effect(release=True)))
+
+    def test_own_repeat_ends_blindness(self):
+        st = sh.HoldState('X', 0.0, blind=True, clean=False)
+        st, eff = sh.step(st, sh.EV_OWN_REPEAT, 1.0)
+        self.assertEqual((st.blind, eff), (False, sh.NOTHING))
+
+    def test_os_repeat_off(self):
+        # no evidence ever: each hold ends at its first deadline (one snapped drag, as before)
+        r = sim(up=3.5, drags=[(1.5, 1.95), (2.5, 2.95)], repeat=False)
+        self.assertEqual(r.snapped, [True, False])
+        self.assertEqual(len(r.timeouts), 1)
+        self.assertTrue(1.95 + self.GAP - 1e-9 <= r.timeouts[0] < 1.95 + self.GAP + TICK)
+
+    def test_drag_inside_the_check_window_rearms(self):
+        r = sim(up=3.5, drags=[(1.5, 1.95), (2.0, 2.4)], repeat=False)
+        self.assertEqual(r.snapped, [True, True])
+        self.assertGreaterEqual(r.released_at, 2.4 + self.GAP)     # re-armed at the 2nd end
+        self.assertLess(r.released_at, 2.4 + self.GAP + TICK + 1e-9)
+
+    def test_own_press_proves_the_key_down(self):
+        st = sh.HoldState('X', 0.0, used=True, after=1.95)
+        st, eff = sh.step(st, sh.EV_OWN_PRESS, 2.0)
+        self.assertEqual((st.checking, st.phase, eff), (False, sh.HELD, sh.Effect(consume=True)))
+
+    def test_release_esc_and_deactivate_during_the_check(self):
+        for ev, eff in ((sh.EV_OWN_RELEASE, sh.Effect(release=True, finish=True, consume=True)),
+                        (sh.EV_ESC, sh.Effect(release=True, finish=True)),
+                        (sh.EV_DEACTIVATE, sh.Effect(release=True, finish=True)),
+                        (sh.EV_CANCEL, sh.Effect(release=True, finish=True))):
+            st = sh.HoldState('X', 0.0, used=True, after=1.95)
+            new, got = sh.step(st, ev, 2.0)
+            self.assertEqual((new.phase, got), (sh.ENDED, eff), ev)
+            self.assertFalse(got.tap)
+
+    def test_timeout_only_during_the_check(self):
+        for st in (sh.HoldState('X', 0.0), sh.HoldState('X', 0.0, phase=sh.FOREIGN, used=True),
+                   sh.HoldState('X', 0.0, phase=sh.ENDED, used=True)):
+            self.assertEqual(sh.step(st, sh.EV_TIMEOUT, 5.0), (st, sh.NOTHING), st.phase)
+        st, eff = sh.step(sh.HoldState('X', 0.0, used=True, after=1.9), sh.EV_TIMEOUT, 2.1)
+        self.assertEqual((st.phase, eff), (sh.ENDED, sh.Effect(release=True, finish=True)))
+
+    def test_release_seen_during_a_foreign_modal_ends_it_when_gone(self):
+        st = sh.HoldState('X', 0.0, phase=sh.FOREIGN, used=True, release_pending=True)
+        st, eff = sh.step(st, sh.EV_FOREIGN_OFF, 2.0)
+        self.assertEqual((st.phase, st.checking, eff), (sh.ENDED, False, sh.Effect(release=True)))
+
+    def test_no_write_while_foreign_in_any_sequence(self):
+        # Sim asserts it; many layouts of drags, releases, other keys and repeat settings
+        for up in (None, 0.2, 1.0, 1.7, 2.2, 3.1):
+            for other in ((), (1.2,), (1.97,)):
+                for repeat in (True, False):
+                    r = sim(up=up, drags=[(0.1, 0.35), (1.5, 1.95), (2.5, 2.95)],
+                            other_keys=other, repeat=repeat)
+                    if up is not None:
+                        self.assertIsNotNone(r.released_at, (up, other, repeat))
+                        # never snapped long after the release (at most one check window)
+                        self.assertLess(r.released_at, max(up, 2.95) + 0.6 + self.GAP + TICK,
+                                        (up, other, repeat))
+
+    def test_slow_os_repeat_is_learned(self):
+        # an OS repeat of 1.0 s / 10 Hz: with the defaults the short-hold check gives up before
+        # the first repeat; after three long holds the learned timing waits for it
+        kw = dict(up=2.0, drags=[(0.1, 0.5), (1.3, 1.75)], delay=1.0, interval=0.1)
+        self.assertEqual(sim(**kw).snapped, [True, False])
+        timing = sh.RepeatTiming()
+        for _ in range(3):
+            sim(up=2.5, delay=1.0, interval=0.1, timing=timing)
+        self.assertAlmostEqual(timing.delay, 1.0)
+        self.assertAlmostEqual(timing.interval, 0.1)
+        self.assertAlmostEqual(timing.gap, 0.5)
+        self.assertEqual(sim(timing=timing, **kw).snapped, [True, True])
+
+
+class TestRepeatTiming(unittest.TestCase):
+    def test_defaults(self):
+        t = sh.RepeatTiming()
+        self.assertEqual((t.delay, t.interval, t.gap), (0.6, 0.04, 0.2))
+
+    def test_learned_median_floor_and_cap(self):
+        t = sh.RepeatTiming()
+        t.delays += [0.9, 0.8]
+        self.assertEqual(t.delay, 0.6)                      # too few samples
+        t.delays.append(1.2)
+        self.assertAlmostEqual(t.delay, 0.9)                # the median
+        t.delays[:] = [0.1, 0.2, 0.25]                      # shorter than the default (a stall)
+        self.assertEqual(t.delay, 0.6)
+        t.delays[:] = [5.0, 5.0, 5.0]
+        self.assertEqual(t.delay, sh.MAX_REPEAT_DELAY)
+        t.intervals[:] = [0.06, 0.06, 0.06, 0.07]
+        self.assertAlmostEqual(t.interval, 0.06)
+        self.assertAlmostEqual(t.gap, 0.3)
+        t.intervals[:] = [1.0] * 3
+        self.assertAlmostEqual(t.gap, sh.GAP_INTERVALS * sh.MAX_REPEAT_INTERVAL)
+
+    def test_observe(self):
+        t = sh.RepeatTiming()
+        st = sh.HoldState('X', 10.0)
+        t.observe(st, sh.EV_OWN_REPEAT, 10.7)               # the first repeat: the delay
+        self.assertEqual(len(t.delays), 1)
+        self.assertAlmostEqual(t.delays[0], 0.7)
+        st = sh.step(st, sh.EV_OWN_REPEAT, 10.7)[0]
+        t.observe(st, sh.EV_OWN_REPEAT, 10.75)              # then the intervals
+        self.assertAlmostEqual(t.intervals[0], 0.05)
+        # no sample once a foreign modal ran (its repeats were swallowed) or another key went
+        # down, and none outside HELD
+        for state in (sh.step(st, sh.EV_FOREIGN_ON, 10.8)[0],
+                      sh.step(sh.HoldState('X', 10.0), sh.EV_OTHER_KEY, 10.2)[0],
+                      replace(st, phase=sh.ENDED)):
+            t2 = sh.RepeatTiming()
+            t2.observe(state, sh.EV_OWN_REPEAT, 11.0)
+            self.assertEqual((t2.delays, t2.intervals), ([], []), state)
+        t.observe(st, sh.EV_OTHER, 10.8)                    # only repeats
+        self.assertEqual(len(t.intervals), 1)
+
+    def test_samples_are_bounded(self):
+        t = sh.RepeatTiming()
+        st = sh.HoldState('X', 0.0, last_repeat=1.0)
+        for i in range(40):
+            t.observe(st, sh.EV_OWN_REPEAT, 1.0 + 0.04 * (i + 1))
+        self.assertEqual(len(t.intervals), sh.MAX_SAMPLES)
+
+    def test_deadline(self):
+        t = sh.RepeatTiming()
+        self.assertIsNone(sh.deadline(sh.HoldState('X', 0.0)))            # no check runs
+        self.assertIsNone(sh.deadline(sh.HoldState('X', 0.0, phase=sh.FOREIGN, after=1.0)))
+        self.assertAlmostEqual(sh.deadline(sh.HoldState('X', 0.0, after=1.95), t), 2.15)
+        self.assertAlmostEqual(sh.deadline(sh.HoldState('X', 0.0, after=0.35), t), 0.8)
+        self.assertAlmostEqual(sh.deadline(sh.HoldState('X', 0.0, after=0.35)), 0.8)
+        self.assertFalse(sh.timed_out(sh.HoldState('X', 0.0, after=1.95), 2.14, t))
+        self.assertTrue(sh.timed_out(sh.HoldState('X', 0.0, after=1.95), 2.15, t))
+        self.assertFalse(sh.timed_out(sh.HoldState('X', 0.0), 99.0, t))
+
+    def test_non_repeating_keys_are_the_modifiers(self):
+        self.assertEqual(sh.NON_REPEATING_KEYS,
+                         {'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'RIGHT_SHIFT', 'LEFT_ALT',
+                          'RIGHT_ALT', 'OSKEY', 'HYPER'})
 
 
 class TestForeign(unittest.TestCase):

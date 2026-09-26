@@ -11,8 +11,12 @@
   on the key after the Meso item (X toggles snapping, C the Cursor tool, V opens the View pie,
   D the Annotate tool; J has none), and the user's edit of it is honoured.
 - A native transform swallows every event while it runs, the key release too, so a read-only
-  watcher timer reads ``Window.modal_operators`` and ends the hold once the transform is gone
-  (one snapped drag per hold). **Nothing is ever written to tool_settings while a foreign modal
+  watcher timer reads ``Window.modal_operators``. When the transform (or any foreign modal) is
+  gone the hold keeps the overlay and runs the still-held check (``core.snap_hold.step``): the
+  key's OS repeats prove it is still down, so every drag snaps while it is held; its release
+  ends the hold; no sign by ``core.snap_hold.deadline()`` (the watcher's ``EV_TIMEOUT``) counts
+  as released. After another repeating key went down, one snapped drag (docs/spikes/
+  meso-feedback-3.md). **Nothing is ever written to tool_settings while a foreign modal
   operator runs** (a transform, the Plaza, a box select): such writes wait for it to end.
 - The OS auto-repeats a held key: the hold passes those repeats through and never starts on one.
   A handled repeat would cancel Blender's pending click-drag, so after a long hold no tool or
@@ -56,9 +60,11 @@ PIVOT_MODES = frozenset({'OBJECT'})     # Affect Only Origins is an Object Mode 
 MOUSE_BUTTONS = frozenset({'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE',
                            'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE', 'PEN', 'ERASER'})
 _NOT_KEYS = frozenset({'NONE', 'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'WINDOW_DEACTIVATE',
-                       'ACTIONZONE_AREA', 'ACTIONZONE_REGION', 'ACTIONZONE_FULLSCREEN'})
+                       'ACTIONZONE_AREA', 'ACTIONZONE_REGION', 'ACTIONZONE_FULLSCREEN',
+                       'TEXTINPUT'})
 
 _session = sh.HoldSession()
+_timing = sh.RepeatTiming()             # the OS key repeat, learned this Blender session
 _ops: dict[str, sh.HoldState] = {}      # hold key -> state of its running operator
 _pending: list[str] = []                # keys whose release waits for a foreign modal to end
 _state = {'missing': 0, 'logged': set()}
@@ -74,6 +80,15 @@ def running_keys() -> tuple[str, ...]:
 
 def pending_keys() -> tuple[str, ...]:
     return tuple(_pending)
+
+
+def checking_keys() -> tuple[str, ...]:
+    """The hold keys whose still-held check runs (a foreign modal ended, no sign yet)."""
+    return tuple(k for k, st in _ops.items() if st.checking)
+
+
+def repeat_timing() -> sh.RepeatTiming:
+    return _timing
 
 
 def _log_once(key, msg):
@@ -180,6 +195,7 @@ def _drive(key: str, event: str, now: float = 0.0, context=None, threshold=0.2,
     if st is None:
         return sh.Effect(finish=True)
     others = any(k != key for k in _session.keys())
+    _timing.observe(st, event, now)
     new, eff = sh.step(st, event, now, threshold, others_held=others)
     _ops[key] = new
     if eff.release:
@@ -262,17 +278,22 @@ def replay_native(context, keymap_name: str, key_type: str) -> str | None:
 # ------------------------------------------------------------------------------ watcher
 
 
-def _watch():
+def _watch(now=None):
     """Read-only unless no foreign modal runs: sync the hold phases with the modal operators,
-    apply releases that waited, and reset after a hold operator vanished."""
+    time out the still-held checks, apply releases that waited, and reset after a hold operator
+    vanished. A ``bpy.app.timers`` tick runs after Blender handled every queued event, so a
+    repeat that arrived before the deadline has always reached the hold first."""
     try:
+        now = time.monotonic() if now is None else now
         ids = modal_ids_by_window()
         foreign = sh.foreign_running(ids)
         for key, st in list(_ops.items()):
             if foreign and st.phase == sh.HELD:
-                _drive(key, sh.EV_FOREIGN_ON)
+                _drive(key, sh.EV_FOREIGN_ON, now)
             elif not foreign and st.phase == sh.FOREIGN:
-                _drive(key, sh.EV_FOREIGN_OFF)
+                _drive(key, sh.EV_FOREIGN_OFF, now)
+            elif not foreign and sh.timed_out(st, now, _timing):
+                _drive(key, sh.EV_TIMEOUT, now)
         if not foreign:
             for key in list(_pending):
                 release_key(key)
@@ -317,7 +338,8 @@ def _is_key_event(event) -> bool:
     t = event.type
     return (event.value == 'PRESS' and t not in _NOT_KEYS and t not in MOUSE_BUTTONS
             and not t.endswith('MOUSE') and not t.startswith(('TIMER', 'NDOF', 'TRACKPAD',
-                                                               'WHEEL', 'EVT_', 'XR_')))
+                                                               'WHEEL', 'EVT_', 'XR_', 'MOUSE',
+                                                               'ACTIONZONE')))
 
 
 def classify(event, key: str) -> str:
@@ -334,6 +356,9 @@ def classify(event, key: str) -> str:
         return sh.EV_DEACTIVATE
     if event.type == 'ESC' and event.value == 'PRESS':
         return sh.EV_ESC
+    if (_is_key_event(event) and not event.is_repeat
+            and event.type not in sh.NON_REPEATING_KEYS):
+        return sh.EV_OTHER_KEY
     return sh.EV_OTHER
 
 

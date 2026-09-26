@@ -12,9 +12,11 @@ Only Origins in the Tool Settings row). Never opens a pie or popup (``-b`` segfa
 """
 
 import contextlib
+import dataclasses
 import importlib
 import os
 import tempfile
+import time
 import unittest
 from types import SimpleNamespace
 
@@ -170,29 +172,75 @@ class TestForeignGuard(HoldCase):
         self.assertEqual(state(), USER)
         self.assertEqual(hold().pending_keys(), ())
 
-    def test_watcher_ends_the_hold_when_the_transform_ends(self):
+    def test_watcher_keeps_the_overlay_when_the_transform_ends(self):
+        """User item B of 2026-09-26: the still-held check, then the timeout (fake clock)."""
         sh = core()
         self.press('X', 'GRID')
+        t0 = hold()._ops['X'].pressed_at
+        overlay = state()
         with modal_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']):
-            hold()._watch()
+            hold()._watch(t0 + 1.5)
+            self.assertEqual(hold()._ops['X'].phase, sh.FOREIGN)
+            self.assertEqual(hold()._watch(t0 + 9.0), hold().WATCH_INTERVAL)   # no timeout
+            self.assertEqual(state(), overlay)
+        with modal_ids(['MESO_OT_snap_hold']):
+            hold()._watch(t0 + 1.95)
+            self.assertEqual(hold()._ops['X'].phase, sh.HELD)
+            self.assertEqual(hold().checking_keys(), ('X',))
+            self.assertEqual(state(), overlay)              # the key may still be down
+            limit = sh.deadline(hold()._ops['X'], hold().repeat_timing())
+            self.assertAlmostEqual(limit, t0 + 1.95 + sh.MIN_REPEAT_GAP)
+            hold()._watch(limit - 0.01)
+            self.assertEqual(state(), overlay)
+            hold()._watch(limit)                            # no sign of the key: released
+        self.assertEqual(state(), USER)
+        self.assertEqual(hold().running_keys(), ())
+        self.assertFalse(hold().session().active)
+
+    def test_no_timeout_while_a_foreign_modal_runs(self):
+        sh = core()
+        self.press('X', 'GRID')
+        t0 = hold()._ops['X'].pressed_at
+        with modal_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']):
+            hold()._watch(t0 + 1.5)
+        with modal_ids(['MESO_OT_snap_hold']):
+            hold()._watch(t0 + 1.95)
+        # a second transform (or a box select) starts inside the window: FOREIGN, no timeout
+        with modal_ids(['VIEW3D_OT_select_box', 'MESO_OT_snap_hold']):
+            hold()._watch(t0 + 2.0)
+            hold()._watch(t0 + 5.0)
             self.assertEqual(hold()._ops['X'].phase, sh.FOREIGN)
             self.assertTrue(ts().use_snap)
         with modal_ids(['MESO_OT_snap_hold']):
-            hold()._watch()
-        self.assertEqual(hold()._ops['X'].phase, sh.ENDED)
-        self.assertEqual(state(), USER)                 # one snapped drag per hold
-        # the modal then finishes on its next event and swallows the late release
-        eff = hold()._drive('X', sh.EV_OWN_RELEASE)
-        self.assertEqual(eff, sh.Effect(finish=True, consume=True))
-        self.assertEqual(hold().running_keys(), ())
+            hold()._watch(t0 + 5.1)                         # re-armed at its end
+            self.assertTrue(ts().use_snap)
+            hold()._watch(t0 + 5.1 + sh.MIN_REPEAT_GAP)
+        self.assertEqual(state(), USER)
 
-    def test_the_plaza_is_foreign(self):
+    def test_release_during_the_transform_ends_the_hold_when_it_is_gone(self):
+        # a release that reached the hold during the foreign modal (not the transform, which
+        # swallows it): the overlay goes when the modal ends, without a check
+        sh = core()
         self.press('X', 'GRID')
         with modal_ids(['MESO_OT_plaza', 'MESO_OT_snap_hold']):
             hold()._watch()
-            self.assertEqual(hold()._ops['X'].phase, core().FOREIGN)
+            self.assertEqual(hold()._drive('X', sh.EV_OWN_RELEASE), sh.Effect(consume=True))
         with modal_ids(['MESO_OT_snap_hold']):
             hold()._watch()
+        self.assertEqual(state(), USER)
+        self.assertEqual(hold()._ops['X'].phase, sh.ENDED)
+
+    def test_the_plaza_is_foreign(self):
+        sh = core()
+        self.press('X', 'GRID')
+        t0 = hold()._ops['X'].pressed_at
+        with modal_ids(['MESO_OT_plaza', 'MESO_OT_snap_hold']):
+            hold()._watch(t0 + 1.0)
+            self.assertEqual(hold()._ops['X'].phase, sh.FOREIGN)
+        with modal_ids(['MESO_OT_snap_hold']):
+            hold()._watch(t0 + 2.0)                         # the still-held check, as after a drag
+            self.assertTrue(ts().use_snap)
+            hold()._watch(t0 + 2.0 + sh.MIN_REPEAT_GAP)
         self.assertEqual(state(), USER)
 
     def test_vanished_operator_resets(self):
@@ -259,15 +307,106 @@ class TestAutoRepeat(HoldCase):
                     self.assertEqual(state(), overlay)      # nothing written meanwhile
                 with modal_ids(['MESO_OT_snap_hold']):
                     hold()._watch()                         # the transform ended
-                    self.assertEqual(state(), USER)
-                    self.assertEqual(hold()._ops[key].phase, sh.ENDED)
-                    # still held: the repeats go on and still pass; the hold keeps running
+                    self.assertEqual(state(), overlay)      # the key may still be down
+                    self.assertEqual(hold().checking_keys(), (key,))
+                    # still held: the repeats go on, pass, and prove it; the overlay stays
                     self.assertEqual(self.run_modal(op, ev(key, is_repeat=True)),
                                      {'PASS_THROUGH'})
-                    self.assertIn(key, hold().running_keys())
+                    self.assertEqual(hold().checking_keys(), ())
+                    self.assertEqual(hold()._ops[key].phase, sh.HELD)
+                    self.assertEqual(hold()._watch(time.monotonic() + 60.0),
+                                     hold().WATCH_INTERVAL)
+                    self.assertEqual(state(), overlay)      # no timeout once proved
                     self.assertEqual(self.run_modal(op, ev(key, 'RELEASE')), {'FINISHED'})
                 self.assertEqual(state(), USER)
                 self.assertEqual(hold().running_keys(), ())
+
+    def test_every_drag_snaps_while_held(self):
+        """Three drags with the key held (repeats between them), then the release."""
+        sh = core()
+        self.press('X', 'GRID')
+        overlay = state()
+        op = self.modal_self('X')
+        for n in range(3):
+            with modal_ids(['MESO_OT_snap_hold']):
+                self.assertEqual(self.run_modal(op, ev('LEFTMOUSE')), {'PASS_THROUGH'})
+            with modal_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']):
+                hold()._watch()
+                self.assertEqual(state(), overlay, n)       # drag n snaps
+            with modal_ids(['MESO_OT_snap_hold']):
+                hold()._watch()
+                self.assertEqual(self.run_modal(op, ev('MOUSEMOVE', 'NOTHING')),
+                                 {'PASS_THROUGH'})
+                self.assertEqual(self.run_modal(op, ev('X', is_repeat=True)), {'PASS_THROUGH'})
+                self.assertEqual(hold().checking_keys(), ())
+        with modal_ids(['MESO_OT_snap_hold']):
+            self.assertEqual(self.run_modal(op, ev('X', 'RELEASE')), {'FINISHED'})
+        self.assertEqual(state(), USER)
+
+    def test_other_key_and_modifiers(self):
+        sh = core()
+        cls = hold().classify
+        for mod in ('LEFT_SHIFT', 'RIGHT_CTRL', 'LEFT_ALT', 'OSKEY'):
+            self.assertEqual(cls(ev(mod), 'X'), sh.EV_OTHER, mod)
+        for key in ('W', 'C', 'SPACE', 'PERIOD', 'F3', 'NUMPAD_1'):
+            self.assertEqual(cls(ev(key), 'X'), sh.EV_OTHER_KEY, key)
+        self.assertEqual(cls(ev('W', is_repeat=True), 'X'), sh.EV_OTHER)
+        self.assertEqual(cls(ev('W', 'RELEASE'), 'X'), sh.EV_OTHER)
+        for other in ('MOUSEMOVE', 'WHEELUPMOUSE', 'TRACKPADPAN', 'MOUSEROTATE', 'TIMER',
+                      'TEXTINPUT', 'NDOF_MOTION'):
+            self.assertEqual(cls(ev(other), 'X'), sh.EV_OTHER, other)
+        # W while X is held: one snapped drag (the overlay goes when the transform ends)
+        self.press('X', 'GRID')
+        op = self.modal_self('X')
+        with modal_ids(['MESO_OT_snap_hold']):
+            self.assertEqual(self.run_modal(op, ev('W')), {'PASS_THROUGH'})
+            self.assertTrue(hold()._ops['X'].blind)
+        with modal_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']):
+            hold()._watch()
+            self.assertTrue(ts().use_snap)
+        with modal_ids(['MESO_OT_snap_hold']):
+            hold()._watch()
+        self.assertEqual(state(), USER)
+
+    def test_repeat_timing_is_learned_from_the_modal(self):
+        sh = core()
+        timing = hold().repeat_timing()
+        saved = (list(timing.delays), list(timing.intervals))
+        self.addCleanup(lambda: (timing.delays.__setitem__(slice(None), saved[0]),
+                                 timing.intervals.__setitem__(slice(None), saved[1])))
+        timing.delays.clear()
+        timing.intervals.clear()
+        self.press('X', 'GRID')
+        hold()._ops['X'] = dataclasses.replace(hold()._ops['X'],
+                                               pressed_at=time.monotonic() - 1.0)
+        op = self.modal_self('X')
+        with modal_ids(['MESO_OT_snap_hold']):
+            for _ in range(3):
+                self.run_modal(op, ev('X', is_repeat=True))
+        self.assertEqual(len(timing.delays), 1)
+        self.assertGreaterEqual(timing.delays[0], 1.0)
+        self.assertEqual(len(timing.intervals), 2)
+        self.assertEqual(timing.delay, sh.DEFAULT_REPEAT_DELAY)      # one sample: the default
+
+    def test_teardown_during_the_check_restores(self):
+        sh = core()
+        for teardown in ('end_all', 'load_pre', 'cancel'):
+            with self.subTest(teardown=teardown):
+                self.press('X', 'GRID')
+                with modal_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']):
+                    hold()._watch()
+                with modal_ids(['MESO_OT_snap_hold']):
+                    hold()._watch()
+                    self.assertEqual(hold().checking_keys(), ('X',))
+                    if teardown == 'end_all':
+                        hold().end_all()
+                    elif teardown == 'load_pre':
+                        hold()._load_pre()
+                    else:
+                        hold()._drive('X', sh.EV_CANCEL)
+                self.assertEqual(state(), USER)
+                self.assertFalse(hold().session().active)
+                hold()._ops.clear()
 
     def test_long_hold_with_repeats_is_not_a_tap(self):
         self.press('X', 'GRID')
@@ -346,6 +485,11 @@ class TestTeardown(HoldCase):
     def test_unregister_restores(self):
         mod = hold()
         self.press('C', 'EDGE')
+        with modal_ids(['TRANSFORM_OT_translate', 'MESO_OT_snap_hold']):
+            mod._watch()
+        with modal_ids(['MESO_OT_snap_hold']):
+            mod._watch()                                    # the still-held check runs
+        self.assertEqual(mod.checking_keys(), ('C',))
         mod.unregister()
         try:
             self.assertEqual(state(), USER)

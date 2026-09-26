@@ -285,7 +285,7 @@ def _draw_cycle_hint(layout, text):
 # Greyed hints under a group's bindings (the hold-J blocker: docs/meso-keymap-interfaces.md).
 GROUP_HINTS = {
     'SNAPPING': (
-        "A hold snaps the next drag; your snap settings come back when that drag ends.",
+        "Every drag snaps while the key is held; your snap settings come back when you let go.",
         "During a drag, hold Ctrl to invert snapping (native).",
         "Holding J during a drag does not invert snapping yet. You can add J to the Transform "
         "Modal Map yourself (Preferences > Keymap > Transform Modal Map > Snap Invert).",

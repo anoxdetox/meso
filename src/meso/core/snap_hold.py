@@ -197,12 +197,21 @@ EV_OWN_PRESS = 'OWN_PRESS'          # its own key, a new press (the release went
 EV_OWN_REPEAT = 'OWN_REPEAT'        # its own key, auto-repeat (always passes through)
 EV_OWN_RELEASE = 'OWN_RELEASE'
 EV_MOUSE_PRESS = 'MOUSE_PRESS'      # any mouse button press (a tool or gizmo drag may start)
-EV_OTHER = 'OTHER'                  # everything else (G/R/S, Space, other hold keys, navigation)
+EV_OTHER_KEY = 'OTHER_KEY'          # another key that auto-repeats went down (not a modifier,
+                                    # not a repeat): the OS now repeats that key, not this one
+EV_OTHER = 'OTHER'                  # everything else (mouse moves, modifiers, navigation, ...)
 EV_FOREIGN_ON = 'FOREIGN_ON'        # a foreign modal operator appeared (read by the watcher)
 EV_FOREIGN_OFF = 'FOREIGN_OFF'      # the foreign modal operator is gone
+EV_TIMEOUT = 'TIMEOUT'              # the watcher: no sign of the key by ``deadline()``
 EV_DEACTIVATE = 'DEACTIVATE'        # WINDOW_DEACTIVATE (a focus loss never sends the release)
 EV_ESC = 'ESC'
 EV_CANCEL = 'CANCEL'                # Operator.cancel(): file load, window closed
+
+# Keys the OS never auto-repeats: pressing one leaves the hold key's repeats running (verified
+# on X11; Wayland: GHOST's repeat timer ignores non-repeating keys, docs/spikes/meso-feedback-3.md).
+# Every other key counts as repeating (the safe side: it only costs the later drags' snap).
+NON_REPEATING_KEYS = frozenset({'LEFT_CTRL', 'RIGHT_CTRL', 'LEFT_SHIFT', 'RIGHT_SHIFT',
+                                'LEFT_ALT', 'RIGHT_ALT', 'OSKEY', 'HYPER'})
 
 
 @dataclass(frozen=True)
@@ -212,6 +221,18 @@ class HoldState:
     phase: str = HELD
     used: bool = False              # a mouse button or a foreign modal happened: never a tap
     release_pending: bool = False   # released while a foreign modal ran (not seen normally)
+    after: float | None = None      # a foreign modal ended at this time with no release seen:
+                                    # the still-held check runs until a sign of the key
+    blind: bool = False             # another repeating key went down: this key's silence proves
+                                    # nothing, so the next foreign modal's end ends the hold
+    clean: bool = True              # no foreign modal and no other key since the press (the
+                                    # first repeat then measures the OS repeat delay)
+    last_repeat: float | None = None    # the last own repeat, while no foreign modal ran since
+
+    @property
+    def checking(self) -> bool:
+        """The still-held check runs: the hold waits for a repeat, a press or the release."""
+        return self.phase == HELD and self.after is not None
 
 
 @dataclass(frozen=True)
@@ -232,34 +253,53 @@ def step(state: HoldState, event: str, now: float = 0.0, tap_threshold: float = 
 
     A release of its own key within ``tap_threshold`` seconds, with no mouse button or foreign
     modal in between and no other hold key down, is a tap: the overlay goes and the native
-    action of the key is replayed. A foreign modal (a transform) swallows every event while it
-    runs, so the hold ends when it is gone: one snapped drag per hold.
+    action of the key is replayed.
+
+    **Every drag snaps while the key is held** (user item B of 2026-09-26). A foreign modal (a
+    transform, a navigation drag, a box select, the Plaza) swallows every event while it runs,
+    the key's release too, so when it ends the hold cannot know whether the key is still down.
+    It keeps the overlay and runs the *still-held check* (``after``): an own-key repeat or press
+    proves the key down (the check ends, the hold goes on), the release ends the hold as usual,
+    and ``EV_TIMEOUT`` (the watcher, once ``deadline()`` passed with no sign) counts the key as
+    released. The OS repeats only the newest repeating key, so after another repeating key went
+    down (``EV_OTHER_KEY``) silence proves nothing: the hold is ``blind`` and falls back to one
+    snapped drag (the overlay goes when the next foreign modal ends; during a check, at once).
+    A release seen while the foreign modal ran ends the hold when it is gone.
 
     An auto-repeat of its own key (the OS repeats a held key, 600 ms delay, 25 Hz on X11) always
-    passes through and changes nothing, in every phase: a handled key event cancels Blender's
-    pending click-drag, so a consumed repeat just after the mouse press stopped every tool and
-    gizmo drag of a long hold (docs/spikes/meso-hold-long-press.md). The native items on the
-    bare hold keys ignore repeats (``repeat=False``), so nothing else runs on them.
+    passes through, in every phase: a handled key event cancels Blender's pending click-drag, so
+    a consumed repeat just after the mouse press stopped every tool and gizmo drag of a long hold
+    (docs/spikes/meso-hold-long-press.md). The native items on the bare hold keys ignore repeats
+    (``repeat=False``), so nothing else runs on them. It only records the evidence.
     """
     phase = state.phase
     if event == EV_OWN_REPEAT:
+        if phase == HELD:
+            # the key is down, and the OS repeats it again (after another key: no longer blind)
+            return replace(state, after=None, blind=False, last_repeat=now), NOTHING
         return state, NOTHING
     if event == EV_CANCEL:
         return replace(state, phase=ENDED), Effect(release=phase != ENDED, finish=True)
     if phase == ENDED:
-        if event in (EV_FOREIGN_ON, EV_FOREIGN_OFF):
+        if event in (EV_FOREIGN_ON, EV_FOREIGN_OFF, EV_TIMEOUT):
             return state, NOTHING
         # The late release is swallowed; anything else finishes and passes on.
         return state, Effect(finish=True, consume=event == EV_OWN_RELEASE)
     if event == EV_FOREIGN_ON:
         if phase == HELD:
-            return replace(state, phase=FOREIGN, used=True), NOTHING
+            return replace(state, phase=FOREIGN, used=True, after=None, clean=False,
+                           last_repeat=None), NOTHING
         return state, NOTHING
     if event == EV_FOREIGN_OFF:
-        if phase == FOREIGN:
-            # One snapped drag per hold: the overlay goes as soon as the transform is gone,
-            # whether or not the key was released during it (that release was swallowed).
+        if phase != FOREIGN:
+            return state, NOTHING
+        if state.release_pending or state.blind:
+            # the release was seen (or silence proves nothing): the overlay goes now
             return replace(state, phase=ENDED, release_pending=False), Effect(release=True)
+        return replace(state, phase=HELD, after=now), NOTHING     # the still-held check
+    if event == EV_TIMEOUT:
+        if state.checking:
+            return replace(state, phase=ENDED, after=None), Effect(release=True, finish=True)
         return state, NOTHING
     if phase == FOREIGN:
         if event == EV_OWN_RELEASE:
@@ -268,20 +308,110 @@ def step(state: HoldState, event: str, now: float = 0.0, tap_threshold: float = 
             return state, Effect(consume=True)
         if event == EV_DEACTIVATE:
             return replace(state, release_pending=True), NOTHING
+        if event == EV_OTHER_KEY:
+            return replace(state, blind=True), NOTHING
         return state, NOTHING
     # HELD
     if event == EV_OWN_RELEASE:
         tap = (not state.used and not others_held
                and now - state.pressed_at <= tap_threshold)
-        return replace(state, phase=ENDED), Effect(release=True, tap=tap, finish=True,
-                                                   consume=True)
+        return replace(state, phase=ENDED, after=None), Effect(release=True, tap=tap,
+                                                               finish=True, consume=True)
     if event == EV_OWN_PRESS:
-        return state, Effect(consume=True)
+        return replace(state, after=None), Effect(consume=True)
     if event == EV_MOUSE_PRESS:
         return replace(state, used=True), NOTHING
+    if event == EV_OTHER_KEY:
+        if state.checking:          # the key's state cannot be proved any more
+            return replace(state, phase=ENDED, after=None), Effect(release=True, finish=True)
+        return replace(state, blind=True, clean=False, last_repeat=None), NOTHING
     if event in (EV_DEACTIVATE, EV_ESC):
-        return replace(state, phase=ENDED), Effect(release=True, finish=True)
+        return replace(state, phase=ENDED, after=None), Effect(release=True, finish=True)
     return state, NOTHING
+
+
+# ------------------------------------------------------------------------------ key repeat timing
+
+# The OS key auto-repeat as measured on X11 / KDE (docs/spikes/meso-feedback-3.md): the first
+# repeat 0.60 s after the press, then every 0.04 s; after a transform ends with the key still
+# down the repeats come back within 0.07 s (60 transform ends).
+DEFAULT_REPEAT_DELAY = 0.60
+DEFAULT_REPEAT_INTERVAL = 0.04
+MIN_REPEAT_GAP = 0.20               # the check waits at least this long for a repeat
+GAP_INTERVALS = 5                   # ... or this many repeat intervals, if longer
+MAX_REPEAT_DELAY = 2.0
+MAX_REPEAT_INTERVAL = 0.25
+MIN_SAMPLES = 3                     # samples before a learned value is used
+MAX_SAMPLES = 15                    # the newest samples kept
+
+
+def _learned(samples, default, cap) -> float:
+    """The median of ``samples`` once there are ``MIN_SAMPLES``, never below ``default`` (a
+    sample can only come out short when Blender stalled at the press, which must not shorten
+    the check) and never above ``cap``."""
+    if len(samples) < MIN_SAMPLES:
+        return default
+    ordered = sorted(samples)
+    mid = len(ordered) // 2
+    median = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+    return min(cap, max(default, median))
+
+
+@dataclass
+class RepeatTiming:
+    """The OS repeat delay and interval, learned per Blender session from the repeats the holds
+    see (Python cannot read the OS settings). A user whose repeat is slower than the defaults
+    gets a longer check; a faster one keeps the defaults."""
+    delays: list = field(default_factory=list)
+    intervals: list = field(default_factory=list)
+
+    @property
+    def delay(self) -> float:
+        return _learned(self.delays, DEFAULT_REPEAT_DELAY, MAX_REPEAT_DELAY)
+
+    @property
+    def interval(self) -> float:
+        return _learned(self.intervals, DEFAULT_REPEAT_INTERVAL, MAX_REPEAT_INTERVAL)
+
+    @property
+    def gap(self) -> float:
+        return max(MIN_REPEAT_GAP, GAP_INTERVALS * self.interval)
+
+    def observe(self, state: HoldState, event: str, now: float) -> None:
+        """Record a sample from an own-key repeat, given the state *before* ``step()``: the
+        interval since the last repeat, or the delay after the press for the first repeat of a
+        hold that saw no foreign modal and no other key yet (none of its repeats was lost)."""
+        if event != EV_OWN_REPEAT or state.phase != HELD:
+            return
+        if state.last_repeat is not None:
+            samples, value = self.intervals, now - state.last_repeat
+        elif state.clean:
+            samples, value = self.delays, now - state.pressed_at
+        else:
+            return
+        if value <= 0.0:
+            return
+        samples.append(value)
+        del samples[:-MAX_SAMPLES]
+
+
+def deadline(state: HoldState, timing: RepeatTiming | None = None) -> float | None:
+    """When the still-held check gives up (``EV_TIMEOUT``), or ``None`` when none runs.
+
+    The key's repeats come back right after a foreign modal ends if they had started, else at
+    ``pressed_at + delay``; the check then waits ``gap`` more. The watcher only sends the
+    timeout from a ``bpy.app.timers`` tick, which Blender runs after every queued event: a
+    stalled Blender reads the repeats that arrived meanwhile before it can time out.
+    """
+    if not state.checking:
+        return None
+    timing = timing if timing is not None else RepeatTiming()
+    return max(state.after, state.pressed_at + timing.delay) + timing.gap
+
+
+def timed_out(state: HoldState, now: float, timing: RepeatTiming | None = None) -> bool:
+    limit = deadline(state, timing)
+    return limit is not None and now >= limit
 
 
 def foreign_ids(ids, own=OWN_IDS):
