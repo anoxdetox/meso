@@ -369,6 +369,125 @@ class TestCompassModal(_CompassCase):
         self.assertIsNotNone(self.compass())
 
 
+def _op_item(label, target, **props):
+    dm, model = _mod("core.dropdown_model"), _mod("core.model")
+    return dm.DropdownItem(dm.DD_OP, label, action=model.Action(
+        model.ACTION_OPERATOR, target=target, props=props))
+
+
+class TestCompassList(_CompassCase):
+    """Phase 5c (local/docs/phase5c-interfaces.md "A"): a drag picks the direction even over the
+    list until the pointer rests there (LIST_DWELL); a long list scrolls with the wheel and
+    on a rest on its arrow rows; a scroll never picks. The zone's Compass is a stub model
+    (``record.compass.build_compass``) with a slot in every direction and ``n`` list ops."""
+
+    def open_list(self, n=6):
+        dm, cpm = _mod("core.dropdown_model"), _mod("core.compass")
+        slots = tuple(_op_item(d, 'screen.slot_' + d.lower()) for d in cpm.DIRECTIONS)
+        items = tuple(_op_item(f'Item {i}', 'object.item', index=i) for i in range(n))
+        model = cpm.CompassModel('test:list', 'List', slots, items)
+        rc = _mod("record.compass")
+        self.addCleanup(setattr, rc, 'build_compass', rc.build_compass)
+        rc.build_compass = lambda *args, **kwargs: model
+        xy = self.zone_xy('N')
+        self.move(xy)
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        cs = self.compass()
+        self.assertIsNotNone(cs)
+        self.assertIs(cs.model, model)
+        self.assertIsNotNone(cs.layout.panel)
+        return cs
+
+    def mid(self, rect):
+        return int(rect.x + rect.w // 2), int(rect.y + rect.h // 2)
+
+    def test_a_flick_onto_the_list_picks_the_direction(self):
+        cs = self.open_list()
+        it = cs.layout.panel.items[2]
+        xy = self.mid(it.rect)
+        self.move(xy)
+        g = self.compass().gesture
+        self.assertIsNone(g.hover_path, "not armed yet")
+        self.assertIsNotNone(g.hover_slot)
+        direction = _mod("core.compass").DIRECTIONS[g.hover_slot]
+        self.clock[0] += 0.1
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual(self.executed[0]['action'].target, 'screen.slot_' + direction.lower())
+
+    def test_a_rest_on_the_list_picks_the_item(self):
+        cs = self.open_list()
+        it = cs.layout.panel.items[2]
+        xy = self.mid(it.rect)
+        self.move(xy)
+        self.clock[0] += 0.4                        # > LIST_DWELL, the pointer still
+        self.assertEqual(self.ev('TIMER', 'NOTHING'), {'PASS_THROUGH'})
+        g = self.compass().gesture
+        self.assertEqual((g.hover_path, g.hover_slot), (it.path, None), "armed on the timer")
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        action = self.executed[0]['action']
+        self.assertEqual((action.target, action.props.get('index')), ('object.item', 2))
+
+    def test_the_wheel_scrolls_a_long_list(self):
+        cs = self.open_list(80)
+        lay = cs.layout
+        self.assertTrue(lay.scrolls, "80 rows do not fit a 1000 px window")
+        self.assertEqual(lay.scroll, 0)
+        row = lay.panel.items[3]
+        xy = self.mid(row.rect)
+        self.move(xy)
+        self.assertIsNone(self.compass().gesture.hover_path, "not armed yet")
+        self.assertEqual(self.ev('WHEELDOWNMOUSE', 'PRESS', xy), {'RUNNING_MODAL'})
+        cs = self.compass()
+        self.assertEqual(cs.layout.scroll, 1)
+        self.assertIsNotNone(cs.layout.arrow_up)
+        self.assertEqual(cs.gesture.list_path, (3,), "the up arrow row took the first row")
+        self.assertEqual(cs.gesture.hover_path, (3,), "a scroll arms the list at once")
+        self.ev('WHEELDOWNMOUSE', 'PRESS', xy)
+        self.ev('WHEELDOWNMOUSE', 'PRESS', xy)
+        self.assertEqual(self.compass().layout.scroll, 3)
+        self.assertEqual(self.compass().gesture.hover_path, (5,))
+        self.ev('WHEELUPMOUSE', 'PRESS', xy)
+        self.assertEqual(self.compass().layout.scroll, 2)
+        # Off the list the wheel is swallowed and scrolls nothing.
+        self.assertEqual(self.ev('WHEELDOWNMOUSE', 'PRESS', self.toward('N')),
+                         {'RUNNING_MODAL'})
+        self.assertEqual(self.compass().layout.scroll, 2)
+        self.assertEqual(self.executed, [], "a scroll never picks")
+        # Back on the list, the release picks the item under the pointer (a hidden one never).
+        self.move(xy)
+        self.clock[0] += 0.4
+        self.ev('TIMER', 'NOTHING')
+        self.assertEqual(self.compass().gesture.hover_path, (4,))
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual(self.executed[0]['action'].props.get('index'), 4)
+
+    def test_a_rest_on_an_arrow_row_scrolls_and_never_picks(self):
+        cs = self.open_list(80)
+        down = cs.layout.arrow_down
+        self.assertIsNotNone(down)
+        xy = self.mid(down)
+        self.move(xy)
+        self.assertEqual(self.compass().layout.scroll, 0, "entering does not scroll yet")
+        cp_ = _mod("core.compass")
+        self.clock[0] += 2 * cp_.SCROLL_REPEAT + 0.01
+        self.ev('TIMER', 'NOTHING')
+        self.assertEqual(self.compass().layout.scroll, 2)
+        g = self.compass().gesture
+        self.assertEqual((g.hover_slot, g.hover_path), (None, None),
+                         "the scroll armed the list; an arrow row is no item")
+        up = self.compass().layout.arrow_up
+        self.assertIsNotNone(up)
+        self.move(self.mid(up))
+        self.clock[0] += cp_.SCROLL_REPEAT + 0.01
+        self.ev('TIMER', 'NOTHING')
+        self.assertEqual(self.compass().layout.scroll, 1)
+        self.clock[0] += 0.01
+        self.ev('LEFTMOUSE', 'RELEASE', self.mid(self.compass().layout.arrow_up))
+        self.assertIsNone(self.compass(), "a release on an arrow row cancels")
+        self.assertEqual(self.executed, [])
+        self.assertTrue(_hb().is_running(), "the Plaza stays")
+
+
 def _hb():
     return _mod("ops.plaza")
 

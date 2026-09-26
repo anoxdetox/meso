@@ -171,7 +171,9 @@ def scenarios(drv):
             yield 0.4
 
     def sc_list_pick(rec):
-        """W-L: an item of the Select list under the radial (Invert) runs on release."""
+        """W-L: an item of the Select list under the radial (Invert) runs on release after a
+        rest on it (local/docs/phase5c-interfaces.md: until the pointer has rested on the list
+        for LIST_DWELL, a drag there picks the direction)."""
         xy = drv.center_of("VIEW_3D")
         objs = list(bpy.context.view_layer.objects)
         sel = {o.name: o.select_get() for o in objs}
@@ -198,6 +200,7 @@ def scenarios(drv):
                 drv.sim('MOUSEMOVE', 'NOTHING', (int(cx + (target[0] - cx) * k / 4),
                                                  int(cy + (target[1] - cy) * k / 4)))
                 yield 0.05
+            yield 0.45                        # rest on the item: > LIST_DWELL, the timer arms it
             drv.check(rec, "list_hovered", cs.gesture.hover_path == it.path,
                       cs.gesture.hover_path)
             drv.sim('LEFTMOUSE', 'RELEASE', target)

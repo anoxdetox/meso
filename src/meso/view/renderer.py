@@ -1028,8 +1028,11 @@ def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
     both in ``palette.ticks``; each slot box filled with the dropdown panel colour and a
     border, the hovered one with ``item_hover`` and a 2-scale-px ``text_hover`` outline; its
     glyph (check box, cascade arrow) and label; then the list panel with
-    :func:`draw_dropdowns` (hover on the gesture's ``hover_path``). Returns False without GPU
-    work when ``clip`` misses the Compass. Exceptions propagate (draw_manager logs once)."""
+    :func:`draw_dropdowns` (hover on the gesture's ``hover_path``; Phase 5c: only its visible
+    items, the scroll arrow rows, scissored to its capped rect: :func:`_draw_compass_list`).
+    Boxes of a fixed Compass past the window edge are clipped by the region's scissor.
+    Returns False without GPU work when ``clip`` misses the Compass. Exceptions propagate
+    (draw_manager logs once)."""
     lay = getattr(compass, 'layout', None)
     extent = compass_extent(compass)
     if lay is None or extent is None:
@@ -1084,7 +1087,59 @@ def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
     finally:
         gpu.state.blend_set('NONE')
     if lay.panel is not None:
-        chain = ChainLayout((lay.panel,), lay.panel.rect, dm)
-        draw_dropdowns(chain, palette, gesture.hover_path, region_offset, linear_blend,
-                       clip=clip)
+        _draw_compass_list(lay, palette, gesture.hover_path, region_offset, linear_blend,
+                           colors, clip)
     return True
+
+
+def scroll_arrow_glyph(row: Rect, dm: DropdownMetrics) -> Rect:
+    """The triangle of a Compass list's scroll arrow row ``row``: ``arrow_size`` square,
+    centred in the row."""
+    a = dm.arrow_size
+    return Rect(row.x + (row.w - a) // 2, row.y + (row.h - a) // 2, a, a)
+
+
+def _draw_compass_list(lay: Any, palette: Palette, hover_path: ItemPath | None,
+                       region_offset: tuple[int, int], linear_blend: bool,
+                       colors: DropdownColors, clip: Rect | None) -> None:
+    """The Compass list (Phase 5c): its visible items through :func:`draw_dropdowns` and
+    the '▲' / '▼' arrow rows of a scrolled list (triangles in ``glyph``), scissored to the
+    panel's capped rect (intersected with the current scissor box, which is restored after;
+    the scissor test stays on, as the draw manager keeps it: with the full box it clips as it
+    did off; an empty box (never set) counts as the viewport and the test goes off again)."""
+    panel = lay.panel
+    pclip = panel.rect if clip is None else clip.intersect(panel.rect)
+    if pclip.is_empty():
+        return
+    ox, oy = region_offset
+    prev = tuple(gpu.state.scissor_get())
+    unset = prev[2] <= 0 or prev[3] <= 0
+    current = Rect(*(gpu.state.viewport_get() if unset else prev))
+    box = current.intersect(panel.rect.translated(-ox, -oy))
+    if box.is_empty():
+        return
+    try:
+        gpu.state.scissor_test_set(True)
+        gpu.state.scissor_set(int(box.x), int(box.y), int(box.w), int(box.h))
+        chain = ChainLayout((panel,), panel.rect, lay.metrics)
+        draw_dropdowns(chain, palette, hover_path, region_offset, linear_blend, clip=pclip)
+        arrows = [(r, d) for r, d in ((getattr(lay, 'arrow_up', None), 'UP'),
+                                      (getattr(lay, 'arrow_down', None), 'DOWN'))
+                  if r is not None]
+        if arrows:
+            gpu.state.blend_set('ALPHA')
+            gpu.matrix.push()
+            try:
+                gpu.matrix.translate((-ox, -oy))
+                for row, direction in arrows:
+                    triangle(scroll_arrow_glyph(row, lay.metrics), colors.glyph, direction)
+            finally:
+                gpu.matrix.pop()
+                gpu.state.blend_set('NONE')
+    finally:
+        if unset:
+            gpu.state.scissor_set(int(current.x), int(current.y), int(current.w),
+                                  int(current.h))
+            gpu.state.scissor_test_set(False)
+        else:
+            gpu.state.scissor_set(*prev)

@@ -446,6 +446,12 @@ the pointer"""
                         and rmb.shows_compass(now - state.t0, state.press, state.pointer,
                                               state.scale)):
                     self._show(context, state, now)
+                elif state.compass is not None:
+                    cs = state.compass
+                    before = compass_ops._extent(cs)
+                    cs.gesture, effects = cp.compass_step(cs.gesture, 'tick', now=now)
+                    if effects:
+                        self._redraw(state, before)
                 return {'PASS_THROUGH'}         # timers are not ours to eat
             if etype == 'WINDOW_DEACTIVATE':
                 _end(state, 'cancel')
@@ -464,6 +470,15 @@ the pointer"""
                     self._show(context, state, now)
                 return {'RUNNING_MODAL'}
             if etype == state.button and value == 'RELEASE':
+                release = (float(event.mouse_x), float(event.mouse_y))
+                if (state.behaviour == rmb.BEHAVIOUR_COMPASS
+                        and rmb.shows_compass(0.0, state.press, release, state.scale)):
+                    # A flick released before the Compass drew: the mark picks by its
+                    # direction, it is never a tap (marking ahead).
+                    state.pointer = release
+                    self._show(context, state, now)
+                    if state.compass is not None:
+                        return self._gesture(context, state, event, now)
                 return self._tap(state)
             if etype == 'ESC' and value == 'PRESS':
                 _end(state, 'cancel')
@@ -541,7 +556,7 @@ the pointer"""
                                         state.button, pointer)
         slot, path, in_dead = compass_ops._hover(cs, *pointer)
         cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                          in_dead=in_dead)
+                                          in_dead=in_dead, now=now)
         state.pointer = pointer
         state.compass = cs
         _last['compass'] = model.key
@@ -565,7 +580,7 @@ the pointer"""
             x, y = float(event.mouse_x), float(event.mouse_y)
             slot, path, in_dead = compass_ops._hover(cs, x, y)
             cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
-                                              in_dead=in_dead)
+                                              in_dead=in_dead, now=now)
             cs.pointer = state.pointer = (x, y)
             self._redraw(state, before)
             return {'RUNNING_MODAL'}
@@ -580,7 +595,10 @@ the pointer"""
             if value != 'RELEASE' and getattr(event, 'is_repeat', False):
                 return {'RUNNING_MODAL'}        # a held key's auto-repeat: still the press
             x, y = float(event.mouse_x), float(event.mouse_y)
-            _slot, _path, in_dead = compass_ops._hover(cs, x, y)
+            slot, path, in_dead = compass_ops._hover(cs, x, y)
+            if value == 'RELEASE':
+                cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', slot=slot, path=path,
+                                                  in_dead=in_dead, now=now)
             kind = 'release' if value == 'RELEASE' else 'press'
             gesture, effects = cp.compass_step(cs.gesture, kind, now=now, button=etype,
                                                in_dead=in_dead)
