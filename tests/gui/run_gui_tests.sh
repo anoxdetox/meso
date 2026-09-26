@@ -30,9 +30,14 @@
 # The whole run takes a few minutes: wrap it in `timeout 700`.
 set -u
 # No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
-# which would pop up on the user's session and offer to restart Blender there.
+# which would pop up on the user's session and offer to restart Blender there. (systemd-coredump
+# still logs the crash: the private bus below activates nothing, so no desktop service can crash-loop.)
 ulimit -c 0
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# One nested GUI run at a time on this machine: concurrent nested compositors + GPU Blenders
+# stalled the desktop compositor ("The main thread was hanging temporarily!", 2026-09-26).
+exec 9>"/tmp/meso-nested-gui-$(id -u).lock"
+flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
 B="${B:-$HOME/.local/share/blender/blender}"
 PY="${PY:-$HOME/.local/share/blender/5.2/python/bin/python3.13}"
 MODE=nested
@@ -106,7 +111,7 @@ EOF
         # (libwayland falls back to $XDG_RUNTIME_DIR/wayland-0 when WAYLAND_DISPLAY is unset), its
         # X server, or its session bus. Display numbers never matter.
         env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-$name" \
-            XDG_CONFIG_HOME="$T/xdg" timeout $((limit + 40)) dbus-run-session -- kwin_wayland --virtual $xw \
+            XDG_CONFIG_HOME="$T/xdg" timeout $((limit + 40)) dbus-run-session --config-file="$HERE/private-session-bus.conf" -- kwin_wayland --virtual $xw \
             --no-lockscreen --socket "meso-gui-$$-$name" --width 1920 --height 1080 \
             --exit-with-session "$T/$name.sh" > "$T/kwin-$name.log" 2>&1
         echo "kwin_exit[$name]=$?"

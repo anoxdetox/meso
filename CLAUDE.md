@@ -99,6 +99,14 @@ After each phase: unit tests + blender tests + validate must pass, then commit.
   rely on `unset WAYLAND_DISPLAY` alone: libwayland then falls back to `$XDG_RUNTIME_DIR/wayland-0`, the desktop
   compositor (this leaked every "Xwayland" test/spike Blender onto the desktop until 2026-09-25). Never assume display
   numbers or a single monitor. A launcher that uses the desktop on purpose requires an explicit `--host`.
+- The private bus runs with `dbus-run-session --config-file=tests/gui/private-session-bus.conf` (no service
+  directories: nothing is ever activated on it). With the stock config each nested session started the desktop's
+  portal backend and ksecretd, which crashed without a display, were restarted in a loop and flooded the desktop's
+  crash handler (3,400+ reports 2026-09-25/26; `ulimit -c 0` does not stop systemd-coredump from logging them).
+- One nested GUI session at a time on the machine: the runners take `flock /tmp/meso-nested-gui-$UID.lock`. Concurrent
+  nested compositors + GPU Blenders stalled the desktop compositor ("The main thread was hanging temporarily!",
+  user-visible lockups, 2026-09-26). Workflows never run GUI suites in parallel agents; check
+  `journalctl --user --since <start>` for new "terminated abnormally" / "main thread was hanging" lines after a run.
 - Never write under `~/.config/blender` except the dev symlink. EVERY Blender launch (headless or GUI) sets
   `BLENDER_USER_CONFIG=$(mktemp -d)` and `BLENDER_USER_EXTENSIONS=$(mktemp -d)` — a GUI quit rewrites
   `config/recent-searches.txt` even with `--factory-startup`.

@@ -23,6 +23,10 @@ WHAT=${1:?usage: run.sh headless|gui|startup|keyconfig|longhold|pivothold|multid
 OUT=${2:?usage: run.sh headless|gui|startup|keyconfig|longhold|pivothold|multidrag|multidrag_proto|altd OUT_DIR [--host]}
 MODE=${3:-nested}
 HERE=$(cd "$(dirname "$0")" && pwd)
+# One nested GUI run at a time on this machine: concurrent nested compositors + GPU Blenders
+# stalled the desktop compositor ("The main thread was hanging temporarily!", 2026-09-26).
+exec 9>"/tmp/meso-nested-gui-$(id -u).lock"
+flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
 B=${B:-$HOME/.local/share/blender/blender}
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
@@ -38,7 +42,7 @@ gui_session() {  # $1 = session script body (sh); runs nested or on the host
         # --xwayland + Blender without WAYLAND_DISPLAY (X11 backend): in a --virtual KWin there is no
         # pointer device, and GUI Blender on the Wayland backend segfaults (libwayland-client
         # wl_proxy_get_version) as soon as a transform grabs the cursor (G, tool drag, gizmo drag).
-        mkdir -p -m 700 "$T/run"; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run" XDG_CONFIG_HOME="$T/xdg" timeout 400 dbus-run-session -- kwin_wayland --virtual --xwayland --no-lockscreen \
+        mkdir -p -m 700 "$T/run"; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run" XDG_CONFIG_HOME="$T/xdg" timeout 400 dbus-run-session --config-file="$HERE/../../../tests/gui/private-session-bus.conf" -- kwin_wayland --virtual --xwayland --no-lockscreen \
             --socket "meso-kmspike-$$" --width 1920 --height 1080 \
             --exit-with-session "$T/session.sh" > "$T/kwin.log" 2>&1 || echo "kwin_exit=$?"
     fi

@@ -10,6 +10,12 @@ set -u
 # which would pop up on the user's session and offer to restart Blender there.
 ulimit -c 0
 HERE=$(cd "$(dirname "$0")" && pwd)
+# One nested GUI run at a time on this machine: concurrent nested compositors + GPU Blenders
+# stalled the desktop compositor ("The main thread was hanging temporarily!", 2026-09-26).
+if [ "${_PANELS_INNER:-0}" != "1" ]; then     # the inner run (inside the nested KWin) holds it already
+    exec 9>"/tmp/meso-nested-gui-$(id -u).lock"
+    flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
+fi
 B=~/.local/share/blender/blender
 NESTED=0
 if [ "${1:-}" = "--nested" ]; then NESTED=1; shift; fi
@@ -24,7 +30,7 @@ fi
 if [ $NESTED = 1 ]; then
     ARGS=$(printf ' %q' "$@")
     RT=$(mktemp -d)   # private runtime dir: no desktop wayland-0 to fall back to
-    timeout 180 env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$RT" _PANELS_INNER=1 dbus-run-session -- kwin_wayland --virtual --no-lockscreen \
+    timeout 180 env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$RT" _PANELS_INNER=1 dbus-run-session --config-file="$HERE/../../../tests/gui/private-session-bus.conf" -- kwin_wayland --virtual --no-lockscreen \
         --socket "wl-meso-panels-$$" --width 2560 --height 1565 \
         --exit-with-session "$HERE/run.sh $LOG$ARGS" > "$LOG.kwin" 2>&1
     echo "kwin_exit=$?"

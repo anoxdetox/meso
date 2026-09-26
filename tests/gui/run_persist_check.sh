@@ -18,10 +18,15 @@
 # every check passed. Takes about a minute; wrap it in `timeout 400`.
 set -u
 # No core files: a test Blender crash must never reach the desktop crash handler (DrKonqi),
-# which would pop up on the user's session and offer to restart Blender there.
+# which would pop up on the user's session and offer to restart Blender there. (systemd-coredump
+# still logs the crash: the private bus below activates nothing, so no desktop service can crash-loop.)
 ulimit -c 0
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
+# One nested GUI run at a time on this machine: concurrent nested compositors + GPU Blenders
+# stalled the desktop compositor ("The main thread was hanging temporarily!", 2026-09-26).
+exec 9>"/tmp/meso-nested-gui-$(id -u).lock"
+flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
 B="${B:-$HOME/.local/share/blender/blender}"
 PY="${PY:-$HOME/.local/share/blender/5.2/python/bin/python3.13}"
 MODE=nested
@@ -54,7 +59,7 @@ EOF
     if [ "$MODE" = host ]; then
         "$T/session.sh"
     else
-        mkdir -p -m 700 "$T/run-$3"; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-$3" XDG_CONFIG_HOME="$T/xdg" timeout 150 dbus-run-session -- kwin_wayland --virtual --no-lockscreen \
+        mkdir -p -m 700 "$T/run-$3"; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-$3" XDG_CONFIG_HOME="$T/xdg" timeout 150 dbus-run-session --config-file="$HERE/private-session-bus.conf" -- kwin_wayland --virtual --no-lockscreen \
             --socket "meso-persist-$$" --width 1600 --height 900 \
             --exit-with-session "$T/session.sh" > "$T/kwin_$3.log" 2>&1
     fi
