@@ -1105,11 +1105,11 @@ def backend_name():
     return gpu.platform.backend_type_get().lower()
 
 
-def save_screenshot(name):
-    """Save the window as <shots>/<name>.png (full size) and docs/screenshots/<name>.png
-    (downscaled to <= SHOT_MAX_W wide). Returns both paths."""
+def save_screenshot(name, window=None):
+    """Save the window (the main one by default) as <shots>/<name>.png (full size) and
+    docs/screenshots/<name>.png (downscaled to <= SHOT_MAX_W wide). Returns both paths."""
     import imbuf
-    pixels = win().screenshot()
+    pixels = (window or win()).screenshot()
     h, w = pixels.shape[0], pixels.shape[1]
     ibuf = imbuf.new((w, h))
     ibuf.file_type = 'PNG'
