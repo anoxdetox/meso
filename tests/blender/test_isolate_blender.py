@@ -28,9 +28,14 @@ def core_iso():
     return importlib.import_module(f"{ADDON_MODULE}.core.isolate")
 
 
+# The 3D View ``view3d()`` returns while a test turned another area into a 3D View (that one
+# can come first in the area order).
+_pinned = []
+
+
 def view3d():
     w = bpy.context.window_manager.windows[0]
-    area = next(a for a in w.screen.areas if a.type == 'VIEW_3D')
+    area = _pinned[0] if _pinned else next(a for a in w.screen.areas if a.type == 'VIEW_3D')
     region = next(r for r in area.regions if r.type == 'WINDOW')
     return w, area, region
 
@@ -203,17 +208,57 @@ class TestMesh(IsolateCase):
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual(ops_iso().read_flags(obj, core_iso().KIND_MESH), flags_before)
 
-    def test_topology_change_reveals_everything(self):
+    def test_topology_change_keeps_what_was_hidden_before(self):
+        """Subdivide while isolated: the index snapshot no longer fits, so the restore goes by
+        position: faces 0 and 1 (hidden before) stay hidden, everything the isolate hid comes
+        back, the local view is left."""
         obj = self._grid()
         self._prehide(obj)
+        hidden_before = self._hidden_centres(obj)
+        self.assertEqual(len(hidden_before), 2)
         toggle()
         key = ops_iso().record_key(obj, core_iso().KIND_MESH)
         self.assertIn(key, ops_iso().records())
         run(bpy.ops.mesh.subdivide)
         self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual(self._hidden_centres(obj), hidden_before)
+        bm = bmesh.from_edit_mesh(obj.data)
+        self.assertEqual(sum(f.hide for f in bm.faces), 2)
+        self.assertEqual(self._hidden_and_selected(obj), [])
+        self.assertNotIn(key, ops_iso().records())
+        self.assert_objects_restored()
+
+    def test_topology_change_with_nothing_hidden_before_reveals_everything(self):
+        obj = self._grid()
+        self._select_faces(obj, (9, 10))
+        toggle()
+        run(bpy.ops.mesh.subdivide)
+        self.assertEqual(toggle(), {'FINISHED'})
         bm = bmesh.from_edit_mesh(obj.data)
         self.assertFalse(any(e.hide for seq in (bm.verts, bm.edges, bm.faces) for e in seq))
-        self.assertNotIn(key, ops_iso().records())
+        self.assert_objects_restored()
+
+    def test_faces_added_and_deleted_while_isolated(self):
+        """Extrude (added faces) then delete a visible face: by position, the face hidden
+        before stays hidden; the isolate's faces come back; the local view is left."""
+        obj = self._grid()
+        run(bpy.ops.mesh.select_mode, type='FACE')
+        self._prehide(obj)
+        hidden_before = self._hidden_centres(obj)
+        self.assertEqual(toggle(), {'FINISHED'})
+        run(bpy.ops.mesh.extrude_region_move,
+            TRANSFORM_OT_translate={"value": (0.0, 0.0, 1.0)})
+        self._select_faces(obj, [f.index for f in bmesh.from_edit_mesh(obj.data).faces
+                                 if not f.hide][:1])
+        run(bpy.ops.mesh.delete, type='FACE')
+        self.assertEqual(toggle(), {'FINISHED'})
+        self.assertEqual(self._hidden_centres(obj), hidden_before)
+        self.assertEqual(self._hidden_and_selected(obj), [])
+        self.assertNotIn(ops_iso().record_key(obj, core_iso().KIND_MESH), ops_iso().records())
+        self.assert_objects_restored()
+        self.assertEqual(bpy.context.mode, 'EDIT_MESH')
+        self.assertEqual(tuple(bpy.context.scene.tool_settings.mesh_select_mode),
+                         (False, False, True))
 
     def _hidden_and_selected(self, obj):
         bm = bmesh.from_edit_mesh(obj.data)
@@ -284,6 +329,7 @@ class TestMesh(IsolateCase):
             self.assertNotIn(key, ops_iso().records())
         else:
             self.assertEqual(self._hidden_centres(obj), hidden_before)
+        self.assert_objects_restored()
         if expect_reveal is not None:
             self.assertEqual(revealed, expect_reveal)
 
@@ -306,9 +352,12 @@ class TestMesh(IsolateCase):
         self._assert_exact_or_revealed(obj, self._user_hidden, None)
 
     def test_sort_elements_is_a_topology_change(self):
+        """The per-index bits would land on other faces; the restore goes by position and
+        hides exactly the face hidden before."""
         obj = self._isolated_with_face_8_hidden()
         run(bpy.ops.mesh.sort_elements, type='REVERSE', elements={'FACE'})
-        self._assert_exact_or_revealed(obj, self._user_hidden, True)
+        self._assert_exact_or_revealed(obj, self._user_hidden, False)
+        self.assertNotIn(ops_iso().record_key(obj, core_iso().KIND_MESH), ops_iso().records())
 
     def test_flipped_normals_keep_the_restore(self):
         obj = self._isolated_with_face_8_hidden()
@@ -348,14 +397,22 @@ class TestMesh(IsolateCase):
         self.assertIsNone(space.local_view)
         self.assertEqual(self._state(obj), before)
 
-    def test_everything_selected_in_a_local_view_is_nothing_to_isolate(self):
+    def test_nothing_to_isolate_in_a_local_view_leaves_it(self):
+        """In a local view with nothing to isolate (every visible element selected, or nothing
+        selected), Ctrl 1 leaves the local view, as in Object Mode: never a trap (round 6)."""
         obj = self._grid()
-        run(bpy.ops.view3d.localview)                    # the user's own (Shift I)
-        run(bpy.ops.mesh.select_all, action='SELECT')
-        self.assertEqual(toggle(), {'CANCELLED'})
-        self.assertEqual(ops_iso().records(), {})
-        self.assertIsNotNone(view3d()[1].spaces.active.local_view)
-        self.assertEqual(ops_iso().local_views(), set())
+        space = view3d()[1].spaces.active
+        for action in ('SELECT', 'DESELECT'):
+            with self.subTest(select_all=action):
+                run(bpy.ops.view3d.localview)            # the user's own (Shift I)
+                run(bpy.ops.mesh.select_all, action=action)
+                before = self._state(obj)
+                self.assertEqual(toggle(), {'FINISHED'})
+                self.assertEqual(ops_iso().records(), {})
+                self.assertIsNone(space.local_view)
+                self.assertEqual(ops_iso().local_views(), set())
+                self.assertEqual(self._state(obj), before)
+                self.assertEqual(bpy.context.mode, 'EDIT_MESH')
 
     def test_records_survive_a_mode_switch_and_clear_on_load(self):
         obj = self._grid()
@@ -441,9 +498,10 @@ class TestEditIsolatesObjects(IsolateCase):
         self.assertIsNone(self.space.local_view)
         self.assertEqual((self._hidden(self.obj), self._hidden(self.other)), before)
 
-    def test_a_local_view_that_was_there_stays(self):
-        """Shift I (or Ctrl 1 in Object Mode) first: the element isolate keeps that local view
-        and its restore does not leave it."""
+    def test_a_local_view_that_was_there_is_taken_over(self):
+        """Shift I first (two objects): the element isolate keeps that local view (no nested
+        one) and takes it over, so its restore leaves it: the whole scene comes back
+        (round 6; before, it stayed and every Edit Mode Ctrl 1 toggled only the elements)."""
         for o in bpy.context.view_layer.objects:
             o.select_set(o in (self.obj, self.other))
         bpy.context.view_layer.objects.active = self.obj
@@ -455,13 +513,12 @@ class TestEditIsolatesObjects(IsolateCase):
         before = self._hidden(self.obj)
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual(self._in_local_view(), sorted([self.obj.name, self.other.name]))
-        self.assertEqual(ops_iso().local_views(), set())
+        self.assertEqual(ops_iso().local_views(), {ops_iso().view_id(self.space)})
         self.assertEqual(toggle(), {'FINISHED'})
-        self.assertIsNotNone(self.space.local_view)
-        self.assertEqual(self._hidden(self.obj), before)
-        run(bpy.ops.object.mode_set, mode='OBJECT')
-        self.assertEqual(toggle(), {'FINISHED'})             # Object Mode Ctrl 1 leaves it
         self.assertIsNone(self.space.local_view)
+        self.assertEqual(self._hidden(self.obj), before)
+        self.assertEqual(ops_iso().local_views(), set())
+        self.assertEqual(bpy.context.mode, 'EDIT_MESH')
 
     def test_local_view_left_by_hand_then_ctrl_1_restores_the_elements(self):
         self.edit(self.obj)
@@ -552,6 +609,378 @@ class TestEditIsolatesObjects(IsolateCase):
         self.assertEqual(len(ops_iso().local_views()), 1)
         ops_iso()._load_post()
         self.assertEqual(ops_iso().local_views(), set())
+
+
+def keymap_ctrl_1():
+    """Ctrl 1 as the keymap runs it (INVOKE_DEFAULT; the operator has no invoke). No undo flag:
+    headless, an undo push under an area override segfaults (docs/verified-facts-5.2.md)."""
+    with ctx():
+        return bpy.ops.meso.isolate_toggle('INVOKE_DEFAULT')
+
+
+class TestStackedIsolate(IsolateCase):
+    """Round 6 (the user's report: "the isolate is in object mode isolate -> change to edit
+    face -> isolate further ctrl 1 gets you back in local mode forever"): leaving an element
+    isolate gives the whole scene back, also a local view entered before it by Ctrl 1 in Object
+    Mode; the user stays in the edit mode with the same select mode and sees every object and
+    element that is not hidden (what was hidden before stays hidden)."""
+
+    def setUp(self):
+        super().setUp()
+        self.other = self.add(bpy.ops.mesh.primitive_uv_sphere_add, location=(6, 0, 30))
+        self.obj = self.add(bpy.ops.mesh.primitive_grid_add, x_subdivisions=4,
+                            y_subdivisions=4, location=(0, 0, 30))
+        self.space = view3d()[1].spaces.active
+
+    # -- helpers --------------------------------------------------------------------------
+    def _state(self, obj=None):
+        bm = bmesh.from_edit_mesh((obj or self.obj).data)
+        return tuple((tuple(e.hide for e in seq), tuple(e.select for e in seq))
+                     for seq in (bm.verts, bm.edges, bm.faces))
+
+    def _hidden(self, obj=None):
+        return tuple(level[0] for level in self._state(obj))
+
+    def _select_faces(self, indices, obj=None):
+        obj = obj or self.obj
+        bm = bmesh.from_edit_mesh(obj.data)
+        for f in bm.faces:
+            f.select_set(False)
+        bm.faces.ensure_lookup_table()
+        for i in indices:
+            bm.faces[i].select_set(True)
+        bm.select_flush_mode()
+        bmesh.update_edit_mesh(obj.data)
+
+    def _in_local_view(self, space=None):
+        space = space or self.space
+        return sorted(o.name for o in bpy.context.view_layer.objects
+                      if o.local_view_get(space))
+
+    def _object_mode_isolate(self, *objects):
+        """Object Mode, select ``objects``, Ctrl 1: the native local view of them."""
+        for o in bpy.context.view_layer.objects:
+            o.select_set(o in objects)
+        bpy.context.view_layer.objects.active = objects[0]
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(self._in_local_view(), sorted(o.name for o in objects))
+
+    def _tab_into_faces(self, prehide=(0,)):
+        """Tab into Edit Mode, face select mode, the user's own hidden faces, select face 5."""
+        self.edit(self.obj)
+        run(bpy.ops.mesh.select_mode, type='FACE')
+        if prehide:
+            self._select_faces(prehide)
+            run(bpy.ops.mesh.hide, unselected=False)
+        self._select_faces((5,))
+
+    def assert_whole_scene_back(self, before_hidden, mode='EDIT_MESH'):
+        self.assertIsNone(self.space.local_view, "still in the local view")
+        self.assertEqual(ops_iso().local_views(), set())
+        self.assertEqual(bpy.context.mode, mode)
+        if before_hidden is not None:
+            self.assertEqual(self._hidden(), before_hidden)
+
+    # -- the user's flow ------------------------------------------------------------------
+    def test_the_users_flow_object_isolate_then_face_isolate(self):
+        """Object Mode Ctrl 1, Tab, face mode, select a face, Ctrl 1, Ctrl 1: every object and
+        every face that was not hidden is shown again, still in Edit Mode, face mode. Fails
+        on the pre-round-6 code (the local view stayed and every later Ctrl 1 only toggled
+        the faces)."""
+        self._object_mode_isolate(self.obj)
+        self._tab_into_faces()
+        before = self._state()
+        hidden_before = self._hidden()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(sum(not f for f in self._hidden()[2]), 1)
+        self.assertEqual(self._in_local_view(), [self.obj.name])
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(hidden_before)
+        self.assertEqual(self._state(), before)          # hide flags and the selection
+        self.assertTrue(self._hidden()[2][0])            # hidden before: stays hidden
+        self.assertEqual(self.obj.mode, 'EDIT')
+        self.assertEqual(tuple(bpy.context.scene.tool_settings.mesh_select_mode),
+                         (False, False, True))
+        # the sphere, the cube and the light are shown again (no local view: all visible)
+        for name in (self.other.name, "Cube", "Light"):
+            self.assertTrue(bpy.data.objects[name].visible_get(viewport=self.space), name)
+        # the next Ctrl 1 isolates afresh (elements and objects), the one after goes out again
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(self._in_local_view(), [self.obj.name])
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(hidden_before)
+        self.assertEqual(self._state(), before)
+
+    def test_the_users_flow_with_two_objects_in_the_object_isolate(self):
+        self._object_mode_isolate(self.obj, self.other)
+        self.other.select_set(False)
+        self._tab_into_faces()
+        before = self._state()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(self._in_local_view(), sorted([self.obj.name, self.other.name]))
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(None)
+        self.assertEqual(self._state(), before)
+
+    def test_in_a_local_view_without_an_isolate_ctrl_1_never_traps(self):
+        """In a local view with no element isolate active (the isolate was left another way:
+        the hide undone, Alt H), Ctrl 1 isolates the elements and takes the local view over;
+        the next Ctrl 1 leaves both."""
+        self._object_mode_isolate(self.obj)
+        self._tab_into_faces(prehide=())
+        before = self._state()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        run(bpy.ops.mesh.reveal, select=False)           # left another way (Alt H)
+        self._select_faces((5,))
+        self.assertEqual(self._state(), before)
+        # nothing to restore (current == before) but our local view: Ctrl 1 leaves it
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(tuple(level[0] for level in before))
+        # a local view entered by hand (Shift I) with no isolate: Ctrl 1 isolates, then out
+        run(bpy.ops.view3d.localview)
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(sum(not f for f in self._hidden()[2]), 1)
+        self.assertIsNotNone(self.space.local_view)
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(None)
+        self.assertEqual(self._state(), before)
+
+    # -- changes while isolated -----------------------------------------------------------
+    def test_selection_changed_while_isolated(self):
+        """The restore keeps the selection made inside the isolate (what stays visible) and
+        brings the revealed elements back unselected (``mesh.reveal(select=False)``)."""
+        self._object_mode_isolate(self.obj)
+        self._tab_into_faces()
+        hidden_before = self._hidden()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        bm = bmesh.from_edit_mesh(self.obj.data)
+        for f in bm.faces:
+            f.select_set(False)
+        bm.select_flush_mode()
+        bmesh.update_edit_mesh(self.obj.data)            # the user deselects face 5
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(hidden_before)
+        bm = bmesh.from_edit_mesh(self.obj.data)
+        self.assertEqual([f.index for f in bm.faces if f.select], [])
+
+    def test_select_mode_switched_while_isolated(self):
+        """Vertex mode isolate, switch to face mode, Ctrl 1: exact restore, face mode stays."""
+        self._object_mode_isolate(self.obj)
+        self.edit(self.obj)
+        run(bpy.ops.mesh.select_mode, type='VERT')
+        bm = bmesh.from_edit_mesh(self.obj.data)
+        for v in bm.verts:
+            v.select_set(False)
+        bm.verts.ensure_lookup_table()
+        bm.verts[0].select_set(True)
+        bm.select_flush_mode()
+        bmesh.update_edit_mesh(self.obj.data)
+        run(bpy.ops.mesh.hide, unselected=False)         # the user's own hidden vertex
+        self._select_faces((5,))
+        hidden_before = self._hidden()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        run(bpy.ops.mesh.select_mode, type='FACE')
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(hidden_before)
+        self.assertEqual(tuple(bpy.context.scene.tool_settings.mesh_select_mode),
+                         (False, False, True))
+        bm = bmesh.from_edit_mesh(self.obj.data)
+        bm.verts.ensure_lookup_table()
+        self.assertTrue(bm.verts[0].hide)
+
+    def test_tab_out_and_back_in_while_isolated(self):
+        for stacked in (False, True):
+            with self.subTest(object_isolate_first=stacked):
+                if stacked:
+                    self._object_mode_isolate(self.obj)
+                self._tab_into_faces(prehide=())
+                hidden_before = self._hidden()
+                self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+                run(bpy.ops.object.mode_set, mode='OBJECT')
+                self.assertIsNotNone(self.space.local_view)
+                self.edit(self.obj)
+                self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+                self.assert_whole_scene_back(hidden_before)
+                run(bpy.ops.object.mode_set, mode='OBJECT')
+                ops_iso().clear_records()
+
+    def test_object_mode_ctrl_1_inside_the_stack(self):
+        """Tab out of the element isolate and Ctrl 1 in Object Mode: the native local view
+        toggle leaves it; back in Edit Mode, Ctrl 1 restores the elements."""
+        self._object_mode_isolate(self.obj)
+        self._tab_into_faces()
+        hidden_before = self._hidden()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        run(bpy.ops.object.mode_set, mode='OBJECT')
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertIsNone(self.space.local_view)
+        self.assertEqual(ops_iso().local_views(), set())
+        self.edit(self.obj)
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(hidden_before)
+
+    def test_multi_object_edit_stays_in_edit_mode(self):
+        self._object_mode_isolate(self.obj, self.other)
+        run(bpy.ops.object.mode_set, mode='EDIT')
+        run(bpy.ops.mesh.select_mode, type='FACE')
+        bm = bmesh.from_edit_mesh(self.other.data)
+        for f in bm.faces:
+            f.select_set(False)
+        bmesh.update_edit_mesh(self.other.data)
+        self._select_faces((5,))
+        before = (self._hidden(), self._hidden(self.other))
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(None)
+        self.assertEqual((self._hidden(), self._hidden(self.other)), before)
+        self.assertEqual((self.obj.mode, self.other.mode), ('EDIT', 'EDIT'))
+
+    def test_pose_mode_stacked(self):
+        arm = self.add(bpy.ops.object.armature_add, location=(0, 4, 30))
+        self.edit(arm)
+        extra = arm.data.edit_bones.new("meso_extra")
+        extra.head, extra.tail = (1.0, 0.0, 0.0), (1.0, 0.0, 1.0)
+        run(bpy.ops.object.mode_set, mode='OBJECT')
+        self._object_mode_isolate(arm)
+        self.edit(arm, mode='POSE')
+        for pb in arm.pose.bones:
+            pb.select = pb.name == "meso_extra"
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertIsNotNone(self.space.local_view)
+        self.assertEqual([pb.name for pb in arm.pose.bones if not pb.hide], ["meso_extra"])
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(None, mode='POSE')
+        self.assertFalse(any(pb.hide for pb in arm.pose.bones))
+
+    # -- several 3D Views, quad view, stale keys --------------------------------------------
+    def _second_3d_view(self):
+        """Another area made a 3D View (``view3d()`` stays pinned to the first)."""
+        w, area, _region = view3d()
+        second = next(a for a in w.screen.areas if a.type not in ('VIEW_3D', 'PROPERTIES'))
+        old_type = second.type
+        _pinned.append(area)
+        self.addCleanup(_pinned.clear)
+        second.type = 'VIEW_3D'
+
+        def cleanup():
+            if second.type == 'VIEW_3D' and second.spaces.active.local_view is not None:
+                region2 = next(r for r in second.regions if r.type == 'WINDOW')
+                with bpy.context.temp_override(window=w, area=second, region=region2):
+                    bpy.ops.view3d.localview()
+            second.type = old_type
+        self.addCleanup(cleanup)
+        return w, second, next(r for r in second.regions if r.type == 'WINDOW')
+
+    def test_restore_in_another_3d_view_leaves_the_taken_over_local_view(self):
+        """Object Mode Ctrl 1 and the element isolate in the first 3D View, the restore in a
+        second one: the first leaves its local view too; a local view of the second that the
+        isolate never touched is left only because the restore runs there (the whole scene
+        of the view Ctrl 1 is pressed in comes back)."""
+        self._object_mode_isolate(self.obj)
+        self._tab_into_faces()
+        hidden_before = self._hidden()
+        w, second, region2 = self._second_3d_view()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertIsNone(second.spaces.active.local_view)
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        self.assert_whole_scene_back(hidden_before)
+        self.assertIsNone(second.spaces.active.local_view)
+
+    def test_a_local_view_elsewhere_that_the_isolate_never_took_stays(self):
+        """Shift I in a second 3D View (not the isolate's): the restore in the first leaves
+        only the first's local view."""
+        self._object_mode_isolate(self.obj)
+        self._tab_into_faces()
+        w, second, region2 = self._second_3d_view()
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            bpy.ops.view3d.localview()
+        self.assertIsNotNone(second.spaces.active.local_view)
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        self.assert_whole_scene_back(None)
+        self.assertIsNotNone(second.spaces.active.local_view)
+
+    def test_maximized_while_isolated(self):
+        """Ctrl Space moves the 3D View's space into a temporary screen ('<name>-nonnormal'):
+        a (screen name, area index) key went stale there, so the restore did not leave the
+        local view the isolate entered. The local view's own id follows the space."""
+        self._tab_into_faces()
+        hidden_before = self._hidden()
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+        vid = ops_iso().view_id(self.space)
+        self.assertEqual(ops_iso().local_views(), {vid})
+        w, area, region = view3d()
+        with bpy.context.temp_override(window=w, area=area, region=region):
+            self.assertEqual(bpy.ops.screen.screen_full_area(), {'FINISHED'})
+        try:
+            self.assertTrue(w.screen.name.endswith("-nonnormal"), w.screen.name)
+            w2, big, big_region = view3d()
+            self.assertEqual(ops_iso().view_id(big.spaces.active), vid)
+            with bpy.context.temp_override(window=w2, area=big, region=big_region):
+                self.assertEqual(bpy.ops.meso.isolate_toggle('INVOKE_DEFAULT'), {'FINISHED'})
+            self.assertIsNone(big.spaces.active.local_view)
+            self.assertEqual(self._hidden(), hidden_before)
+            self.assertEqual(bpy.context.mode, 'EDIT_MESH')
+        finally:
+            w2, big, big_region = view3d()
+            with bpy.context.temp_override(window=w2, area=big, region=big_region):
+                bpy.ops.screen.back_to_previous()
+        # headless, back_to_previous from the maximized view leaves Edit Mode (Blender's)
+        self.space = view3d()[1].spaces.active
+        self.assertIsNone(self.space.local_view)
+        self.assertEqual(ops_iso().local_views(), set())
+
+    def test_area_type_round_trip_and_screen_rename_while_isolated(self):
+        """The isolate's 3D View is turned into another editor and back and the screen is
+        renamed (a (screen name, area index) key goes stale on the rename): the restore from
+        the other 3D View still leaves its local view. The round trip uses the second area:
+        headless, a type round trip of the first 3D View leaves its tool header unsized for the
+        rest of the session (TestPlazaSnapFallbacks)."""
+        self._tab_into_faces()
+        hidden_before = self._hidden()
+        w, second, region2 = self._second_3d_view()
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        vid = ops_iso().view_id(second.spaces.active)
+        self.assertEqual(ops_iso().local_views(), {vid})
+        second.type = 'IMAGE_EDITOR'
+        second.type = 'VIEW_3D'
+        self.assertEqual(ops_iso().view_id(second.spaces.active), vid)
+        old_name = w.screen.name
+        w.screen.name = "meso_renamed_screen"
+        self.addCleanup(setattr, w.screen, 'name', old_name)
+        self.assertEqual(keymap_ctrl_1(), {'FINISHED'})     # in the first 3D View
+        self.assert_whole_scene_back(hidden_before)
+        self.assertIsNone(second.spaces.active.local_view)
+
+    def test_a_local_view_no_window_shows_is_left_when_shown(self):
+        """A restore cannot reach a local view on a screen no window shows (another
+        workspace; no cross-screen override): it is left once a window shows it again (the
+        timer). Headless the window's workspace switch never applies, so "not shown" is
+        emulated by hiding the area from ``shown_areas``."""
+        self._tab_into_faces()
+        w, second, region2 = self._second_3d_view()
+        with bpy.context.temp_override(window=w, area=second, region=region2):
+            self.assertEqual(bpy.ops.meso.isolate_toggle(), {'FINISHED'})
+        vid = ops_iso().view_id(second.spaces.active)
+        real = ops_iso().shown_areas
+        second_ptr = second.as_pointer()
+        ops_iso().shown_areas = lambda c: ((wi, a) for wi, a in real(c)
+                                           if a.as_pointer() != second_ptr)
+        try:
+            self.assertEqual(keymap_ctrl_1(), {'FINISHED'})
+            self.assertIsNotNone(second.spaces.active.local_view)
+            self.assertEqual(ops_iso().pending_exits(), {vid})
+            self.assertEqual(ops_iso()._leave_pending(), ops_iso().PENDING_INTERVAL)
+            self.assertIsNotNone(second.spaces.active.local_view)
+        finally:
+            ops_iso().shown_areas = real
+        self.assertIsNone(ops_iso()._leave_pending())    # shown again: left, timer ends
+        self.assertIsNone(second.spaces.active.local_view)
+        self.assertEqual(ops_iso().pending_exits(), set())
+        if bpy.app.timers.is_registered(ops_iso()._leave_pending):
+            bpy.app.timers.unregister(ops_iso()._leave_pending)
 
 
 class TestCurve(IsolateCase):
@@ -699,7 +1128,9 @@ class TestBones(IsolateCase):
         self.assertEqual(toggle(), {'FINISHED'})
         self.assertEqual({b.name: b.hide for b in obj.data.edit_bones}, before)
 
-    def test_edit_bones_added_while_isolated_reveal_everything(self):
+    def test_edit_bones_added_while_isolated_keep_the_hidden_bone(self):
+        """A bone added while isolated is a topology change: the bone hidden before stays
+        hidden (matched by name), every other bone is shown, the local view is left."""
         obj = self._armature()
         self._edit_select(obj, {"meso_0"})
         run(bpy.ops.armature.hide, unselected=False)
@@ -708,7 +1139,8 @@ class TestBones(IsolateCase):
         b = obj.data.edit_bones.new("meso_new")
         b.head, b.tail = (9.0, 0.0, 0.0), (9.0, 0.0, 1.0)
         self.assertEqual(toggle(), {'FINISHED'})
-        self.assertFalse(any(b.hide for b in obj.data.edit_bones))
+        self.assertEqual([b.name for b in obj.data.edit_bones if b.hide], ["meso_0"])
+        self.assert_objects_restored()
 
     def test_edit_bones_restore_after_a_selecting_reveal(self):
         obj = self._armature()

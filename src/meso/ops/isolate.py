@@ -6,17 +6,24 @@
   Grease Pencil): the native local view (``view3d.localview``), toggled.
 - Edit mesh / curve / surface / armature, pose and metaball: the native
   ``hide(unselected=True)``, and the objects too: a 3D View that is not in a local view enters
-  the native local view of the objects in the mode. The next Ctrl 1 writes the recorded hide
-  flags back, so exactly what was hidden before stays hidden (never the native reveal, which
-  unhides everything), and leaves the local view that the isolate entered.
+  the native local view of the objects in the mode; one that is (Object Mode Ctrl 1, Shift I)
+  is taken over. The next Ctrl 1 writes the recorded hide flags back, so exactly what was
+  hidden before stays hidden (never the native reveal, which unhides everything), and gives the
+  whole scene back: it leaves the local view of its 3D View and every local view an element
+  isolate entered or took over (round 6: the isolations stack), staying in the edit mode.
 
 The records hold plain flags keyed by (object session uid, data session uid, kind) in module
 memory, so a rename keeps them; no RNA pointer outlives the operator call. They survive mode
 switches (the flags live in the data) and are dropped on file load. A restore deselects what it
 hides, as the native hide does (a hidden and selected mesh element crashes the next transform).
-The local views an element isolate entered are kept as (screen name, area index) keys, dropped
-when the area is no longer in a local view and on file load. Native hide keys and Shift I local
-view are untouched.
+The local views an element isolate entered or took over are kept as the address of the 3D
+View's local-view data (``SpaceView3D.local_view.as_pointer()``): a plain int, only compared,
+never dereferenced. It follows the space through an area reorder, a maximize (Ctrl Space moves
+the space into a temporary screen), an area type round trip and a screen rename, where a
+(screen name, area index) key went stale. It is dropped when no 3D View holds that local view
+any more and on file load. A local view on a screen no window shows (another workspace) cannot
+be left from here (no cross-screen override): it is left once a window shows it again (a
+timer). Native hide keys and Shift I local view are untouched.
 """
 
 from __future__ import annotations
@@ -34,8 +41,15 @@ from ..core import isolate as iso
 # (object session uid, data session uid, kind) -> iso.Record
 _records: dict[tuple[int, int, str], iso.Record] = {}
 
-# (screen name, area index) of the 3D Views whose local view an element isolate entered.
-_local_views: set[tuple[str, int]] = set()
+# Local-view data addresses of the 3D Views whose local view an element isolate entered or took
+# over (``view_id``).
+_local_views: set[int] = set()
+
+# The ones a restore could not leave (their screen was not shown in any window): left by
+# ``_leave_pending`` once a window shows them.
+_pending: set[int] = set()
+
+PENDING_INTERVAL = 0.25
 
 
 def records() -> dict:
@@ -46,9 +60,14 @@ def local_views() -> set:
     return _local_views
 
 
+def pending_exits() -> set:
+    return _pending
+
+
 def clear_records() -> None:
     _records.clear()
     _local_views.clear()
+    _pending.clear()
 
 
 # ------------------------------------------------------------------------------ per-kind flags
@@ -117,6 +136,59 @@ def _elements(obj, kind):
         elements = list(obj.data.elements)
         return (len(elements),), (elements,), ()
     raise ValueError(kind)
+
+
+def position_keys(obj, kind) -> tuple:
+    """Per level (the order of ``read_flags``), a key per element that a topology change
+    keeps for the elements it does not touch (``iso.match_anchors``): mesh vertex positions
+    (an edge / face: its sorted vertex positions), curve point positions (a spline: its type
+    and points), bone names, metaball type and position. Hidden elements cannot be edited, so
+    the keys of what was hidden before the isolate stay valid while isolated."""
+    if kind == iso.KIND_MESH:
+        bm = _bm(obj)
+        bm.verts.index_update()
+        vk = [_co(v.co) for v in bm.verts]
+        edges = tuple(tuple(sorted((vk[e.verts[0].index], vk[e.verts[1].index])))
+                      for e in bm.edges)
+        faces = tuple(tuple(sorted(vk[v.index] for v in f.verts)) for f in bm.faces)
+        return tuple(vk), edges, faces
+    if kind == iso.KIND_CURVE:
+        points, splines = [], []
+        for spline in obj.data.splines:
+            pts = spline.bezier_points if spline.type == 'BEZIER' else spline.points
+            keys = tuple(_co(p.co) for p in pts)
+            points.extend(keys)
+            splines.append((spline.type, keys))
+        return tuple(points), tuple(splines)
+    if kind == iso.KIND_ARMATURE:
+        return (tuple(b.name for b in obj.data.edit_bones),)
+    if kind == iso.KIND_POSE:
+        return (tuple(b.name for b in obj.pose.bones),)
+    if kind == iso.KIND_METABALL:
+        return (tuple((e.type, _co(e.co)) for e in obj.data.elements),)
+    raise ValueError(kind)
+
+
+def close_hidden(obj, kind, flags: iso.Flags) -> iso.Flags:
+    """Mesh flags made consistent as the native hide leaves them (an edge with a hidden vertex
+    is hidden, a face with a hidden vertex or edge is hidden): a position match can leave a
+    new element that uses a hidden vertex. Other kinds unchanged."""
+    if kind != iso.KIND_MESH:
+        return flags
+    bm = _bm(obj)
+    bm.verts.index_update()
+    bm.edges.index_update()
+    vbits = flags.bits[0]
+    ebits = bytearray(flags.bits[1])
+    for i, e in enumerate(bm.edges):
+        if not ebits[i] and (vbits[e.verts[0].index] or vbits[e.verts[1].index]):
+            ebits[i] = 1
+    fbits = bytearray(flags.bits[2])
+    for i, f in enumerate(bm.faces):
+        if not fbits[i] and (any(vbits[v.index] for v in f.verts)
+                             or any(ebits[e.index] for e in f.edges)):
+            fbits[i] = 1
+    return iso.Flags(flags.counts, (vbits, bytes(ebits), bytes(fbits)), flags.sigs)
 
 
 def read_flags(obj, kind) -> iso.Flags:
@@ -241,32 +313,55 @@ def _tag_redraw(context):
 # ------------------------------------------------------------------------------ local view
 
 
-def area_key(screen, area) -> tuple[str, int] | None:
-    """A plain key for a 3D View area (never the RNA pointer)."""
-    if screen is None or area is None:
-        return None
-    for index, candidate in enumerate(screen.areas):
-        if candidate == area:
-            return (screen.name, index)
-    return None
+def view_id(space) -> int | None:
+    """The local view of a 3D View space as a plain int (its address), None when the space is
+    not in a local view. Only compared, never dereferenced; a local view left and entered again
+    can get the same address back (then it is taken as ours: known limit)."""
+    local = getattr(space, 'local_view', None)
+    return local.as_pointer() if local is not None else None
 
 
 def _window_region(area):
     return next((r for r in area.regions if r.type == 'WINDOW'), None)
 
 
-def _prune_local_views(screen) -> None:
-    """Forget the keys of this screen whose area is no longer a 3D View in a local view (left
-    with Shift I or Ctrl 1 in Object Mode, the area changed or is gone)."""
-    if screen is None:
-        return
-    areas = list(screen.areas)
-    for key in [k for k in _local_views if k[0] == screen.name]:
-        index = key[1]
-        area = areas[index] if index < len(areas) else None
-        space = area.spaces.active if area is not None and area.type == 'VIEW_3D' else None
-        if space is None or getattr(space, 'local_view', None) is None:
-            _local_views.discard(key)
+def _existing_view_ids() -> set[int]:
+    """Every local view any 3D View space of any screen holds (read only)."""
+    found = set()
+    for screen in bpy.data.screens:
+        for area in screen.areas:
+            for space in area.spaces:
+                if space.type == 'VIEW_3D':
+                    vid = view_id(space)
+                    if vid is not None:
+                        found.add(vid)
+    return found
+
+
+def _prune_local_views() -> None:
+    """Forget the local views no 3D View holds any more (left with Shift I or Ctrl 1 in Object
+    Mode, an undo, the area gone)."""
+    existing = _existing_view_ids()
+    _local_views.intersection_update(existing)
+    _pending.intersection_update(existing)
+
+
+def shown_areas(context):
+    """``(window, area)`` of every 3D View area a window shows now (each window's own screen:
+    never another workspace's screen)."""
+    wm = getattr(context, 'window_manager', None)
+    for window in getattr(wm, 'windows', ()):
+        for area in getattr(window.screen, 'areas', ()):
+            if area.type == 'VIEW_3D':
+                yield window, area
+
+
+def _leave(window, area) -> bool:
+    region = _window_region(area)
+    if region is None:
+        return False
+    with bpy.context.temp_override(window=window, area=area, region=region):
+        return 'FINISHED' in bpy.ops.view3d.localview(frame_selected=False)
 
 
 def _enter_local_view(context, frame: bool) -> bool:
@@ -296,22 +391,54 @@ def _enter_local_view(context, frame: bool) -> bool:
     return True
 
 
+def _leave_here(context) -> None:
+    """Leave the local view of the 3D View Ctrl 1 runs in (whoever entered it)."""
+    vid = view_id(context.space_data)
+    if vid is None:
+        return
+    _local_views.discard(vid)
+    _pending.discard(vid)
+    bpy.ops.view3d.localview(frame_selected=False)
+
+
 def _exit_local_views(context) -> None:
-    """Leave every local view of this screen that an element isolate entered."""
-    screen = context.screen
-    _prune_local_views(screen)
-    areas = list(screen.areas) if screen is not None else []
-    for key in sorted(k for k in _local_views if k[0] == getattr(screen, 'name', None)):
-        area = areas[key[1]]
-        _local_views.discard(key)
-        if area == context.area:
-            bpy.ops.view3d.localview()
-            continue
-        region = _window_region(area)
-        if region is None:
-            continue
-        with context.temp_override(area=area, region=region):
-            bpy.ops.view3d.localview()
+    """The whole scene back: leave the local view of this 3D View, then every local view an
+    element isolate entered or took over that a window shows; the ones on a screen no window
+    shows are left by ``_leave_pending`` once one does."""
+    _leave_here(context)
+    _prune_local_views()
+    for window, area in list(shown_areas(context)):
+        vid = view_id(area.spaces.active)
+        if vid in _local_views:
+            _local_views.discard(vid)
+            _leave(window, area)
+    if _local_views:
+        _pending.update(_local_views)
+        _local_views.clear()
+        _start_pending_timer()
+
+
+def _leave_pending() -> float | None:
+    """Timer: leave each pending local view once a window shows it (never while a modal
+    operator runs in that window). Stops when nothing is pending."""
+    try:
+        if not _pending:
+            return None
+        _prune_local_views()
+        for window, area in list(shown_areas(bpy.context)):
+            vid = view_id(area.spaces.active)
+            if vid in _pending and not window.modal_operators:
+                _pending.discard(vid)
+                _leave(window, area)
+    except Exception as ex:      # never let a timer raise every tick
+        print(f"meso isolate: leaving a local view failed: {ex}")
+        _pending.clear()
+    return PENDING_INTERVAL if _pending else None
+
+
+def _start_pending_timer() -> None:
+    if not bpy.app.timers.is_registered(_leave_pending):
+        bpy.app.timers.register(_leave_pending, first_interval=PENDING_INTERVAL)
 
 
 # ------------------------------------------------------------------------------ operator
@@ -338,9 +465,10 @@ elements and show only the edited objects); again to go back to exactly what was
 
     # -- local view --------------------------------------------------------------------------
     def _local_view(self, context):
-        space = context.space_data
-        if getattr(space, 'local_view', None) is not None:
-            _local_views.discard(area_key(context.screen, context.area))
+        vid = view_id(context.space_data)
+        if vid is not None:
+            _local_views.discard(vid)
+            _pending.discard(vid)
             return bpy.ops.view3d.localview(frame_selected=False)
         if not context.selected_objects:
             self.report({'INFO'}, iso.MSG_NOTHING_SELECTED)
@@ -358,54 +486,66 @@ elements and show only the edited objects); again to go back to exactly what was
             record = _records.get(key)
             if record is not None:
                 _records[key] = iso.rebase(record, now)   # bones renamed / reordered
-        _prune_local_views(context.screen)
-        view_key = area_key(context.screen, context.area)
-        in_local_view = getattr(context.space_data, 'local_view', None) is not None
-        screen_name = getattr(context.screen, 'name', None)
+        _prune_local_views()
+        vid = view_id(context.space_data)
         plan = iso.edit_plan([(_records.get(k), c) for k, c in zip(keys, current)],
-                             in_local_view=in_local_view, ours=view_key in _local_views,
-                             ours_elsewhere=any(k != view_key and k[0] == screen_name
-                                                for k in _local_views))
+                             in_local_view=vid is not None, ours=vid in _local_views)
         if plan.action == iso.RESTORE:
-            changed = False
-            for obj, key, now, decision in zip(objects, keys, current, plan.decisions):
-                if decision == iso.SKIP:
-                    continue
-                record = _records[key]
-                write_flags(obj, kind, iso.restore_target(decision, record, now))
-                if decision == iso.RESTORE_TOPOLOGY_CHANGED:
-                    del _records[key]
-                    changed = True
+            return self._restore(context, kind, objects, keys, current, plan)
+        anything = any(any_selected(o, kind) for o in objects)
+        stored = False
+        if anything:
+            idname, props = iso.ISOLATE_OPERATORS[kind]
+            module, _, name = idname.partition('.')
+            getattr(getattr(bpy.ops, module), name)(**dict(props))
+            after = [read_flags(o, kind) for o in objects]
+            for obj, key, before, now in zip(objects, keys, current, after):
+                if now != before:
+                    anchors = (iso.anchors_of(before, position_keys(obj, kind))
+                               if before.hidden() else ())
+                    _records[key] = iso.Record(before, now, anchors=anchors)
+                    stored = True
                 else:
-                    _records[key] = iso.after_restore(record)
-            if plan.exit_local_view:
-                _exit_local_views(context)
-            if changed:
-                self.report({'WARNING'}, iso.MSG_TOPOLOGY_CHANGED)
-            _tag_redraw(context)
-            return {'FINISHED'}
-        if not any(any_selected(o, kind) for o in objects):
+                    _records.pop(key, None)
+        step = iso.isolate_view(plan.view, anything_selected=anything, hid=stored)
+        if step == iso.NOTHING_SELECTED:
             self.report({'INFO'}, iso.MSG_NOTHING_SELECTED)
             return {'CANCELLED'}
-        idname, props = iso.ISOLATE_OPERATORS[kind]
-        module, _, name = idname.partition('.')
-        getattr(getattr(bpy.ops, module), name)(**dict(props))
-        after = [read_flags(o, kind) for o in objects]
-        stored = False
-        for key, before, now in zip(keys, current, after):
-            if now != before:
-                _records[key] = iso.Record(before, now)
-                stored = True
-            else:
-                _records.pop(key, None)
-        entered = False
-        if plan.enter_local_view and view_key is not None:
-            entered = _enter_local_view(context, _frame(context))
-            if entered:
-                _local_views.add(view_key)
-        if not stored and not entered:
+        if step == iso.VIEW_EXIT:            # in a local view with nothing to isolate
+            _exit_local_views(context)
+            _tag_redraw(context)
+            return {'FINISHED'}
+        if step == iso.VIEW_ADOPT:
+            _local_views.add(vid)
+        elif _enter_local_view(context, _frame(context)):
+            _local_views.add(view_id(context.space_data))
+        elif not stored:
             self.report({'INFO'}, iso.MSG_NOTHING_TO_ISOLATE)
             return {'CANCELLED'}
+        _tag_redraw(context)
+        return {'FINISHED'}
+
+    def _restore(self, context, kind, objects, keys, current, plan):
+        unmatched, fallback = 0, False
+        for obj, key, now, decision in zip(objects, keys, current, plan.decisions):
+            if decision == iso.SKIP:
+                continue
+            record = _records[key]
+            if decision == iso.RESTORE_TOPOLOGY_CHANGED:
+                keys_now = position_keys(obj, kind) if any(record.anchors) else ()
+                target, missed = iso.match_anchors(record.anchors, keys_now, now)
+                write_flags(obj, kind, close_hidden(obj, kind, target))
+                del _records[key]
+                fallback = fallback or any(record.anchors)
+                unmatched += missed
+            else:
+                write_flags(obj, kind, iso.restore_target(decision, record, now))
+                _records[key] = iso.after_restore(record)
+        _exit_local_views(context)
+        if unmatched:
+            self.report({'WARNING'}, iso.MSG_TOPOLOGY_UNMATCHED.format(n=unmatched))
+        elif fallback:
+            self.report({'WARNING'}, iso.MSG_TOPOLOGY_CHANGED)
         _tag_redraw(context)
         return {'FINISHED'}
 
@@ -435,6 +575,8 @@ def unregister():
         bpy.app.handlers.load_post.remove(_load_post)
     except ValueError:
         pass
+    if bpy.app.timers.is_registered(_leave_pending):
+        bpy.app.timers.unregister(_leave_pending)
     clear_records()
     for cls in reversed(_classes):
         bpy.utils.unregister_class(cls)
