@@ -24,6 +24,14 @@ Familiar workflows for artists coming from Autodesk Maya software. See
   hover and was never entered still closes shortly after the pointer leaves it. Releasing
   Space closes everything. The **Meso Settings** box on the centre line opens the add-on
   preferences.
+- **Switch modes inside the Plaza:** in the 3D Viewport the first label of the header row
+  (Object Mode, Edit Mode, ...) opens the same mode list as Blender's header menu, for the
+  active object's type, with the current mode checked. Pick a mode and the Plaza stays open,
+  its menus and tool settings already those of the new mode.
+- **Recent files inside the Plaza:** the **Recent Files** box on the centre line (next to
+  Recent Commands), and File ▸ Open Recent, list Blender's recent files as its Open Recent
+  menu does, with More... and Clear Recent Files List.... Picking one closes the Plaza and
+  opens the file; Blender asks about unsaved changes as usual.
 - **Custom dropdowns** are drawn from Blender's own menus and popovers. They follow Blender's
   click conventions: Shift+click adds to a multi-choice set, and Ctrl+click expands the select
   mode. Anything that can't be reproduced hands off to the native menu.

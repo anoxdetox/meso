@@ -1407,3 +1407,18 @@ anything in Phase 5+.
 51. **New in step 11 (DEFAULT in force: a).** Adjust Last Operation after a D hold: (a) **in force:** the last
     transform registered while D was held re-runs with Affect Only Origins on (a transform in another editor gets the
     option too, where it does nothing); (b) also require the origin-edit evidence, as the one-shot does.
+52. **New with the built menus (DEFAULT in force: a;** docs/phase4-interfaces.md "Built menus"**).** A pick in the
+    Plaza's mode dropdown: (a) **in force:** the mode changes in place and the Plaza stays open with every row
+    re-recorded for the new mode (the dropdown closes, like any radio pick); (b) the Plaza ends after the pick, as a
+    native menu pick would.
+53. **New with the built menus (DEFAULT in force: a).** Missing files in Recent Files: (a) **in force:** listed and
+    enabled, as Blender's Open Recent does (only its tooltip says 'File Not Found'; a pick then reports the error);
+    (b) greyed, which the native menu does not do.
+54. **New with the built menus (DEFAULT in force: a).** Where Recent Files sits: (a) **in force:** a 'Recent Files'
+    box on the centre line left of Recent Commands (File ▸ Open Recent is the same list); (b) another place or
+    label (e.g. stacked with Recent Commands, which needs more vertical room between the rows).
+55. **New with the built menus (DEFAULT in force: a).** Items that load a .blend run after the Plaza modal has
+    returned (the D3 timer fallback): (a) **in force:** every such item (Recent Files entries and the File menu's
+    New, Revert and Recover), since a file load frees the running modal's handler; (b) only the Recent Files
+    entries (New / Revert / Recover keep running inside the modal as before). Entries show only the file name, as
+    natively (the dropdowns have no tooltip for the path).
