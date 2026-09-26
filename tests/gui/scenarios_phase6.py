@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for the Phase 6 Plaza options (local/docs/phase6-interfaces.md §1-5): the
-ZONES_ONLY and CENTER_ONLY styles, the AREA_CENTER anchor, the AREA draw scope and a disabled
-editor giving Blender's own Space. Loaded by ``tests/gui/gui_driver.py`` like every
-``scenarios_*.py``; each scenario restores the preferences it changed.
+"""GUI scenarios for the Phase 6 Plaza options (local/docs/phase6-interfaces.md §1-7): the
+ZONES_ONLY and CENTER_ONLY styles, the AREA_CENTER anchor, the AREA draw scope, a disabled
+editor giving Blender's own Space, the settings Compass hiding a row and switching the style in
+place, and a preset saved, changed and loaded back. Loaded by ``tests/gui/gui_driver.py`` like
+every ``scenarios_*.py``; each scenario restores the preferences it changed.
 """
 
 import contextlib
+import importlib
+import os
 
 
 def scenarios(drv):
@@ -157,6 +160,111 @@ def scenarios(drv):
             drv.cancel_play()
             yield 0.1
 
+    def pick_setting(rec, st, label):
+        """Middle-press the centre box (the settings Compass), rest on the list item ``label``
+        and release there. True when the Compass opened and the item was on the list."""
+        xy = zone_xy(st, 'C')
+        drv.sim('MOUSEMOVE', 'NOTHING', xy)
+        yield 0.1
+        drv.sim('MIDDLEMOUSE', 'PRESS', xy)
+        yield 0.15
+        cs = st.menus.compass if st.menus is not None else None
+        if cs is None or cs.model.key != 'meso:settings':
+            drv.check(rec, f"settings_open_{label}", False, cs.model.key if cs else None)
+            drv.sim('MIDDLEMOUSE', 'RELEASE', xy)
+            yield 0.1
+            return False
+        index = next((i for i, it in enumerate(cs.model.items) if it.label == label), None)
+        placed = next((it for it in cs.layout.panel.items if it.path == (index,)), None) \
+            if cs.layout.panel is not None else None
+        if placed is None:
+            drv.check(rec, f"on_list_{label}", False, [it.label for it in cs.model.items])
+            yield from close_compass(cs, xy)
+            return False
+        at = drv.rect_mid(placed.rect)
+        drv.sim('MOUSEMOVE', 'NOTHING', at)
+        yield 0.5                   # a rest on the list arms it (the list dwell)
+        drv.sim('MIDDLEMOUSE', 'RELEASE', at)
+        yield 0.3
+        return True
+
+    def sc_settings_hides_row(rec):
+        """The settings Compass (centre, middle button): "Workspaces" hides the workspace row
+        at once and the Plaza stays open; picked again it comes back."""
+        xy = drv.center_of("VIEW_3D")
+        with prefs_set(show_workspace_row=True) as p:
+            st = yield from drv.open_plaza(xy)
+            if st is None:
+                drv.check(rec, "running", False)
+                return
+            drv.check(rec, "row_before", st.model.row('workspace') is not None)
+            if (yield from pick_setting(rec, st, "Workspaces")):
+                drv.check(rec, "pref_off", not p.show_workspace_row)
+                drv.check(rec, "row_gone", st.model.row('workspace') is None,
+                          [r.key for r in st.model.rows])
+                drv.check(rec, "plaza_open", drv.plaza().is_running())
+                drv.check(rec, "compass_closed", st.menus.compass is None)
+                drv.save_screenshot("phase6_settings_row_hidden")
+            if (yield from pick_setting(rec, st, "Workspaces")):
+                drv.check(rec, "row_back", st.model.row('workspace') is not None)
+            yield from drv.close_plaza(xy, rec)
+
+    def sc_settings_style(rec):
+        """The settings Compass's style radios: "Zones Only" drops the rows at once, at the
+        same place; "Full" brings them back."""
+        xy = drv.center_of("VIEW_3D")
+        with prefs_set(plaza_style='FULL'):
+            st = yield from drv.open_plaza(xy)
+            if st is None:
+                drv.check(rec, "running", False)
+                return
+            anchor = tuple(st.anchor)
+            if (yield from pick_setting(rec, st, "Zones Only")):
+                drv.check(rec, "no_rows", st.model.rows == (), [r.key for r in st.model.rows])
+                drv.check(rec, "same_anchor", tuple(st.anchor) == anchor, [st.anchor, anchor])
+                drv.check(rec, "plaza_open", drv.plaza().is_running())
+                drv.save_screenshot("phase6_settings_zones_only")
+            if (yield from pick_setting(rec, st, "Full")):
+                drv.check(rec, "rows_back", len(st.model.rows) >= 3, len(st.model.rows))
+            yield from drv.close_plaza(xy, rec)
+
+    def sc_preset_round_trip(rec):
+        """Save a preset, change values, load it back (the operators as the Presets row
+        runs them; the folder is the temporary extensions folder of the session)."""
+        import bpy
+        root = os.environ.get("BLENDER_USER_EXTENSIONS", "")
+        presets = importlib.import_module(drv.ADDON_MODULE + ".ops.prefs_presets")
+        folder = presets.presets_dir(create=True)
+        drv.check(rec, "temp_folder", bool(root) and folder is not None
+                  and os.path.realpath(folder).startswith(os.path.realpath(root)), folder)
+        if not root or folder is None:
+            return
+        name = "GUI Scenario"
+        with prefs_set(transparency=30, plaza_style='FULL', show_recent_files=True) as p:
+            try:
+                bpy.ops.meso.prefs_preset_save('EXEC_DEFAULT', name=name)
+                drv.check(rec, "listed", name in presets.list_presets(), presets.list_presets())
+                p.transparency, p.plaza_style, p.show_recent_files = 70, 'CENTER_ONLY', False
+                yield 0.1
+                bpy.ops.meso.prefs_preset_load('EXEC_DEFAULT', name=name)
+                yield 0.1
+                drv.check(rec, "loaded", (p.transparency, p.plaza_style, p.show_recent_files)
+                          == (30, 'FULL', True),
+                          [p.transparency, p.plaza_style, p.show_recent_files])
+                drv.check(rec, "no_warnings", presets.last_result.get('warnings') == [],
+                          presets.last_result.get('warnings'))
+                xy = drv.center_of("VIEW_3D")
+                st = yield from drv.open_plaza(xy)
+                drv.check(rec, "next_plaza", st is not None and st.model.files is not None)
+                yield from drv.close_plaza(xy, rec)
+            finally:
+                path = presets.preset_path(name)
+                if path and os.path.isfile(path):
+                    os.remove(path)
+
     return [("p6_zones_only", sc_zones_only), ("p6_center_only", sc_center_only),
             ("p6_area_center", sc_area_center), ("p6_area_scope", sc_area_scope),
-            ("p6_disabled_editor", sc_disabled_editor)]
+            ("p6_disabled_editor", sc_disabled_editor),
+            ("p6_settings_hides_row", sc_settings_hides_row),
+            ("p6_settings_style", sc_settings_style),
+            ("p6_preset_round_trip", sc_preset_round_trip)]

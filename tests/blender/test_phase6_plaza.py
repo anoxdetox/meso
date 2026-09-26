@@ -168,6 +168,9 @@ class TestPrefs(unittest.TestCase):
             def operator(self, *a, **k):
                 return SimpleNamespace()
 
+            def operator_menu_enum(self, *a, **k):
+                pass
+
             def separator(self, *a, **k):
                 pass
 

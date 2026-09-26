@@ -408,52 +408,94 @@ class MesoAddonPreferences(AddonPreferences):
     )
 
     def draw(self, context):
+        """The sections of local/docs/phase6-interfaces.md §8, each a collapsible panel
+        (:func:`_section`): Plaza, Look, Timing, Behaviour, Compass Menus, Presets, then the
+        keymap sections. Every preference but the hidden bookkeeping ones is on the page."""
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-        col = layout.column()
-        col.prop(self, "tap_threshold")
-        col.prop(self, "tap_action")
-        col.prop(self, "tap_action_view3d")
-        col.prop(self, "text_chord")
-        col.prop(self, "transparency")
-        col.prop(self, "font_scale")
-        col.prop(self, "row_spacing")
-        col.prop(self, "plaza_style")
-        col.prop(self, "plaza_anchor")
-        col.prop(self, "plaza_draw_scope")
-        rows_col = col.column()
-        rows_col.active = self.plaza_style == zones.STYLE_FULL
-        for name in ("show_root_row", "show_contextual_row", "show_tool_settings_row"):
-            rows_col.prop(self, name)
-        sub = rows_col.column()
-        sub.active = self.show_tool_settings_row
-        sub.prop(self, "show_display_controls")
-        for name in ("show_workspace_row", "show_recent_commands", "show_recent_files"):
-            rows_col.prop(self, name)
-        _draw_editors(col, self)
-        col.prop(self, "submenu_delay")
-        col.prop(self, "hover_open")
-        sub = col.column()
-        sub.active = self.hover_open
-        sub.prop(self, "hover_open_delay")
-        sub.prop(self, "hover_close_delay")
-        col.prop(self, "execute_on_release")
-        col.prop(self, "show_shortcuts")
-        col.prop(self, "palette_style")
-        if self.palette_style == 'CUSTOM':
-            box = col.box()
-            sub = box.column(align=True)
-            for role in _CUSTOM_ROLES:
-                sub.prop(self, f"color_{role}")
-            row = box.row(align=True)
-            row.label(text="Start from:")
-            for source, text in (('BLENDER', "Blender Theme"), ('TRADITIONAL', "Traditional")):
-                row.operator(MESO_OT_palette_to_custom.bl_idname, text=text).source = source
-        col.prop(self, "debug_timing")
-        _draw_compass_slots(layout, self)
+        for idname, text, closed, fill in _SECTIONS:
+            body = _section(layout, idname, text, closed)
+            if body is not None:
+                fill(body, self)
         from . import keymap_prefs  # lazy: keymap_prefs imports this module
         keymap_prefs.draw(context, layout, self)
+
+
+def _section(layout, idname: str, text: str, default_closed: bool = False):
+    """A collapsible sub-panel (``UILayout.panel``) titled ``text``: its body layout, or None
+    while it is closed; a titled box where ``panel`` is missing (a stub layout)."""
+    panel = getattr(layout, 'panel', None)
+    if panel is None:
+        box = layout.box()
+        box.label(text=text)
+        return box
+    header, body = panel(idname, default_closed=default_closed)
+    header.label(text=text)
+    return body
+
+
+def _draw_plaza(layout, prefs) -> None:
+    col = layout.column()
+    col.prop(prefs, "plaza_style")
+    col.prop(prefs, "plaza_anchor")
+    col.prop(prefs, "plaza_draw_scope")
+    rows_col = col.column(heading="Show")
+    rows_col.active = prefs.plaza_style == zones.STYLE_FULL
+    for name in ("show_root_row", "show_contextual_row", "show_tool_settings_row"):
+        rows_col.prop(prefs, name)
+    sub = rows_col.column()
+    sub.active = prefs.show_tool_settings_row
+    sub.prop(prefs, "show_display_controls")
+    for name in ("show_workspace_row", "show_recent_commands", "show_recent_files"):
+        rows_col.prop(prefs, name)
+    _draw_editors(layout, prefs)
+
+
+def _draw_look(layout, prefs) -> None:
+    col = layout.column()
+    col.prop(prefs, "transparency")
+    col.prop(prefs, "font_scale")
+    col.prop(prefs, "row_spacing")
+    col.prop(prefs, "palette_style")
+    if prefs.palette_style == 'CUSTOM':
+        box = col.box()
+        sub = box.column(align=True)
+        for role in _CUSTOM_ROLES:
+            sub.prop(prefs, f"color_{role}")
+        row = box.row(align=True)
+        row.label(text="Start from:")
+        for source, text in (('BLENDER', "Blender Theme"), ('TRADITIONAL', "Traditional")):
+            row.operator(MESO_OT_palette_to_custom.bl_idname, text=text).source = source
+
+
+def _draw_timing(layout, prefs) -> None:
+    col = layout.column()
+    col.prop(prefs, "tap_threshold")
+    col.prop(prefs, "hold_tap_threshold")
+    col.prop(prefs, "submenu_delay")
+    col.prop(prefs, "hover_open")
+    sub = col.column()
+    sub.active = prefs.hover_open
+    sub.prop(prefs, "hover_open_delay")
+    sub.prop(prefs, "hover_close_delay")
+
+
+def _draw_behaviour(layout, prefs) -> None:
+    col = layout.column()
+    col.prop(prefs, "tap_action")
+    col.prop(prefs, "tap_action_view3d")
+    col.prop(prefs, "execute_on_release")
+    col.prop(prefs, "show_shortcuts")
+    col.prop(prefs, "text_chord")
+    col.prop(prefs, "isolate_frame_selected")
+    col.prop(prefs, "properties_cycle_order")
+    col.prop(prefs, "debug_timing")
+
+
+def _draw_presets(layout, prefs) -> None:
+    from .ops import prefs_presets  # lazy: keeps prefs importable first in __init__._modules
+    prefs_presets.draw(layout)
 
 
 def _draw_editors(layout, prefs) -> None:
@@ -470,9 +512,9 @@ _BUTTON_NAMES = {'L': "Left", 'M': "Middle", 'R': "Right"}
 
 
 def _draw_compass_slots(layout, prefs) -> None:
-    """The "Compass menus" section: the switch, the 15 zone / button slots as a grid, and
+    """The "Compass Menus" section: the switch, the 15 zone / button slots as a grid, and
     ``shift_rmb_owner`` with the line saying which chord has the 3D cursor."""
-    box = layout.box()
+    box = layout.column()
     box.use_property_split = False
     box.prop(prefs, "compass_menus")
     grid = box.grid_flow(row_major=True, columns=4, even_columns=False, align=True)
@@ -492,6 +534,17 @@ def _draw_compass_slots(layout, prefs) -> None:
     row.label(text="Shift Right Click (Meso keymap):")
     row.prop(prefs, "shift_rmb_owner", text="")
     box.label(text=shift_rmb_hint(prefs.shift_rmb_owner))
+
+
+# (panel idname, title, closed by default, fill(layout, prefs)) in page order (§8).
+_SECTIONS = (
+    ('meso_prefs_plaza', "Plaza", False, _draw_plaza),
+    ('meso_prefs_look', "Look", False, _draw_look),
+    ('meso_prefs_timing', "Timing", True, _draw_timing),
+    ('meso_prefs_behaviour', "Behaviour", True, _draw_behaviour),
+    ('meso_prefs_compass', "Compass Menus", True, _draw_compass_slots),
+    ('meso_prefs_presets', "Presets", False, _draw_presets),
+)
 
 
 def shift_rmb_hint(owner: str) -> str:

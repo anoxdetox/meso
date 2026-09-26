@@ -13,7 +13,9 @@ menu as the list; ``build_compass(menu=...)`` names that menu) and ``meso:tools`
 used tools of the mode / mesh select mode, the mode's tool menu as the list). Both are valid
 zone slot values too, never zone defaults. Phase 5c (local/docs/phase5c-interfaces.md "B"): a
 mesh's ``meso:context`` has the reference layout's component modes (Edge N, Vertex W, Face S,
-UV ▸ E, Multi SE, Edit Mode SW, Object Mode NE, Sculpt Mode NW).
+UV ▸ E, Multi SE, Edit Mode SW, Object Mode NE, Sculpt Mode NW). Phase 6
+(local/docs/phase6-interfaces.md §6): ``meso:settings`` lists the row toggles and the style and
+position radios under its radial.
 """
 
 from __future__ import annotations
@@ -26,13 +28,13 @@ from ..core import compass as cp
 from ..core import compass_rmb as rmb
 from ..core import modes, zones
 from ..core.dropdown_model import (
-    COVERAGE_NATIVE, DD_NATIVE, DD_OP, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE, DD_TOGGLE_ROW,
-    DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_PLAZA_LABEL, PASSIVE_DD_KINDS, DropdownItem,
-    native_menu_action,
+    COVERAGE_NATIVE, DD_LABEL, DD_NATIVE, DD_OP, DD_RADIO, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE,
+    DD_TOGGLE_ROW, DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_PLAZA_LABEL, PASSIVE_DD_KINDS,
+    DropdownItem, native_menu_action,
 )
 from ..core.model import (
-    ACTION_ADDON_PREFS, ACTION_OPERATOR, ACTION_TOGGLE, ACTION_WORKSPACE, KIND_CASCADE,
-    KIND_TOGGLE, ROW_TOOL_SETTINGS, Action, item_action,
+    ACTION_ADDON_PREFS, ACTION_OPERATOR, ACTION_SET_ENUM, ACTION_TOGGLE, ACTION_WORKSPACE,
+    KIND_CASCADE, KIND_TOGGLE, ROW_TOOL_SETTINGS, Action, item_action,
 )
 from ..core.tables import UI_TYPE_LABELS, ordered_workspaces
 from . import builtin_menus
@@ -366,17 +368,55 @@ def _views(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel | None:
 
 _SETTINGS = (('E', 'show_tool_settings_row', ''), ('W', 'show_display_controls', ''),
              ('S', 'hover_open', ''), ('NE', 'show_shortcuts', ''),
-             ('NW', 'execute_on_release', ''))
+             ('NW', 'execute_on_release', ''), ('SE', 'compass_menus', ''))
+# Phase 6 §6: the list under the radial: the row toggles, then the style and the position
+# radios (each under its heading).
+SETTINGS_ROW_TOGGLES = ('show_root_row', 'show_contextual_row', 'show_workspace_row',
+                        'show_recent_commands', 'show_recent_files')
+SETTINGS_RADIOS = (('plaza_style', 'Style'), ('plaza_anchor', 'Position'))
+
+
+def _pref_path(prop: str) -> str:
+    return f'preferences.addons["{_ROOT}"].preferences.{prop}'
+
+
+def _radios(owner: Any, prop: str, path: str) -> list[DropdownItem]:
+    """One DD_RADIO per item of the enum ``owner.prop`` (the current one checked), each an
+    in-place ``wm.context_set_enum`` of ``path`` (ROLE_APPLY_CLOSE); [] when ``owner`` has no
+    such enum."""
+    try:
+        rna = owner.bl_rna.properties.get(prop)
+        if rna is None or rna.type != 'ENUM' or rna.is_enum_flag:
+            return []
+        current = getattr(owner, prop)
+        return [DropdownItem(DD_RADIO, _iface(e.name, 'Property') or e.identifier,
+                             checked=e.identifier == current, enabled=not rna.is_readonly,
+                             action=Action(ACTION_SET_ENUM, data_path=path,
+                                           value=e.identifier))
+                for e in rna.enum_items]
+    except Exception:
+        return []
 
 
 def _settings(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:
+    """``meso:settings`` (local/docs/phase6-interfaces.md §6): Meso Settings… N and the Plaza's
+    switches around it (:data:`_SETTINGS`); the list: the row toggles
+    (:data:`SETTINGS_ROW_TOGGLES`), then the style and position radios under their headings
+    (:data:`SETTINGS_RADIOS`). Every pick but N applies in place to the add-on preferences
+    (``preferences.`` data paths: ``ops.compass._apply`` re-records the whole Plaza)."""
     slots: dict[str, DropdownItem | None] = {
         'N': DropdownItem(DD_NATIVE, _iface('Meso Settings') + '…',
                           action=Action(ACTION_ADDON_PREFS))}
     for d, prop, text in _SETTINGS:
-        slots[d] = _toggle(prefs, prop, f'preferences.addons["{_ROOT}"].preferences.{prop}',
-                           text)
-    return _compass('meso:settings', _iface('Meso Settings'), slots)
+        slots[d] = _toggle(prefs, prop, _pref_path(prop), text)
+    listed: list[DropdownItem | None] = [_toggle(prefs, prop, _pref_path(prop))
+                                         for prop in SETTINGS_ROW_TOGGLES]
+    for prop, heading in SETTINGS_RADIOS:
+        radios = _radios(prefs, prop, _pref_path(prop))
+        if radios:
+            listed += [DropdownItem(DD_SEPARATOR), DropdownItem(DD_LABEL, _iface(heading)),
+                       *radios]
+    return _compass('meso:settings', _iface('Meso Settings'), slots, listed)
 
 
 def _workspaces(context: Any, plaza: Any, prefs: Any) -> cp.CompassModel:

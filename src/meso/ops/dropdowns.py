@@ -810,6 +810,8 @@ def rebuild_after_mode_change(state: Any, context: Any, mode: str | None) -> Non
     updated, the session cache invalidated, the Plaza re-laid out at the same anchor and the
     chain closed. Only plain data is kept: window / area / region stay the live objects of
     the running modal (a mode change keeps the screen), nothing recorded survives the call.
+    Phase 6: the style, anchor and draw scope are re-read and the Plaza re-placed from the
+    press point, and :func:`refresh_pref_snapshots` re-reads the in-place switches.
     Never raises: on failure the Tool Settings refresh of :func:`refresh_after_change` still
     runs through the caller."""
     session = state.menus
@@ -834,6 +836,7 @@ def rebuild_after_mode_change(state: Any, context: Any, mode: str | None) -> Non
                               getattr(addon_prefs, 'plaza_anchor', None),
                               getattr(addon_prefs, 'plaza_draw_scope', None))
         bounds = getattr(state, 'bounds', None)
+        refresh_pref_snapshots(state, session, addon_prefs)
     model = rows.build_model(context, info, addon_prefs)
     model = rec_dropdown.classify_rows(context, info, model, session.cache,
                                        show_shortcuts=session.show_shortcuts,
@@ -842,6 +845,22 @@ def rebuild_after_mode_change(state: Any, context: Any, mode: str | None) -> Non
     _relayout(state, session, bounds)
     session.models, session.chain = (), EMPTY_CHAIN
     session.mode_changes.append(mode)
+
+
+def refresh_pref_snapshots(state: Any, session: MenuSession, addon_prefs: Any) -> None:
+    """Phase 6 §6: re-read the switches the settings Compass sets in place, so a pick takes
+    effect in the running Plaza: ``execute_on_release``, ``show_shortcuts`` and
+    ``hover_open`` (into ``state`` and the reducer's config) and ``compass_menus``
+    (``session.compass_on``). The delays and the Compass slots stay the invoke's snapshot."""
+    state.execute_on_release = bool(getattr(addon_prefs, 'execute_on_release',
+                                            state.execute_on_release))
+    state.show_shortcuts = bool(getattr(addon_prefs, 'show_shortcuts', state.show_shortcuts))
+    state.hover_open = bool(getattr(addon_prefs, 'hover_open', state.hover_open))
+    session.show_shortcuts = bool(state.show_shortcuts)
+    session.compass_on = bool(getattr(addon_prefs, 'compass_menus', session.compass_on))
+    session.bar = dataclasses.replace(session.bar,
+                                      execute_on_release=bool(state.execute_on_release),
+                                      hover_open=bool(state.hover_open))
 
 
 def _apply_in_place(state: Any, context: Any, effect: RunItem) -> list[Event]:

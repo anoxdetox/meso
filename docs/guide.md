@@ -114,7 +114,7 @@ The defaults, all with the left button:
 | Centre | The view: Top, Front, Camera… (the editor's View pie) |
 | East, right button | The Tool Settings (orientation, pivot, snapping, proportional editing) |
 | Centre, right button | The workspaces |
-| Centre, middle button | The Plaza's options and Meso Settings |
+| Centre, middle button | The Plaza's options, rows, style and position, and Meso Settings |
 
 Each of the 15 zone and button slots can hold any Blender menu or pie menu (a pie's items land
 in their pie directions) or a built-in Compass (`meso:layout`, `meso:editors`, `meso:select`,
@@ -160,10 +160,30 @@ The "Shift Right Click" preference puts it back on Shift right click, and the to
 moves to Ctrl Shift right click.
 
 ## Preferences
-Everything is in Preferences ▸ Add-ons ▸ Meso Mode (or the Plaza's **Meso Settings** box): the
-tap time and action, transparency, sizes and colours, which rows show, the menus' timing, the
-Compass slots, and the Plaza's keys, grouped like Blender's keymap editor. The Meso Keymap's
-keys are edited in Blender's own keymap editor; see [the keymap page](keymap.md).
+Everything is in Preferences ▸ Add-ons ▸ Meso Mode (or the Plaza's **Meso Settings** box), in
+sections you can fold away: **Plaza** (style, position, where it draws, the rows and the editors
+it opens over), **Look** (transparency, sizes and colours), **Timing** (the tap and hold times,
+the menu delays), **Behaviour** (the tap actions, running on key release, shortcuts, the Text
+Editor key and more), **Compass Menus** (the slots) and **Presets**, then the Plaza's keys,
+grouped like Blender's keymap editor. The Meso Keymap's keys are edited in Blender's own keymap
+editor; see [the keymap page](keymap.md).
+
+A change takes effect the next time you open the Plaza; there is nothing to restart.
+
+### Settings inside the Plaza
+Middle-click the centre box for the settings Compass. Around it: **Meso Settings…** (north), the
+Tool Settings row, the display controls, opening menus on hover, shortcuts in menus, running on
+key release, and Compass menus. In the list under it: which rows show, the style and the
+position. A pick applies at once: the Plaza is drawn again with the change, in the same place,
+and stays open.
+
+### Presets
+**Save…** stores every Meso Mode setting under a name; **Load** and **Delete** pick a saved
+preset. **Export…** and **Import…** write and read a settings file, to take your setup to another
+computer or share it. A preset holds everything on the page, colours and Compass slots included,
+but never your keymap choice or keymap edits. Loading skips what it does not understand (a
+setting from a newer version, a value out of place) and lists it in the Info log; the rest still
+loads. Presets are kept in your own Blender user folder.
 
 ## Nothing native is removed
 Every binding can be edited or switched off: the Plaza's in the add-on preferences, the Meso
