@@ -187,6 +187,19 @@ kind = kc.name   # 'Blender' | 'Blender_27x' | 'Industry_Compatible' | other
   Clip Editor Alt D (`space_data.show_disabled` toggle) is dead for the same reason. Ctrl Shift A, Ctrl Shift I and
   Ctrl Alt D do reach all of these editors. Over a driven property Alt D still removes the driver, also with the
   Meso bindings on.
+- **Why, and the fix (Meso Keymap step 10; source and GUI, `mk_alt_d_reach`, `mk_alt_d_driver`,
+  `docs/spikes/meso-feedback-3.md` §F).** `ANIM_OT_driver_button_remove` has no poll and returns CANCELLED when it
+  removed nothing; `wm_handler_operator_call` turns CANCELLED into a BREAK (only PASS_THROUGH alone continues to the
+  next item and handler). An add-on item ahead of it that passes still ends at IC's item (blocked again); an item
+  that **replaces** it in the active keyconfig and returns PASS_THROUGH lets Alt D reach all of the blocked
+  editors above (the real deselect verified in the Outliner, Node, Clip, channel list, File Browser and Info).
+  Inside such an operator, `context.property` is the hovered button, and a nested
+  `bpy.ops.anim.driver_button_remove('EXEC_DEFAULT', True, all=...)` removes exactly what the native item removes
+  (a sidebar Location X with drivers on X and Y: both; a Principled BSDF socket value: its driver in the
+  material's node tree) and pushes the native "Remove Driver" undo step (undo, redo, undo identical to native). A
+  nested call without `undo=True` pushes no undo step. Headless the native returns CANCELLED (no hovered button).
+- **Info's selection can be read back** with `info.report_copy` (it copies the selected reports to the clipboard;
+  nothing selected gives an empty clipboard), in an Info area override (GUI, `mk_select_keys`).
 - The Sequencer in 5.x shows the workspace's `sequencer_scene` (None in the factory file): strips added to
   `context.scene` are not reachable by the Sequencer operators until `workspace.sequencer_scene = scene`.
 - `outliner.select_all`, `file.select_all` and `info.select_all` have no REGISTER flag and `sequencer.select_all`

@@ -62,7 +62,8 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
      `(KeyConfigurations, 'active')` or `(PreferencesKeymap, 'active_keyconfig')`. `meso_keymap` instead runs a
      read-only persistent timer (0.5 s) that compares `wm.keyconfigs.active.name` and calls `sync()` on a change;
      `load_post` still re-syncs too.
-  2. **Alt D cannot reach every editor** (verified in the GUI, `mk_alt_d_reach`; `docs/verified-facts-5.2.md` §3):
+  2. **Alt D cannot reach every editor** (superseded in step 10, which passes Alt D on; verified in the GUI,
+     `mk_alt_d_reach`; `docs/verified-facts-5.2.md` §3):
      in regions that run the 'User Interface' handler first (Outliner, Node Editor, Clip Editor in every view and
      mode, File Browser, Info, channel lists) its Alt D item `anim.driver_button_remove` takes the key, also over
      empty space. The conflict audit's assumption ("elsewhere its poll fails and passes") was wrong. Under the
@@ -332,6 +333,43 @@ and reversible (it can be switched off in the preferences) and is listed in "Dec
     waits for a foreign modal, with a snap hold, the watcher's reset, a real `transform.translate` reading the
     overlay, load / unregister / save, the D key modal) and `TestAnnotateRelocation` (Ctrl Alt D first and alone in
     the 12 keymaps and free in every keymap that runs there); GUI G13 rewritten and G17 (real input) below.
+- **Step 10 implemented** (user item F of 2026-09-26, "Is C13 fixable": decision C13 answered with option a; the
+  evidence is `docs/spikes/meso-feedback-3.md`, section F; user item E, the wrapped help text, is in
+  `docs/phase4-interfaces.md`, "Preferences keymap"):
+  - **Why Alt D died:** Industry Compatible's 'User Interface' Alt D item `anim.driver_button_remove` has no poll and
+    returns CANCELLED when nothing was removed; a CANCELLED keymap item stops the key (only PASS_THROUGH alone goes
+    on). That handler runs first in the Outliner, Node Editor, Clip Editor (every view and its Mask mode), File
+    Browser, Info and channel regions, so their editor keymaps never saw Alt D, not even over empty space. An add-on
+    item ahead of it does not help (IC's item behind it still stops the key, measured).
+  - **The wrapper** (`ops/driver_remove.py`): `meso.driver_button_remove` (label "Remove Driver", `INTERNAL`, no
+    `UNDO`, Boolean `all` default True, `SKIP_SAVE`) runs `bpy.ops.anim.driver_button_remove('EXEC_DEFAULT', True,
+    all=self.all)`: FINISHED → FINISHED; anything else → PASS_THROUGH (so the editor keymap's Alt D runs); a native
+    ERROR report → the same report and CANCELLED. It never reimplements the removal: the hovered button, arrays,
+    node sockets behave natively, and the undo step is the native "Remove Driver" step (the nested call has
+    `undo=True`; a plain nested call pushes none). A PASS_THROUGH pushes no step.
+  - **The binding** `driver_remove_pass` (Selection, on): the wrapper on Alt D in 'User Interface', the only Meso
+    item in a forbidden keymap (`FORBIDDEN_EXCEPTIONS`, `is_allowed_item`). It displaces IC's item with
+    `Displaced(off=True)`: `merge_keyconfig_data` keeps that item in the keyconfig **switched off** (the keymap editor
+    can switch it on again; the shadow test expects it inactive in Meso and active in IC). Everything else in 'User
+    Interface' stays IC's (Ctrl D add driver, S keyframe, ...). 'User Interface' joins `KEYMAP_SPACES` and so
+    `reset_keymap_names()`. Switched off, Alt D removes no driver (IC's item is off too): the preferences warn
+    (`warnings(active, inactive=off_bindings())`).
+  - **The select keys everywhere:** `ALT_D_BLOCKED_KEYMAPS` / `ALT_D_PARTLY_BLOCKED_KEYMAPS` are gone
+    (`UI_FIRST_KEYMAPS` names the eight keymaps behind the 'User Interface' handler, for tests and docs).
+    `select_all` and `deselect_all` cover all 24 trio keymaps, `select_keys_extra` all three keys in its four
+    keymaps (12 items). In the Clip Editor, Alt D deselect displaces IC's (formerly dead) Alt D Show Disabled toggle
+    → `reloc_clip_show_disabled` (Ctrl Alt D, `follows='deselect_all'` again, as C7 planned). The table has 137
+    items.
+  - **Behaviour change:** over an undriven button of those editors (a node socket field, an Outliner restriction
+    toggle, a channel's mute or lock) Alt D now deselects in that editor; before, the key died there. Over a driven
+    button it removes the drivers and does not deselect. Over an undriven sidebar or Properties field nothing
+    happens (no window-level keymap has Alt D).
+  - **Tests:** unit (`test_the_one_user_interface_item`, the merge switching IC's item off, the trio coverage, the
+    Clip Editor displacement, the off-warning); headless `tests/blender/test_driver_remove.py` (flags, the exact
+    nested call, the result mapping, PASS_THROUGH with no undo step, the user keymap's Alt D order, switch off /
+    on / reset) and `test_meso_keymap.py` (the switched-off native, the editors behind the handler); GUI G4 (the
+    real selection in the Outliner, Node, Clip, channels, File Browser and Info), `mk_alt_d_reach` (every editor
+    reached; the Outliner and Node blocked again with IC's item on) and the new `mk_alt_d_driver`.
 
 ## Delivery model (user decision 1; step 4)
 - The **Meso keyconfig** "Meso" is Industry Compatible's keymap data (generated from the installed
@@ -421,6 +459,7 @@ class Displaced:
     key: Key
     native: str                           # what IC does there, e.g. "object.select_all(DESELECT)"
     now: str                              # where it lives now: a binding id ("deselect_all") or "tap" / a native path
+    off: bool = False                     # step 10: the IC item is switched off in Meso, not only shadowed
 
 @dataclass(frozen=True)
 class Binding:
@@ -436,7 +475,7 @@ class Binding:
 
 - `FORBIDDEN_KEYMAPS` = {'Text', 'Text Generic', 'Console', 'Font', 'User Interface', 'Window', 'Screen', 'Preview',
   'Transform Modal Map'} plus every modal map. No Meso Keymap item may go there (typing, UI-hover drivers, the Plaza's
-  own maps). Meso **never** calls `keymaps.new('Transform Modal Map')` on the add-on keyconfig, not even non-modal: it
+  own maps), except `FORBIDDEN_EXCEPTIONS` = {('User Interface', 'meso.driver_button_remove')} (step 10, C13). Meso **never** calls `keymaps.new('Transform Modal Map')` on the add-on keyconfig, not even non-modal: it
   silently leaves a stray keymap behind (conflict audit, API blocker).
 - No bare `SPACE`, never `head=True`, `repeat=False` on every item. No two Meso items share (keymap, key) — so the
   reverse-merge order never matters; registration follows table order.
@@ -460,12 +499,13 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 
 | id | Group | Keymap(s) | Key | Operator (props) | Default | Displaces (IC) → now at |
 |---|---|---|---|---|---|---|
-| `select_all` | Selection | the 18 trio keymaps Alt D reaches (step 1: not 'Outliner', 'Node Editor', 'Clip Editor', 'Info', 'Animation Channels', 'Mask Editing') | Ctrl+Shift+A | `<op>.select_all(action='SELECT')` | **on** | IC Ctrl+Shift+A DESELECT → `deselect_all` (Alt+D); Ctrl+A (IC select all) stays a native alias wherever Meso leaves Ctrl+A alone |
-| `deselect_all` | Selection | the 19 trio keymaps Alt D reaches (the 18 plus 'Mask Editing') | Alt+D | `<op>.select_all(action='DESELECT')` | **on** | nothing in IC (BL: linked duplicate / rip / key blending, only with `bindings_on_other_keymaps`) |
+| `select_all` | Selection | the 24 trio keymaps (step 1–9: 18, see Status step 10) | Ctrl+Shift+A | `<op>.select_all(action='SELECT')` | **on** | IC Ctrl+Shift+A DESELECT → `deselect_all` (Alt+D); Ctrl+A (IC select all) stays a native alias wherever Meso leaves Ctrl+A alone |
+| `deselect_all` | Selection | the 24 trio keymaps (step 1–9: 19) | Alt+D | `<op>.select_all(action='DESELECT')` | **on** | 'Clip Editor': IC Alt+D Show Disabled toggle → `reloc_clip_show_disabled` (Ctrl+Alt+D); elsewhere nothing in IC |
+| `driver_remove_pass` | Selection | 'User Interface' (the one `FORBIDDEN_EXCEPTIONS` item) | Alt+D | `meso.driver_button_remove` (the native removal over a driven property, else PASS_THROUGH) | **on** (step 10, C13) | IC Alt+D `anim.driver_button_remove()` → itself; IC's item stays there **switched off** (`off=True`) |
 | `select_invert` | Selection | the 24 trio keymaps | Ctrl+Shift+I | `<op>.select_all(action='INVERT')` | **on** | nothing (unbound in both presets); IC Ctrl+I invert stays as the alias (no Meso item) |
-| ~~`deselect_all_clip`~~ | — | removed in step 1: Alt D never reaches the Clip Editor keymap (Status, deviation 2) | | | | IC's Alt+D Show Disabled is dead there natively too |
-| `reloc_clip_show_disabled` | Selection | 'Clip Editor' | Ctrl+Alt+D | `wm.context_toggle(data_path='space_data.show_disabled')` | on (standalone, no `follows`) | nothing (free in both presets); the header Overlay ▸ Show Disabled checkbox stays |
-| `select_keys_extra` | Selection | 'File Browser Main' (`file.select_all`), 'Clip Graph Editor' (`clip.graph_select_all_markers`): Ctrl+Shift+A / Ctrl+Shift+I; 'Paint Vertex Selection (Weight, Vertex)' (`paint.vert_select_all`), 'Grease Pencil Selection' (`grease_pencil.select_all`): all three | Ctrl+Shift+A / Alt+D / Ctrl+Shift+I | `action` SELECT / DESELECT / INVERT | **on** (C10) | nothing (verified by the shadow test); gives the Clip Graph Editor a working select-all key (IC's Ctrl+A there calls a missing operator) |
+| ~~`deselect_all_clip`~~ | — | removed in step 1 (Alt D never reached the Clip Editor keymap); its item is part of `deselect_all` since step 10 | | | | |
+| `reloc_clip_show_disabled` | Selection | 'Clip Editor' | Ctrl+Alt+D | `wm.context_toggle(data_path='space_data.show_disabled')` | on, `follows='deselect_all'` (step 10; standalone in steps 1–9) | nothing (free in both presets); the header Overlay ▸ Show Disabled checkbox stays |
+| `select_keys_extra` | Selection | 'File Browser Main' (`file.select_all`), 'Clip Graph Editor' (`clip.graph_select_all_markers`), 'Paint Vertex Selection (Weight, Vertex)' (`paint.vert_select_all`), 'Grease Pencil Selection' (`grease_pencil.select_all`): all three (step 10; before, no Alt+D in the first two) | Ctrl+Shift+A / Alt+D / Ctrl+Shift+I | `action` SELECT / DESELECT / INVERT | **on** (C10) | nothing (verified by the shadow test); gives the Clip Graph Editor a working select-all key (IC's Ctrl+A there calls a missing operator) |
 | `isolate` | Isolate | 'Object Mode', 'Mesh', 'Curve', 'Armature', 'Pose', 'Metaball', 'Lattice', 'Curves', 'Point Cloud', 'Grease Pencil Edit Mode' | Ctrl+1 | `meso.isolate_toggle` | **on** | 'Mesh': IC `mesh.select_mode(type='VERT', use_expand=True)` → `reloc_mesh_vert_expand` (Ctrl+Alt+1) + Ctrl+click on the header/Plaza vertex-mode button; elsewhere nothing (Sculpt and UV keep their Ctrl+1) |
 | `reloc_mesh_vert_expand` | Isolate | 'Mesh' | Ctrl+Alt+1 | `mesh.select_mode(type='VERT', use_expand=True)` | on, `follows='isolate'` | nothing (free in both presets). Ctrl+2/3 and Ctrl+Shift+1/2/3 stay native (C5) |
 | `properties_cycle` | Properties | 'Object Mode', 'Mesh', 'Curve', 'Curves', 'Armature', 'Pose', 'Metaball', 'Lattice', 'Particle', 'Point Cloud', 'Sculpt Curves', 'Paint Face Mask (Weight, Vertex, Texture)', 'Paint Vertex Selection (Weight, Vertex)', and '3D View' (catch-all) | Ctrl+A | `meso.properties_cycle` | **on** | each mode map's IC Ctrl+A select all → `select_all` (Ctrl+Shift+A) / `select_keys_extra` for Paint Vertex Selection. Not in 'Sculpt' (mask pie stays), 'Font', the Properties editor or other editors (C8) |
@@ -481,8 +521,8 @@ and Sculpt Curves), `pointcloud`, `armature`, `pose`, `mball`, `lattice`, `parti
 
 Not bound, by design: hold-J snap inversion during a transform (API blocker, below); anything on Shift+RMB or
 Ctrl+Shift+RMB (Phase 5b); hold keys in the UV Editor, Grease Pencil modes and paint/sculpt modes (C11: the mode maps
-there keep X/V/C/D native); Ctrl+A outside the 3D View (C8); Alt+D in 'User Interface' (the hovered-property driver
-remove stays native: 'User Interface' is a default handler that runs before editor maps).
+there keep X/V/C/D native); Ctrl+A outside the 3D View (C8); any other item in 'User Interface' (step 10 replaces
+only IC's Alt+D driver removal there, with a wrapper that does exactly the same over a driven property).
 
 **The shadow test is the authority** (headless, step 1): with IC selected and every binding on, for each Meso item it
 collects the active IC items in the same keymap with the same type, value and modifiers (`any` items included) and
@@ -854,7 +894,9 @@ menu settings. With COMPASS, Shift+RMB opens the tool Compass menu and the two c
    non-modal form leaves a stray keymap."
 3. "Meso Keymap items never go into 'Text', 'Text Generic', 'Console', 'Font', 'User Interface', 'Window', 'Screen'
    or the Sequencer 'Preview' keymap; a Meso item that shadows a native one must list it in `core/meso_bindings.py`
-   `displaces` (the shadow test enforces it)."
+   `displaces` (the shadow test enforces it)." Step 10 adds the one exception (the Alt D pass-through wrapper in
+   'User Interface', `FORBIDDEN_EXCEPTIONS`; IC's item there stays switched off) and drops the old Alt D sentence
+   (`ALT_D_BLOCKED_KEYMAPS`).
 4. "Never write `tool_settings` while `Window.modal_operators` holds a foreign modal; hold restores wait for it."
 5. "Snap state is written as the `snap_elements` union, never base then individual (they clear each other)."
 6. Headless caveats, add: "Never open the keymap-choice dialog under `-b`." GUI caveat: "Scenarios that start a
@@ -1109,9 +1151,11 @@ anything in Phase 5+.
     toggle, on); not in Sequencer Preview, Clip Dopesheet, Spreadsheet.
 19. **C11** Hold snapping only in the 3D View object/edit/pose/particle modes; not UV or Grease Pencil.
 20. **C12** Warn in "Set all Space items" when the Plaza key collides with a Meso binding.
-21. Alt+D over a hovered property keeps Blender's remove-driver (no Meso item in 'User Interface').
+21. Alt+D over a hovered property keeps Blender's remove-driver. **Changed in step 10 (C13 a):** it does, through the
+    Meso wrapper in 'User Interface' (the one Meso item there).
 22. Approve the CLAUDE.md rule updates listed above (they are applied in step 1, not in this commit).
-23. **C13 (new in step 1; DEFAULT in force: option b).** Alt D never reaches the Outliner, Node Editor, Clip Editor,
+23. **Answered in step 10: option (a)** (user item F of 2026-09-26, "Is C13 fixable"). The original text: **C13 (new
+    in step 1; DEFAULT in force: option b).** Alt D never reaches the Outliner, Node Editor, Clip Editor,
     File Browser, Info and channel lists: Blender's 'User Interface' Alt D item (remove the driver of the hovered
     property) takes it first, even over empty space. Options:
     - (a) Meso adds one Alt D item to 'User Interface' that removes the driver when the hovered property is driven
@@ -1207,3 +1251,23 @@ anything in Phase 5+.
 41. **New in step 9 (report only, nothing added).** Edit modes have no Affect Only Origins (Object Mode only); the
     nearest equivalent would be a temporary 3D-cursor pivot for one transform (`transform_pivot_point = 'CURSOR'`),
     a candidate for later.
+42. **New in step 10 (DEFAULT in force: a).** Ctrl Shift A in the Outliner, Node, Clip, Info, channel lists and masks
+    (Clip Editor Mask mode): (a) **in force:** Select All there too, like everywhere else; IC's Ctrl Shift A deselect
+    moves to Alt D, which now works there (it ends the step-1 split where Ctrl Shift A deselected in those editors
+    only); (b) keep IC's Ctrl Shift A deselect there (Alt D would then be a second deselect key).
+43. **New in step 10 (DEFAULT in force: a).** The Clip Editor's Alt D: (a) **in force:** Deselect All, as in every
+    editor; IC's Alt D Show Disabled toggle (dead before step 10, the 'User Interface' item took the key) stays in
+    the keymap, shadowed, and lives on Ctrl Alt D plus the header Overlay checkbox (C7); (b) Show Disabled on Alt D in
+    the clip view and no Alt D deselect there.
+44. **New in step 10 (DEFAULT in force: a).** Who pushes the undo step of an Alt D driver removal: (a) **in force:**
+    the nested native call (`undo=True`): the step is exactly the native "Remove Driver" one, and a pass-through can
+    never push a step; (b) the wrapper with `bl_options={'UNDO', 'INTERNAL'}` and a plain nested call (measured
+    identical in the spike).
+45. **New in step 10 (DEFAULT in force: a).** Alt D over an undriven button in the Outliner, Node, Clip, File Browser,
+    Info and channel editors (a socket field, a restriction toggle, a channel's mute or lock): (a) **in force:** the
+    key passes on and the editor deselects (before step 10 nothing happened); (b) pass on only when no button is
+    hovered (`context.property` is None), so Alt D over any button does nothing, as before.
+46. **New in step 10 (DEFAULT in force: a).** The wrapper switched off in the keymap editor: (a) **in force:** IC's
+    own Alt D item stays switched off too (it would stop Alt D before the editors again), so Alt D removes no
+    driver; the preferences warn and name the item to switch on; the right-click Delete Driver stays; (b) remove
+    IC's item from the Meso keyconfig altogether (nothing to switch on).

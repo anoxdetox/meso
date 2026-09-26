@@ -47,11 +47,11 @@ that Industry Compatible or Blender also has applies there too.
 
 | Key | Action | Where |
 |---|---|---|
-| Ctrl Shift A | Select All | 3D View modes, UV, Graph, Dope Sheet, Timeline, NLA, Sequencer, File Browser, Clip Graph |
-| Alt D | Deselect All | 3D View modes, UV, Image masks, Graph, Dope Sheet, Timeline, NLA, Sequencer |
+| Ctrl Shift A | Select All | every editor with select keys: 3D View modes, UV, masks, Graph, Dope Sheet, Timeline, NLA, Sequencer, Outliner, Node, Clip (and its graph), channel lists, File Browser, Info |
+| Alt D | Deselect All; over a driven property, removes its drivers (as Blender does, one undo step) | every editor with select keys (as Ctrl Shift A); the driver removal over any property |
 | Ctrl Shift I | Invert Selection (Ctrl I stays too) | every editor with select keys |
 | Ctrl Alt A | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) | Object Mode, Pose Mode |
-| Ctrl Alt D | Show Disabled tracks | Clip Editor |
+| Ctrl Alt D | Show Disabled tracks (Industry Compatible's Alt D there) | Clip Editor |
 | Ctrl Alt D | Annotate tool (again: its next variant). Industry Compatible's D, moved here because D edits origins in Object Mode; D still annotates in the other modes | 3D View modes, Image Editor, UV Editor |
 | Ctrl 1 | Isolate the selection, again to go back: local view in Object Mode; in Edit Mesh, Curve, Armature, Pose and Metaball hide the unselected elements and every other object (local view of the objects you edit), then give back exactly what was hidden before and leave the local view | 3D View |
 | Ctrl Alt 1 | Vertex select mode with expand (Industry Compatible's Ctrl 1; Ctrl click on the vertex select button does the same) | Edit Mesh |
@@ -61,10 +61,13 @@ that Industry Compatible or Blender also has applies there too.
 | Insert | Edit origins until Insert again (toggles Affect Only Origins: move origins, not the shapes) | Object Mode |
 
 In the other editors Ctrl A still selects all; in the 3D View select all is Ctrl Shift A. Shift I
-stays local view and Ctrl H / Shift H / Alt H keep hiding and revealing. In the Outliner, Node
-Editor, Clip Editor, Info and the channel lists, Ctrl Shift A stays Industry Compatible's Deselect All: Alt D cannot reach those editors, because
-Blender uses it there to remove the driver of the property under the mouse. Alt D over a driven
-property still removes its driver everywhere.
+stays local view and Ctrl H / Shift H / Alt H keep hiding and revealing. Blender uses Alt D for
+removing the driver of the property under the mouse, and in the Outliner, Node, Clip, File
+Browser, Info and channel editors that item used to take Alt D even over empty space. The Meso
+keymap replaces it with one that removes the drivers exactly as before when the property under
+the mouse is driven, and otherwise lets Alt D through to the editor, so Alt D deselects there
+too. (Industry Compatible's own item stays in the User Interface keymap, switched off; if you
+switch Meso's off, switch it back on to keep the key.)
 
 A snap hold snaps every drag while its key is down, and your own snap settings are back as soon
 as you let go (Meso tells the key is still down from its keyboard auto-repeat; a release during a
