@@ -1,0 +1,9312 @@
+{
+ "about": "docs/spikes/meso-feedback-3.md: item B (multidrag, multidrag_proto; 2 runs each) and item F (altd). Raw event logs (observer timelines, hold traces, probe hits) are summarized per transform end; times in seconds since Blender start.",
+ "multidrag": {
+  "multidrag_run1": {
+   "meta": {
+    "keyconfig": "Meso",
+    "blender": "5.2.2 LTS",
+    "backend_display": "x11",
+    "x_autorepeat": {
+     "ok": 1,
+     "delay_ms": 600,
+     "interval_ms": 40
+    },
+    "km_probes": [
+     {
+      "keymap": "3D View",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "v3d_move"
+     },
+     {
+      "keymap": "3D View",
+      "type": "LEFTMOUSE",
+      "value": "PRESS",
+      "key_modifier": "X",
+      "tag": "v3d_lmb"
+     },
+     {
+      "keymap": "Window",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "win_move"
+     }
+    ],
+    "proto": null,
+    "own_ids": [
+     "MESOSPIKE_OT_observe",
+     "MESO_OT_pivot_hold",
+     "MESO_OT_snap_hold"
+    ],
+    "drag_threshold": [
+     3,
+     30
+    ],
+    "status": "ok"
+   },
+   "cases": [
+    {
+     "name": "long_3drags",
+     "proto": false,
+     "x": [
+      [
+       3.928,
+       "down"
+      ],
+      [
+       9.01,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 5.637,
+       "t_up": 6.123,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        5.773,
+        6.133
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 6.848,
+       "t_up": 7.297,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        6.985,
+        7.319
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "drag3",
+       "t_down": 8.028,
+       "t_up": 8.508,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        8.166,
+        8.518
+       ],
+       "start": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "end": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 9.537,
+       "t_up": 9.979,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        9.674,
+        10.062
+       ],
+       "start": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "end": [
+        4.2833,
+        4.3556,
+        -1.4715
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 6.133,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 22,
+       "repeat_gaps": [
+        0.033,
+        0.035,
+        0.036,
+        0.042,
+        0.053
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 7.319,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.018,
+       "n_x_repeats": 21,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.038,
+        0.045,
+        0.047
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 8.518,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.019,
+       "n_x_repeats": 12,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.497,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 10.062,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.602,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_3drags_gizmo",
+     "proto": false,
+     "x": [
+      [
+       11.492,
+       "down"
+      ],
+      [
+       16.891,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 13.301,
+       "t_up": 13.793,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        13.436,
+        13.824
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 14.625,
+       "t_up": 15.072,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        14.759,
+        15.088
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "drag3",
+       "t_down": 15.903,
+       "t_up": 16.385,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        16.041,
+        16.409
+       ],
+       "start": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "end": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 17.52,
+       "t_up": 18.027,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        17.658,
+        18.052
+       ],
+       "start": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "end": [
+        4.2833,
+        4.3556,
+        -1.4715
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 13.824,
+       "first_event": -0.002,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.004,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.033,
+        0.036,
+        0.037,
+        0.04,
+        0.041
+       ],
+       "x_release": null,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 15.088,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.016,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.038,
+        0.04,
+        0.041
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 16.409,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.01,
+       "n_x_repeats": 12,
+       "repeat_gaps": [
+        0.036,
+        0.04,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.487,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 18.052,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.603,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_during_drag1",
+     "proto": false,
+     "x": [
+      [
+       19.333,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 21.039,
+       "t_up": 21.51,
+       "t_x_up": 21.262,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        21.178,
+        21.525
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 22.337,
+       "t_up": 22.782,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        22.473,
+        22.796
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 21.525,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 22.796,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.602,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_after_drag1",
+     "proto": false,
+     "x": [
+      [
+       24.085,
+       "down"
+      ],
+      [
+       26.7,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 25.795,
+       "t_up": 26.297,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        25.937,
+        26.309
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 27.222,
+       "t_up": 27.664,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        27.362,
+        27.685
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 26.309,
+       "first_event": 0.008,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.019,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.034,
+        0.036,
+        0.04,
+        0.041,
+        0.046
+       ],
+       "x_release": 0.396,
+       "first_probe": [
+        0.008,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 27.685,
+       "first_event": -0.014,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_3drags",
+     "proto": false,
+     "x": [
+      [
+       28.973,
+       "down"
+      ],
+      [
+       31.583,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 29.226,
+       "t_up": 29.386,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.291,
+        29.4
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 29.716,
+       "t_up": 29.854,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.776,
+        29.864
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "drag3",
+       "t_down": 30.689,
+       "t_up": 31.178,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        30.828,
+        31.189
+       ],
+       "start": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "end": [
+        3.37,
+        3.0134,
+        -0.8829
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 32.109,
+       "t_up": 32.55,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        32.27,
+        32.563
+       ],
+       "start": [
+        3.37,
+        3.0134,
+        -0.8829
+       ],
+       "end": [
+        4.1311,
+        4.1319,
+        -1.3734
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 29.4,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.176,
+       "n_x_repeats": 5,
+       "repeat_gaps": [
+        0.036,
+        0.041,
+        0.042,
+        0.042,
+        0.047
+       ],
+       "x_release": null,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 29.864,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.069,
+       "n_x_repeats": 23,
+       "repeat_gaps": [
+        0.004,
+        0.031,
+        0.034,
+        0.046,
+        0.049
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 31.189,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.032,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.04,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.399,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 32.563,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.603,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_up_during_drag1",
+     "proto": false,
+     "x": [
+      [
+       33.858,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 34.115,
+       "t_up": 34.244,
+       "t_x_up": 34.191,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.177,
+        34.264
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release_early",
+       "t_down": 34.574,
+       "t_up": 34.708,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.635,
+        34.72
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 35.536,
+       "t_up": 35.99,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        35.674,
+        36.011
+       ],
+       "start": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "end": [
+        3.37,
+        3.0134,
+        -0.8829
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 34.264,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 34.72,
+       "first_event": 0.01,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 36.011,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": null,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_shift_mid_drag",
+     "proto": false,
+     "x": [
+      [
+       37.304,
+       "down"
+      ],
+      [
+       41.18,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 39.01,
+       "t_up": 39.46,
+       "t_x_up": null,
+       "t_mod_down": 39.191,
+       "t_mod_up": 39.354,
+       "transform": [
+        39.146,
+        39.475
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 40.292,
+       "t_up": 40.776,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        40.428,
+        40.796
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 39.475,
+       "first_event": -0.007,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.011,
+        0.029,
+        0.035,
+        0.045,
+        0.069
+       ],
+       "x_release": null,
+       "first_probe": [
+        -0.007,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 40.796,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.002,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.04,
+        0.04,
+        0.041
+       ],
+       "x_release": 0.389,
+       "first_probe": [
+        -0.012,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.611,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_ctrl_mid_drag",
+     "proto": false,
+     "x": [
+      [
+       42.694,
+       "down"
+      ],
+      [
+       46.574,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 44.405,
+       "t_up": 44.887,
+       "t_x_up": null,
+       "t_mod_down": 44.577,
+       "t_mod_up": 44.756,
+       "transform": [
+        44.541,
+        44.903
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 45.718,
+       "t_up": 46.169,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        45.851,
+        46.181
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 44.903,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.037,
+        0.042,
+        0.051
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 46.181,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.04,
+        0.042,
+        0.044
+       ],
+       "x_release": 0.399,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_other_key_tap",
+     "proto": false,
+     "x": [
+      [
+       48.085,
+       "down"
+      ],
+      [
+       49.442,
+       "tap w"
+      ],
+      [
+       52.652,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 50.469,
+       "t_up": 50.957,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        50.608,
+        50.975
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 51.786,
+       "t_up": 52.245,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        51.921,
+        52.268
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 50.975,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 52.268,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": 0.389,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_still_mouse",
+     "proto": false,
+     "x": [
+      [
+       54.164,
+       "down"
+      ],
+      [
+       58.645,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 55.876,
+       "t_up": 56.328,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        56.058,
+        56.338
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 57.753,
+       "t_up": 58.241,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        57.906,
+        58.251
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 56.338,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.028,
+       "n_x_repeats": 38,
+       "repeat_gaps": [
+        0.032,
+        0.035,
+        0.036,
+        0.042,
+        0.046
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 58.251,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 11,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.038,
+        0.039,
+        0.041
+       ],
+       "x_release": 0.394,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    }
+   ]
+  },
+  "multidrag_proto_run1": {
+   "meta": {
+    "keyconfig": "Meso",
+    "blender": "5.2.2 LTS",
+    "backend_display": "x11",
+    "x_autorepeat": {
+     "ok": 1,
+     "delay_ms": 600,
+     "interval_ms": 40
+    },
+    "km_probes": [
+     {
+      "keymap": "3D View",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "v3d_move"
+     },
+     {
+      "keymap": "3D View",
+      "type": "LEFTMOUSE",
+      "value": "PRESS",
+      "key_modifier": "X",
+      "tag": "v3d_lmb"
+     },
+     {
+      "keymap": "Window",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "win_move"
+     }
+    ],
+    "proto": {
+     "delay": 0.6,
+     "gap": 0.15
+    },
+    "own_ids": [
+     "MESOSPIKE_OT_observe",
+     "MESO_OT_pivot_hold",
+     "MESO_OT_snap_hold"
+    ],
+    "drag_threshold": [
+     3,
+     30
+    ],
+    "status": "ok"
+   },
+   "cases": [
+    {
+     "name": "long_3drags",
+     "proto": true,
+     "x": [
+      [
+       3.925,
+       "down"
+      ],
+      [
+       8.966,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 5.634,
+       "t_up": 6.079,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        5.782,
+        6.09
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 6.809,
+       "t_up": 7.295,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        6.947,
+        7.307
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag3",
+       "t_down": 8.024,
+       "t_up": 8.462,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        8.162,
+        8.475
+       ],
+       "start": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "end": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 9.49,
+       "t_up": 9.945,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        9.704,
+        9.966
+       ],
+       "start": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "end": [
+        5.684,
+        4.0052,
+        -0.4408
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 6.09,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 22,
+       "repeat_gaps": [
+        0.034,
+        0.036,
+        0.038,
+        0.043,
+        0.044
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 7.307,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.031,
+       "n_x_repeats": 21,
+       "repeat_gaps": [
+        0.033,
+        0.036,
+        0.039,
+        0.041,
+        0.042
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 8.475,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.017,
+       "n_x_repeats": 12,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.04,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.496,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 9.966,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       6.09,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       7.338,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       8.492,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_3drags_gizmo",
+     "proto": true,
+     "x": [
+      [
+       11.459,
+       "down"
+      ],
+      [
+       16.893,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 13.271,
+       "t_up": 13.735,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        13.403,
+        13.756
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 14.566,
+       "t_up": 15.053,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        14.706,
+        15.074
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag3",
+       "t_down": 15.882,
+       "t_up": 16.388,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        16.022,
+        16.416
+       ],
+       "start": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "end": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 17.522,
+       "t_up": 17.991,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        17.659,
+        18.023
+       ],
+       "start": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "end": [
+        5.684,
+        4.0052,
+        -0.4408
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 13.756,
+       "first_event": -0.008,
+       "first_event_type": "X",
+       "first_x_repeat": -0.008,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.036,
+        0.038,
+        0.039,
+        0.041,
+        0.042
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.015,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 15.074,
+       "first_event": -0.003,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.002,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.027,
+        0.036,
+        0.037,
+        0.043,
+        0.045
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 16.416,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.01,
+       "n_x_repeats": 12,
+       "repeat_gaps": [
+        0.036,
+        0.039,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.482,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 18.023,
+       "first_event": -0.002,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.601,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       13.748,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       15.076,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       16.426,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_during_drag1",
+     "proto": true,
+     "x": [
+      [
+       19.299,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 21.009,
+       "t_up": 21.537,
+       "t_x_up": 21.322,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        21.153,
+        21.55
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 22.367,
+       "t_up": 22.816,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        22.502,
+        22.836
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 21.55,
+       "first_event": 0.015,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 22.836,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.601,
+     "proto_timeouts": [
+      [
+       21.722,
+       "X",
+       0.157
+      ]
+     ],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_after_drag1",
+     "proto": true,
+     "x": [
+      [
+       24.122,
+       "down"
+      ],
+      [
+       26.725,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 25.862,
+       "t_up": 26.321,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        26.002,
+        26.343
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 27.251,
+       "t_up": 27.694,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        27.386,
+        27.704
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 26.343,
+       "first_event": -0.013,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": -0.013,
+       "n_x_repeats": 11,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.037,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.382,
+       "first_probe": [
+        -0.013,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 27.704,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       26.33,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_3drags",
+     "proto": true,
+     "x": [
+      [
+       29.009,
+       "down"
+      ],
+      [
+       31.645,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 29.269,
+       "t_up": 29.419,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.338,
+        29.439
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 29.758,
+       "t_up": 29.895,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.815,
+        29.907
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag3",
+       "t_down": 30.723,
+       "t_up": 31.238,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        30.865,
+        31.248
+       ],
+       "start": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "end": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 32.17,
+       "t_up": 32.616,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        32.309,
+        32.637
+       ],
+       "start": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "end": [
+        5.684,
+        4.0052,
+        -0.4408
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 29.439,
+       "first_event": 0.018,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.174,
+       "n_x_repeats": 5,
+       "repeat_gaps": [
+        0.038,
+        0.041,
+        0.048,
+        0.041,
+        0.048
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.018,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 29.907,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.027,
+       "n_x_repeats": 23,
+       "repeat_gaps": [
+        0.031,
+        0.036,
+        0.037,
+        0.042,
+        0.05
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 31.248,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.009,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.402,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 32.637,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       29.613,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       29.934,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       31.257,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_up_during_drag1",
+     "proto": true,
+     "x": [
+      [
+       33.924,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 34.179,
+       "t_up": 34.309,
+       "t_x_up": 34.253,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.236,
+        34.332
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release_early",
+       "t_down": 34.635,
+       "t_up": 34.756,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.69,
+        34.774
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 35.583,
+       "t_up": 36.031,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        35.723,
+        36.045
+       ],
+       "start": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "end": [
+        4.7044,
+        3.0351,
+        -0.4539
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 34.332,
+       "first_event": -0.014,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 34.774,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 36.045,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": null,
+     "proto_timeouts": [
+      [
+       34.763,
+       "X",
+       0.444
+      ]
+     ],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_shift_mid_drag",
+     "proto": true,
+     "x": [
+      [
+       37.339,
+       "down"
+      ],
+      [
+       41.277,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 39.048,
+       "t_up": 39.56,
+       "t_x_up": null,
+       "t_mod_down": 39.29,
+       "t_mod_up": 39.455,
+       "transform": [
+        39.188,
+        39.573
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 40.389,
+       "t_up": 40.872,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        40.554,
+        40.884
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 39.573,
+       "first_event": 0.013,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.013,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.004,
+        0.036,
+        0.037,
+        0.042,
+        0.117
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.013,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 40.884,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.023,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.036,
+        0.038,
+        0.04,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.398,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       39.586,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       40.907,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_ctrl_mid_drag",
+     "proto": true,
+     "x": [
+      [
+       42.786,
+       "down"
+      ],
+      [
+       46.638,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 44.505,
+       "t_up": 44.951,
+       "t_x_up": null,
+       "t_mod_down": 44.684,
+       "t_mod_up": 44.843,
+       "transform": [
+        44.64,
+        44.97
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 45.778,
+       "t_up": 46.23,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        45.917,
+        46.332
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 44.97,
+       "first_event": -0.01,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.022,
+       "n_x_repeats": 23,
+       "repeat_gaps": [
+        0.033,
+        0.035,
+        0.036,
+        0.042,
+        0.048
+       ],
+       "x_release": null,
+       "first_probe": [
+        -0.01,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 46.332,
+       "first_event": 0.005,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.022,
+       "n_x_repeats": 8,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.04,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.311,
+       "first_probe": [
+        0.006,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.603,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       44.992,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       46.354,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_other_key_tap",
+     "proto": true,
+     "x": [
+      [
+       48.146,
+       "down"
+      ],
+      [
+       49.493,
+       "tap w"
+      ],
+      [
+       52.689,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 50.518,
+       "t_up": 50.965,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        50.653,
+        50.986
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 51.798,
+       "t_up": 52.286,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        51.932,
+        52.308
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 50.986,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 52.308,
+       "first_event": -0.002,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": 0.447,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.603,
+     "proto_timeouts": [
+      [
+       51.128,
+       "X",
+       0.153
+      ]
+     ],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_still_mouse",
+     "proto": true,
+     "x": [
+      [
+       54.2,
+       "down"
+      ],
+      [
+       58.677,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 55.905,
+       "t_up": 56.362,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        56.043,
+        56.374
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 57.791,
+       "t_up": 58.272,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        57.928,
+        58.289
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 56.374,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.032,
+       "n_x_repeats": 38,
+       "repeat_gaps": [
+        0.031,
+        0.036,
+        0.037,
+        0.044,
+        0.045
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 58.289,
+       "first_event": -0.009,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": -0.001,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.393,
+       "first_probe": [
+        -0.009,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.601,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       56.406,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       58.288,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    }
+   ]
+  },
+  "multidrag_run2": {
+   "meta": {
+    "keyconfig": "Meso",
+    "blender": "5.2.2 LTS",
+    "backend_display": "x11",
+    "x_autorepeat": {
+     "ok": 1,
+     "delay_ms": 600,
+     "interval_ms": 40
+    },
+    "km_probes": [
+     {
+      "keymap": "3D View",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "v3d_move"
+     },
+     {
+      "keymap": "3D View",
+      "type": "LEFTMOUSE",
+      "value": "PRESS",
+      "key_modifier": "X",
+      "tag": "v3d_lmb"
+     },
+     {
+      "keymap": "Window",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "win_move"
+     }
+    ],
+    "proto": null,
+    "own_ids": [
+     "MESOSPIKE_OT_observe",
+     "MESO_OT_pivot_hold",
+     "MESO_OT_snap_hold"
+    ],
+    "drag_threshold": [
+     3,
+     30
+    ],
+    "status": "ok"
+   },
+   "cases": [
+    {
+     "name": "long_3drags",
+     "proto": false,
+     "x": [
+      [
+       3.928,
+       "down"
+      ],
+      [
+       9.091,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 5.637,
+       "t_up": 6.138,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        5.789,
+        6.15
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 6.863,
+       "t_up": 7.361,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        7.001,
+        7.377
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "drag3",
+       "t_down": 8.09,
+       "t_up": 8.587,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        8.227,
+        8.603
+       ],
+       "start": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "end": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 9.614,
+       "t_up": 10.065,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        9.76,
+        10.135
+       ],
+       "start": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "end": [
+        4.2833,
+        4.3556,
+        -1.4715
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 6.15,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.021,
+       "n_x_repeats": 21,
+       "repeat_gaps": [
+        0.034,
+        0.035,
+        0.036,
+        0.044,
+        0.045
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 7.377,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 22,
+       "repeat_gaps": [
+        0.032,
+        0.036,
+        0.037,
+        0.042,
+        0.045
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 8.603,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.012,
+       "n_x_repeats": 13,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.488,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 10.135,
+       "first_event": 0.004,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.602,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_3drags_gizmo",
+     "proto": false,
+     "x": [
+      [
+       11.583,
+       "down"
+      ],
+      [
+       16.969,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 13.389,
+       "t_up": 13.845,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        13.565,
+        13.875
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 14.682,
+       "t_up": 15.151,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        14.821,
+        15.227
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "drag3",
+       "t_down": 15.986,
+       "t_up": 16.462,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        16.12,
+        16.492
+       ],
+       "start": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "end": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 17.6,
+       "t_up": 18.043,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        17.737,
+        18.065
+       ],
+       "start": [
+        3.5222,
+        3.2371,
+        -0.981
+       ],
+       "end": [
+        4.2833,
+        4.3556,
+        -1.4715
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 13.875,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.005,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.027,
+        0.036,
+        0.037,
+        0.041,
+        0.042
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 15.227,
+       "first_event": 0.006,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.012,
+       "n_x_repeats": 23,
+       "repeat_gaps": [
+        0.034,
+        0.036,
+        0.037,
+        0.041,
+        0.042
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.012,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 16.492,
+       "first_event": -0.003,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": -0.001,
+       "n_x_repeats": 13,
+       "repeat_gaps": [
+        0.019,
+        0.036,
+        0.041,
+        0.041,
+        0.044
+       ],
+       "x_release": 0.482,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 18.065,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.602,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_during_drag1",
+     "proto": false,
+     "x": [
+      [
+       19.352,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 21.058,
+       "t_up": 21.505,
+       "t_x_up": 21.291,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        21.198,
+        21.517
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 22.358,
+       "t_up": 22.81,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        22.497,
+        22.82
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 21.517,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 22.82,
+       "first_event": 0.007,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.603,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_after_drag1",
+     "proto": false,
+     "x": [
+      [
+       24.115,
+       "down"
+      ],
+      [
+       26.673,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 25.822,
+       "t_up": 26.267,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        25.959,
+        26.284
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 27.199,
+       "t_up": 27.673,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        27.333,
+        27.686
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 26.284,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 11,
+       "repeat_gaps": [
+        0.034,
+        0.036,
+        0.041,
+        0.042,
+        0.046
+       ],
+       "x_release": 0.431,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 27.686,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_3drags",
+     "proto": false,
+     "x": [
+      [
+       28.98,
+       "down"
+      ],
+      [
+       31.528,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 29.24,
+       "t_up": 29.371,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.296,
+        29.383
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 29.701,
+       "t_up": 29.839,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.766,
+        29.85
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "drag3",
+       "t_down": 30.669,
+       "t_up": 31.123,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        30.812,
+        31.144
+       ],
+       "start": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "end": [
+        3.37,
+        3.0134,
+        -0.8829
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 32.05,
+       "t_up": 32.493,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        32.184,
+        32.506
+       ],
+       "start": [
+        3.37,
+        3.0134,
+        -0.8829
+       ],
+       "end": [
+        4.1311,
+        4.1319,
+        -1.3734
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 29.383,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.226,
+       "n_x_repeats": 4,
+       "repeat_gaps": [
+        0.036,
+        0.039,
+        0.041,
+        0.039,
+        0.041
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 29.85,
+       "first_event": 0.0,
+       "first_event_type": "X",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.039,
+        0.046,
+        0.056
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.011,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 31.144,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": -0.012,
+       "n_x_repeats": 11,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.04,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.385,
+       "first_probe": [
+        -0.012,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 32.506,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.629,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_up_during_drag1",
+     "proto": false,
+     "x": [
+      [
+       33.806,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 34.067,
+       "t_up": 34.214,
+       "t_x_up": 34.149,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.138,
+        34.237
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release_early",
+       "t_down": 34.544,
+       "t_up": 34.731,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.608,
+        34.753
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      },
+      {
+       "label": "after_release",
+       "t_down": 35.562,
+       "t_up": 36.046,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        35.698,
+        36.071
+       ],
+       "start": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "end": [
+        3.37,
+        3.0134,
+        -0.8829
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 34.237,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 34.753,
+       "first_event": -0.013,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 36.071,
+       "first_event": -0.015,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": null,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_shift_mid_drag",
+     "proto": false,
+     "x": [
+      [
+       37.359,
+       "down"
+      ],
+      [
+       41.25,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 39.067,
+       "t_up": 39.567,
+       "t_x_up": null,
+       "t_mod_down": 39.282,
+       "t_mod_up": 39.462,
+       "transform": [
+        39.218,
+        39.578
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 40.394,
+       "t_up": 40.844,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        40.531,
+        40.865
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 39.578,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.027,
+       "n_x_repeats": 23,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.04,
+        0.043,
+        0.046
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 40.865,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.024,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.04,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.39,
+       "first_probe": [
+        -0.012,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.601,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_ctrl_mid_drag",
+     "proto": false,
+     "x": [
+      [
+       42.757,
+       "down"
+      ],
+      [
+       46.639,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 44.466,
+       "t_up": 44.922,
+       "t_x_up": null,
+       "t_mod_down": 44.643,
+       "t_mod_up": 44.817,
+       "transform": [
+        44.601,
+        44.935
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 45.767,
+       "t_up": 46.232,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        45.903,
+        46.248
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 44.935,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.027,
+       "n_x_repeats": 23,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.037,
+        0.044,
+        0.079
+       ],
+       "x_release": null,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 46.248,
+       "first_event": -0.008,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.033,
+        0.036,
+        0.04,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.396,
+       "first_probe": [
+        -0.007,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.602,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_other_key_tap",
+     "proto": false,
+     "x": [
+      [
+       48.149,
+       "down"
+      ],
+      [
+       49.5,
+       "tap w"
+      ],
+      [
+       52.689,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 50.524,
+       "t_up": 51.003,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        50.66,
+        51.026
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 51.83,
+       "t_up": 52.283,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        51.965,
+        52.303
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 51.026,
+       "first_event": 0.03,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": [
+        0.031,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 52.303,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": 0.391,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.6,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_still_mouse",
+     "proto": false,
+     "x": [
+      [
+       54.204,
+       "down"
+      ],
+      [
+       58.72,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 55.913,
+       "t_up": 56.418,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        56.049,
+        56.43
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 57.848,
+       "t_up": 58.313,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        57.989,
+        58.332
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 56.43,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.024,
+       "n_x_repeats": 39,
+       "repeat_gaps": [
+        0.033,
+        0.034,
+        0.035,
+        0.043,
+        0.054
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 58.332,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 11,
+       "repeat_gaps": [
+        0.036,
+        0.037,
+        0.039,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.439,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.602,
+     "proto_timeouts": [],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    }
+   ]
+  },
+  "multidrag_proto_run2": {
+   "meta": {
+    "keyconfig": "Meso",
+    "blender": "5.2.2 LTS",
+    "backend_display": "x11",
+    "x_autorepeat": {
+     "ok": 1,
+     "delay_ms": 600,
+     "interval_ms": 40
+    },
+    "km_probes": [
+     {
+      "keymap": "3D View",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "v3d_move"
+     },
+     {
+      "keymap": "3D View",
+      "type": "LEFTMOUSE",
+      "value": "PRESS",
+      "key_modifier": "X",
+      "tag": "v3d_lmb"
+     },
+     {
+      "keymap": "Window",
+      "type": "MOUSEMOVE",
+      "value": "ANY",
+      "key_modifier": "X",
+      "tag": "win_move"
+     }
+    ],
+    "proto": {
+     "delay": 0.6,
+     "gap": 0.15
+    },
+    "own_ids": [
+     "MESOSPIKE_OT_observe",
+     "MESO_OT_pivot_hold",
+     "MESO_OT_snap_hold"
+    ],
+    "drag_threshold": [
+     3,
+     30
+    ],
+    "status": "ok"
+   },
+   "cases": [
+    {
+     "name": "long_3drags",
+     "proto": true,
+     "x": [
+      [
+       3.917,
+       "down"
+      ],
+      [
+       9.12,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 5.656,
+       "t_up": 6.161,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        5.829,
+        6.175
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 6.892,
+       "t_up": 7.347,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        7.027,
+        7.36
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag3",
+       "t_down": 8.109,
+       "t_up": 8.613,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        8.245,
+        8.625
+       ],
+       "start": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "end": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 9.645,
+       "t_up": 10.09,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        9.85,
+        10.105
+       ],
+       "start": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "end": [
+        5.684,
+        4.0052,
+        -0.4408
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 6.175,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.032,
+       "n_x_repeats": 21,
+       "repeat_gaps": [
+        0.031,
+        0.032,
+        0.036,
+        0.042,
+        0.052
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 7.36,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.01,
+       "n_x_repeats": 21,
+       "repeat_gaps": [
+        0.034,
+        0.036,
+        0.037,
+        0.05,
+        0.078
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 8.625,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.017,
+       "n_x_repeats": 12,
+       "repeat_gaps": [
+        0.037,
+        0.04,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.501,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 10.105,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.603,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       6.207,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       7.37,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       8.642,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_3drags_gizmo",
+     "proto": true,
+     "x": [
+      [
+       11.606,
+       "down"
+      ],
+      [
+       17.054,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 13.424,
+       "t_up": 13.92,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        13.565,
+        13.948
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 14.745,
+       "t_up": 15.258,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        14.885,
+        15.284
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag3",
+       "t_down": 16.092,
+       "t_up": 16.551,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        16.311,
+        16.579
+       ],
+       "start": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "end": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 17.687,
+       "t_up": 18.193,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        17.826,
+        18.227
+       ],
+       "start": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "end": [
+        5.684,
+        4.0052,
+        -0.4408
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 13.948,
+       "first_event": -0.003,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": -0.001,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.028,
+        0.035,
+        0.036,
+        0.042,
+        0.045
+       ],
+       "x_release": null,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 15.284,
+       "first_event": 0.032,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.035,
+       "n_x_repeats": 26,
+       "repeat_gaps": [
+        0.021,
+        0.034,
+        0.036,
+        0.042,
+        0.044
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.035,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 16.579,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.003,
+       "n_x_repeats": 13,
+       "repeat_gaps": [
+        0.033,
+        0.036,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.481,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 18.227,
+       "first_event": -0.002,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.601,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       13.947,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       15.319,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       16.582,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_during_drag1",
+     "proto": true,
+     "x": [
+      [
+       19.509,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 21.218,
+       "t_up": 21.663,
+       "t_x_up": 21.453,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        21.356,
+        21.683
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 22.491,
+       "t_up": 22.931,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        22.626,
+        22.942
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 21.683,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 22.942,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.602,
+     "proto_timeouts": [
+      [
+       21.82,
+       "X",
+       0.154
+      ]
+     ],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_up_after_drag1",
+     "proto": true,
+     "x": [
+      [
+       24.241,
+       "down"
+      ],
+      [
+       26.886,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 25.95,
+       "t_up": 26.472,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        26.103,
+        26.482
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 27.411,
+       "t_up": 27.856,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        27.549,
+        27.876
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 26.482,
+       "first_event": 0.016,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.016,
+       "n_x_repeats": 11,
+       "repeat_gaps": [
+        0.029,
+        0.036,
+        0.037,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.41,
+       "first_probe": [
+        0.016,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 27.876,
+       "first_event": -0.012,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.601,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       26.498,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_3drags",
+     "proto": true,
+     "x": [
+      [
+       29.163,
+       "down"
+      ],
+      [
+       31.751,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 29.423,
+       "t_up": 29.55,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.477,
+        29.624
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 29.895,
+       "t_up": 30.066,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        29.971,
+        30.077
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag3",
+       "t_down": 30.895,
+       "t_up": 31.341,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        31.033,
+        31.351
+       ],
+       "start": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "end": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 32.278,
+       "t_up": 32.739,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        32.412,
+        32.761
+       ],
+       "start": [
+        5.0,
+        3.0,
+        0.0
+       ],
+       "end": [
+        5.684,
+        4.0052,
+        -0.4408
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 29.624,
+       "first_event": 0.006,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.142,
+       "n_x_repeats": 5,
+       "repeat_gaps": [
+        0.037,
+        0.041,
+        0.046,
+        0.041,
+        0.046
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.007,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 30.077,
+       "first_event": 0.01,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.01,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.016,
+        0.035,
+        0.036,
+        0.043,
+        0.066
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.01,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 31.351,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.019,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.036,
+        0.04,
+        0.041,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.405,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 32.761,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.603,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       29.766,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       30.087,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       31.37,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "short_fast_up_during_drag1",
+     "proto": true,
+     "x": [
+      [
+       34.051,
+       "down"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 34.306,
+       "t_up": 34.441,
+       "t_x_up": 34.386,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.372,
+        34.462
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release_early",
+       "t_down": 34.769,
+       "t_up": 34.912,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        34.855,
+        34.925
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "after_release",
+       "t_down": 35.739,
+       "t_up": 36.225,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        35.965,
+        36.238
+       ],
+       "start": [
+        2.6089,
+        1.8948,
+        -0.3924
+       ],
+       "end": [
+        3.37,
+        3.0134,
+        -0.8829
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 34.462,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 34.925,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 36.238,
+       "first_event": 0.015,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": null,
+       "probe_tags": [],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": null,
+     "proto_timeouts": [
+      [
+       34.815,
+       "X",
+       0.353
+      ]
+     ],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_shift_mid_drag",
+     "proto": true,
+     "x": [
+      [
+       37.539,
+       "down"
+      ],
+      [
+       41.468,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 39.263,
+       "t_up": 39.717,
+       "t_x_up": null,
+       "t_mod_down": 39.437,
+       "t_mod_up": 39.6,
+       "transform": [
+        39.399,
+        39.728
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 40.544,
+       "t_up": 41.054,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        40.692,
+        41.078
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 39.728,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.014,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.028,
+        0.036,
+        0.037,
+        0.042,
+        0.055
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 41.078,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": -0.001,
+       "n_x_repeats": 11,
+       "repeat_gaps": [
+        0.03,
+        0.036,
+        0.038,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.391,
+       "first_probe": [
+        -0.001,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.601,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       39.742,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       41.077,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_ctrl_mid_drag",
+     "proto": true,
+     "x": [
+      [
+       42.979,
+       "down"
+      ],
+      [
+       46.904,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 44.687,
+       "t_up": 45.174,
+       "t_x_up": null,
+       "t_mod_down": 44.879,
+       "t_mod_up": 45.053,
+       "transform": [
+        44.841,
+        45.192
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 46.002,
+       "t_up": 46.498,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        46.138,
+        46.51
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 45.192,
+       "first_event": -0.008,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 24,
+       "repeat_gaps": [
+        0.032,
+        0.036,
+        0.037,
+        0.042,
+        0.046
+       ],
+       "x_release": null,
+       "first_probe": [
+        -0.008,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 46.51,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.007,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.037,
+        0.041,
+        0.042
+       ],
+       "x_release": 0.399,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.605,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       45.192,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       46.517,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_other_key_tap",
+     "proto": true,
+     "x": [
+      [
+       48.417,
+       "down"
+      ],
+      [
+       49.832,
+       "tap w"
+      ],
+      [
+       53.067,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 50.858,
+       "t_up": 51.351,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        50.994,
+        51.377
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 52.182,
+       "t_up": 52.659,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        52.319,
+        52.683
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        2.7611,
+        2.1185,
+        -0.4905
+       ],
+       "moved": true,
+       "on_grid": false,
+       "snapped": false,
+       "overlay_at_down": false,
+       "hold_running_at_down": false
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 51.377,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "LEFTMOUSE",
+        "RELEASE"
+       ]
+      },
+      {
+       "transform_end": 52.683,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": null,
+       "n_x_repeats": 0,
+       "repeat_gaps": [],
+       "x_release": 0.39,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.604,
+     "proto_timeouts": [
+      [
+       51.521,
+       "X",
+       0.157
+      ]
+     ],
+     "proto_proven": [],
+     "restored": true,
+     "holds_running_after": []
+    },
+    {
+     "name": "long_still_mouse",
+     "proto": true,
+     "x": [
+      [
+       54.584,
+       "down"
+      ],
+      [
+       59.066,
+       "up"
+      ]
+     ],
+     "drags": [
+      {
+       "label": "drag1",
+       "t_down": 56.295,
+       "t_up": 56.777,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        56.43,
+        56.794
+       ],
+       "start": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "end": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      },
+      {
+       "label": "drag2",
+       "t_down": 58.208,
+       "t_up": 58.659,
+       "t_x_up": null,
+       "t_mod_down": null,
+       "t_mod_up": null,
+       "transform": [
+        58.422,
+        58.671
+       ],
+       "start": [
+        2.0,
+        1.0,
+        0.0
+       ],
+       "end": [
+        4.0,
+        2.0,
+        0.0
+       ],
+       "moved": true,
+       "on_grid": true,
+       "snapped": true,
+       "overlay_at_down": true,
+       "hold_running_at_down": true
+      }
+     ],
+     "after_transform": [
+      {
+       "transform_end": 56.794,
+       "first_event": 0.0,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 41,
+       "repeat_gaps": [
+        0.035,
+        0.036,
+        0.037,
+        0.042,
+        0.044
+       ],
+       "x_release": null,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_lmb",
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": [
+        "X",
+        "PRESS"
+       ]
+      },
+      {
+       "transform_end": 58.671,
+       "first_event": -0.001,
+       "first_event_type": "MOUSEMOVE",
+       "first_x_repeat": 0.0,
+       "n_x_repeats": 10,
+       "repeat_gaps": [
+        0.033,
+        0.036,
+        0.041,
+        0.042,
+        0.048
+       ],
+       "x_release": 0.401,
+       "first_probe": [
+        0.0,
+        "v3d_move"
+       ],
+       "probe_tags": [
+        "v3d_move",
+        "win_move"
+       ],
+       "next_lmb_prev": null
+      }
+     ],
+     "first_repeat_after_press": 0.606,
+     "proto_timeouts": [],
+     "proto_proven": [
+      [
+       56.794,
+       "X",
+       "OWN_REPEAT"
+      ],
+      [
+       58.671,
+       "X",
+       "OWN_REPEAT"
+      ]
+     ],
+     "restored": true,
+     "holds_running_after": []
+    }
+   ]
+  }
+ },
+ "altd": {
+  "meta": {
+   "choose": "{'FINISHED'}",
+   "keyconfig": "Meso",
+   "blender": "5.2.2 LTS",
+   "ui_user_restored": [
+    {
+     "idname": "anim.driver_button_add",
+     "active": true,
+     "alt": 0,
+     "type": "D"
+    },
+    {
+     "idname": "anim.driver_button_remove",
+     "active": true,
+     "alt": 1,
+     "type": "D"
+    }
+   ],
+   "status": "ok",
+   "elapsed": 74.558
+  },
+  "audit": [
+   {
+    "keymap": "User Interface",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "anim.driver_button_remove",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {}
+   },
+   {
+    "keymap": "Markers",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "marker.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Dopesheet",
+    "space": "DOPESHEET_EDITOR",
+    "region": "WINDOW",
+    "idname": "action.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Paint Face Mask (Weight, Vertex, Texture)",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "paint.face_select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Paint Vertex Selection (Weight, Vertex)",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "paint.vert_select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Pose",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "pose.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Object Mode",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "object.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Curve",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "curve.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Curves",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "curves.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Mesh",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mesh.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Armature",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "armature.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Metaball",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mball.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Lattice",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "lattice.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Particle",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "particle.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Point Cloud",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "pointcloud.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Sculpt Curves",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "curves.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Grease Pencil Selection",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "grease_pencil.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "UV Editor",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "uv.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Mask Editing",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mask.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Graph Editor",
+    "space": "GRAPH_EDITOR",
+    "region": "WINDOW",
+    "idname": "graph.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "NLA Editor",
+    "space": "NLA_EDITOR",
+    "region": "WINDOW",
+    "idname": "nla.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Sequencer",
+    "space": "SEQUENCE_EDITOR",
+    "region": "WINDOW",
+    "idname": "sequencer.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Clip Editor",
+    "space": "CLIP_EDITOR",
+    "region": "WINDOW",
+    "idname": "wm.context_toggle",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "data_path": "'space_data.show_disabled'"
+    }
+   }
+  ],
+  "phases": {
+   "native": {
+    "ui_user": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "anim.driver_button_remove",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "ui_active": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "anim.driver_button_remove",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "empty": [
+     {
+      "label": "view3d",
+      "want": "Object Mode",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Object Mode"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 0,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     },
+     {
+      "label": "outliner",
+      "want": "Outliner",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     },
+     {
+      "label": "node",
+      "want": "Node Editor",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     },
+     {
+      "label": "clip_clip",
+      "want": "Clip Editor",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": []
+     },
+     {
+      "label": "clip_graph",
+      "want": "Clip Graph Editor",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": []
+     },
+     {
+      "label": "clip_mask",
+      "want": "Mask Editing",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": []
+     },
+     {
+      "label": "files",
+      "want": "File Browser Main",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     },
+     {
+      "label": "info",
+      "want": "Info",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     },
+     {
+      "label": "channels",
+      "want": "Animation Channels",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     }
+    ],
+    "driven": [
+     {
+      "label": "sidebar_loc_x",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "wrapper": [],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ]
+     },
+     {
+      "label": "sidebar_undriven_rz",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "wrapper": [],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ]
+     },
+     {
+      "label": "node_socket_roughness",
+      "drivers_before": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "drivers_after": [],
+      "hits": [],
+      "wrapper": [],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ]
+     }
+    ]
+   },
+   "wrapper_ahead": {
+    "ui_user": [
+     {
+      "idname": "mesospike.driver_remove_pass",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     },
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "anim.driver_button_remove",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "ui_active": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "anim.driver_button_remove",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "empty": [
+     {
+      "label": "view3d",
+      "want": "Object Mode",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Object Mode"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 0,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     },
+     {
+      "label": "outliner",
+      "want": "Outliner",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 24.01,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "OUTLINER"
+       }
+      ]
+     },
+     {
+      "label": "node",
+      "want": "Node Editor",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 25.061,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "ShaderNodeTree"
+       }
+      ]
+     },
+     {
+      "label": "clip_clip",
+      "want": "Clip Editor",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": [
+       {
+        "t": 26.611,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "CLIP_EDITOR"
+       }
+      ]
+     },
+     {
+      "label": "clip_graph",
+      "want": "Clip Graph Editor",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": [
+       {
+        "t": 28.162,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "PREVIEW",
+        "area": "CLIP_EDITOR"
+       }
+      ]
+     },
+     {
+      "label": "clip_mask",
+      "want": "Mask Editing",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": [
+       {
+        "t": 29.711,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "CLIP_EDITOR"
+       }
+      ]
+     },
+     {
+      "label": "files",
+      "want": "File Browser Main",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 30.76,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "FILES"
+       }
+      ]
+     },
+     {
+      "label": "info",
+      "want": "Info",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 31.81,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "INFO"
+       }
+      ]
+     },
+     {
+      "label": "channels",
+      "want": "Animation Channels",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "reached": false,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 32.861,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "CHANNELS",
+        "area": "FCURVES"
+       }
+      ]
+     }
+    ],
+    "driven": [
+     {
+      "label": "sidebar_loc_x",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 34.498,
+        "result": [
+         "FINISHED"
+        ],
+        "property": [
+         "bpy.data.objects['Cube']",
+         "location",
+         0
+        ],
+        "region": "UI",
+        "area": "VIEW_3D"
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": []
+     },
+     {
+      "label": "sidebar_undriven_rz",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 36.66,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         "bpy.data.objects['Cube']",
+         "rotation_euler",
+         2
+        ],
+        "region": "UI",
+        "area": "VIEW_3D"
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": []
+     },
+     {
+      "label": "node_socket_roughness",
+      "drivers_before": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "drivers_after": [],
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 39.194,
+        "result": [
+         "FINISHED"
+        ],
+        "property": [
+         "bpy.data.materials['Material'].node_tree",
+         "nodes[\"Principled BSDF\"].inputs[2].default_value",
+         -1
+        ],
+        "region": "UI",
+        "area": "ShaderNodeTree"
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": []
+     }
+    ]
+   },
+   "wrapper_replaces": {
+    "ui_user": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "mesospike.driver_remove_pass",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "ui_active": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "mesospike.driver_remove_pass",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "empty": [
+     {
+      "label": "view3d",
+      "want": "Object Mode",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Object Mode"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 0,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": []
+     },
+     {
+      "label": "outliner",
+      "want": "Outliner",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Outliner"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 0,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 42.833,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "OUTLINER"
+       }
+      ]
+     },
+     {
+      "label": "node",
+      "want": "Node Editor",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Node Editor"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 0,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 43.884,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "ShaderNodeTree"
+       }
+      ]
+     },
+     {
+      "label": "clip_clip",
+      "want": "Clip Editor",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Clip Editor"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 0,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": [
+       {
+        "t": 45.434,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "CLIP_EDITOR"
+       }
+      ]
+     },
+     {
+      "label": "clip_graph",
+      "want": "Clip Graph Editor",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Clip Graph Editor",
+       "Window"
+      ],
+      "reached": true,
+      "window_reached": true,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": [
+       {
+        "t": 46.986,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "PREVIEW",
+        "area": "CLIP_EDITOR"
+       }
+      ]
+     },
+     {
+      "label": "clip_mask",
+      "want": "Mask Editing",
+      "show_disabled_before": true,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Mask Editing"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": true,
+      "wrapper": [
+       {
+        "t": 48.535,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "CLIP_EDITOR"
+       }
+      ]
+     },
+     {
+      "label": "files",
+      "want": "File Browser Main",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "File Browser Main"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 49.584,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "FILES"
+       }
+      ]
+     },
+     {
+      "label": "info",
+      "want": "Info",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Info"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 50.635,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "WINDOW",
+        "area": "INFO"
+       }
+      ]
+     },
+     {
+      "label": "channels",
+      "want": "Animation Channels",
+      "show_disabled_before": null,
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Animation Channels"
+      ],
+      "reached": true,
+      "window_reached": false,
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 0
+      },
+      "show_disabled_after": null,
+      "wrapper": [
+       {
+        "t": 51.686,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         null,
+         null,
+         null
+        ],
+        "region": "CHANNELS",
+        "area": "FCURVES"
+       }
+      ]
+     }
+    ],
+    "driven": [
+     {
+      "label": "sidebar_loc_x",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 53.284,
+        "result": [
+         "FINISHED"
+        ],
+        "property": [
+         "bpy.data.objects['Cube']",
+         "location",
+         0
+        ],
+        "region": "UI",
+        "area": "VIEW_3D"
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": []
+     },
+     {
+      "label": "sidebar_undriven_rz",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Window"
+      ],
+      "wrapper": [
+       {
+        "t": 55.458,
+        "result": [
+         "CANCELLED"
+        ],
+        "property": [
+         "bpy.data.objects['Cube']",
+         "rotation_euler",
+         2
+        ],
+        "region": "UI",
+        "area": "VIEW_3D"
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": []
+     },
+     {
+      "label": "node_socket_roughness",
+      "drivers_before": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "drivers_after": [],
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 57.986,
+        "result": [
+         "FINISHED"
+        ],
+        "property": [
+         "bpy.data.materials['Material'].node_tree",
+         "nodes[\"Principled BSDF\"].inputs[2].default_value",
+         -1
+        ],
+        "region": "UI",
+        "area": "ShaderNodeTree"
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": []
+     }
+    ]
+   },
+   "driver_remove_pass_undo": {
+    "ui_user": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "mesospike.driver_remove_pass_undo",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "ui_active": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "mesospike.driver_remove_pass_undo",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "empty": [],
+    "driven": [
+     {
+      "label": "sidebar_loc_x",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 60.79,
+        "variant": "undo_flag",
+        "result": [
+         "FINISHED"
+        ]
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ]
+     },
+     {
+      "label": "sidebar_undriven_rz",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Window"
+      ],
+      "wrapper": [
+       {
+        "t": 62.991,
+        "variant": "undo_flag",
+        "result": [
+         "CANCELLED"
+        ]
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ]
+     },
+     {
+      "label": "node_socket_roughness",
+      "drivers_before": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "drivers_after": [],
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 65.537,
+        "variant": "undo_flag",
+        "result": [
+         "FINISHED"
+        ]
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ]
+     }
+    ]
+   },
+   "driver_remove_pass_nested": {
+    "ui_user": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "mesospike.driver_remove_pass_nested",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "ui_active": [
+     {
+      "idname": "anim.driver_button_add",
+      "active": true,
+      "alt": 0,
+      "type": "D"
+     },
+     {
+      "idname": "mesospike.driver_remove_pass_nested",
+      "active": true,
+      "alt": 1,
+      "type": "D"
+     }
+    ],
+    "empty": [],
+    "driven": [
+     {
+      "label": "sidebar_loc_x",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 68.326,
+        "variant": "nested_undo",
+        "result": [
+         "FINISHED"
+        ]
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ]
+     },
+     {
+      "label": "sidebar_undriven_rz",
+      "drivers_before": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_before": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "drivers_after": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "sel_after": {
+       "objects": 3,
+       "nodes": 2,
+       "tracks": 1,
+       "fcurves": 3
+      },
+      "hits": [
+       "Window"
+      ],
+      "wrapper": [
+       {
+        "t": 70.526,
+        "variant": "nested_undo",
+        "result": [
+         "CANCELLED"
+        ]
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "location",
+        0
+       ],
+       [
+        "location",
+        1
+       ]
+      ]
+     },
+     {
+      "label": "node_socket_roughness",
+      "drivers_before": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "drivers_after": [],
+      "hits": [],
+      "wrapper": [
+       {
+        "t": 73.055,
+        "variant": "nested_undo",
+        "result": [
+         "FINISHED"
+        ]
+       }
+      ],
+      "undo": [
+       "FINISHED"
+      ],
+      "drivers_after_undo": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ],
+      "redo": [
+       "FINISHED"
+      ],
+      "drivers_after_redo": [],
+      "undo2": [
+       "FINISHED"
+      ],
+      "drivers_after_undo2": [
+       [
+        "nodes[\"Principled BSDF\"].inputs[2].default_value",
+        0
+       ]
+      ]
+     }
+    ]
+   }
+  },
+  "errors": [],
+  "audit_wrapper": [
+   {
+    "keymap": "Window",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Window'"
+    }
+   },
+   {
+    "keymap": "User Interface",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mesospike.driver_remove_pass",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {}
+   },
+   {
+    "keymap": "Outliner",
+    "space": "OUTLINER",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Outliner'"
+    }
+   },
+   {
+    "keymap": "Outliner",
+    "space": "OUTLINER",
+    "region": "WINDOW",
+    "idname": "outliner.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Markers",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "marker.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Dopesheet",
+    "space": "DOPESHEET_EDITOR",
+    "region": "WINDOW",
+    "idname": "action.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Paint Face Mask (Weight, Vertex, Texture)",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "paint.face_select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Paint Vertex Selection (Weight, Vertex)",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "paint.vert_select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Pose",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "pose.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Object Mode",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Object Mode'"
+    }
+   },
+   {
+    "keymap": "Object Mode",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "object.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Curve",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "curve.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Curves",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "curves.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Mesh",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mesh.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Armature",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "armature.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Metaball",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mball.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Lattice",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "lattice.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Particle",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "particle.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Point Cloud",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "pointcloud.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Sculpt Curves",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "curves.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Grease Pencil Selection",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "grease_pencil.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Animation Channels",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Animation Channels'"
+    }
+   },
+   {
+    "keymap": "Animation Channels",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "anim.channels_select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "UV Editor",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "uv.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Mask Editing",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Mask Editing'"
+    }
+   },
+   {
+    "keymap": "Mask Editing",
+    "space": "EMPTY",
+    "region": "WINDOW",
+    "idname": "mask.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Graph Editor",
+    "space": "GRAPH_EDITOR",
+    "region": "WINDOW",
+    "idname": "graph.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Node Editor",
+    "space": "NODE_EDITOR",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Node Editor'"
+    }
+   },
+   {
+    "keymap": "Node Editor",
+    "space": "NODE_EDITOR",
+    "region": "WINDOW",
+    "idname": "node.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Info",
+    "space": "INFO",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Info'"
+    }
+   },
+   {
+    "keymap": "Info",
+    "space": "INFO",
+    "region": "WINDOW",
+    "idname": "info.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "File Browser Main",
+    "space": "FILE_BROWSER",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'File Browser Main'"
+    }
+   },
+   {
+    "keymap": "File Browser Main",
+    "space": "FILE_BROWSER",
+    "region": "WINDOW",
+    "idname": "file.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "NLA Editor",
+    "space": "NLA_EDITOR",
+    "region": "WINDOW",
+    "idname": "nla.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Sequencer",
+    "space": "SEQUENCE_EDITOR",
+    "region": "WINDOW",
+    "idname": "sequencer.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Clip Editor",
+    "space": "CLIP_EDITOR",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Clip Editor'"
+    }
+   },
+   {
+    "keymap": "Clip Editor",
+    "space": "CLIP_EDITOR",
+    "region": "WINDOW",
+    "idname": "clip.select_all",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "action": "'DESELECT'"
+    }
+   },
+   {
+    "keymap": "Clip Editor",
+    "space": "CLIP_EDITOR",
+    "region": "WINDOW",
+    "idname": "wm.context_toggle",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "data_path": "'space_data.show_disabled'"
+    }
+   },
+   {
+    "keymap": "Clip Graph Editor",
+    "space": "CLIP_EDITOR",
+    "region": "WINDOW",
+    "idname": "mesospike.alt_d_probe",
+    "value": "PRESS",
+    "any": false,
+    "key_modifier": "NONE",
+    "props": {
+     "tag": "'Clip Graph Editor'"
+    }
+   }
+  ]
+ },
+ "stats": {
+  "first_repeat_after_transform_end_long_holds": {
+   "n": 60,
+   "max": 0.069,
+   "median": 0.01
+  },
+  "short_hold_first_repeat": [
+   {
+    "case": "short_fast_3drags",
+    "transform_end_after_press": 0.427,
+    "first_repeat_after_press": 0.603
+   },
+   {
+    "case": "short_fast_3drags",
+    "transform_end_after_press": 0.43,
+    "first_repeat_after_press": 0.604
+   },
+   {
+    "case": "short_fast_3drags",
+    "transform_end_after_press": 0.403,
+    "first_repeat_after_press": 0.629
+   },
+   {
+    "case": "short_fast_3drags",
+    "transform_end_after_press": 0.461,
+    "first_repeat_after_press": 0.603
+   }
+  ],
+  "repeat_interval_outside_transforms": {
+   "n": 1925,
+   "min": 0.004,
+   "max": 0.111,
+   "median": 0.041,
+   "p99": 0.052
+  }
+ }
+}
