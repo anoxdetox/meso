@@ -42,18 +42,48 @@ the GUI suite needs Linux (a nested KWin session).
 Help is welcome here: runners and GUI tests for Windows and macOS (an isolated session the tests
 can drive without touching your desktop) would let the suite cover every platform.
 
+With GNU make (Linux, macOS), `make` lists the targets:
+```
+make test-unit      # pure tests (no Blender)
+make test           # headless Blender tests; make test K=pattern for a subset
+make test-render    # offscreen renderer tests on Vulkan and OpenGL
+make validate       # extension validate on src/meso
+make build          # dist/meso-<version>.zip
+make check          # validate the zip, list its content, install it into a temporary
+                    #   extensions folder and enable / disable it headless
+make all            # test-unit test validate build check
+make gui            # GUI suite (Linux, nested session); make gui GUI_ARGS="--only a,b"
+make persist        # Meso Keymap restart check (Linux, nested session)
+make profile        # timings of the Plaza's hot paths (headless)
+make dev-link       # link src/meso into $MESO_EXTENSIONS_DIR
+make clean          # remove dist/ and __pycache__
+make release        # print the release checklist
+```
+Without make (Windows, or to run one step by hand), the same commands:
 ```
 . tools/env.sh      # B = blender on PATH (or set B=/path/to/blender in an untracked local.env), PY = its Python
 bl() { ( prlimit --core=1 --pid $BASHPID 2>/dev/null || ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
 
 $PY -m unittest discover -s tests/unit -t .                            # pure tests (no bpy)
 bl -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
+bl -b --gpu-backend vulkan --factory-startup --python-exit-code 1 --python tests/run_tests.py -- -k test_render_offscreen
 bl --command extension validate src/meso
 BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 700 tests/gui/run_gui_tests.sh
 BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 400 tests/gui/run_persist_check.sh
 bl --command extension build --source-dir src/meso --output-dir dist
+bl --command extension validate dist/meso-<version>.zip
+$PY tools/check_zip.py dist/meso-<version>.zip --version <version>     # list what went into the zip
 python3 tools/dev_link.py [--remove]                                    # link src/meso into $MESO_EXTENSIONS_DIR
 ```
+On top of that, `make check` installs the zip (`extension install-file -r user_default -e`)
+into a temporary extensions folder and starts Blender headless on it: the add-on must be
+enabled, and must unregister and register again without an error. Built zips go to `dist/`,
+which git ignores.
+
+The README animation: `make gui GUI_ARGS="--only gif"` saves its frames (that scenario runs
+only when asked for), then `python3 tools/make_gif.py` turns them into `docs/images/meso.gif`
+with ffmpeg (at most 800 px wide, 12 fps) and prints its size. Keep it under 2 MB.
+
 Every Blender launch uses fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` directories
 and no core crash reports (a core limit of 1 byte, so a test crash never reaches your desktop's
 crash reporter), so tests never touch your real Blender config.
