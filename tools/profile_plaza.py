@@ -34,7 +34,8 @@ Steps (each timed N times after ``--warmup`` untimed runs; milliseconds):
   cached: the model in the session cache), split into build (``_build_root``) and place
   (``core.dropdown_geometry.fit_panel``). ``tool cascade``: the same for the Tool Settings
   row cascades. Without ``--detail`` the labels are pooled per group and the slowest label
-  (by median) is named in the notes.
+  (by median) is named in the notes. ``after an in-place change``: the models invalidated
+  but the session's shortcut memo kept (what a re-open after a toggle costs).
 - ``compass``: every default zone slot (``core.zones.DEFAULT_SLOTS``): ``record.compass.
   build_compass`` + ``core.compass.place_compass`` (build + place, as ``ops.compass._try_open``
   does), and ``_try_open`` end to end for the centre box LMB (``meso:views``).
@@ -622,7 +623,7 @@ class Profiler:
         dd, ddg = _mod("ops.dropdowns"), _mod("core.dropdown_geometry")
         rec_dd, recorder = _mod("record.dropdown"), _mod("record.recorder")
         session = state.menus
-        cold, warm = {}, {}
+        cold, changed, warm = {}, {}, {}
         part_names = ('build', 'place', 'record_menu', 'record_panel', 'child panel walks',
                       'shortcut lookups', 'operator polls')
         parts_of = {name: {} for name in part_names}
@@ -643,8 +644,14 @@ class Profiler:
                 session.cache.shortcuts_off = False
                 del session.opened[:], session.opened_by[:]
 
-            def open_cold():
+            def invalidate_all():
+                # A fresh session: no model, no coverage and no shortcut memo (Phase 7
+                # ``DropdownCache.shortcuts``, which an in-place change keeps).
                 session.cache.invalidate()
+                getattr(session.cache, 'shortcuts', {}).clear()
+
+            def open_cold():
+                invalidate_all()
                 reset()
                 dd._open_dropdown(state, bpy.context, label)
                 ok = bool(session.models)
@@ -655,7 +662,7 @@ class Profiler:
                 continue            # native / empty here: no custom dropdown to time
 
             def cold_once():
-                session.cache.invalidate()
+                invalidate_all()
                 reset()
                 t0 = perf()
                 dd._open_dropdown(state, bpy.context, label)
@@ -670,12 +677,22 @@ class Profiler:
                 dd._open_dropdown(state, bpy.context, label)
                 return perf() - t0
 
+            def changed_once():
+                # Re-opened after an in-place change (``refresh_after_change`` invalidates
+                # the models; the session's shortcut memo stays).
+                session.cache.invalidate()
+                reset()
+                t0 = perf()
+                dd._open_dropdown(state, bpy.context, label)
+                return perf() - t0
+
             cold[label] = time_runs(cold_once, self.args.runs, self.args.warmup)
             self._maybe_cprofile(ctx, f"{group} open (cold)", cold_once)
             parts = probed_runs(cold_once, probe, self.args.runs, 0)
             for name in part_names:
                 parts_of[name][label] = parts[name][0]
                 calls_of[name].extend(parts[name][1])
+            changed[label] = time_runs(changed_once, self.args.runs, self.args.warmup)
             reset()
             dd._open_dropdown(state, bpy.context, label)          # fill the cache
             warm[label] = time_runs(warm_once, self.args.runs, self.args.warmup)
@@ -691,6 +708,7 @@ class Profiler:
             else:
                 pooled = [s for samples in per.values() for s in samples]
                 self.add(ctx, f"{group} >   {name}", pooled, calls=calls_of[name])
+        self.grouped(ctx, f"{group} open (after an in-place change)", changed)
         self.grouped(ctx, f"{group} open (cached model)", warm)
 
     def step_dropdowns(self, ctx, state):

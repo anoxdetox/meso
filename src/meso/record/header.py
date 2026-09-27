@@ -321,7 +321,12 @@ def _in_screen(window: Any, area: Any) -> bool:
 def record_area(context: Any, window: Any, area: Any | None) -> HeaderRecordings:
     """All header recordings of ``area`` (None / a bar -> an empty HeaderRecordings with
     ``area_type`` None or the bar type). Uses only ``context.screen``'s own areas. Never
-    raises."""
+    raises. Runs in one ``recorder.record_scope`` (shared panel index / operator RNA)."""
+    with recorder.record_scope():
+        return _record_area(context, window, area)
+
+
+def _record_area(context: Any, window: Any, area: Any | None) -> HeaderRecordings:
     if area is None:
         return HeaderRecordings(None, None)
     try:

@@ -58,7 +58,7 @@ from ..core.tap import (TapCommand, effective_tap_action, is_tap, paint_mode_key
                         resolve_tap_action)
 from ..core.timing import TimingStats
 from ..core.zones import style_parts
-from ..record import rows
+from ..record import recorder, rows
 from ..view import renderer, theme
 from ..view.draw_manager import HandlerSet
 from . import dropdowns, invoke
@@ -399,11 +399,14 @@ def _build_content(state: PlazaState, context, region, addon_prefs) -> None:
     """
     window, area = state.window, state.area
     press = state.press if state.press is not None else state.anchor
-    state.model = rows.build_model(
-        context, rows.InvokeInfo(window, area, region, state.area_type, state.area_ui_type,
-                                 state.context_mode), addon_prefs)
-    # Phase 4: pref snapshots + row-menu classification (native '…' labels are measured).
-    state.menus = dropdowns.start_session(state, context, addon_prefs)
+    # Phase 7: the header recording and the row-menu classification share one recording
+    # scope (panel index, operator RNA); nothing of it outlives this block.
+    with recorder.record_scope():
+        state.model = rows.build_model(
+            context, rows.InvokeInfo(window, area, region, state.area_type,
+                                     state.area_ui_type, state.context_mode), addon_prefs)
+        # Phase 4: pref snapshots + row-menu classification (native '…' labels are measured).
+        state.menus = dropdowns.start_session(state, context, addon_prefs)
     preferences = context.preferences
     metrics = geometry.metrics_for(preferences.system.ui_scale,
                                    preferences.ui_styles[0].widget.points,

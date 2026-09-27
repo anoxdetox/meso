@@ -82,6 +82,12 @@ data (``core.model``).
 
 Re-record on every invoke; never cache (5 ms for the whole VIEW3D tree). Never call a real
 ``popup``/``popover`` here, never ``temp_override(screen=<other>)``.
+
+Phase 7 performance: :func:`record_scope` memoizes, for ONE recording operation (an invoke's
+content, one dropdown / cascade build, one refresh), the registered Panel classes and their
+children by parent (:class:`PanelIndex`: one subclass walk instead of one per popover group
+and per child panel lookup) and the operator RNA types (shared by every recording of it).
+Nothing outlives the outermost ``with``; ``poll`` still runs on every call.
 """
 
 from __future__ import annotations
@@ -90,6 +96,7 @@ import inspect
 import itertools
 import types
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -684,7 +691,9 @@ class _Shared:
         self.section = 0
         self.pending: list[tuple[Record, FakeLayout, PropsProxy | None]] = []
         self.menu_stack: list[str] = []
-        self.op_dirs: dict[str, Any] = {}
+        # Operator RNA per idname: the record_scope's when one is open (shared by every
+        # recording of the operation), else this recording's own.
+        self.op_dirs: dict[str, Any] = _scope.op_rna if _scope is not None else {}
 
 
 def _kw(fname: str, values: dict[str, Any]) -> dict[str, Any]:
@@ -1366,21 +1375,91 @@ def _run_draw(cls: type, fake: FakeSelf, context: Any, layout: FakeLayout,
                 pass
 
 
-def _iter_panel_classes() -> Iterator[type]:
-    """Registered Panel classes, in class-creation order (subclass walk, deduplicated)."""
+def _iter_panel_classes() -> list[type]:
+    """Registered Panel classes, in class-creation order (depth-first subclass walk,
+    deduplicated; only classes that carry their own ``bl_rna``)."""
     seen: set[type] = set()
-    stack = list(reversed(bpy.types.Panel.__subclasses__()))
+    stack = bpy.types.Panel.__subclasses__()[::-1]
     ordered: list[type] = []
+    pop, visit, keep, push = stack.pop, seen.add, ordered.append, stack.extend
     while stack:
-        cls = stack.pop()
+        cls = pop()
         if cls in seen:
             continue
-        seen.add(cls)
-        ordered.append(cls)
-        stack.extend(reversed(cls.__subclasses__()))
-    for cls in ordered:
+        visit(cls)
         if 'bl_rna' in cls.__dict__:
-            yield cls
+            keep(cls)
+        subclasses = cls.__subclasses__()
+        if subclasses:
+            push(subclasses[::-1])
+    return ordered
+
+
+class PanelIndex:
+    """One walk of :func:`_iter_panel_classes` (``classes``, creation order: the walk is
+    most of a lookup's cost, about 0.25 ms for the factory classes, a filter over the list
+    about 0.03 ms) and ``children(parent_idname)``: the panels whose ``bl_parent_id`` is
+    it, by (bl_order, creation), memoized per parent. The same answers as a walk per lookup
+    while no class (un)registers: kept by :func:`record_scope` for one recording operation
+    only."""
+
+    __slots__ = ('classes', '_children')
+
+    def __init__(self) -> None:
+        self.classes: list[type] = _iter_panel_classes()
+        self._children: dict[str, list[type]] = {}
+
+    def children(self, idname: str) -> list[type]:
+        found = self._children.get(idname)
+        if found is None:
+            found = [cls for cls in self.classes if getattr(cls, 'bl_parent_id', '') == idname]
+            found.sort(key=lambda c: getattr(c, 'bl_order', 0) or 0)
+            self._children[idname] = found
+        return list(found)
+
+
+class _Scope:
+    """What :func:`record_scope` keeps for one recording operation."""
+
+    __slots__ = ('panels', 'op_rna')
+
+    def __init__(self) -> None:
+        self.panels: PanelIndex | None = None       # built on first use
+        self.op_rna: dict[str, Any] = {}
+
+
+_scope: _Scope | None = None
+
+
+@contextmanager
+def record_scope() -> Iterator[None]:
+    """Share the panel index and the operator RNA lookups between the recordings made inside
+    (reentrant: an inner ``with`` joins the outer scope; everything is dropped when the
+    outermost one exits). Wrap one recording operation only, never a whole modal session:
+    an operator run in between (an in-place apply) may register classes."""
+    global _scope
+    outer = _scope
+    if outer is None:
+        _scope = _Scope()
+    try:
+        yield
+    finally:
+        if outer is None:
+            _scope = None
+
+
+def _panel_index() -> PanelIndex | None:
+    """The open scope's panel index (built on first use), None outside a scope or when
+    building it raised (callers then walk the classes themselves)."""
+    scope = _scope
+    if scope is None:
+        return None
+    if scope.panels is None:
+        try:
+            scope.panels = PanelIndex()
+        except Exception:
+            return None
+    return scope.panels
 
 
 def popover_group_panels(context: Any, space_type: str, region_type: str, context_str: str,
@@ -1388,10 +1467,12 @@ def popover_group_panels(context: Any, space_type: str, region_type: str, contex
     """Root panel idnames matching ``(bl_space_type, bl_region_type, bl_context,
     bl_category)`` (no ``bl_parent_id``), in registration order, whose ``poll`` passes
     (poll exceptions -> excluded). An empty ``category`` matches every category, like
-    uiItemPopoverPanelFromGroup. E.g. ``.sculpt_mode`` -> VIEW3D_PT_sculpt_dyntopo, ..."""
+    uiItemPopoverPanelFromGroup. E.g. ``.sculpt_mode`` -> VIEW3D_PT_sculpt_dyntopo, ...
+    Inside a :func:`record_scope` the classes come from its :class:`PanelIndex`."""
     out: list[str] = []
     try:
-        for cls in _iter_panel_classes():
+        index = _panel_index()
+        for cls in (index.classes if index is not None else _iter_panel_classes()):
             if (getattr(cls, 'bl_space_type', '') != space_type
                     or getattr(cls, 'bl_region_type', '') != region_type
                     or getattr(cls, 'bl_context', '') != context_str
@@ -1407,7 +1488,11 @@ def popover_group_panels(context: Any, space_type: str, region_type: str, contex
 
 
 def _child_panels(idname: str) -> list[type]:
-    """Registered panels whose ``bl_parent_id`` is ``idname``, by (bl_order, creation)."""
+    """Registered panels whose ``bl_parent_id`` is ``idname``, by (bl_order, creation)
+    (from the :func:`record_scope` index when one is open)."""
+    index = _panel_index()
+    if index is not None:
+        return index.children(idname)
     children = [cls for cls in _iter_panel_classes()
                 if getattr(cls, 'bl_parent_id', '') == idname]
     children.sort(key=lambda c: getattr(c, 'bl_order', 0) or 0)
@@ -1504,16 +1589,18 @@ def record_panel(panel: str | type, context: Any, *, subpanels: bool = True,
             return Recording(panel, DRAW_PANEL, errors=[f'{panel}: not a registered Panel'])
     else:
         cls = panel
-    recording = record_draw(cls, context, kind=DRAW_PANEL, call_poll=call_poll)
-    if subpanels and recording.poll is not False:
-        try:
-            layout = FakeLayout(recording, None, CTX_HEADER_ROOT, context=context)
-            _record_subpanels(recording.source, context, layout, (recording.source,))
-            layout._finalize()
-        except Exception as ex:
-            recording.partial = True
-            recording.errors.append(f'{recording.source}: subpanels: {type(ex).__name__}: {ex}')
-            recording.records.append(Record(REC_ERROR, error=recording.errors[-1]))
+    with record_scope():        # one panel index for the whole subpanel tree
+        recording = record_draw(cls, context, kind=DRAW_PANEL, call_poll=call_poll)
+        if subpanels and recording.poll is not False:
+            try:
+                layout = FakeLayout(recording, None, CTX_HEADER_ROOT, context=context)
+                _record_subpanels(recording.source, context, layout, (recording.source,))
+                layout._finalize()
+            except Exception as ex:
+                recording.partial = True
+                recording.errors.append(
+                    f'{recording.source}: subpanels: {type(ex).__name__}: {ex}')
+                recording.records.append(Record(REC_ERROR, error=recording.errors[-1]))
     return recording
 
 

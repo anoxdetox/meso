@@ -54,7 +54,7 @@ make check          # validate the zip, list its content, install it into a temp
 make all            # test-unit test validate build check
 make gui            # GUI suite (Linux, nested session); make gui GUI_ARGS="--only a,b"
 make persist        # Meso Keymap restart check (Linux, nested session)
-make profile        # timings of the Plaza's hot paths (headless)
+make profile        # timings of the Plaza's hot paths (headless); PROFILE_ARGS="-n 50 --only object"
 make dev-link       # link src/meso into $MESO_EXTENSIONS_DIR
 make clean          # remove dist/ and __pycache__
 make release        # print the release checklist
@@ -68,6 +68,7 @@ $PY -m unittest discover -s tests/unit -t .                            # pure te
 bl -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 bl -b --gpu-backend vulkan --factory-startup --python-exit-code 1 --python tests/run_tests.py -- -k test_render_offscreen
 bl --command extension validate src/meso
+bl -b --factory-startup --python-exit-code 1 --python tools/profile_plaza.py -- [-n 50] [--only object]  # timings (printed, never stored)
 BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 700 tests/gui/run_gui_tests.sh
 BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 400 tests/gui/run_persist_check.sh
 bl --command extension build --source-dir src/meso --output-dir dist

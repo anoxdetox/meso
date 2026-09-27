@@ -231,6 +231,10 @@ class DropdownCache:
     operator_context): COVERAGE_*}`` from :func:`menu_coverage` (a submenu classified before
     it is opened). ``builds`` / ``hits``: counters for tests and ``last_session``.
     ``shortcuts_off``: set once a shortcut lookup blew :data:`SHORTCUT_BUDGET`.
+    ``shortcuts``: Phase 7 memo of the shortcut hints looked up this session, ``{(operator,
+    props, area type, mode, keyconfig): text}`` (:func:`shortcut_key`); :meth:`invalidate`
+    keeps it (an in-place change never edits a keymap, and the mode is part of the key);
+    it goes with the session.
     """
 
     models: dict[CacheKey, DropdownModel] = field(default_factory=dict)
@@ -238,6 +242,7 @@ class DropdownCache:
     builds: int = 0
     hits: int = 0
     shortcuts_off: bool = False
+    shortcuts: dict[tuple[Any, ...], str] = field(default_factory=dict)
 
     def get(self, menu_id: str,
             operator_context: str = DROPDOWN_OPERATOR_CONTEXT) -> DropdownModel | None:
@@ -362,7 +367,11 @@ def _keymap_names(context: Any) -> list[str]:
     return names + list(_GLOBAL_KEYMAPS)
 
 
-def _find_shortcut(context: Any, op_idname: str, props: dict[str, Any]) -> str:
+def _find_shortcut(context: Any, op_idname: str, props: dict[str, Any],
+                   km_ids: dict[str, Any] | None = None) -> str:
+    """See :func:`shortcut_hint`. ``km_ids``: a per-conversion memo ``{keymap name:
+    frozenset(keymap_items.keys())}`` (the idnames, one C call per keymap): a keymap
+    without ``op_idname`` is skipped without reading its items one by one (same result)."""
     wm = context.window_manager
     keyconfigs = wm.keyconfigs
     try:
@@ -382,20 +391,62 @@ def _find_shortcut(context: Any, op_idname: str, props: dict[str, Any]) -> str:
         km = keymaps.get(name)
         if km is None:
             continue
-        for kmi in km.keymap_items:
+        items = km.keymap_items
+        if km_ids is not None:
+            if name not in km_ids:
+                try:
+                    km_ids[name] = frozenset(items.keys())
+                except Exception:
+                    km_ids[name] = None
+            ids = km_ids[name]
+            if ids is not None and op_idname not in ids:
+                continue
+        for kmi in items:
             if kmi.idname == op_idname and _kmi_matches(kmi, op_idname, props):
                 return kmi.to_string()
     return ''
 
 
-def _timed_shortcut(context: Any, op_idname: str,
-                    props: dict[str, Any] | None) -> tuple[str, float]:
+def _timed_shortcut(context: Any, op_idname: str, props: dict[str, Any] | None,
+                    km_ids: dict[str, Any] | None = None) -> tuple[str, float]:
     start = time.perf_counter()
     try:
-        text = _find_shortcut(context, op_idname, dict(props or {}))
+        text = _find_shortcut(context, op_idname, dict(props or {}), km_ids)
     except Exception:
         text = ''
     return text, time.perf_counter() - start
+
+
+def _props_key(props: dict[str, Any]) -> tuple[Any, ...] | None:
+    """A hashable form of operator props for :func:`shortcut_key` (each value with its type
+    name: :func:`_kmi_matches` compares sets and tuples differently); None when a value is
+    not hashable (never memoized)."""
+    try:
+        out = []
+        for name in sorted(props):
+            value = props[name]
+            frozen = frozenset(value) if isinstance(value, (set, frozenset)) else value
+            hash(frozen)
+            out.append((name, type(value).__name__, frozen))
+        return tuple(out)
+    except Exception:
+        return None
+
+
+def shortcut_key(context: Any, op_idname: str,
+                 props: dict[str, Any] | None) -> tuple[Any, ...] | None:
+    """The :attr:`DropdownCache.shortcuts` key of a lookup: operator, props, area type,
+    ``context.mode`` and the active keyconfig name (what the lookup reads besides the
+    keymaps themselves). None: not memoizable."""
+    pkey = _props_key(dict(props or {}))
+    if pkey is None:
+        return None
+    try:
+        keyconfig = context.window_manager.keyconfigs.active
+        kc_name = keyconfig.name if keyconfig is not None else ''
+    except Exception:
+        kc_name = ''
+    return (op_idname, pkey, _area_type(context), getattr(context, 'mode', ''), kc_name)
 
 
 def shortcut_hint(context: Any, op_idname: str, props: dict[str, Any] | None = None) -> str:
@@ -415,13 +466,17 @@ def _op_rna(op_idname: str) -> Any:
     """``get_rna_type()`` of an operator, None when it does not exist (the stub of a missing
     operator raises KeyError there: about 2 µs, where ``dir(bpy.ops.<mod>)`` lists every
     operator, about 1 ms)."""
+    scope = recorder._scope        # shared for one recording operation (record_scope)
+    if scope is not None and op_idname in scope.op_rna:
+        return scope.op_rna[op_idname]
     try:
         mod, _, name = op_idname.partition('.')
-        if not mod or not name:
-            return None
-        return getattr(getattr(bpy.ops, mod), name).get_rna_type()
+        rna = getattr(getattr(bpy.ops, mod), name).get_rna_type() if mod and name else None
     except Exception:
-        return None
+        rna = None
+    if scope is not None:
+        scope.op_rna[op_idname] = rna
+    return rna
 
 
 def _op_poll(op_idname: str, operator_context: str) -> bool:
@@ -577,12 +632,19 @@ class Converter:
     ``skip_paths``: data paths already listed by the caller (a popover's own enum).
     After :meth:`convert`: ``native_cause`` (non-empty -> COVERAGE_NATIVE), ``dynamic``
     (template names -> COVERAGE_MORE), ``shortcut_slow`` (a lookup blew the budget).
+    ``shortcut_memo``: the session's :attr:`DropdownCache.shortcuts` (None: no memo).
+    ``coverage_only`` (Phase 7, :func:`classify_menu`): only the coverage matters, so
+    operator and operator_menu_enum records become cheap placeholder items (one item each,
+    as the full conversion makes; no label, action, enum items or shortcut) and the
+    conversion stops at the first native cause (the one reported anyway).
     """
 
     def __init__(self, context: Any, *, native_action: Action | None, poll: bool = True,
                  show_shortcuts: bool = False,
                  child_coverage: Callable[[str], str] | None = None,
-                 panel: bool = False, skip_paths: frozenset[str] = frozenset()) -> None:
+                 panel: bool = False, skip_paths: frozenset[str] = frozenset(),
+                 shortcut_memo: dict[tuple[Any, ...], str] | None = None,
+                 coverage_only: bool = False) -> None:
         self.context = context
         self.native_action = native_action
         self.poll = poll
@@ -593,7 +655,10 @@ class Converter:
         self.native_cause = CAUSE_NONE
         self.dynamic: list[str] = []
         self.shortcut_slow = False
+        self.shortcut_memo = shortcut_memo
+        self.coverage_only = coverage_only
         self._polls: dict[tuple[str, str], bool] = {}
+        self._km_ids: dict[str, Any] = {}       # _find_shortcut's keymap idnames memo
         self._area_type = _area_type(context)
         self._prefer_seq = self._area_type == 'SEQUENCE_EDITOR'
 
@@ -628,12 +693,20 @@ class Converter:
     def _shortcut(self, op: str, props: dict[str, Any]) -> str:
         if not self.show_shortcuts or self.shortcut_slow:
             return ''
-        text, elapsed = _timed_shortcut(self.context, op, props)
+        memo = self.shortcut_memo
+        key = shortcut_key(self.context, op, props) if memo is not None else None
+        if key is not None:
+            found = memo.get(key)
+            if found is not None:
+                return found
+        text, elapsed = _timed_shortcut(self.context, op, props, self._km_ids)
         if elapsed > SHORTCUT_BUDGET:
             self.shortcut_slow = True
             _log_once('shortcut_budget', f"shortcut lookup took {elapsed * 1000:.2f} ms: "
                                          "shortcut hints are off for this session")
             return ''
+        if key is not None:
+            memo[key] = text
         return text
 
     def _path(self, owner: Any, prop: str) -> str | None:
@@ -674,6 +747,8 @@ class Converter:
                     continue
             items.extend(self._line(groups[index]))
             index += 1
+            if self.coverage_only and self.native_cause:
+                break           # NATIVE with this (first) cause whatever follows
         return normalise_separators(items)
 
     def _safe(self, rec: Record) -> list[DropdownItem]:
@@ -877,6 +952,10 @@ class Converter:
             return None
         if self._pointers(rec) and not self.panel:
             self._native(CAUSE_POINTER)
+        if self.coverage_only:
+            # Only the kind counts for the coverage (an operator record always yields one
+            # DD_OP here); the label, action, poll and shortcut are built when it opens.
+            return DropdownItem(DD_OP, rec.text or op, source=rec.kind)
         label = rec.text
         if not label:
             label = recorder._operator_label(_op_rna(op)) or op
@@ -948,6 +1027,10 @@ class Converter:
         return children
 
     def _operator_menu_enum(self, rec: Record) -> DropdownItem | None:
+        if self.coverage_only and self.native_action is not None:
+            # One item either way (a cascade, or the native hand-off without children):
+            # the enum items and their C itemf probe are left to the real build.
+            return DropdownItem(DD_NATIVE, rec.text or rec.operator, source=rec.kind)
         children = self._op_children(rec)
         label = rec.text or recorder._operator_label(_op_rna(rec.operator)) or rec.operator
         if not children:
@@ -1126,15 +1209,20 @@ def recording_coverage(recording: Any) -> tuple[str, str]:
 
 
 def convert_recording(recording: Any, context: Any, *, native_action: Any, poll: bool = True,
-                      show_shortcuts: bool = False, child_coverage: Any = None
+                      show_shortcuts: bool = False, child_coverage: Any = None,
+                      shortcut_memo: dict[tuple[Any, ...], str] | None = None,
+                      coverage_only: bool = False
                       ) -> tuple[list[DropdownItem], str, str, bool]:
     """:func:`dropdown_items` plus the coverage cause and whether a shortcut lookup blew
-    the budget: ``(items, coverage, cause, shortcut_slow)``."""
+    the budget: ``(items, coverage, cause, shortcut_slow)``. ``shortcut_memo`` /
+    ``coverage_only``: see :class:`Converter` (with ``coverage_only`` the items are
+    placeholders: only coverage and cause are meaningful)."""
     coverage, cause = recording_coverage(recording)
     if coverage == COVERAGE_NATIVE:
         return [], coverage, cause, False
     conv = Converter(context, native_action=native_action, poll=poll,
-                     show_shortcuts=show_shortcuts, child_coverage=child_coverage)
+                     show_shortcuts=show_shortcuts, child_coverage=child_coverage,
+                     shortcut_memo=shortcut_memo, coverage_only=coverage_only)
     items = conv.convert(recording.records)
     if conv.native_cause:
         return [], COVERAGE_NATIVE, conv.native_cause, conv.shortcut_slow
@@ -1199,7 +1287,8 @@ def classify_menu(context: Any, menu_id: str,
         if recording.errors and not recording.records:
             return COVERAGE_NATIVE, CAUSE_MISSING if recording.poll is not False else CAUSE_POLL
         _items, coverage, cause, _slow = convert_recording(
-            recording, context, native_action=native_menu_action(menu_id), poll=False)
+            recording, context, native_action=native_menu_action(menu_id), poll=False,
+            coverage_only=True)
         return coverage, cause
     except Exception as ex:
         _log_once(f'classify:{menu_id}', f"classifying {menu_id} failed: {ex!r}")
@@ -1239,6 +1328,7 @@ def menu_coverage(context: Any, info: Any, menu_id: str,
         return COVERAGE_NATIVE
 
 
+@recorder.record_scope()    # the menu and its classified children share one scope
 def build_in_context(context: Any, menu_id: str,
                      operator_context: str = DROPDOWN_OPERATOR_CONTEXT, *,
                      cache: DropdownCache | None = None, show_shortcuts: bool = False,
@@ -1263,7 +1353,8 @@ def build_in_context(context: Any, menu_id: str,
             recording, context, native_action=native_menu_action(menu_id), poll=poll,
             show_shortcuts=shortcuts,
             child_coverage=lambda child: _coverage_in(context, child,
-                                                      DROPDOWN_OPERATOR_CONTEXT, cache))
+                                                      DROPDOWN_OPERATOR_CONTEXT, cache),
+            shortcut_memo=cache.shortcuts if cache is not None else None)
         if slow and cache is not None:
             cache.shortcuts_off = True
         errors = tuple(str(e) for e in recording.errors)
@@ -1337,7 +1428,7 @@ def classify_rows(context: Any, info: Any, model: PlazaModel,
         cache = cache if cache is not None else DropdownCache()
         rows: list[Row] = []
         changed = False
-        with invoking_context(context, info) as ctx:
+        with invoking_context(context, info) as ctx, recorder.record_scope():
             for row in model.rows:
                 if row.key not in CLASSIFIED_ROWS:
                     rows.append(row)

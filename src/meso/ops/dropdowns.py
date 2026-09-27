@@ -131,6 +131,7 @@ from ..core.model import PlazaModel, Item, Row, item_action
 from ..core.rects import fits_inside
 from ..record import dropdown as rec_dropdown
 from ..record import popover as rec_popover
+from ..record import recorder
 from ..record import rows
 from ..record.dropdown import DropdownCache
 from ..view import renderer
@@ -696,6 +697,7 @@ def _label_rect(state: Any, label_id: str | None):
     return box.rect if box is not None else None
 
 
+@recorder.record_scope()     # Phase 7: one panel index / operator RNA memo
 def _open_dropdown(state: Any, context: Any, label_id: str) -> list[Event]:
     session = state.menus
     session.models, session.chain = (), EMPTY_CHAIN
@@ -720,6 +722,7 @@ def _open_dropdown(state: Any, context: Any, label_id: str) -> list[Event]:
     return [_opened(0, model)]
 
 
+@recorder.record_scope()     # Phase 7: one panel index / operator RNA memo
 def _open_submenu(state: Any, context: Any, path: tuple[int, ...]) -> list[Event]:
     session = state.menus
     level = len(path)
@@ -783,6 +786,7 @@ def _close_chain(state: Any, depth: int) -> None:
     session.chain = ddg.truncate_chain(session.chain, depth) if depth else EMPTY_CHAIN
 
 
+@recorder.record_scope()     # Phase 7: one panel index / operator RNA memo
 def refresh_after_change(state: Any, context: Any, changed_key: str) -> int:
     """After an in-place apply: invalidate the cache, re-record the Tool Settings row and
     re-layout the Plaza, rebuild the open chain and re-place it where it was
@@ -845,6 +849,7 @@ def _context_mode(context: Any) -> str | None:
         return None
 
 
+@recorder.record_scope()     # Phase 7: one panel index / operator RNA memo
 def rebuild_after_mode_change(state: Any, context: Any, mode: str | None) -> None:
     """After an in-place apply changed ``context.mode`` (a mode switcher pick): the whole
     Plaza is re-recorded for the new mode, as a fresh invoke would record it

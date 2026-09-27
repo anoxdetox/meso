@@ -9,6 +9,7 @@
 #
 #   make test K=pattern       only the headless tests matching the pattern
 #   make gui GUI_ARGS="--only gif"
+#   make profile PROFILE_ARGS="-n 50 --only object,edit_mesh --detail"
 
 SHELL := bash
 .DEFAULT_GOAL := help
@@ -19,6 +20,7 @@ DIST := dist
 ZIP := $(DIST)/meso-$(VERSION).zip
 K ?=
 GUI_ARGS ?=
+PROFILE_ARGS ?=
 
 # The shell prologue of every recipe that runs Blender: stop on the first error, B / PY, a
 # temporary folder $$T (removed on exit) with the private runtime, config and extensions
@@ -99,9 +101,9 @@ persist: ## Meso Keymap restart check in a nested session (Linux)
 		BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" \
 		timeout 400 tests/gui/run_persist_check.sh
 
-profile: ## Time the Plaza's hot paths (headless)
-	@. tools/env.sh; test -f tools/profile_plaza.py || { echo "tools/profile_plaza.py is missing" >&2; exit 1; }; \
-		"$${PY:-python3}" tools/profile_plaza.py
+profile: ## Time the Plaza's hot paths (headless; PROFILE_ARGS="-n 50 --only object")
+	@$(PROLOGUE); $(BLENDER) -b --factory-startup --python-exit-code 1 \
+		--python tools/profile_plaza.py -- $(PROFILE_ARGS)
 
 all: test-unit test validate build check ## Unit + headless tests, validate, build, check
 
