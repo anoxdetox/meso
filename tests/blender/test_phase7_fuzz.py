@@ -16,6 +16,11 @@ Each result must be a valid ``core.dropdown_model.DropdownModel`` (:func:`model_
 that ``core.dropdown_geometry.place_dropdown`` can place, and none may come from the
 conversion itself raising (``record.dropdown.CAUSE_FAILED``: our code, not Blender's draw).
 Recorder errors of a menu drawn out of its context are fine: that menu hands off natively.
+The paths that catch their own exception and still return a valid model (a child menu's
+coverage, the row classification, a Tool Settings cascade, a Compass) are checked through
+their log: every log-once set starts empty and no 'Meso Mode: ... failed' line may appear
+(other than a native hand-off quoting Blender's draw error); a cascade whose errors start with
+``CAUSE_FAILED`` counts as a conversion that raised.
 In every context the Plaza's own invoke-time content is built too (``record.rows.
 build_model`` + ``classify_rows`` + ``core.geometry.layout``) with every Tool Settings
 cascade of its row (``record.popover.build_tool_cascade``, validated the same way), and in
@@ -33,9 +38,13 @@ from contextlib import redirect_stdout
 import bpy
 
 from tests.blender.test_header import area_of, in_mode, override, region_of, spare_area
+from tests.blender.test_phase7_hardening import clear_log_once, logged_failures
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 BUDGET_S = 60.0
+# The log line of a menu that hands off natively quotes Blender's own draw error (a menu drawn
+# out of its context): not a failure of ours, so the logged-failure check skips it.
+NATIVE_HAND_OFF = 'hands off natively'
 
 # (label, object kind for test_header.in_mode (None: the factory Cube), mode_set mode).
 OBJECT_MODES = (
@@ -204,6 +213,7 @@ class _Fuzz:
         self.failed = []            # (context, menu, errors) of CAUSE_FAILED builds
         self.builds = 0
         self.cascades = 0
+        self.compasses = 0          # right-click Compasses that offered something
         self.contexts = []
         preferences = bpy.context.preferences
         self.metrics = self.geo.metrics_for(preferences.system.ui_scale,
@@ -251,6 +261,9 @@ class _Fuzz:
                     continue
                 self.cascades += 1
                 self.problems.extend(model_problems(cascade, self.D, f"[{label}] "))
+                # A cascade whose build raised hands off natively (a valid model): our code.
+                if any(e.startswith(self.dd.CAUSE_FAILED) for e in cascade.errors):
+                    self.failed.append((label, item.id, cascade.errors[:1]))
         with self.dd.invoking_context(bpy.context, info) as ctx:
             for name in self.names:
                 try:
@@ -277,6 +290,7 @@ class _Fuzz:
                 try:
                     cm = self.compass.build_compass(bpy.context, info, value, None, prefs)
                     if cm is not None:
+                        self.compasses += 1
                         for index, slot in enumerate(cm.slots):
                             if slot is not None:
                                 self.problems.extend(items_problems(
@@ -348,8 +362,12 @@ class TestRecorderFuzz(unittest.TestCase):
         fuzz = _Fuzz()
         self.assertGreater(len(fuzz.names), 650)
         skipped = []
+        # Failures the add-on catches itself (a child coverage, a row classification, a
+        # Compass) only show as a log line: every log-once set starts empty, the log is kept.
+        clear_log_once(self)
+        out = io.StringIO()
         start = time.perf_counter()
-        with redirect_stdout(io.StringIO()):
+        with redirect_stdout(out):
             # Every editor, the factory Cube in Object Mode.
             area = spare_area()
             old = area.ui_type
@@ -398,6 +416,10 @@ class TestRecorderFuzz(unittest.TestCase):
         self.assertGreater(fuzz.cascades, 50)
         self.assertEqual(fuzz.problems[:20], [], f"{len(fuzz.problems)} problems")
         self.assertEqual(fuzz.failed[:20], [], "conversions that raised")
+        self.assertGreater(fuzz.compasses, 0)
+        failures = [line for line in logged_failures(out.getvalue())
+                    if NATIVE_HAND_OFF not in line]
+        self.assertEqual(failures[:20], [], f"{len(failures)} logged failures")
         self.assertEqual(bpy.context.mode, 'OBJECT')
         self.assertLess(elapsed, BUDGET_S)
 

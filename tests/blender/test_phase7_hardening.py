@@ -43,10 +43,35 @@ from tests.blender.test_header import area_of, override, region_of
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 
-# Modules whose log-once sets are emptied per test (so this test's failures print).
+# Modules known to keep a log-once set (``_logged``). :func:`log_once_sets` finds every one;
+# this list only guards that search (TestLogOnceSets).
 _LOG_ONCE_MODULES = ("ops.dropdowns", "ops.compass_rmb", "ops.invoke", "ops.actions",
                      "record.dropdown", "record.rows", "record.compass", "record.header",
-                     "record.builtin_menus")
+                     "record.builtin_menus", "record.header_controls", "record.datapath",
+                     "record.topbar")
+
+
+def log_once_sets():
+    """``{module name: its _logged set}`` of every loaded add-on module with a log-once set.
+    A failure whose key an earlier test already logged prints nothing, so a test that checks
+    the log empties these first (:func:`clear_log_once`)."""
+    prefix = f"{ADDON_MODULE}."
+    return {name[len(prefix):]: module._logged for name, module in list(sys.modules.items())
+            if name.startswith(prefix) and isinstance(getattr(module, '_logged', None), set)}
+
+
+def clear_log_once(case):
+    """Empty every add-on log-once set for ``case`` (a TestCase); restored on its cleanup."""
+    for logged in log_once_sets().values():
+        saved = set(logged)
+        logged.clear()
+        case.addCleanup(logged.update, saved)
+
+
+def logged_failures(text):
+    """The 'Meso Mode: ... failed' lines of captured output ``text``."""
+    return [line for line in text.splitlines()
+            if line.startswith('Meso Mode:') and 'failed' in line]
 
 
 def _mod(name):
@@ -203,11 +228,7 @@ class _Case(unittest.TestCase):
         self.addCleanup(setattr, self.hb, '_build_content', build)
         self.hb._build_content = lambda state, _context, region, prefs: build(
             state, bpy.context, region, prefs)
-        for name in _LOG_ONCE_MODULES:
-            logged = _mod(name)._logged
-            saved = set(logged)
-            logged.clear()
-            self.addCleanup(logged.update, saved)
+        clear_log_once(self)
         self.addCleanup(self._cleanup)
         self.out, self.err = io.StringIO(), io.StringIO()
         self.enterContext(redirect_stdout(self.out))
@@ -222,8 +243,7 @@ class _Case(unittest.TestCase):
         self.dm.stop_all()
 
     def tearDown(self):
-        failures = [line for line in self.out.getvalue().splitlines()
-                    if line.startswith('Meso Mode:') and 'failed' in line]
+        failures = logged_failures(self.out.getvalue())
         tracebacks = 'Traceback' in self.err.getvalue() or 'Traceback' in self.out.getvalue()
         if failures or tracebacks:
             self.fail(f"the add-on logged failures: {failures} "
@@ -323,6 +343,28 @@ class _Case(unittest.TestCase):
         self.assertIsNotNone(state.compass, "the Compass shows after a hold")
         self.assertEqual(self.dm.installed_count(), len(self.dm.HANDLER_PAIRS))
         return op, state
+
+
+class TestLogGuard(unittest.TestCase):
+    """The log check itself: every log-once set is found and emptied, then restored."""
+
+    def test_every_log_once_set_is_cleared(self):
+        _ensure_enabled()
+        sets = log_once_sets()
+        self.assertLessEqual(set(_LOG_ONCE_MODULES), set(sets), "log-once sets not found")
+        for logged in sets.values():
+            logged.add('meso-test:stale')
+        clear_log_once(self)
+        self.assertEqual({name for name, logged in sets.items() if logged}, set())
+        self.doCleanups()
+        for logged in sets.values():
+            self.assertIn('meso-test:stale', logged)
+            logged.discard('meso-test:stale')
+
+    def test_logged_failures(self):
+        self.assertEqual(logged_failures("Meso Mode: classifying X failed: E\nMeso Mode: ok\n"
+                                         "other failed\n"),
+                         ["Meso Mode: classifying X failed: E"])
 
 
 # ================================================================================ multi-window

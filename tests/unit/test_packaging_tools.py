@@ -1,14 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Unit tests for the packaging tools (local/docs/phase7-interfaces.md §3): tools/check_zip.py
 (what a built zip may and must hold) and tools/make_gif.py (the crop parsing, the ffmpeg
-filter graph and the output size of the README GIF; ffmpeg itself is never run here).
+filter graph and the output size of the README GIF; ffmpeg itself is never run here), and
+tools/env.sh (where it finds Blender's Python; Blender itself is never run here).
 
 Run with the bundled interpreter (no bpy available):
     $PY -m unittest discover -s tests/unit -t .
 """
 
 import importlib.util
+import os
 import pathlib
+import shutil
+import subprocess
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -105,6 +110,51 @@ class TestOutputSize(unittest.TestCase):
     def test_limits(self):
         self.assertLessEqual(mg.output_size(None, {"size": [3840, 2160]}, 800)[0], 800)
         self.assertEqual(mg.TARGET_BYTES, 2 * 1024 * 1024)
+
+
+@unittest.skipUnless(shutil.which("bash"), "needs bash")
+class TestEnvSh(unittest.TestCase):
+    """tools/env.sh, sourced as the Makefile does (``set -eo pipefail``), from a copy without
+    a local.env: PY is found in each install layout, and a B without a Python next to it (a
+    wrong path) never stops the caller silently."""
+
+    def source(self, blender):
+        with tempfile.TemporaryDirectory() as tmp:
+            (pathlib.Path(tmp) / "tools").mkdir()
+            shutil.copy(ROOT / "tools" / "env.sh", pathlib.Path(tmp) / "tools" / "env.sh")
+            env = {k: v for k, v in os.environ.items() if k not in ("B", "PY")}
+            env["B"] = str(blender)
+            done = subprocess.run(
+                ["bash", "-c", 'set -eo pipefail; . tools/env.sh; echo "PY=$PY"'],
+                cwd=tmp, env=env, capture_output=True, text=True, timeout=30)
+        return done.returncode, done.stdout.strip()
+
+    def install(self, root, binary, python_dir):
+        binary, python = root / binary, root / python_dir / "python3.13"
+        binary.parent.mkdir(parents=True)
+        python.parent.mkdir(parents=True)
+        binary.touch(mode=0o755)
+        python.touch(mode=0o755)
+        return binary, python
+
+    def test_layouts(self):
+        layouts = {
+            'linux / windows': ("blender-5.2/blender", "blender-5.2/5.2/python/bin"),
+            'macos': ("Blender.app/Contents/MacOS/Blender",
+                      "Blender.app/Contents/Resources/5.2/python/bin"),
+        }
+        for name, (binary, python_dir) in layouts.items():
+            with self.subTest(layout=name), tempfile.TemporaryDirectory() as tmp:
+                binary, python = self.install(pathlib.Path(tmp), binary, python_dir)
+                code, out = self.source(binary)
+                self.assertEqual(code, 0, out)
+                self.assertEqual(os.path.realpath(out.removeprefix("PY=")),
+                                 os.path.realpath(python))
+
+    def test_wrong_path_leaves_py_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self.source(pathlib.Path(tmp) / "no" / "such" / "blender"),
+                             (0, "PY="))
 
 
 if __name__ == "__main__":

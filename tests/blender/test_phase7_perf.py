@@ -33,6 +33,9 @@ ADDON_MODULE = "bl_ext.meso_dev.meso"
 # machine (Blender 5.2.2's Python 3.13, headless). Budgets scale by measured / reference.
 REFERENCE_MS = 11.5
 SKIP_FACTOR = 3.0
+# Two calibration runs of one process agree within this ratio (slower / faster; separate runs
+# measured 11.1 to 13.4 ms here, the slowest inside the full suite's larger heap).
+CALIBRATION_SPREAD = 1.5
 
 # Budgets (ms, median of RUNS) before calibration: the plan's targets are 15 ms for the
 # invoke, 5 ms for a dropdown / cascade / Compass open and 1 ms for a cached redraw
@@ -375,7 +378,10 @@ class TestBudgets(unittest.TestCase):
     def test_calibration_workload(self):
         # The workload itself is stable enough to calibrate with (best of 5, twice).
         second = calibration_ms()
-        self.assertLess(abs(second - self.calibration), max(self.calibration, second))
+        low, high = sorted((self.calibration, second))
+        self.assertGreater(low, 0.0)
+        self.assertLess(high / low, CALIBRATION_SPREAD,
+                        f"calibration {self.calibration:.2f} ms, then {second:.2f} ms")
 
     def test_invoke(self):
         hb = _mod("ops.plaza")

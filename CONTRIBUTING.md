@@ -59,7 +59,9 @@ make dev-link       # link src/meso into $MESO_EXTENSIONS_DIR
 make clean          # remove dist/ and __pycache__
 make release        # print the release checklist
 ```
-Without make (Windows, or to run one step by hand), the same commands:
+Without make (to run one step by hand), the same commands. They are bash (on Windows: Git Bash
+or WSL); from cmd or PowerShell, build with `blender --command extension build --source-dir
+src/meso --output-dir dist` (the full path to `blender.exe` if it is not on your PATH):
 ```
 . tools/env.sh      # B = blender on PATH (or set B=/path/to/blender in an untracked local.env), PY = its Python
 bl() { ( prlimit --core=1 --pid $BASHPID 2>/dev/null || ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }

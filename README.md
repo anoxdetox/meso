@@ -41,19 +41,26 @@ Meso Mode is free and open source. Official builds will be published at its exte
 and repository release page when the first public release is out (links will be added here).
 If someone charged you for it, you paid for something that's free.
 
-Until then, build it yourself. You need Blender 5.2 and GNU make. In a clone of this repository,
-run `make build`. It writes `dist/meso-<version>.zip`.
+Until then, build it yourself. You need Blender 5.2 and GNU make with bash (Linux, macOS). In a
+clone of this repository, run `make build`. It writes `dist/meso-<version>.zip`. `make` runs the
+`blender` it finds on your PATH; the Linux tarball, the macOS app and the Windows installer do
+not put it there, so name the binary: `make build B=/path/to/blender` (on macOS
+`B=/Applications/Blender.app/Contents/MacOS/Blender`), or put that `B=` line in an untracked
+`local.env` file at the root of the clone.
+
+Without make (Windows cmd or PowerShell too), run Blender's own build command in the clone,
+with the full path to Blender if it is not on your PATH:
+`blender --command extension build --source-dir src/meso --output-dir dist`.
 
 To install the zip, open Blender's Preferences ▸ Get Extensions, open the menu at the top
 right and choose **Install from Disk…**. Pick the zip, then make sure Meso Mode is ticked in
 Preferences ▸ Add-ons. Dragging the zip into Blender's window works too.
 
 When it is first enabled, Meso Mode asks whether to use the [Meso Keymap](docs/keymap.md).
-"Keep" changes nothing, and you can change your mind later in its preferences.
+**Keep My Keymap** changes nothing, and you can change your mind later in its preferences.
 
 Developed and tested on Linux; meant to run on Windows and macOS too (not tested there yet).
-On Windows, use the build command in [`CONTRIBUTING.md`](CONTRIBUTING.md), which also covers
-testing and helping out.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) covers testing and helping out.
 
 > **Disclaimer:** This is 100% vibe coded. We're not responsible if this code eats your homework.
 > It comes WITHOUT ANY WARRANTY (see `LICENSE`, GPL-3.0 §§15–16).

@@ -2,7 +2,8 @@
 # Shared paths for the test runners and spikes (sourced, never run).
 #
 #   B   the Blender 5.2 binary     (default: `blender` on PATH)
-#   PY  its bundled Python 3.13    (default: <B's install dir>/5.2/python/bin/python3.*)
+#   PY  its bundled Python 3.13    (default: <B's install dir>/5.2/python/bin/python3.*, on
+#                                   macOS <B's dir>/../Resources/5.2/python/bin/python3.*)
 #
 # Put machine-specific values in an untracked `local.env` at the repo root (gitignored), e.g.
 #   B=/opt/blender-5.2.2-linux-x64/blender
@@ -20,9 +21,15 @@ if [ -f "$_meso_root/local.env" ]; then
 fi
 B="${B:-$(command -v blender || echo blender)}"
 if [ -z "${PY:-}" ]; then
-    _meso_bin="$(readlink -f "$(command -v "$B" 2>/dev/null || echo "$B")")"
-    PY="$(ls "$(dirname "$_meso_bin")"/5.2/python/bin/python3.[0-9]* 2>/dev/null | head -n 1)"
-    unset _meso_bin
+    _meso_bin="$(readlink -f "$(command -v "$B" 2>/dev/null || echo "$B")" || echo "$B")"
+    # Linux / Windows: next to the binary; macOS: Blender.app/Contents/MacOS/Blender keeps it
+    # in Contents/Resources. (`|| true`: a pattern that matches nothing must not stop a
+    # `set -eo pipefail` caller such as the Makefile.)
+    _meso_dir="$(dirname "$_meso_bin")"
+    PY="$({ ls "$_meso_dir"/5.2/python/bin/python3.[0-9]* \
+        "$_meso_dir"/../Resources/5.2/python/bin/python3.[0-9]* 2>/dev/null || true; } \
+        | head -n 1)"
+    unset _meso_bin _meso_dir
 fi
 export B PY
 unset _meso_root
