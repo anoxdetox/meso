@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Frames for the README GIF (local/docs/phase7-interfaces.md §3): hold Space for the Plaza,
 open File, flick the centre Compass north (Top view), then with the Meso Keymap hold
-right-click and flick north (Edge). Every step saves the main window as
+right-click and flick north (Edge, still in the Top view), and orbit back to the first frame's
+perspective view, so the clip loops. Every step saves the main window as
 ``tests/gui/out/gif/frame_NNNN.png`` (full size) with how long it stays on screen, listed in
 ``frames.ffconcat``; ``gif.json`` holds the 3D View area as the default crop.
 ``tools/make_gif.py`` turns them into ``docs/images/meso.gif``.
@@ -44,7 +45,8 @@ def scenarios(drv):
 
     out_dir = drv.ROOT / "tests" / "gui" / "out" / "gif"
     frames = []          # (file name, seconds on screen)
-    drawn = []           # window rects the Plaza and the Compasses drew in the frames
+    drawn = []           # (kind, rect): what the Plaza and the Compasses drew in the frames
+    centre = []          # the press point (window coords): the close-up crop centres on it
 
     def renderer():
         return importlib.import_module(drv.ADDON_MODULE + ".view.renderer")
@@ -54,14 +56,13 @@ def scenarios(drv):
         return [b.rect for b in cs.layout.boxes] if cs is not None else []
 
     def note_drawn():
-        """The rects on screen now: the Plaza and its dropdowns, the Compass radials."""
+        """The rects on screen now: the Plaza and the Compass radials (the dropdowns and the
+        Compass lists may run off the close-up)."""
         st = drv.plaza().current_state()
         if st is not None:
-            menus = getattr(st, 'menus', None)
-            drawn.extend(r for r in (getattr(st.layout, 'extent', None) if st.layout else None,
-                                     renderer().chain_extent(getattr(menus, 'chain', None)))
-                         if r is not None)
-            drawn.extend(radial(getattr(menus, 'compass', None)))
+            if st.layout is not None and getattr(st.layout, 'extent', None) is not None:
+                drawn.append(st.layout.extent)
+            drawn.extend(radial(getattr(getattr(st, 'menus', None), 'compass', None)))
         rs = rmb().current_state()
         drawn.extend(radial(getattr(rs, 'compass', None) if rs is not None else None))
 
@@ -108,17 +109,20 @@ def scenarios(drv):
         a = drv.area_by("VIEW_3D")
         crop = {"x": int(a.x * sx), "y": int(h - (a.y + a.height) * sy),
                 "w": int(a.width * sx), "h": int(a.height * sy)}
-        if drawn and closeup():
-            x0, y0 = min(r.x for r in drawn), min(r.y for r in drawn)
-            x1, y1 = max(r.x + r.w for r in drawn), max(r.y + r.h for r in drawn)
+        if drawn and centre and closeup():
+            # Centred on the press point (the model and every Compass), wide enough for the
+            # Plaza and the radials around it; a list or dropdown may run off it.
+            px, py = centre[0]
             pad = 40 * CLOSEUP_SCALE
-            bw, bh = (x1 - x0 + 2 * pad) * sx, (y1 - y0 + 2 * pad) * sy
+            half_w = max(max(abs(r.x - px), abs(r.x + r.w - px)) for r in drawn) + pad
+            half_h = max(max(abs(r.y - py), abs(r.y + r.h - py)) for r in drawn) + pad
+            bw, bh = 2 * half_w * sx, 2 * half_h * sy
             # Inside the 3D View (never the timeline or the header bars around it).
             vl, vt, vw, vh = crop["x"], crop["y"], crop["w"], crop["h"]
-            cw = min(vw, max(bw, bh * 16 / 9))
+            cw = min(vw, max(bw, bh * 16 / 9, 1920 * sx))   # never under 1920x1080
             ch = min(vh, cw * 9 / 16)
             cw = ch * 16 / 9
-            cx, cy = (x0 + x1) / 2 * sx, h - (y0 + y1) / 2 * sy
+            cx, cy = px * sx, h - py * sy
             cl = int(min(max(cx - cw / 2, vl), vl + vw - cw))
             ct = int(min(max(cy - ch / 2, vt), vt + vh - ch))
             crop_closeup = {"x": cl, "y": ct, "w": int(cw), "h": int(ch)}
@@ -252,7 +256,23 @@ def scenarios(drv):
         k = bpy.context.preferences.view.ui_scale or 1.0
         drv.sim('MOUSEMOVE', 'NOTHING', (int(xy[0] + 160 * k), int(xy[1] - 120 * k)))
         yield 0.2
-        frame(1.8)
+        frame(1.0)
+        return True
+
+    def orbit_back(rv3d, view, steps=8):
+        """From the Top view back to the first frame's perspective view, eased over ``steps``
+        frames (as an orbit leaves an axis view: perspective at once), then a hold."""
+        persp, rotation, distance = view
+        start, start_d = rv3d.view_rotation.copy(), rv3d.view_distance
+        rv3d.view_perspective = persp
+        for k in range(1, steps + 1):
+            t = k / steps
+            t = t * t * (3 - 2 * t)
+            rv3d.view_rotation = start.slerp(rotation, t)
+            rv3d.view_distance = start_d + (distance - start_d) * t
+            yield 0.05
+            frame(STEP)
+        frame(1.0)
 
     def closeup():
         return drv.win().width >= CLOSEUP_WIDTH
@@ -302,10 +322,12 @@ def scenarios(drv):
             drv.sim('MOUSEMOVE', 'NOTHING', xy)
             yield 0.3
             size = frame(0.8)
+            centre.append(xy)
             if (yield from plaza_part(rec, xy)):
-                rv3d.view_perspective, rv3d.view_rotation, rv3d.view_distance = view
                 yield 0.3
-                yield from rmb_part(rec, xy)
+                # Edge in the Top view, then orbit back to the first frame's view: it loops.
+                if (yield from rmb_part(rec, xy)):
+                    yield from orbit_back(rv3d, view)
         finally:
             object_mode()
             ts.mesh_select_mode = select_mode

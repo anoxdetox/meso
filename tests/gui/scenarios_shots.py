@@ -9,7 +9,8 @@ saved as ``tests/gui/out/shots/<name>.png``:
 
 - ``plaza_closeup``: the Plaza in the 3D View, no dropdown open;
 - ``compass_closeup``: the right-click Compass (the Meso Keymap) over a model, the pointer
-  marking Edge; the crop holds the radial whole and the top of its list;
+  marking Edge; the crop is centred on the radial (and the model under it), its list
+  running off the bottom;
 - ``compass_uv_closeup``: the same Compass with UV ▸ expanded beside its box.
 
 The scene is a smooth Suzanne under a matcap. ``NEEDS_GRAB`` stays False: nothing here starts
@@ -158,7 +159,7 @@ def scenarios(drv):
             yield 0.3
             drv.check(rec, "edge_hovered", cs.gesture.hover_slot is not None)
             lay = cs.layout
-            shot(rec, "compass_closeup", [b.rect for b in lay.boxes], top=True)
+            shot(rec, "compass_closeup", [b.rect for b in lay.boxes])       # centred
             drv.sim('ESC', 'PRESS', xy)
             drv.sim('ESC', 'RELEASE', xy)
             yield 0.3
