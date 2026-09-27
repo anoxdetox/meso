@@ -37,6 +37,11 @@ The pyramids are theirs; the menus are ours.
 - **Nothing native is removed:** every Meso key can be switched off, and every native action it
   displaces stays reachable.
 
+<p>
+  <img src="docs/images/plaza_closeup.png" width="49%" alt="The Plaza in the 3D Viewport">
+  <img src="docs/images/compass_uv_closeup.png" width="49%" alt="The right-click Compass with UV expanded">
+</p>
+
 Read the [user guide](docs/guide.md) and the [keymap](docs/keymap.md).
 
 ## Getting it

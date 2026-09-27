@@ -5,7 +5,7 @@ hold Space, and **Compass menus**, radial menus you pick from with a flick of th
 optional [Meso Keymap](keymap.md) adds a few keys on top of Blender's Industry Compatible keymap.
 
 ## The Plaza (hold Space)
-![The Plaza with the File menu open](images/plaza.png)
+![The Plaza in the 3D Viewport](images/plaza_closeup.png)
 
 Hold <kbd>Space</kbd> anywhere and the Plaza opens at the cursor. Its strips hold the top-bar
 menus, the hovered editor's header menus, a Tool Settings row (orientation, pivot, snapping,
@@ -135,7 +135,7 @@ in their pie directions) or a built-in Compass (`meso:layout`, `meso:editors`, `
 them in the add-on preferences, under Compass menus.
 
 ## Right-click Compass menus (Meso Keymap)
-![The right-click Compass in Object Mode](images/compass_rmb_context.png)
+![The right-click Compass over a mesh, marking Edge](images/compass_closeup.png)
 
 With the Meso Keymap, hold or drag the right mouse button in the 3D View for a Compass of the
 modes, with the context menu as the list under it. A quick click still opens the context menu
@@ -145,7 +145,10 @@ For a mesh: Edge north, Vertex west, Face south, Object Mode north-east, **UV â–
 UV unwrap menu, opened beside the box; from Object Mode, picking one of its entries enters Edit
 Mode first), **Multi** south-east (vertex, edge and face select together), Edit Mode
 south-west (with the current select mode) and Sculpt Mode north-west. The paint modes head the
-list. For other objects: Object Mode north-east, Edit Mode east, the select modes where the
+list.
+
+![UV â–¸ expanded beside the right-click Compass](images/compass_uv_closeup.png)
+ For other objects: Object Mode north-east, Edit Mode east, the select modes where the
 object has them, and the other modes on the diagonals. In Edit Mode the select modes stay
 available, as the header buttons are; only the mode you are in is greyed out.
 

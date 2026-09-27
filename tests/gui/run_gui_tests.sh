@@ -3,6 +3,7 @@
 # Run the GUI event-simulate suite (tests/gui/gui_driver.py) and check its JSON reports.
 #
 #   tests/gui/run_gui_tests.sh [--host] [--xwayland] [--backend vulkan|opengl] [--out FILE] [--only a,b]
+#                              [--size WxH]   (the nested output, default 1920x1080)
 #
 # Default: three Blender sessions, each inside a nested, virtual-framebuffer KWin (kwin_wayland
 # --virtual), so the suite works while the desktop session is locked (a locked KWin never maps
@@ -43,6 +44,7 @@ flock -w 1200 9 || { echo "another nested GUI run holds the lock" >&2; exit 4; }
 MODE=nested
 BACKEND=vulkan
 OUT=""
+SIZE=1920x1080
 while [ $# -gt 0 ]; do
     case "$1" in
         --host) MODE=host ;;
@@ -50,12 +52,14 @@ while [ $# -gt 0 ]; do
         --backend) BACKEND="${2:?--backend needs vulkan|opengl}"; shift ;;
         --out) OUT="${2:?--out needs a path}"; shift ;;
         --only) export MESO_GUI_ONLY="${2:?--only needs a,b}"; shift ;;
+        --size) SIZE="${2:?--size needs WxH}"; shift ;;
         -h|--help) sed -n '3,32p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
     shift
 done
 case "$BACKEND" in vulkan|opengl) ;; *) echo "bad backend: $BACKEND" >&2; exit 2 ;; esac
+case "$SIZE" in [0-9]*x[0-9]*) ;; *) echo "bad size: $SIZE (WxH)" >&2; exit 2 ;; esac
 
 T="$(mktemp -d)"
 mkdir -p "$T/cfg" "$T/ext" "$T/xdg" "$T/tmp"
@@ -112,7 +116,7 @@ EOF
         # X server, or its session bus. Display numbers never matter.
         env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-$name" \
             XDG_CONFIG_HOME="$T/xdg" timeout $((limit + 40)) dbus-run-session --config-file="$HERE/private-session-bus.conf" -- kwin_wayland --virtual $xw \
-            --no-lockscreen --socket "meso-gui-$$-$name" --width 1920 --height 1080 \
+            --no-lockscreen --socket "meso-gui-$$-$name" --width "${SIZE%x*}" --height "${SIZE#*x}" \
             --exit-with-session "$T/$name.sh" > "$T/kwin-$name.log" 2>&1
         echo "kwin_exit[$name]=$?"
     fi

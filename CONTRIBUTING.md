@@ -98,6 +98,13 @@ The README animation: `make gui GUI_ARGS="--only gif"` saves its frames (that sc
 only when asked for), then `python3 tools/make_gif.py` turns them into `docs/images/meso.gif`
 with ffmpeg (at most 800 px wide, 12 fps) and prints its size. Keep it under 2 MB.
 
+The close-ups for the listing and the docs: `make gui GUI_ARGS="--size 3840x2160 --only shots"`
+runs a 4K nested session at UI scale 2 and saves `plaza_closeup.png`, `compass_closeup.png` and
+`compass_uv_closeup.png`
+(16:9, native pixels, at least 1920x1080) in `tests/gui/out/shots/`; copy the ones you keep to
+`docs/images/`. The icon is `docs/images/icon.svg`; render it with
+`rsvg-convert -w 256 -h 256 docs/images/icon.svg -o docs/images/icon.png`.
+
 Every Blender launch uses fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` directories
 and no core crash reports (a core limit of 1 byte, so a test crash never reaches your desktop's
 crash reporter), so tests never touch your real Blender config.
