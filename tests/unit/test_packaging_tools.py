@@ -98,6 +98,29 @@ class TestFilter(unittest.TestCase):
         self.assertNotIn("crop=", mg.filter_graph(None, 800, 12, 256))
 
 
+class TestMp4(unittest.TestCase):
+
+    def test_with_a_cover(self):
+        cmd = mg.mp4_command('ffmpeg', mg.pathlib.Path('i.ffconcat'), mg.pathlib.Path('o.mp4'),
+                             (1920, 1080, 10, 20), 1920, 30, 18, mg.pathlib.Path('c.png'))
+        self.assertEqual(cmd[cmd.index('-filter:v:0') + 1],
+                         "crop=1920:1080:10:20,fps=30,scale=w='min(1920,iw)':h=-2:flags=lanczos,"
+                         "format=yuv420p")
+        self.assertEqual(cmd[cmd.index('-map'):cmd.index('-map') + 4],
+                         ['-map', '0:v', '-map', '1:v'])
+        self.assertEqual(cmd[cmd.index('-disposition:v:1') + 1], 'attached_pic')
+        self.assertIn('+faststart', cmd)
+        self.assertEqual(cmd[-1], 'o.mp4')
+
+    def test_without_a_cover_or_crop(self):
+        cmd = mg.mp4_command('ffmpeg', mg.pathlib.Path('i'), mg.pathlib.Path('o.mp4'), None,
+                             1280, 24, 20, None)
+        self.assertNotIn('-map', cmd)
+        self.assertNotIn('attached_pic', cmd)
+        self.assertTrue(cmd[cmd.index('-filter:v:0') + 1].startswith('fps=24,'))
+        self.assertEqual(cmd[cmd.index('-crf') + 1], '20')
+
+
 class TestOutputSize(unittest.TestCase):
 
     def test_scaled_to_the_width(self):

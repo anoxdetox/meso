@@ -4,14 +4,19 @@
 
     tests/gui/run_gui_tests.sh --only gif      # the lead: frames into tests/gui/out/gif/
     python3 tools/make_gif.py [--crop closeup|view3d|window|W:H:X:Y] [--width 800] [--fps 12]
+                              [--mp4 dist/meso.mp4 [--cover docs/images/compass_closeup.png]]
 
 The frames come from ``tests/gui/scenarios_gif.py``: ``frame_NNNN.png`` (full window size),
 ``frames.ffconcat`` (each frame's time on screen) and ``gif.json`` (the 3D View area; from a
 close-up run, a 4K session, also the 16:9 box around the menus, the default crop then). ffmpeg resamples them to a steady frame rate, scales them to at most ``--width``
 pixels wide, builds one palette for the whole clip (palettegen) and maps every frame onto it
 (paletteuse, only the changed rectangle per frame). The tool prints the result's size and warns
-above the target (2 MB: listing images should stay light). Needs ``ffmpeg`` on PATH; standard
-library only.
+above the target (2 MB: listing images should stay light). ``--mp4`` also writes an H.264
+MP4 of the same crop from the same frames (not from the GIF: full colour), at ``--mp4-fps``,
+scaled to at most ``--mp4-width`` (never up), ``yuv420p`` with ``faststart`` (plays on the web
+and on phones), with ``--cover`` embedded as its thumbnail (an ``attached_pic`` JPEG; the
+Compass close-up by default, none when the file is missing). Needs ``ffmpeg`` on PATH;
+standard library only.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 FRAMES = ROOT / "tests" / "gui" / "out" / "gif"
 OUT = ROOT / "docs" / "images" / "meso.gif"
 TARGET_BYTES = 2 * 1024 * 1024
+COVER = ROOT / "docs" / "images" / "compass_closeup.png"
 
 
 def parse_crop(value: str, meta: dict) -> tuple[int, int, int, int] | None:
@@ -72,6 +78,27 @@ def filter_graph(crop: tuple[int, int, int, int] | None, width: int, fps: int,
             f"[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle")
 
 
+def mp4_command(ffmpeg: str, index: pathlib.Path, out: pathlib.Path,
+                crop: tuple[int, int, int, int] | None, width: int, fps: int, crf: int,
+                cover: pathlib.Path | None) -> list[str]:
+    """The ffmpeg command of the MP4: the concat ``index`` cropped (``crop``), at ``fps``,
+    scaled to at most ``width`` (even sizes), H.264 ``crf`` / yuv420p / faststart; ``cover``
+    (an image, or None) muxed in as its thumbnail (a JPEG ``attached_pic`` stream)."""
+    steps = []
+    if crop is not None:
+        steps.append("crop={}:{}:{}:{}".format(*crop))
+    steps += [f"fps={fps}", f"scale=w='min({width},iw)':h=-2:flags=lanczos", "format=yuv420p"]
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+           "-f", "concat", "-safe", "0", "-i", str(index)]
+    if cover is not None:
+        cmd += ["-i", str(cover), "-map", "0:v", "-map", "1:v"]
+    cmd += ["-filter:v:0", ",".join(steps), "-c:v:0", "libx264", "-preset", "slow",
+            "-crf", str(crf)]
+    if cover is not None:
+        cmd += ["-c:v:1", "mjpeg", "-q:v:1", "2", "-disposition:v:1", "attached_pic"]
+    return cmd + ["-movflags", "+faststart", str(out)]
+
+
 def output_size(crop: tuple[int, int, int, int] | None, meta: dict,
                 width: int) -> tuple[int, int]:
     """The GIF's pixel size for ``crop`` of an image of ``meta['size']``."""
@@ -96,6 +123,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--width", type=int, default=800, help="maximum width in pixels (800)")
     ap.add_argument("--fps", type=int, default=12, help="frames per second (12)")
     ap.add_argument("--colors", type=int, default=256, help="palette size, 2-256 (256)")
+    ap.add_argument("--mp4", type=pathlib.Path, default=None,
+                    help="also write an MP4 of the same crop here (e.g. dist/meso.mp4)")
+    ap.add_argument("--mp4-width", type=int, default=1920,
+                    help="the MP4's maximum width (1920)")
+    ap.add_argument("--mp4-fps", type=int, default=30, help="the MP4's frame rate (30)")
+    ap.add_argument("--mp4-crf", type=int, default=18, help="the MP4's x264 quality (18)")
+    ap.add_argument("--cover", type=pathlib.Path, default=COVER,
+                    help="the MP4's thumbnail (default: docs/images/compass_closeup.png)")
     args = ap.parse_args(argv)
 
     ffmpeg = shutil.which("ffmpeg")
@@ -135,6 +170,17 @@ def main(argv: list[str] | None = None) -> int:
     if size > TARGET_BYTES:
         print(f"make_gif: above the {TARGET_BYTES // (1024 * 1024)} MB target; try a smaller "
               "--width, fewer --colors or a tighter --crop", file=sys.stderr)
+    if args.mp4 is not None:
+        cover = args.cover if args.cover is not None and args.cover.is_file() else None
+        args.mp4.parent.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(mp4_command(ffmpeg, index, args.mp4, crop, args.mp4_width,
+                                            args.mp4_fps, args.mp4_crf, cover), check=False)
+        if result.returncode != 0 or not args.mp4.is_file():
+            print(f"make_gif: the MP4 failed ({result.returncode})", file=sys.stderr)
+            return 1
+        mw, mh = output_size(crop, meta, args.mp4_width)
+        print(f"{args.mp4}: {args.mp4.stat().st_size / 1024:.0f} KiB, {mw}x{mh}, "
+              f"{args.mp4_fps} fps, thumbnail {cover.name if cover else 'none'}")
     return 0
 
 
