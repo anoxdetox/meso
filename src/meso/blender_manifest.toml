@@ -6,6 +6,7 @@ name = "Meso Mode"
 tagline = "Hold Space for a Plaza of menus, tool settings and Compass menus"
 maintainer = "anoxdetox <5579531+anoxdetox@users.noreply.github.com>"
 type = "add-on"
+website = "https://github.com/anoxdetox/meso"
 
 tags = ["User Interface", "3D View"]
 
