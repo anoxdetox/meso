@@ -45,11 +45,16 @@ The pyramids are theirs; the menus are ours.
 Read the [user guide](docs/guide.md) and the [keymap](docs/keymap.md).
 
 ## Getting it
-Meso Mode is free and open source. Official builds will be published at its extensions page
-and repository release page when the first public release is out (links will be added here).
-If someone charged you for it, you paid for something that's free.
+Meso Mode is free and open source. If someone charged you for it, you paid for something
+that's free. Get it either way:
 
-Until then, build it yourself. You need Blender 5.2 and GNU make with bash (Linux, macOS). In a
+- **The release:** download `meso-<version>.zip` from the
+  [latest release](https://github.com/anoxdetox/meso/releases/latest).
+- **The Blender Extensions platform:** Meso Mode is in its
+  [approval queue](https://extensions.blender.org/approval-queue/meso/). Download it there,
+  and leave a review while you're at it.
+
+Or build it yourself. You need Blender 5.2 and GNU make with bash (Linux, macOS). In a
 clone of this repository, run `make build`. It writes `dist/meso-<version>.zip`. `make` runs the
 `blender` it finds on your PATH; the Linux tarball, the macOS app and the Windows installer do
 not put it there, so name the binary: `make build B=/path/to/blender` (on macOS
