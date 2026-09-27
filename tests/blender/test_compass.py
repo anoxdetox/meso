@@ -547,9 +547,12 @@ class TestCompassList(_CompassCase):
 
 
 class TestContextCompassOnAZone(_CompassCase):
-    """``meso:context`` set on a Plaza zone: its UV ▸ from Object Mode enters Edit Mode
-    first, then hands the menu off (``core.compass_rmb.pick_actions``, as the right-click
-    Compass), so the menu never opens with every entry greyed out."""
+    """``meso:context`` set on a Plaza zone: its UV ▸ opens the unwrap menu in place, as a
+    cascade beside the slot (``ops.compass`` cascades; recorded without the operator polls
+    from Object Mode, where each entry needs the edit mesh); a pick there enters Edit Mode
+    first, then runs the entry (``core.compass_rmb.pick_actions``, as the right-click
+    Compass), so the menu never opens with every entry greyed out. A submenu that cannot open
+    custom is handed off natively."""
 
     def open_with_uv(self):
         dm, cpm, mm = (_mod("core.dropdown_model"), _mod("core.compass"),
@@ -568,29 +571,96 @@ class TestContextCompassOnAZone(_CompassCase):
         self.ev('LEFTMOUSE', 'PRESS', xy)
         self.assertIs(self.compass().model, model)
 
-    def test_uv_from_object_mode_enters_edit_mode_first(self):
+    def cascade_row(self, label):
+        cs = self.compass()
+        row = next(it for it in cs.cascade.panels[0].items if it.label == label)
+        return int(row.rect.x + row.rect.w // 2), int(row.rect.y + row.rect.h // 2)
+
+    def test_uv_opens_in_place_and_a_pick_enters_edit_mode_first(self):
         self.assertEqual(bpy.context.mode, 'OBJECT')
         self.open_with_uv()
         target = self.toward('E')
         self.move(target)
         self.clock[0] += 0.1
-        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', target), {'FINISHED'})
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', target), {'RUNNING_MODAL'},
+                         "a '▸' pick opens its cascade, the Compass stays")
+        cs = self.compass()
+        cpm = _mod("core.compass")
+        self.assertEqual(cs.cascade_root, ('slot', cpm.direction_index('E')))
+        self.assertEqual(cs.cascade_models[0].key, 'VIEW3D_MT_uv_map')
+        self.assertTrue(cs.gesture.sticky, "click-style from now on")
+        self.assertEqual([(a.target, dict(a.props)) for a in cs.cascade_pre],
+                         [('object.mode_set', {'mode': 'EDIT'})])
+        self.assertTrue(all(i.enabled for i in cs.cascade_models[0].items),
+                        "recorded without the polls (the entries need Edit Mode)")
+        self.assertEqual(self.executed, [])
+        xy = self.cascade_row('Smart UV Project...')
+        self.move(xy)
+        self.assertIsNotNone(cs.gesture.hover_cascade)
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
         self.assertEqual([(e['action'].kind, e['action'].target, dict(e['action'].props),
                            e['stopped']) for e in self.executed],
                          [('operator', 'object.mode_set', {'mode': 'EDIT'}, True),
-                          ('menu', 'VIEW3D_MT_uv_map', {}, True)])
+                          ('operator', 'uv.smart_project', {}, True)])
         self.assertEqual(_hb().last_session()['pre'],
                          [('operator', 'object.mode_set', '')])
 
-    def test_another_menu_is_handed_off_alone(self):
+    def test_a_rest_on_the_direction_opens_the_cascade(self):
         self.open_with_uv()
-        target = self.toward('N')
+        target = self.toward('E')
+        self.move(target)
+        self.assertIsNone(self.compass().cascade_root)
+        self.clock[0] += _mod("core.compass").LIST_DWELL
+        self.ev('TIMER', 'NOTHING')
+        cs = self.compass()
+        self.assertEqual(cs.cascade_models[0].key, 'VIEW3D_MT_uv_map', "a rest opens it")
+        self.assertFalse(cs.gesture.sticky, "still the drag")
+        xy = self.cascade_row('Cube Projection')
+        self.move((int(target[0]) + 30, int(target[1])))       # on the way to it
+        self.move(xy)
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'},
+                         "the drag's release on a cascade item picks it")
+        self.assertEqual([e['action'].target for e in self.executed],
+                         ['object.mode_set', 'uv.cube_project'])
+
+    def test_back_to_the_centre_closes_the_cascade(self):
+        self.open_with_uv()
+        target = self.toward('E')
+        self.move(target)
+        self.clock[0] += 0.1
+        self.ev('LEFTMOUSE', 'RELEASE', target)
+        self.assertIsNotNone(self.compass().cascade_root)
+        self.move(self.compass().layout.centre)
+        self.assertIsNone(self.compass().cascade_root)
+        self.assertEqual(self.compass().cascade.panels, ())
+
+    def test_a_menu_that_cannot_open_custom_is_handed_off_alone(self):
+        self.open_with_uv()
+        target = self.toward('N')           # the fakes cannot build VIEW3D_MT_view
         self.move(target)
         self.clock[0] += 0.1
         self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', target), {'FINISHED'})
         self.assertEqual([(e['action'].kind, e['action'].target) for e in self.executed],
                          [('menu', 'VIEW3D_MT_view')])
         self.assertEqual(_hb().last_session()['pre'], [])
+
+    def test_another_menu_opens_in_place_without_a_mode_entry(self):
+        dm, mm = _mod("core.dropdown_model"), _mod("core.model")
+        self.overrides['VIEW3D_MT_view'] = lambda: dm.DropdownModel(
+            'VIEW3D_MT_view', 'View', (dm.DropdownItem(dm.DD_OP, 'Frame All', action=mm.Action(
+                mm.ACTION_OPERATOR, target='view3d.view_all')),))
+        self.open_with_uv()
+        target = self.toward('N')
+        self.move(target)
+        self.clock[0] += 0.1
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', target), {'RUNNING_MODAL'})
+        self.assertEqual(self.compass().cascade_pre, ())
+        xy = self.cascade_row('Frame All')
+        self.move(xy)
+        self.ev('LEFTMOUSE', 'PRESS', xy)
+        self.assertEqual(self.ev('LEFTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        self.assertEqual([e['action'].target for e in self.executed], ['view3d.view_all'])
 
 
 def _hb():

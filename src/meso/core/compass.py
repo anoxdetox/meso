@@ -18,7 +18,15 @@ rest on an arrow row: the gesture's :class:`Scroll` effect every :data:`SCROLL_R
 While dragging, the direction picks wherever the mark ends: the list takes over only after a
 rest on it (the pointer within :data:`LIST_STILL_PX` for :data:`LIST_DWELL`), a flick onto an
 arrow row never scrolls, and a mark toward a disabled item picks nothing (never its
-neighbour).
+neighbour). Once the list took over, the mark line is gone (:func:`shows_mark`); back off the
+list it returns.
+
+Cascades (``core.compass_cascade``): a submenu item of the list or a '▸' slot opens its
+submenu as a panel beside it, inside the Compass (the caller places it and feeds the
+pointer's hit on it to 'move': ``on_cascade`` / ``cascade``). A list item opens it on hover
+(once the list took over), a slot after a rest on its direction (:class:`Expand`) or on its
+pick (the caller then keeps the Compass open, click-style); a release on a cascade item picks
+it (``Pick.cascade``).
 """
 
 from __future__ import annotations
@@ -39,11 +47,11 @@ from .rects import Rect, fits_inside
 __all__ = (
     'COMPASS_DEAD_PX', 'COMPASS_TAP_TIMEOUT', 'DIRECTIONS', 'DIRECTION_ANGLE', 'LIST_DWELL',
     'LIST_STILL_PX', 'MIN_LIST_ROWS', 'PAN_UNIT_PX', 'PIE_ORDER', 'SCROLL_REPEAT',
-    'CancelCompass', 'CompassLayout', 'CompassModel', 'CompassState', 'Pick', 'Scroll',
-    'SlotBox', 'angle_to', 'compass_step', 'direction_index', 'fits_whole', 'list_path_at',
-    'max_scroll',
+    'CancelCompass', 'CompassLayout', 'CompassModel', 'CompassState', 'Expand', 'Pick',
+    'Scroll', 'SlotBox', 'angle_to', 'compass_step', 'direction_index', 'fits_whole',
+    'list_path_at', 'max_scroll',
     'on_list', 'open_state', 'pan_steps', 'pick_slot', 'pie_direction', 'place_compass',
-    'scroll_arrow_at', 'scroll_by', 'slot_offsets',
+    'scroll_arrow_at', 'scroll_by', 'shows_mark', 'slot_offsets',
 )
 
 TextWidthFn = Callable[[str], float]
@@ -64,8 +72,9 @@ _OFFSETS = {'N': (0.0, 3.1, 'C'), 'S': (0.0, -3.1, 'C'), 'E': (2.6, 0.0, 'L'),
             'NW': (-2.0, 1.7, 'R'), 'SW': (-2.0, -1.7, 'R')}
 LIST_GAP_ROWS = 1.5             # list top: this many rows below the S box
 # A drag reaches the list only after resting on it this long (s): until then the direction
-# picks, so a flick south never lands on a list item (the gesture always wins).
-LIST_DWELL = 0.35
+# picks, so a flick south never lands on a list item (the gesture always wins). A rest this
+# long on the direction of a '▸' slot opens its cascade.
+LIST_DWELL = 0.2
 # A rest: the pointer stays this close (px at 1x; the dead-zone radius) to where it stopped.
 # A move further on the list starts the rest again, so a slow stroke never arms the list.
 LIST_STILL_PX = COMPASS_DEAD_PX
@@ -78,6 +87,7 @@ MAX_SCROLL_STEPS = 4            # at most this many items per event (a stalled t
 # A trackpad pan scrolls one item per this much vertical pan (px at 1x): Blender's menus turn
 # a pan into a wheel step past UI_UNIT_Y (``pan_to_scroll``, interface_handlers.cc 5.2).
 PAN_UNIT_PX = 20.0
+_EPS = 1e-9                     # s: a rest of exactly LIST_DWELL counts (float sums)
 
 
 def direction_index(direction: str) -> int:
@@ -587,7 +597,11 @@ class CompassState:
     separator, the padding or an arrow row); ``list_armed``: the list took over (a
     :data:`LIST_DWELL` rest, or a wheel scroll: a deliberate use of it), until the pointer
     leaves it. ``arrow``: the scroll arrow row under the pointer (-1 up, 1 down, 0 none) and
-    ``arrow_at`` the time its next :data:`SCROLL_REPEAT` counts from."""
+    ``arrow_at`` the time its next :data:`SCROLL_REPEAT` counts from. ``cascade_on``: the
+    pointer is on an open cascade panel and ``hover_cascade`` the cascade item under it (a
+    release picks it; the list's rest is kept meanwhile). ``slot_rest``: ``(slot, since, x,
+    y)`` of a rest on the direction of a '▸' slot (``expands``), ``expanded`` the slot whose
+    rest already fired :class:`Expand` (once per stay on it)."""
 
     button: str
     t0: float
@@ -605,6 +619,10 @@ class CompassState:
     arrow: int = 0
     arrow_at: float = 0.0
     rest_xy: tuple[float, float] | None = None
+    cascade_on: bool = False
+    hover_cascade: Path | None = None
+    slot_rest: tuple[int, float, float | None, float | None] | None = None
+    expanded: int | None = None
 
 
 def open_state(button: str, now: float) -> CompassState:
@@ -615,10 +633,12 @@ def open_state(button: str, now: float) -> CompassState:
 
 @dataclass(frozen=True, slots=True)
 class Pick:
-    """Run the slot ``slot`` (a DIRECTIONS index) or the list item ``path``."""
+    """Run the slot ``slot`` (a DIRECTIONS index), the list item ``path`` or the item
+    ``cascade`` of the open cascade (its path in the cascade chain)."""
 
     slot: int | None = None
     path: Path | None = None
+    cascade: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -634,12 +654,58 @@ class Scroll:
     n: int
 
 
+@dataclass(frozen=True, slots=True)
+class Expand:
+    """Open the cascade of the '▸' slot ``slot`` (a rest on its direction; not terminal)."""
+
+    slot: int
+
+
+def shows_mark(s: CompassState | None) -> bool:
+    """The mark line (centre -> pointer) is drawn: a drag whose direction picks. Gone while
+    the list took over (armed, or the list item hovered) or the pointer is on a cascade,
+    and on a click-opened Compass; back off the list it returns."""
+    return (s is not None and not s.sticky and not s.list_armed and not s.cascade_on
+            and s.hover_path is None)
+
+
 def _pick_or_cancel(s: CompassState):
+    if s.hover_cascade is not None:
+        return Pick(cascade=s.hover_cascade)
     if s.hover_slot is not None:
         return Pick(slot=s.hover_slot)
     if s.hover_path is not None:
         return Pick(path=s.hover_path)
     return CancelCompass()
+
+
+def _slot_rest(s: CompassState, now: float, xy: tuple[float, float] | None, still_r: float,
+               expands: bool) -> tuple[CompassState, tuple]:
+    """The rest on the direction of a '▸' slot (``s.hover_slot``, ``expands``): it starts
+    when the direction comes to it and again when the pointer moves more than ``still_r``;
+    :data:`LIST_DWELL` of it -> ``(Expand(slot),)``, once per stay on the slot."""
+    slot = s.hover_slot
+    if slot is None or not expands:
+        if s.slot_rest is not None or s.expanded is not None:
+            s = replace(s, slot_rest=None, expanded=None)
+        return s, ()
+    here = (float(xy[0]), float(xy[1])) if xy is not None else (None, None)
+    r = s.slot_rest
+    if r is None or r[0] != slot:
+        s = replace(s, slot_rest=(slot, float(now)) + here,
+                    expanded=None if s.expanded != slot else slot)
+    elif (here[0] is not None and r[2] is not None
+          and math.hypot(here[0] - r[2], here[1] - r[3]) > still_r):
+        s = replace(s, slot_rest=(slot, float(now)) + here)
+    return _slot_due(s, now)
+
+
+def _slot_due(s: CompassState, now: float) -> tuple[CompassState, tuple]:
+    r = s.slot_rest
+    if (r is None or s.expanded == r[0] or s.hover_slot != r[0]
+            or now - r[1] < LIST_DWELL - _EPS):
+        return s, ()
+    return replace(s, expanded=r[0]), (Expand(r[0]),)
 
 
 def _arrow_steps(s: CompassState, now: float) -> tuple[CompassState, int]:
@@ -663,7 +729,8 @@ def _arrow_steps(s: CompassState, now: float) -> tuple[CompassState, int]:
 def _armed(s: CompassState, now: float) -> bool:
     """The list took over from the direction: a rest of :data:`LIST_DWELL` on it, or a
     wheel scroll."""
-    return s.list_armed or (s.list_since is not None and now - s.list_since >= LIST_DWELL)
+    return s.list_armed or (s.list_since is not None
+                            and now - s.list_since >= LIST_DWELL - _EPS)
 
 
 def _arm(s: CompassState, now: float) -> CompassState:
@@ -693,16 +760,22 @@ def compass_step(s: CompassState, kind: str, *, now: float = 0.0, button: str = 
                  slot: int | None = None, path: Path | None = None,
                  in_dead: bool = False, on_list: bool | None = None,
                  arrow: int = 0, xy: tuple[float, float] | None = None,
-                 still_r: float = LIST_STILL_PX) -> tuple[CompassState | None, tuple]:
+                 still_r: float = LIST_STILL_PX, on_cascade: bool = False,
+                 cascade: Path | None = None,
+                 expands: bool = False) -> tuple[CompassState | None, tuple]:
     """One event of the gesture -> ``(new state or None when closed, effects)``. Effects:
     :class:`Pick` / :class:`CancelCompass` (terminal: the state becomes None), :class:`Scroll`
-    (scroll the list, then send a 'move' at the pointer) and the string 'redraw'. ``kind``:
+    (scroll the list, then send a 'move' at the pointer), :class:`Expand` (open a slot's
+    cascade) and the string 'redraw'. ``kind``:
     'move' (``slot``: the direction's slot, :func:`pick_slot` with ``through_list``;
     ``path``: :func:`list_path_at`; ``on_list``: :func:`on_list` (None: ``path is not
     None``, the Phase 5b callers); ``arrow``: :func:`scroll_arrow_at`; ``xy``: the pointer
     and ``still_r`` the still radius of a rest (:data:`LIST_STILL_PX` times the UI scale);
-    ``in_dead`` and ``now``, resolved by the caller), 'tick' (``now``: a watchdog timer;
-    arms the list after a rest, repeats an arrow row's scroll), 'press' / 'release'
+    ``on_cascade`` / ``cascade``: the pointer is on an open cascade panel / the item there
+    (``core.compass_cascade.cascade_at``); ``expands``: ``slot`` is a '▸' slot that opens a
+    cascade; ``in_dead`` and ``now``, resolved by the caller), 'tick' (``now``: a watchdog
+    timer; arms the list after a rest, repeats an arrow row's scroll, opens a rested '▸'
+    slot), 'press' / 'release'
     (``button``; callers send a 'move' for the release point first), 'scrolled' (the list
     moved, by the wheel or an arrow row: callers send it before the 'move' at the pointer),
     'esc', 'space' (the Plaza's key release).
@@ -716,8 +789,16 @@ def compass_step(s: CompassState, kind: str, *, now: float = 0.0, button: str = 
     dragging only once the list is armed: a flick ending on an arrow row picks by its
     direction); a scroll never picks, and a wheel scroll arms the list at once (the pointer
     is on it on purpose); a click on an arrow row of the click-opened Compass keeps it
-    open."""
+    open. On a cascade panel the cascade item under the pointer is what a release picks (a
+    release on its padding or a separator keeps the Compass open, click-style)."""
     if kind == 'move':
+        if on_cascade:
+            s = replace(s, left_dead=s.left_dead or not in_dead, cascade_on=True,
+                        hover_cascade=cascade, hover_slot=None, hover_path=None, arrow=0,
+                        slot_rest=None, expanded=None)
+            return s, ('redraw',)
+        if s.cascade_on or s.hover_cascade is not None:
+            s = replace(s, cascade_on=False, hover_cascade=None)
         on = path is not None if on_list is None else bool(on_list)
         s = replace(s, left_dead=s.left_dead or not in_dead, list_path=path, dir_slot=slot,
                     list_on=on)
@@ -731,27 +812,32 @@ def compass_step(s: CompassState, kind: str, *, now: float = 0.0, button: str = 
             s, steps = _arrow_steps(s, now)
         fx = ('redraw', Scroll(steps)) if steps else ('redraw',)
         if s.sticky:
-            return replace(s, hover_path=path, hover_slot=None if on else slot), fx
-        armed = on and s.list_armed
-        return replace(s, hover_path=path if armed else None,
-                       hover_slot=None if armed else slot), fx
+            s = replace(s, hover_path=path, hover_slot=None if on else slot)
+        else:
+            armed = on and s.list_armed
+            s = replace(s, hover_path=path if armed else None,
+                        hover_slot=None if armed else slot)
+        s, due = _slot_rest(s, now, xy, still_r, expands)
+        return s, fx + due
     if kind == 'scrolled':
         if s.sticky or not s.list_on or s.list_armed:
             return s, ()
         return replace(s, list_armed=True, list_since=(
             s.list_since if s.list_since is not None else float(now))), ()
     if kind == 'tick':
-        if not s.sticky and s.list_on:
+        listed = s.list_on and not s.cascade_on     # on a cascade the list waits
+        if not s.sticky and listed:
             s = _arm(s, now)
         s, steps = _arrow_steps(s, now)
         fx: tuple = (Scroll(steps),) if steps else ()
-        if (not s.sticky and s.list_on and s.list_armed
+        if (not s.sticky and listed and s.list_armed
                 and (s.hover_slot is not None or s.hover_path != s.list_path)):
             s = replace(s, hover_path=s.list_path, hover_slot=None)
             fx = ('redraw',) + fx
         elif steps:
             fx = ('redraw',) + fx
-        return s, fx
+        s, due = _slot_due(s, now)
+        return s, fx + due
     if kind in ('esc', 'space'):
         return None, (CancelCompass(),)
     if kind == 'press':
@@ -762,11 +848,14 @@ def compass_step(s: CompassState, kind: str, *, now: float = 0.0, button: str = 
         if s.sticky:
             if not s.pressed or button not in ('LEFTMOUSE', s.button):
                 return s, ()
-            if s.arrow:
-                return replace(s, pressed=False), ()    # a click on an arrow row
+            if s.arrow or (s.cascade_on and s.hover_cascade is None):
+                return replace(s, pressed=False), ()    # an arrow row, a cascade's gap
             return None, (_pick_or_cancel(s),)
         if button != s.button:
             return s, ()
+        if s.cascade_on and s.hover_cascade is None:
+            # A release on a cascade's padding or a separator: it stays open, click-style.
+            return replace(s, sticky=True, pressed=False), ('redraw',)
         if s.tap_sticky and s.hover_slot is None and s.hover_path is None and in_dead \
                 and not s.left_dead and now - s.t0 < COMPASS_TAP_TIMEOUT:
             return replace(s, sticky=True, pressed=False), ('redraw',)

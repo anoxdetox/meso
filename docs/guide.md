@@ -97,10 +97,16 @@ while the Compass is open.
 The direction picks: a short flick toward a box is enough, without looking, and it doesn't
 matter how far you go or whether you end on the box. Even a flick that ends on the list picks
 the box in that direction, and so does a slow stroke across it. To pick from the list, hold
-the pointer still on it for a moment, then move to the item and let go. A flick toward a
-greyed-out box picks nothing. Let go in the ring to cancel. A quick middle or right click
-leaves the Compass open; then click a box or a list item. A left click on empty space still
-just closes an open menu.
+the pointer still on it for a moment, then move to the item and let go. Once the list takes
+over, the line from the centre goes away; move back off the list and it comes back. A flick
+toward a greyed-out box picks nothing. Let go in the ring to cancel. A quick middle or right
+click leaves the Compass open; then click a box or a list item. A left click on empty space
+still just closes an open menu.
+
+An item with **▸** opens its submenu beside it, inside the Compass. In the list it opens as
+soon as you are on the item. On a box it opens when you pause on its direction, or when you
+let go there; the Compass then stays open, so click the entry you want. Move back to the
+centre or to another direction and the submenu closes.
 
 A list too long for the window shows arrows at its ends. Turn the mouse wheel or swipe the
 trackpad over the list, or hold still on an arrow, to scroll it. Scrolling never picks
@@ -132,7 +138,8 @@ modes, with the context menu as the list under it. A quick click still opens the
 as before.
 
 For a mesh: Edge north, Vertex west, Face south, Object Mode north-east, **UV ▸** east (Blender's
-UV unwrap menu; from Object Mode it enters Edit Mode first), **Multi** south-east (vertex, edge and face select together), Edit Mode
+UV unwrap menu, opened beside the box; from Object Mode, picking one of its entries enters Edit
+Mode first), **Multi** south-east (vertex, edge and face select together), Edit Mode
 south-west (with the current select mode) and Sculpt Mode north-west. The paint modes head the
 list. For other objects: Object Mode north-east, Edit Mode east, the select modes where the
 object has them, and the other modes on the diagonals. In Edit Mode the select modes stay
@@ -140,7 +147,7 @@ available, as the header buttons are; only the mode you are in is greyed out.
 
 Right-click, flick, done: the Compass doesn't have to draw first. A flick north-east is Object
 Mode, a flick south is Face. Hold still on the list for a moment to pick a context menu item
-instead.
+instead; its submenus (Snap ▸, Mirror ▸, Set Origin ▸…) open beside it.
 
 The Compass stays where you pressed, even at the edge of the window (its list moves above or
 beside it and scrolls when it is long), and the pointer is never moved. The press point counts:
@@ -155,8 +162,12 @@ and in Edit Mode the press selects nothing.
 ![The Shift+right-click tool Compass in Object Mode](images/compass_rmb_tools.png)
 
 Hold <kbd>Shift</kbd> and the right mouse button for the mode's tools (Object, Vertex, Edge or
-Face: Join, Shade Smooth, Loop Cut, Bevel, Inset, Knife…), with the mode's menu as the list. A
-quick Shift+right click still places the 3D cursor.
+Face: Join, Shade Smooth, Loop Cut, Bevel, Inset, Knife…), with the mode's menu as the list.
+
+**A quick Shift+right click, without moving, places the 3D cursor** under the pointer, as
+before: let go before the pointer moves or the Compass shows. To rotate or scale around that
+point, set the pivot to the 3D Cursor: Blender's Pivot Point pie on <kbd>.</kbd> (period, kept
+by the Meso Keymap), or Pivot in the Plaza's Tool Settings row.
 
 The 3D cursor (click to place, drag to move) is on <kbd>Ctrl</kbd> <kbd>Shift</kbd> right click.
 The "Shift Right Click" preference puts it back on Shift right click, and the tool Compass then

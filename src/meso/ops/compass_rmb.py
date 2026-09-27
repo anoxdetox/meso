@@ -36,10 +36,14 @@ CONTEXT, ``menu`` the context menu it displaces) and on Shift / Ctrl Shift RMB i
   let go between the press and the drag (Ctrl, Shift) becomes it and the button's release
   then does not confirm (a click or Enter does; the native CLICK_DRAG item has the button).
 
+A '▸' item (UV ▸, a submenu of the context menu) opens its submenu in place, beside it, and
+the Compass stays open (``ops.compass`` cascades: on hover in the list, after a rest on a
+slot's direction, on its pick); a submenu that cannot open custom stays the native hand-off.
 A pick runs after the teardown (``handlers`` and timer removed), right before FINISHED, with
 ``ops.invoke.execute(action, window, area, region, 'VIEW_3D')`` for each action of
 ``core.compass_rmb.pick_actions(item, mode)`` (``pick_action``; UV ▸ from Object Mode enters
-Edit Mode first) whatever the item's Phase 4 role: there is no Plaza to stay in. The chord's
+Edit Mode first, and so does a pick in its cascade) whatever the item's Phase 4 role: there
+is no Plaza to stay in. The chord's
 own modifiers are not click modifiers (a Shift+RMB pick never "extends"). In Object Mode
 the context Compass is for the object under the press point: when it shows, a probe
 (:func:`object_at_press`: the click, then the selection put back) finds it, and its modes
@@ -218,6 +222,15 @@ def last_session() -> dict[str, Any] | None:
     it when no action finished, absent otherwise) and ``result`` (the last run action's
     result or None)."""
     return dict(_last) if _last else None
+
+
+def cascade_of(state: RmbState, item: Any) -> tuple[Any, tuple]:
+    """The cascade of a '▸' item of the open Compass (``record.compass.cascade_model`` in the
+    invoking area; ``ops.compass.CompassSession.expander``). The seam tests stub."""
+    context = bpy.context
+    info = rows.InvokeInfo(state.window, state.area, state.region, state.area.type,
+                           state.area.ui_type, context.mode)
+    return rec_compass.cascade_model(context, info, item)
 
 
 def run_native(call: OpCall, window: Any, area: Any, region: Any) -> set[str] | None:
@@ -640,6 +653,10 @@ the pointer"""
         pointer = state.pointer
         cs = compass_ops.CompassSession(model, layout, cp.open_state(state.button, now), '',
                                         state.button, pointer)
+        # Cascades (ops.compass): a '▸' item's submenu opens in place, over the whole screen.
+        cs.expander = lambda item: cascade_of(state, item)
+        cs.bounds_for = lambda _model, _parent: state.bounds
+        cs.width = renderer.text_width_fn(dm.font_px)
         compass_ops.gesture_move(cs, pointer[0], pointer[1], now)
         state.compass = cs
         _last['compass'] = model.key
@@ -691,6 +708,7 @@ the pointer"""
                 state.pointer = (x, y)
             in_dead = compass_ops.hover_at(cs, x, y)['in_dead']
             kind = 'release' if value == 'RELEASE' else 'press'
+            prior = cs.gesture
             gesture, effects = cp.compass_step(cs.gesture, kind, now=now, button=etype,
                                                in_dead=in_dead)
             if gesture is not None:
@@ -699,6 +717,9 @@ the pointer"""
                     self._redraw(state, before)
                 return {'RUNNING_MODAL'}
             effect = effects[0] if effects else cp.CancelCompass()
+            if compass_ops.expand_pick(cs, effect, prior):
+                self._redraw(state, before)     # a '▸' pick: its cascade, the Compass stays
+                return {'RUNNING_MODAL'}
             if isinstance(effect, cp.Pick):
                 return self._pick(context, state, cs, effect)
             _end(state, 'cancel')
@@ -712,14 +733,11 @@ the pointer"""
         Object Mode: enter Edit Mode, then the menu); a mode pick in Object Mode first
         selects the object under the press point (``core.compass_rmb.press_selects``,
         :func:`select_at_press`)."""
-        if effect.slot is not None:
-            item, where = cs.model.slots[effect.slot], ('slot', cp.DIRECTIONS[effect.slot])
-        else:
-            index = effect.path[-1] if effect.path else -1
-            item = cs.model.items[index] if 0 <= index < len(cs.model.items) else None
-            where = effect.path
+        item, where, pre = compass_ops.picked(cs, effect)
         mode = str(getattr(context, 'mode', '') or '')
         actions = rmb.pick_actions(item, mode)
+        if pre and actions:
+            actions = tuple(pre) + actions      # a cascade item of UV ▸ from Object Mode
         action = actions[-1] if actions else None
         _last['pick'] = (cs.model.key, where, item.label if item is not None else '')
         _last['action'] = ((action.kind, action.target, action.data_path)

@@ -36,7 +36,7 @@ Industry Compatible or Blender also has applies there too.
 | <kbd>D</kbd> | Edit origins: hold D for gizmo drags, tap D for the next transform ([details](#d-edit-origins)) | 3D View (not mesh Sculpt or text editing) |
 | <kbd>Insert</kbd> | Edit origins until Insert again (toggles Affect Only Origins: move origins, not the shapes) | Object Mode |
 | Hold&nbsp;<kbd>Right&nbsp;Mouse</kbd> | Compass of modes (Object Mode; Edit Mode with Vertex / Edge / Face; the other modes), the context menu as the list below it. A quick click opens the context menu as before ([details](guide.md#right-click-compass-menus-meso-keymap)) | 3D View: Object Mode, Edit Mesh, Curve, Armature, Pose, Metaball, Lattice, Particle Edit |
-| Hold&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>Right&nbsp;Mouse</kbd> | Tool Compass of the mode (Object, Vertex, Edge, Face), the mode's menu as the list below it. A quick click still places the 3D cursor | 3D View |
+| Hold&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>Right&nbsp;Mouse</kbd> | Tool Compass of the mode (Object, Vertex, Edge, Face), the mode's menu as the list below it. **A quick click without moving places the 3D cursor** under the pointer, as before | 3D View |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>Right&nbsp;Mouse</kbd> | The 3D cursor: click to place, drag to move (Industry Compatible's Shift right click). The Shift Right Click preference swaps the two chords back | 3D View |
 
 In the other editors Ctrl A still selects all; in the 3D View select all is Ctrl Shift A.

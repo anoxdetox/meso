@@ -45,6 +45,7 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 
 from ..core import geometry
+from ..core.compass import shows_mark
 from ..core.dropdown_geometry import (
     GLYPH_RADIO, ChainLayout, DropdownMetrics, Panel, PlacedCell, PlacedItem,
 )
@@ -1018,19 +1019,23 @@ def compass_extent(compass: Any) -> Rect | None:
         return None
     (cx, cy), (px, py) = lay.centre, compass.pointer
     line = Rect(min(cx, px) - 2, min(cy, py) - 2, abs(px - cx) + 4, abs(py - cy) + 4)
-    return bounding_box((lay.extent, line))
+    cascade = chain_extent(getattr(compass, 'cascade', None))
+    return bounding_box((lay.extent, line) + ((cascade,) if cascade is not None else ()))
 
 
 def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
                  linear_blend: bool, clip: Rect | None = None) -> bool:
     """Draw an open Compass (local/docs/phase5-interfaces.md "Draw"): the centre ring (radius
-    ``dead_r``) and, once the pointer is outside it, a line from the centre to the pointer,
-    both in ``palette.ticks``; each slot box filled with the dropdown panel colour and a
-    border, the hovered one with ``item_hover`` and a 2-scale-px ``text_hover`` outline; its
-    glyph (check box, cascade arrow) and label; then the list panel with
+    ``dead_r``) and, once the pointer is outside it, a line from the centre to the pointer
+    while the direction picks (``core.compass.shows_mark``: gone once the list took over or
+    on a cascade), both in ``palette.ticks``; each slot box filled with the dropdown panel
+    colour and a border, the hovered one with ``item_hover`` and a 2-scale-px ``text_hover``
+    outline; its glyph (check box, cascade arrow) and label; then the list panel with
     :func:`draw_dropdowns` (hover on the gesture's ``hover_path``; Phase 5c: only its visible
-    items, the scroll arrow rows, scissored to its capped rect: :func:`_draw_compass_list`).
-    Boxes of a fixed Compass past the window edge are clipped by the region's scissor.
+    items, the scroll arrow rows, scissored to its capped rect: :func:`_draw_compass_list`);
+    then the open cascade chain (``compass.cascade``, :func:`draw_dropdowns`, hover on the
+    gesture's ``hover_cascade``), its opener (the slot box or list item) kept lit. Boxes of a
+    fixed Compass past the window edge are clipped by the region's scissor.
     Returns False without GPU work when ``clip`` misses the Compass. Exceptions propagate
     (draw_manager logs once)."""
     lay = getattr(compass, 'layout', None)
@@ -1043,7 +1048,10 @@ def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
     dm = lay.metrics
     ox, oy = region_offset
     gesture = compass.gesture
+    root = getattr(compass, 'cascade_root', None)
     hover = gesture.hover_slot
+    if hover is None and root is not None and root[0] == 'slot':
+        hover = root[1]                 # the slot whose cascade is open stays lit
     line_w = max(1.0, round(dm.scale))
     cx, cy = lay.centre
     px, py = compass.pointer
@@ -1060,7 +1068,7 @@ def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
                              cx + lay.dead_r * math.cos(a1), cy + lay.dead_r * math.sin(a1)))
             lines(ring, palette.ticks, line_w)
             dist = math.hypot(px - cx, py - cy)
-            if dist > lay.dead_r and not gesture.sticky:
+            if dist > lay.dead_r and shows_mark(gesture):
                 ux, uy = (px - cx) / dist, (py - cy) / dist
                 lines([(cx + ux * lay.dead_r, cy + uy * lay.dead_r, px, py)], palette.ticks,
                       line_w)
@@ -1087,8 +1095,14 @@ def draw_compass(compass: Any, palette: Palette, region_offset: tuple[int, int],
     finally:
         gpu.state.blend_set('NONE')
     if lay.panel is not None:
-        _draw_compass_list(lay, palette, gesture.hover_path, region_offset, linear_blend,
-                           colors, clip)
+        lit = gesture.hover_path
+        if lit is None and root is not None and root[0] == 'list':
+            lit = root[1]               # the list item whose cascade is open stays lit
+        _draw_compass_list(lay, palette, lit, region_offset, linear_blend, colors, clip)
+    cascade = getattr(compass, 'cascade', None)
+    if cascade is not None and cascade.panels:
+        draw_dropdowns(cascade, palette, getattr(gesture, 'hover_cascade', None),
+                       region_offset, linear_blend, clip=clip)
     return True
 
 

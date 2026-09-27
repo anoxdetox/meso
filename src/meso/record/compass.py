@@ -16,6 +16,9 @@ mesh's ``meso:context`` has the reference layout's component modes (Edge N, Vert
 UV ▸ E, Multi SE, Edit Mode SW, Object Mode NE, Sculpt Mode NW). Phase 6
 (local/docs/phase6-interfaces.md §6): ``meso:settings`` lists the row toggles and the style and
 position radios under its radial.
+
+Cascades (``core.compass_cascade``): :func:`cascade_model` records the submenu a Compass's '▸'
+item opens in place.
 """
 
 from __future__ import annotations
@@ -27,10 +30,12 @@ import bpy
 from ..core import compass as cp
 from ..core import compass_rmb as rmb
 from ..core import modes, zones
+from ..core import compass_cascade as cc
 from ..core.dropdown_model import (
-    COVERAGE_NATIVE, DD_LABEL, DD_NATIVE, DD_OP, DD_RADIO, DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE,
-    DD_TOGGLE_ROW, DROPDOWN_OPERATOR_CONTEXT, ITEM_SOURCE_PLAZA_LABEL, PASSIVE_DD_KINDS,
-    DropdownItem, native_menu_action,
+    COVERAGE_CUSTOM, COVERAGE_NATIVE, DD_ENUM_CASCADE, DD_LABEL, DD_NATIVE, DD_OP, DD_RADIO,
+    DD_SEPARATOR, DD_SUBMENU, DD_TOGGLE, DD_TOGGLE_ROW, DROPDOWN_OPERATOR_CONTEXT,
+    ITEM_SOURCE_PLAZA_LABEL, PASSIVE_DD_KINDS, SOURCE_ENUM, DropdownItem, DropdownModel,
+    native_menu_action,
 )
 from ..core.model import (
     ACTION_ADDON_PREFS, ACTION_OPERATOR, ACTION_SET_ENUM, ACTION_TOGGLE, ACTION_WORKSPACE,
@@ -42,7 +47,8 @@ from . import dropdown as rec_dropdown
 from . import recorder
 from . import rows as rec_rows
 
-__all__ = ('BUILDERS', 'MENU_BUILTINS', 'VIEW_PIES', 'build_compass', 'pie_compass')
+__all__ = ('BUILDERS', 'MENU_BUILTINS', 'VIEW_PIES', 'build_compass', 'cascade_model',
+           'pie_compass')
 
 _logged: set[str] = set()
 _ROOT = __package__.rpartition('.')[0]      # the add-on package (bl_ext.<repo>.meso)
@@ -650,3 +656,36 @@ def build_compass(context: Any, info: Any, value: str, plaza: Any = None,
         return None
     return model
 
+
+def cascade_model(context: Any, info: Any, item: DropdownItem | None, *,
+                  cache: Any = None, show_shortcuts: bool = False
+                  ) -> tuple[DropdownModel | None, tuple]:
+    """The submenu the Compass item ``item`` opens in place (``core.compass_cascade``) ->
+    ``(model, pre)``: a DD_ENUM_CASCADE its children; a DD_SUBMENU its Menu recorded in the
+    invoking area (``info``; ``record.dropdown.build_dropdown`` through ``cache``). A menu
+    whose entries need another mode than the current one (``core.compass_rmb.MENU_MODES``:
+    UV ▸ from Object Mode, where every entry's poll fails) is recorded without the operator
+    polls and ``pre`` enters that mode first (``core.compass_rmb.pick_actions``), as a pick
+    of the menu hands it off. ``(None, ())`` when it does not open custom (not expandable,
+    a native / empty / failed menu: it stays the hand-off). Never raises."""
+    if not cc.expandable(item):
+        return None, ()
+    try:
+        if item.kind == DD_ENUM_CASCADE:
+            return DropdownModel(f'compass#{item.label}', item.label, tuple(item.children),
+                                 COVERAGE_CUSTOM, source=SOURCE_ENUM), ()
+        mode = str(getattr(context, 'mode', '') or '')
+        pre = tuple(rmb.pick_actions(item, mode)[:-1])
+        if pre:
+            with rec_dropdown.invoking_context(context, info) as ctx:
+                model, _cause = rec_dropdown.build_in_context(ctx, item.submenu, poll=False)
+        else:
+            model = rec_dropdown.build_dropdown(context, info, item.submenu, cache=cache,
+                                                show_shortcuts=show_shortcuts)
+    except Exception as ex:
+        _log_once(f'cascade:{item.submenu}', f"recording the cascade {item.label!r} failed: "
+                                             f"{ex!r}")
+        return None, ()
+    if model is None or model.coverage == COVERAGE_NATIVE or not model.items:
+        return None, ()
+    return model, pre

@@ -900,19 +900,56 @@ class TestCompassRmbPhase5c(_RmbCase):
         self.assertEqual(self.executed[0]['action'].target, 'object.mode_set')
         self.assertEqual(len(self.selects), 1)
 
-    def test_uv_from_object_mode_enters_edit_mode_then_opens_the_menu(self):
+    def click_cascade(self, op, label):
+        """Click the cascade row ``label`` of the open (click-style) Compass."""
+        cs = self.rmb.current_state().compass
+        row = next(it for it in cs.cascade.panels[0].items if it.label == label)
+        xy = self.mid(row.rect)
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        self.assertIsNotNone(cs.gesture.hover_cascade, label)
+        self.ev(op, 'LEFTMOUSE', 'PRESS', xy)
+        return self.ev(op, 'LEFTMOUSE', 'RELEASE', xy)
+
+    def test_uv_opens_in_place_and_a_pick_enters_edit_mode_first(self):
         op, _cs = self.show()
-        self.assertEqual(self.pick_toward(op, 'E'), {'FINISHED'})
+        self.assertEqual(self.pick_toward(op, 'E'), {'RUNNING_MODAL'},
+                         "UV ▸ opens its cascade beside the slot; the Compass stays")
+        cs = self.rmb.current_state().compass
+        self.assertEqual(cs.cascade_models[0].key, 'VIEW3D_MT_uv_map')
+        self.assertEqual((self.executed, self.selects), ([], []))
+        self.assertEqual(self.click_cascade(op, 'Smart UV Project...'), {'FINISHED'})
         self.assertEqual([(e['action'].kind, e['action'].target, dict(e['action'].props),
                            e['running']) for e in self.executed],
                          [('operator', 'object.mode_set', {'mode': 'EDIT'}, False),
-                          ('menu', 'VIEW3D_MT_uv_map', {}, False)],
-                         "Edit Mode, then the menu handed off (wm.call_menu)")
+                          ('operator', 'uv.smart_project', {}, False)],
+                         "Edit Mode, then the entry")
         self.assertEqual(self.executed[0]['action'].operator_context, 'INVOKE_REGION_WIN')
         self.assertEqual(len(self.selects), 1, "entering Edit Mode: the object under the press")
         self.assertEqual(self.selects[0]['executed'], 0)
         self.assertEqual([a[1] for a in self.rmb.last_session()['actions']],
-                         ['object.mode_set', 'VIEW3D_MT_uv_map'])
+                         ['object.mode_set', 'uv.smart_project'])
+
+    def test_a_context_menu_submenu_opens_on_hover(self):
+        """Snap ▸ of the context menu list opens in place once the list took over."""
+        op, cs = self.show()
+        row = next(it for it in cs.layout.panel.items
+                   if cs.model.items[it.path[-1]].label == 'Snap')
+        xy = self.mid(row.rect)
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        self.assertIsNone(cs.cascade_root, "the gesture wins until the list takes over")
+        self.clock[0] += _mod("core.compass").LIST_DWELL
+        self.ev(op, 'TIMER')
+        self.assertEqual(cs.cascade_root, ('list', row.path))
+        self.assertEqual(cs.cascade_models[0].key, 'VIEW3D_MT_snap')
+        self.assertFalse(_mod("core.compass").shows_mark(cs.gesture), "no mark line")
+        first = next(it for it in cs.cascade.panels[0].items if it.kind == 'op' and it.enabled)
+        xy = self.mid(first.rect)
+        self.ev(op, 'MOUSEMOVE', xy=xy)
+        self.assertEqual(self.ev(op, 'RIGHTMOUSE', 'RELEASE', xy), {'FINISHED'})
+        run = self.executed[0]['action']
+        self.assertEqual(run.kind, 'operator')
+        self.assertTrue(run.target.startswith('view3d.snap_'), run.target)
+        self.assertEqual(self.selects, [], "not a mode pick")
 
     def test_a_failed_step_stops_the_pick(self):
         inv = _mod("ops.invoke")
@@ -923,8 +960,9 @@ class TestCompassRmbPhase5c(_RmbCase):
             return inv.ExecResult(('fake', {}), ['CANCELLED'], True)
         inv.execute = refuse                    # setUp's cleanup restores the original
         op, _cs = self.show()
-        self.assertEqual(self.pick_toward(op, 'E'), {'FINISHED'})
-        self.assertEqual(tried, ['object.mode_set'], "no menu without Edit Mode")
+        self.assertEqual(self.pick_toward(op, 'E'), {'RUNNING_MODAL'})
+        self.assertEqual(self.click_cascade(op, 'Smart UV Project...'), {'FINISHED'})
+        self.assertEqual(tried, ['object.mode_set'], "no entry without Edit Mode")
 
     def test_in_edit_mode_the_press_selects_nothing(self):
         with in_mode(None, 'EDIT'), select_mode(True, False, False):
@@ -934,11 +972,12 @@ class TestCompassRmbPhase5c(_RmbCase):
             self.assertEqual((run.target, dict(run.props)), ('mesh.select_mode',
                                                              {'type': 'EDGE'}))
             op, _cs = self.show()
-            self.assertEqual(self.pick_toward(op, 'E'), {'FINISHED'})
-            self.assertEqual(len(self.executed), 2, "Edit Mode already: only the menu")
+            self.assertEqual(self.pick_toward(op, 'E'), {'RUNNING_MODAL'}, "UV ▸ opens")
+            self.assertEqual(self.rmb.current_state().compass.cascade_pre, ())
+            self.assertEqual(self.click_cascade(op, 'Smart UV Project...'), {'FINISHED'})
+            self.assertEqual(len(self.executed), 2, "Edit Mode already: only the entry")
             run = self.executed[1]['action']
-            self.assertEqual((run.kind, run.target), ('menu', 'VIEW3D_MT_uv_map'),
-                             "UV handed off")
+            self.assertEqual((run.kind, run.target), ('operator', 'uv.smart_project'))
             self.assertEqual(self.selects, [], "component modes act on the edited objects")
 
     def test_the_tool_compass_selects_nothing(self):

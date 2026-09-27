@@ -30,20 +30,32 @@ the label); another submenu hands its menu off natively, after entering the mode
 entries need (``core.compass_rmb.pick_actions``: UV ▸ of ``meso:context`` from Object Mode
 enters Edit Mode first, as on the right-click Compass). Plain data only lives in
 :class:`CompassSession`.
+
+Cascades (``core.compass_cascade``): a '▸' item that :func:`core.compass_cascade.expandable`
+accepts opens its submenu in place, as a panel beside it (``CompassSession.expander``
+records it: ``record.compass.cascade_model``): a list item on hover (once the list took
+over), a slot after a rest on its direction (``core.compass.Expand``), either on its pick
+(the Compass then stays open, click-style). :func:`update_cascade` keeps the chain after
+each move (``core.compass_cascade.keeps``; a pointer heading to it keeps it), opens deeper
+levels on hover and closes it otherwise; a pick of a cascade item runs it as a list item's
+(its root's mode entry first: UV ▸ from Object Mode). A submenu that cannot open custom
+(native, empty or failed) stays the native hand-off.
 """
 
 from __future__ import annotations
 
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from ..core import actions as core_actions
 from ..core import compass as cp
+from ..core import compass_cascade as cc
 from ..core import compass_rmb as rmb_core
 from ..core import dropdown_geometry as ddg
 from ..core import menubar, zones
+from ..core.dropdown_geometry import EMPTY_CHAIN, ChainLayout
 from ..core.dropdown_model import (
     DD_SUBMENU, ITEM_SOURCE_PLAZA_LABEL, ROLE_APPLY, ROLE_APPLY_CLOSE, ROLE_HANDOFF, ROLE_RUN,
     ROLE_SUBMENU, ZONE_LABEL, item_role, label_role, native_menu_action,
@@ -52,11 +64,13 @@ from ..core.menubar import Esc, Handoff, Press, Release, RunItem, Target
 from ..core.model import item_action
 from ..core.rects import Rect
 from ..record import compass as rec_compass
+from ..record import dropdown as rec_dropdown
 from . import invoke
 
-__all__ = ('CompassSession', 'NOT_OURS', 'PASS_ON', 'PAN_EVENTS', 'WHEEL_STEPS', 'close',
-           'gesture_move', 'gesture_tick', 'handle', 'hover_at', 'pan_scroll', 'scroll_list',
-           'wheel_scroll')
+__all__ = ('CompassSession', 'NOT_OURS', 'PASS_ON', 'PAN_EVENTS', 'WHEEL_STEPS',
+           'cascade_item', 'close', 'close_cascade', 'expand_pick', 'gesture_move',
+           'gesture_tick', 'handle', 'hover_at', 'open_cascade', 'pan_scroll', 'picked',
+           'scroll_list', 'update_cascade', 'wheel_scroll')
 
 NOT_OURS = object()     # the event goes on to the stroke / reducer as before
 PASS_ON = object()      # ours, but the modal keeps its own handling (TIMER watchdog)
@@ -87,6 +101,18 @@ class CompassSession:
     # ``warp_delta`` map them onto the centre until the pointer really moves away.
     warp_from: tuple[float, float] | None = None
     warp_delta: tuple[float, float] = (0.0, 0.0)
+    # Cascades (module doc): ``expander(item) -> (DropdownModel | None, pre actions)`` builds
+    # a '▸' item's submenu (None: no cascades, the hand-off stays); ``bounds_for(model,
+    # parent panel) -> Rect`` where a cascade is placed; ``width`` the text width function.
+    expander: Any = None
+    bounds_for: Any = None
+    width: Any = None
+    cascade_root: tuple | None = None       # ('slot', index) / ('list', path) / None
+    cascade_models: tuple = ()
+    cascade: ChainLayout = EMPTY_CHAIN
+    cascade_pre: tuple = ()                 # run before a cascade pick (a mode entry)
+    trail: list = field(default_factory=list)   # recent pointers: the aim at a cascade
+    no_expand: set = field(default_factory=set)  # items whose submenu cannot open custom
 
 
 def _dd():
@@ -99,7 +125,10 @@ def _extent(cs: CompassSession | None) -> list[Rect]:
         return []
     (cx, cy), (px, py) = cs.layout.centre, cs.pointer
     line = Rect(min(cx, px) - 2, min(cy, py) - 2, abs(px - cx) + 4, abs(py - cy) + 4)
-    return [cs.layout.extent, line]
+    out = [cs.layout.extent, line]
+    if cs.cascade.extent is not None:
+        out.append(cs.cascade.extent)
+    return out
 
 
 def _redraw(state: Any, before: list[Rect], plaza: bool = False) -> None:
@@ -174,12 +203,25 @@ def _try_open(op: Any, state: Any, context: Any, event: Any) -> Any:
         warp_cursor(state.window, pointer)
     cs = CompassSession(model, layout, cp.open_state(button, time.perf_counter()), zone,
                         button, pointer)
+    cs.expander = lambda item: _plaza_cascade(state, item)
+    cs.bounds_for = lambda m, parent: dd._submenu_bounds(state, m, parent, dm, width)
+    cs.width = width
     if pointer != (x, y):
         cs.warp_from, cs.warp_delta = (x, y), (pointer[0] - x, pointer[1] - y)
     _set(state, cs)
     session.compasses.append((zone, zones.BUTTONS[button], model.key))
     _redraw(state, [], plaza=True)
     return {'RUNNING_MODAL'}
+
+
+def _plaza_cascade(state: Any, item: Any) -> tuple[Any, tuple]:
+    """The cascade of a Plaza Compass's '▸' item (``record.compass.cascade_model`` in the
+    invoking area, through the session's dropdown cache)."""
+    import bpy      # lazily: the live context of the event being handled
+    session = state.menus
+    show = session.show_shortcuts and not session.cache.shortcuts_off
+    return rec_compass.cascade_model(bpy.context, _dd()._info(state), item,
+                                     cache=session.cache, show_shortcuts=show)
 
 
 def warp_cursor(window: Any, xy: tuple[float, float]) -> None:
@@ -207,15 +249,21 @@ def event_xy(cs: CompassSession, event: Any) -> tuple[float, float]:
 def hover_at(cs: CompassSession, x: float, y: float) -> dict[str, Any]:
     """The ``core.compass.compass_step`` 'move' keywords for the pointer at ``(x, y)``:
     ``slot`` (the direction, through the list), ``path`` (the visible list item),
-    ``in_dead``, ``on_list``, ``arrow`` (the scroll arrow row: -1 / 0 / 1), ``xy`` and
-    ``still_r`` (the list's rest: ``LIST_STILL_PX`` times the UI scale)."""
+    ``in_dead``, ``on_list``, ``arrow`` (the scroll arrow row: -1 / 0 / 1), ``xy``,
+    ``still_r`` (the list's rest: ``LIST_STILL_PX`` times the UI scale), ``on_cascade`` /
+    ``cascade`` (the open cascade under the pointer) and ``expands`` (the direction's slot
+    opens a cascade)."""
     lay = cs.layout
     cx, cy = lay.centre
-    return {'slot': cp.pick_slot(lay, x, y, through_list=True),
-            'path': cp.list_path_at(lay, x, y),
+    slot = cp.pick_slot(lay, x, y, through_list=True)
+    on_cascade, cascade = cc.cascade_at(cs.cascade, x, y)
+    expands = (slot is not None and cs.expander is not None
+               and _can_expand(cs, cs.model.slots[slot]))
+    return {'slot': slot, 'path': cp.list_path_at(lay, x, y),
             'in_dead': math.hypot(x - cx, y - cy) < lay.dead_r,
             'on_list': cp.on_list(lay, x, y), 'arrow': cp.scroll_arrow_at(lay, x, y),
-            'xy': (x, y), 'still_r': cp.LIST_STILL_PX * lay.metrics.scale}
+            'xy': (x, y), 'still_r': cp.LIST_STILL_PX * lay.metrics.scale,
+            'on_cascade': on_cascade, 'cascade': cascade, 'expands': expands}
 
 
 def _hover(cs: CompassSession, x: float, y: float) -> tuple[int | None, Any, bool]:
@@ -233,6 +281,8 @@ def scroll_list(cs: CompassSession, n: int, now: float) -> bool:
     if layout is cs.layout:
         return False
     cs.layout = layout
+    if cs.cascade_root is not None and cs.cascade_root[0] == cc.ROOT_LIST:
+        close_cascade(cs)           # its opener row moved
     cs.gesture, _fx = cp.compass_step(cs.gesture, 'scrolled', now=now)
     cs.gesture, _fx = cp.compass_step(cs.gesture, 'move', now=now, **hover_at(cs, *cs.pointer))
     return True
@@ -242,22 +292,203 @@ def _scrolls(cs: CompassSession, effects: tuple, now: float) -> None:
     for fx in effects:
         if isinstance(fx, cp.Scroll):
             scroll_list(cs, fx.n, now)
+        elif isinstance(fx, cp.Expand):
+            open_cascade(cs, (cc.ROOT_SLOT, fx.slot))
 
 
 def gesture_move(cs: CompassSession, x: float, y: float, now: float) -> None:
-    """Feed a pointer move to ``(x, y)`` to the gesture (``cs.pointer`` follows) and run the
-    scroll it asks for (a rest on an arrow row)."""
+    """Feed a pointer move to ``(x, y)`` to the gesture (``cs.pointer`` follows), run the
+    scroll it asks for (a rest on an arrow row) and the cascade (:func:`update_cascade`)."""
     cs.gesture, effects = cp.compass_step(cs.gesture, 'move', now=now, **hover_at(cs, x, y))
     cs.pointer = (x, y)
+    cs.trail.append((x, y))
+    del cs.trail[:-ddg.AIM_TRAIL_LEN]
     _scrolls(cs, effects, now)
+    update_cascade(cs)
 
 
 def gesture_tick(cs: CompassSession, now: float) -> bool:
-    """A TIMER: arm the list after a rest, repeat an arrow row's scroll. True when the
-    Compass needs a redraw."""
+    """A TIMER: arm the list after a rest, repeat an arrow row's scroll, open a rested '▸'
+    slot's cascade. True when the Compass needs a redraw."""
+    before = (cs.cascade_root, len(cs.cascade.panels))
     cs.gesture, effects = cp.compass_step(cs.gesture, 'tick', now=now)
     _scrolls(cs, effects, now)
-    return bool(effects)
+    update_cascade(cs)
+    return bool(effects) or before != (cs.cascade_root, len(cs.cascade.panels))
+
+
+# --------------------------------------------------------------------------- cascades
+
+
+def _item_key(item: Any) -> tuple:
+    return (item.kind, item.label, item.submenu)
+
+
+def _can_expand(cs: CompassSession, item: Any) -> bool:
+    return cc.expandable(item) and _item_key(item) not in cs.no_expand
+
+
+def _root_item(cs: CompassSession, root: tuple) -> Any:
+    kind, ref = root
+    if kind == cc.ROOT_SLOT:
+        return cs.model.slots[ref] if 0 <= ref < len(cs.model.slots) else None
+    index = ref[-1] if ref else -1
+    return cs.model.items[index] if 0 <= index < len(cs.model.items) else None
+
+
+def cascade_item(cs: CompassSession, path: Any) -> Any:
+    """The item of the open cascade chain at ``path`` (None when not there), a DD_VALUE /
+    DD_NATIVE_MORE with its menu's hand-off filled in (``ops.dropdowns._item_with_action``)."""
+    if not path or len(path) > len(cs.cascade_models):
+        return None
+    model = cs.cascade_models[len(path) - 1]
+    return _dd()._item_with_action(model, model.item(path[-1]))
+
+
+def _build(cs: CompassSession, item: Any) -> tuple[Any, tuple]:
+    """``cs.expander(item)`` -> ``(model, pre)``; a submenu that cannot open custom is
+    remembered (it stays the hand-off) -> ``(None, ())``. Never raises."""
+    if cs.expander is None or not _can_expand(cs, item):
+        return None, ()
+    try:
+        model, pre = cs.expander(item)
+    except Exception:
+        _dd()._log_once('cascade', "building a Compass cascade failed", exc=True)
+        model, pre = None, ()
+    if model is None or not model.items:
+        cs.no_expand.add(_item_key(item))
+        return None, ()
+    return model, tuple(pre or ())
+
+
+def _place(cs: CompassSession, model: Any, parent: Any, opener: Any, depth: int) -> Any:
+    dm = cs.layout.metrics
+    bounds = cs.bounds_for(model, parent) if cs.bounds_for is not None else None
+    return ddg.fit_panel(
+        model, lambda m: cc.place_cascade(m, parent, opener, depth, bounds, dm, cs.width),
+        dm, rec_dropdown.more_label())
+
+
+def open_cascade(cs: CompassSession, root: tuple) -> bool:
+    """Open the cascade of ``root`` (``('slot', index)`` / ``('list', path)``) as level 0,
+    replacing any open one. True when it is open (it already was, or it opened)."""
+    root = (root[0], tuple(root[1]) if root[0] == cc.ROOT_LIST else root[1])
+    if cs.cascade_root == root:
+        return True
+    item = _root_item(cs, root)
+    if root[0] == cc.ROOT_SLOT:
+        box = cs.layout.box(root[1])
+        where = cc.slot_opener(box) if box is not None else None
+    else:
+        where = cc.list_opener(cs.layout, root[1])
+    if where is None:
+        return False
+    model, pre = _build(cs, item)
+    if model is None:
+        return False
+    model, panel = _place(cs, model, where[0], where[1], 0)
+    cs.cascade_root, cs.cascade_models, cs.cascade_pre = root, (model,), pre
+    cs.cascade = ddg.extend_chain(ChainLayout(metrics=cs.layout.metrics), panel)
+    return True
+
+
+def _open_deeper(cs: CompassSession, path: tuple) -> bool:
+    """Open the cascade of the cascade item ``path`` as level ``len(path)``."""
+    level = len(path)
+    parent = cs.cascade.panel(level - 1)
+    opener = cs.cascade.item(path)
+    if parent is None or opener is None:
+        return False
+    open_ = cs.cascade.panel(level)
+    if open_ is not None and open_.opener == tuple(path):
+        return True
+    model, _pre = _build(cs, cascade_item(cs, path))
+    if model is None:
+        return False
+    model, panel = _place(cs, model, parent, opener, level)
+    cs.cascade_models = cs.cascade_models[:level] + (model,)
+    cs.cascade = ddg.extend_chain(ddg.truncate_chain(cs.cascade, level), panel)
+    return True
+
+
+def close_cascade(cs: CompassSession, depth: int = 0) -> None:
+    """Close the cascade levels from ``depth`` on (0: the whole chain)."""
+    if depth <= 0:
+        cs.cascade_root, cs.cascade_models, cs.cascade_pre = None, (), ()
+        cs.cascade = EMPTY_CHAIN
+        return
+    cs.cascade_models = cs.cascade_models[:depth]
+    cs.cascade = ddg.truncate_chain(cs.cascade, depth)
+
+
+def _approaching(cs: CompassSession, rect: Any) -> bool:
+    scale = cs.layout.metrics.scale
+    origin = ddg.aim_origin(cs.trail[:-1], cs.pointer, ddg.AIM_TRAIL_PX * scale)
+    return ddg.is_approaching(origin, cs.pointer, rect, ddg.AIM_SLACK_PX * scale)
+
+
+def update_cascade(cs: CompassSession) -> None:
+    """After a move (module doc): on the chain, close the levels past the hovered item
+    (unless the pointer heads to them) and open the hovered item's; off it, keep the chain
+    while ``core.compass_cascade.keeps`` does, else close it; with none open, a hovered list
+    item that expands opens its cascade."""
+    g = cs.gesture
+    if g is None:
+        return
+    if cs.cascade_root is not None:
+        if g.cascade_on:
+            path = g.hover_cascade
+            if path is None:
+                return
+            deeper = cs.cascade.panel(len(path))
+            if (deeper is not None and deeper.opener != tuple(path)
+                    and not _approaching(cs, deeper.rect)):
+                close_cascade(cs, len(path))
+            if cs.cascade.panel(len(path)) is None and _can_expand(cs, cascade_item(cs, path)):
+                _open_deeper(cs, path)
+            return
+        if cc.keeps(cs.cascade_root, g, _approaching(cs, cs.cascade.panels[0].rect)):
+            return
+        close_cascade(cs)
+    if g.hover_path is not None and _can_expand(cs, _root_item(cs, (cc.ROOT_LIST,
+                                                                    g.hover_path))):
+        open_cascade(cs, (cc.ROOT_LIST, g.hover_path))
+
+
+def picked(cs: CompassSession, effect: cp.Pick) -> tuple[Any, Any, tuple]:
+    """``(item, where, pre)`` of a pick: the slot / list item / cascade item, its record
+    ``where`` (('slot', 'N'), a list path, ('cascade', root, path)) and the actions to run
+    first (a cascade's root mode entry)."""
+    if effect.cascade is not None:
+        return (cascade_item(cs, effect.cascade),
+                ('cascade', cs.cascade_root, tuple(effect.cascade)), cs.cascade_pre)
+    if effect.slot is not None:
+        return cs.model.slots[effect.slot], ('slot', cp.DIRECTIONS[effect.slot]), ()
+    index = effect.path[-1] if effect.path else -1
+    item = cs.model.items[index] if 0 <= index < len(cs.model.items) else None
+    return item, effect.path, ()
+
+
+def expand_pick(cs: CompassSession, effect: Any, prior: Any) -> bool:
+    """A pick of a '▸' item that opens in place: its cascade opens (or stays open) and the
+    Compass stays open, click-style (``prior``: the gesture before the release). True when
+    it did; False: an ordinary pick (a submenu that cannot open custom: its hand-off)."""
+    if not isinstance(effect, cp.Pick) or prior is None or cs.expander is None:
+        return False
+    if effect.cascade is not None:
+        opened = (_can_expand(cs, cascade_item(cs, effect.cascade))
+                  and _open_deeper(cs, tuple(effect.cascade)))
+    elif effect.slot is not None:
+        opened = (_can_expand(cs, cs.model.slots[effect.slot])
+                  and open_cascade(cs, (cc.ROOT_SLOT, effect.slot)))
+    elif effect.path is not None:
+        opened = (_can_expand(cs, _root_item(cs, (cc.ROOT_LIST, effect.path)))
+                  and open_cascade(cs, (cc.ROOT_LIST, effect.path)))
+    else:
+        opened = False
+    if opened:
+        cs.gesture = replace(prior, sticky=True, pressed=False)
+    return opened
 
 
 def wheel_scroll(cs: CompassSession, event: Any, now: float) -> bool:
@@ -343,6 +574,7 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
                 gesture_move(cs, x, y, now)
             in_dead = hover_at(cs, x, y)['in_dead']
             kind = 'release' if value == 'RELEASE' else 'press'
+            prior = cs.gesture
             gesture, effects = cp.compass_step(cs.gesture, kind, now=now, button=etype,
                                                in_dead=in_dead)
             if gesture is not None:
@@ -351,6 +583,9 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
                     _redraw(state, before)
                 return {'RUNNING_MODAL'}
             effect = effects[0] if effects else cp.CancelCompass()
+            if expand_pick(cs, effect, prior):
+                _redraw(state, before)      # a '▸' pick: its cascade, the Compass stays
+                return {'RUNNING_MODAL'}
             close(state)
             if isinstance(effect, cp.Pick):
                 return _pick(op, state, context, cs, effect)
@@ -367,21 +602,17 @@ def handle(op: Any, state: Any, context: Any, event: Any) -> Any:
 
 def _pick(op: Any, state: Any, context: Any, cs: CompassSession, effect: cp.Pick) -> Any:
     session, dd = state.menus, _dd()
-    if effect.slot is not None:
-        item, where = cs.model.slots[effect.slot], ('slot', cp.DIRECTIONS[effect.slot])
-    else:
-        index = effect.path[-1] if effect.path else -1
-        item = cs.model.items[index] if 0 <= index < len(cs.model.items) else None
-        where = effect.path
+    item, where, pre = picked(cs, effect)
     if item is None:
         return {'RUNNING_MODAL'}
     role = item_role(item)
     session.compass_picks.append((cs.model.key, where, item.label, role))
     source = (item.action, (cs.model.key, where, item.label))
-    if role == ROLE_RUN:
-        return dd._run_terminal(op, state, RunItem(None, False), source=source)
+    if role == ROLE_RUN or (pre and role in (ROLE_APPLY, ROLE_APPLY_CLOSE)):
+        # After a mode entry (a cascade of UV ▸ from Object Mode) nothing applies in place.
+        return dd._run_terminal(op, state, RunItem(None, False), source=source, pre=pre)
     if role == ROLE_HANDOFF:
-        return dd._run_terminal(op, state, Handoff(item.action), source=source)
+        return dd._run_terminal(op, state, Handoff(item.action), source=source, pre=pre)
     if role in (ROLE_APPLY, ROLE_APPLY_CLOSE):
         _apply(op, state, context, cs, item)
         return {'RUNNING_MODAL'}
@@ -390,9 +621,10 @@ def _pick(op: Any, state: Any, context: Any, cs: CompassSession, effect: cp.Pick
             _open_label(op, state, context, item.submenu)
             return {'RUNNING_MODAL'}
         if item.kind == DD_SUBMENU and item.submenu:
+            # It could not open in place: the native hand-off (a menu whose entries need a
+            # mode, UV ▸: enter it first).
             action = native_menu_action(item.submenu)
-            # A menu whose entries need a mode (UV ▸): enter it first, then the hand-off.
-            pre = rmb_core.pick_actions(item, dd._context_mode(context))[:-1]
+            pre = pre + rmb_core.pick_actions(item, dd._context_mode(context))[:-1]
             return dd._run_terminal(op, state, Handoff(action), source=(action, source[1]),
                                     pre=pre)
     return {'RUNNING_MODAL'}

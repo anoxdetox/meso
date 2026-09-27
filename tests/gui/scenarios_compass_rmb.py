@@ -7,9 +7,11 @@ the tool Compass, Ctrl+Shift+right-click drags move the cursor. Phase 5c
 list, a rest on the list picks a context item, a pick on an unselected object selects it and
 enters Edit Mode on it, the Compass over an Empty has only the Empty's modes (a flick south
 picks nothing), Multi, the wheel scrolls a long list, a press near the bottom edge keeps the
-radial at the press. The cursor drag starts a transform, so the module runs in the grab
-(Xwayland) session. Each scenario restores the keyconfig, the mode, the select mode, the
-selection and the cursor.
+radial at the press. Cascades: a rest on Snap ▸ of the list opens it beside the list (the mark
+line gone) and a release on its entry runs it; a flick east releases on UV ▸, which opens the
+unwrap menu beside the box and keeps the Compass open (still Object Mode). The cursor drag
+starts a transform, so the module runs in the grab (Xwayland) session. Each scenario restores
+the keyconfig, the mode, the select mode, the selection and the cursor.
 """
 
 import importlib
@@ -592,6 +594,99 @@ def scenarios(drv):
             back_to_blender()
             yield 0.3
 
+    def sc_list_cascade(rec):
+        """A rest on Snap ▸ of the context menu list opens it beside the list; a release
+        on Cursor to World Origin there runs it."""
+        xy = drv.center_of("VIEW_3D")
+        cursor = bpy.context.scene.cursor
+        before = cursor.location.copy()
+        try:
+            yield from with_meso(rec)
+            object_mode()
+            cursor.location = (1.0, 2.0, 0.5)
+            yield from press_hold(xy)
+            cs = shown_compass()
+            drv.check(rec, "compass_shown", cs is not None)
+            if cs is None:
+                yield from release_all(xy)
+                return
+            row = next((it for it in (cs.layout.panel.items if cs.layout.panel else ())
+                        if getattr(cs.model.items[it.path[-1]], 'submenu', '')
+                        == 'VIEW3D_MT_snap'), None)
+            drv.check(rec, "snap_visible", row is not None)
+            if row is None:
+                yield from release_all(xy)
+                return
+            target = mid(row.rect)
+            yield from stroke(xy, target, steps=4)
+            yield 0.5                                   # > LIST_DWELL: the list takes over
+            cs = shown_compass()
+            drv.check(rec, "cascade_open", cs is not None and cs.cascade_root == ('list', row.path)
+                      and cs.cascade_models[0].key == 'VIEW3D_MT_snap',
+                      getattr(cs, 'cascade_root', None))
+            drv.check(rec, "no_mark_line", cs is not None and not cp().shows_mark(cs.gesture))
+            drv.save_screenshot("compass_rmb_cascade")
+            panel = cs.cascade.panels[0] if cs is not None and cs.cascade.panels else None
+            item = next((it for it in (panel.items if panel else ())
+                         if it.label == 'Cursor to World Origin'), None)
+            drv.check(rec, "entry_listed", item is not None,
+                      [it.label for it in panel.items] if panel else None)
+            if item is None:
+                yield from release_all(xy)
+                return
+            inside = (int(panel.rect.x + 24), target[1])  # straight across, then down
+            yield from stroke(target, inside, steps=3)
+            yield from stroke(inside, (inside[0], mid(item.rect)[1]), steps=3)
+            drv.check(rec, "entry_hovered", shown_compass() is not None
+                      and shown_compass().gesture.hover_cascade == item.path,
+                      shown_compass().gesture.hover_cascade if shown_compass() else None)
+            drv.sim('RIGHTMOUSE', 'RELEASE', (inside[0], mid(item.rect)[1]))
+            yield 0.5
+            ls = last()
+            drv.check(rec, "ran_entry", (ls.get('action') or (None, None))[1]
+                      == 'view3d.snap_cursor_to_center', ls.get('action'))
+            drv.check(rec, "cursor_at_origin", cursor.location.length < 1e-5,
+                      tuple(cursor.location))
+        finally:
+            cursor.location = before
+            back_to_blender()
+            yield 0.3
+
+    def sc_uv_cascade(rec):
+        """A flick east releases on UV ▸: the unwrap menu opens beside the box and the
+        Compass stays open (click-style), still in Object Mode; Esc closes it."""
+        xy = drv.center_of("VIEW_3D")
+        try:
+            yield from with_meso(rec)
+            object_mode()
+            yield from press_hold(xy)
+            cs = shown_compass()
+            drv.check(rec, "compass_shown", cs is not None)
+            if cs is None:
+                yield from release_all(xy)
+                return
+            end = toward(cs, 'E')
+            yield from stroke(xy, end)
+            drv.sim('RIGHTMOUSE', 'RELEASE', end)
+            yield 0.4
+            cs = shown_compass()
+            drv.check(rec, "stays_open", cs is not None)
+            drv.check(rec, "uv_cascade", cs is not None and cs.cascade_models
+                      and cs.cascade_models[0].key == 'VIEW3D_MT_uv_map',
+                      getattr(cs, 'cascade_root', None))
+            drv.check(rec, "click_style", cs is not None and cs.gesture.sticky)
+            drv.check(rec, "still_object_mode", bpy.context.mode == 'OBJECT', bpy.context.mode)
+            drv.save_screenshot("compass_rmb_uv")
+            drv.sim('ESC', 'PRESS', end)
+            drv.sim('ESC', 'RELEASE', end)
+            yield 0.3
+            drv.check(rec, "closed", not rmb().is_running())
+            drv.check(rec, "nothing_ran", last().get('end') == 'cancel', last().get('end'))
+        finally:
+            object_mode()
+            back_to_blender()
+            yield 0.3
+
     return [("rmb_tap", sc_tap), ("rmb_hold_pick", sc_hold_pick),
             ("rmb_shift_tap_cursor", sc_shift_tap_cursor),
             ("rmb_shift_hold_tools", sc_shift_hold_tools),
@@ -599,4 +694,5 @@ def scenarios(drv):
             ("rmb_flick_face", sc_flick_face), ("rmb_list_pick", sc_list_pick),
             ("rmb_pick_unselected", sc_pick_unselected),
             ("rmb_pick_over_empty", sc_pick_over_empty), ("rmb_multi", sc_multi),
-            ("rmb_wheel_scroll", sc_wheel_scroll), ("rmb_bottom_edge", sc_bottom_edge)]
+            ("rmb_wheel_scroll", sc_wheel_scroll), ("rmb_bottom_edge", sc_bottom_edge),
+            ("rmb_list_cascade", sc_list_cascade), ("rmb_uv_cascade", sc_uv_cascade)]

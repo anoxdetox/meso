@@ -378,7 +378,8 @@ class TestGesture(unittest.TestCase):
         does not restart it."""
         s = cp.open_state('RIGHTMOUSE', 0.0)
         s, _ = cp.compass_step(s, 'move', slot=4, path=(1,), on_list=True, now=1.0)
-        s, _ = cp.compass_step(s, 'move', slot=4, path=None, on_list=True, now=1.2)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=None, on_list=True,
+                               now=1.0 + cp.LIST_DWELL / 2)
         self.assertEqual((s.hover_slot, s.hover_path, s.list_since), (4, None, 1.0))
         s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), on_list=True,
                                now=1.0 + cp.LIST_DWELL)
@@ -672,14 +673,16 @@ class TestScrollGesture(unittest.TestCase):
         s = cp.open_state('RIGHTMOUSE', 0.0)
         s, fx = cp.compass_step(s, 'move', slot=0, on_list=True, arrow=1, now=1.0,
                                 xy=(800, 276))
-        for t in (1.09, 1.14, 1.2, 1.3):
+        for f in (0.25, 0.4, 0.55, 0.85):
+            t = 1.0 + f * cp.LIST_DWELL
             s, fx = cp.compass_step(s, 'tick', now=t)
             self.assertEqual(self.scrolls(fx), 0, t)
         self.assertEqual((s.hover_slot, s.list_armed), (0, False))
-        s, fx = cp.compass_step(s, 'move', slot=0, on_list=True, arrow=1, now=1.32,
-                                xy=(801, 277))
+        s, fx = cp.compass_step(s, 'move', slot=0, on_list=True, arrow=1,
+                                now=1.0 + 0.9 * cp.LIST_DWELL, xy=(801, 277))
         self.assertEqual(self.scrolls(fx), 0)
-        self.assertEqual(cp.compass_step(s, 'release', button='RIGHTMOUSE', now=1.33)[1],
+        self.assertEqual(cp.compass_step(s, 'release', button='RIGHTMOUSE',
+                                         now=1.0 + 0.95 * cp.LIST_DWELL)[1],
                          (cp.Pick(slot=0),))
 
     def test_the_click_opened_compass_scrolls_too(self):
@@ -770,7 +773,7 @@ class TestTheListNeverTakesAFlick(unittest.TestCase):
         down = lay.arrow_down
         self.assertIsNotNone(down)
         target = (800.0, float(down.y + down.h // 2))
-        for rest in (0.05, 0.11, 0.3):
+        for rest in (0.05, 0.11, cp.LIST_DWELL - 0.06):
             with self.subTest(rest=rest):
                 g = Driven(lay)
                 g.move(800, 170, 0.01)
@@ -791,7 +794,8 @@ class TestTheListNeverTakesAFlick(unittest.TestCase):
         self.assertEqual(g.layout.scroll, 0)
         g.tick(0.05 + cp.LIST_DWELL + cp.SCROLL_REPEAT)
         self.assertEqual(g.layout.scroll, 1)
-        self.assertEqual(g.release(0.5), (cp.CancelCompass(),), "a scroll never picks")
+        self.assertEqual(g.release(0.05 + cp.LIST_DWELL + cp.SCROLL_REPEAT + 0.02),
+                         (cp.CancelCompass(),), "a scroll never picks")
 
     def test_a_steady_south_stroke_across_the_list_picks_south(self):
         lay = scrolled(12, centre=(800, 700))
@@ -815,16 +819,17 @@ class TestTheListNeverTakesAFlick(unittest.TestCase):
         first, other = items[1], items[4]
         mid = lambda it: (float(it.rect.x + 20), float(it.rect.y + it.rect.h // 2))
         g = Driven(lay)
+        d = cp.LIST_DWELL
         g.move(*mid(first), 0.1)
         x, y = mid(first)
-        g.move(x + 3, y + 2, 0.2)                           # jitter: still resting
-        g.move(x + 6, y, 0.3)
+        g.move(x + 3, y + 2, 0.1 + 0.3 * d)                 # jitter: still resting
+        g.move(x + 6, y, 0.1 + 0.6 * d)
         self.assertEqual(g.s.hover_slot, 4, "not yet")
-        g.tick(0.1 + cp.LIST_DWELL)
+        g.tick(0.1 + d)
         self.assertEqual((g.s.hover_slot, g.s.hover_path), (None, first.path))
-        g.move(*mid(other), 0.5)
+        g.move(*mid(other), 0.2 + d)
         self.assertEqual(g.s.hover_path, other.path, "the armed list follows the pointer")
-        self.assertEqual(g.release(0.55), (cp.Pick(path=other.path),))
+        self.assertEqual(g.release(0.25 + d), (cp.Pick(path=other.path),))
 
     def test_a_drift_restarts_the_rest(self):
         s = cp.open_state('RIGHTMOUSE', 0.0)
@@ -860,6 +865,182 @@ class TestPanSteps(unittest.TestCase):
         self.assertEqual((acc, n), (-3.0, 0))
         acc, n = cp.pan_steps(acc, -30, 20)
         self.assertEqual((acc, n), (0.0, 1), "one item per event")
+
+
+cc = importlib.import_module(_PKG + ".compass_cascade")
+
+
+class TestCascadeGesture(unittest.TestCase):
+    """The gesture over an open cascade (core.compass.compass_step ``on_cascade`` /
+    ``cascade``), the rest that opens a '▸' slot (Expand) and the mark line (shows_mark)."""
+
+    def test_on_a_cascade_its_item_is_what_a_release_picks(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=2, in_dead=False, now=0.1)
+        s, fx = cp.compass_step(s, 'move', slot=2, on_cascade=True, cascade=(3,), now=0.2)
+        self.assertEqual((s.hover_slot, s.hover_path, s.hover_cascade, s.cascade_on),
+                         (None, None, (3,), True))
+        done, fx = cp.compass_step(s, 'release', button='RIGHTMOUSE', now=0.3)
+        self.assertIsNone(done)
+        self.assertEqual(fx, (cp.Pick(cascade=(3,)),))
+
+    def test_a_release_on_a_cascade_gap_keeps_it_open(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=2, in_dead=False, now=0.1)
+        s, _ = cp.compass_step(s, 'move', on_cascade=True, cascade=None, now=0.2)
+        s, fx = cp.compass_step(s, 'release', button='RIGHTMOUSE', now=0.3)
+        self.assertIsNotNone(s)
+        self.assertTrue(s.sticky, "click-style from now on")
+        s, _ = cp.compass_step(s, 'press', button='LEFTMOUSE')
+        s, fx = cp.compass_step(s, 'release', button='LEFTMOUSE')
+        self.assertEqual((fx, s.pressed), ((), False), "a click on the gap too")
+        s, _ = cp.compass_step(s, 'move', on_cascade=True, cascade=(0,), now=0.5)
+        s, _ = cp.compass_step(s, 'press', button='LEFTMOUSE')
+        self.assertEqual(cp.compass_step(s, 'release', button='LEFTMOUSE')[1],
+                         (cp.Pick(cascade=(0,)),))
+
+    def test_off_the_cascade_the_gesture_comes_back(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', on_cascade=True, cascade=(1,), now=0.1)
+        s, _ = cp.compass_step(s, 'move', slot=6, in_dead=False, now=0.2)
+        self.assertEqual((s.hover_slot, s.hover_cascade, s.cascade_on), (6, None, False))
+
+    def test_the_armed_list_waits_while_on_a_cascade(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), on_list=True, now=1.0)
+        s, _ = cp.compass_step(s, 'tick', now=1.0 + cp.LIST_DWELL)
+        self.assertTrue(s.list_armed)
+        s, _ = cp.compass_step(s, 'move', on_cascade=True, cascade=(0,), now=1.5)
+        s, fx = cp.compass_step(s, 'tick', now=1.6)
+        self.assertEqual((s.hover_path, s.hover_cascade), (None, (0,)), "no list hover")
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), on_list=True, now=1.7)
+        self.assertEqual(s.hover_path, (2,), "back on the list it is still armed")
+
+    def test_a_rest_on_a_cascade_slot_expands_it_once(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        kw = dict(slot=2, in_dead=False, expands=True, still_r=10.0)
+        s, fx = cp.compass_step(s, 'move', now=1.0, xy=(100, 0), **kw)
+        self.assertNotIn(cp.Expand(2), fx)
+        s, fx = cp.compass_step(s, 'move', now=1.1, xy=(104, 2), **kw)
+        self.assertNotIn(cp.Expand(2), fx, "not yet")
+        s, fx = cp.compass_step(s, 'tick', now=1.0 + cp.LIST_DWELL)
+        self.assertEqual(fx, (cp.Expand(2),))
+        s, fx = cp.compass_step(s, 'tick', now=2.0)
+        self.assertEqual(fx, (), "once")
+        s, fx = cp.compass_step(s, 'move', now=2.1, xy=(140, 0), **kw)
+        self.assertNotIn(cp.Expand(2), fx, "still on it: not again")
+
+    def test_a_moving_pointer_never_expands_a_slot(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        kw = dict(slot=2, in_dead=False, expands=True, still_r=10.0)
+        for i in range(8):
+            s, fx = cp.compass_step(s, 'move', now=1.0 + i * cp.LIST_DWELL / 2,
+                                    xy=(100 + 20 * i, 0), **kw)
+            self.assertNotIn(cp.Expand(2), fx, i)
+
+    def test_a_plain_slot_never_expands(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=2, in_dead=False, now=1.0, xy=(100, 0))
+        s, fx = cp.compass_step(s, 'tick', now=3.0)
+        self.assertEqual(fx, ())
+
+    def test_the_mark_line_goes_once_the_list_takes_over(self):
+        s = cp.open_state('RIGHTMOUSE', 0.0)
+        s, _ = cp.compass_step(s, 'move', slot=4, path=(2,), on_list=True, in_dead=False,
+                               now=1.0)
+        self.assertTrue(cp.shows_mark(s), "the direction still picks")
+        s, _ = cp.compass_step(s, 'tick', now=1.0 + cp.LIST_DWELL)
+        self.assertFalse(cp.shows_mark(s), "the list took over")
+        s, _ = cp.compass_step(s, 'move', slot=4, in_dead=False, now=1.5)
+        self.assertTrue(cp.shows_mark(s), "off the list it is back")
+        s, _ = cp.compass_step(s, 'move', on_cascade=True, cascade=(0,), now=1.6)
+        self.assertFalse(cp.shows_mark(s), "none on a cascade")
+        self.assertFalse(cp.shows_mark(replace_sticky(s)), "none click-style")
+        self.assertFalse(cp.shows_mark(None))
+
+
+def replace_sticky(s):
+    import dataclasses
+    return dataclasses.replace(s, sticky=True, cascade_on=False)
+
+
+class TestCascadePlacement(unittest.TestCase):
+    """core.compass_cascade: where a cascade opens, what is on it, when it stays."""
+
+    def setUp(self):
+        self.m = metrics()
+
+    def sub(self, n=4):
+        return dm.DropdownModel('SUB', 'Sub', tuple(op(f'Sub {i}') for i in range(n)))
+
+    def test_expandable(self):
+        self.assertTrue(cc.expandable(I(dm.DD_SUBMENU, 'UV', submenu='VIEW3D_MT_uv_map')))
+        self.assertFalse(cc.expandable(I(dm.DD_SUBMENU, 'UV', submenu='X', enabled=False)))
+        self.assertFalse(cc.expandable(I(dm.DD_SUBMENU, 'Row', submenu='row',
+                                         source=dm.ITEM_SOURCE_PLAZA_LABEL)),
+                         "a Plaza row label opens its own dropdown")
+        self.assertTrue(cc.expandable(I(dm.DD_ENUM_CASCADE, 'Set', children=(op('a'),))))
+        self.assertFalse(cc.expandable(I(dm.DD_ENUM_CASCADE, 'Set')))
+        self.assertFalse(cc.expandable(I(dm.DD_NATIVE, 'Move to Collection', source='native')))
+        self.assertFalse(cc.expandable(op('Join')))
+        self.assertFalse(cc.expandable(None))
+
+    def test_a_slot_cascade_opens_beside_its_box(self):
+        lay = cp.place_compass(compass(8, 0), (800, 450), self.m, BOUNDS, width_fn, fixed=True)
+        for direction in ('E', 'NE', 'N'):
+            box = next(b for b in lay.boxes if b.direction == direction)
+            panel = cc.place_cascade(self.sub(), *cc.slot_opener(box), 0, BOUNDS, self.m,
+                                     width_fn)
+            self.assertEqual(panel.depth, 0)
+            self.assertGreaterEqual(panel.rect.x, box.rect.x1 - self.m.submenu_overlap,
+                                    direction)
+            self.assertEqual([it.path for it in panel.items], [(0,), (1,), (2,), (3,)])
+            top = panel.items[0].rect
+            self.assertEqual(top.y1, box.rect.y1, "its first row level with the box")
+        west = next(b for b in lay.boxes if b.direction == 'W')
+        panel = cc.place_cascade(self.sub(), *cc.slot_opener(west), 0, BOUNDS, self.m,
+                                 width_fn)
+        self.assertLessEqual(panel.rect.x1, west.rect.x + self.m.submenu_overlap,
+                             "a west box's cascade goes left")
+
+    def test_a_list_cascade_opens_beside_the_list(self):
+        lay = scrolled(6, centre=(800, 600))
+        row = lay.panel.items[2]
+        parent, opener = cc.list_opener(lay, row.path)
+        panel = cc.place_cascade(self.sub(), parent, opener, 0, BOUNDS, self.m, width_fn)
+        self.assertGreaterEqual(panel.rect.x, lay.panel.rect.x1 - self.m.submenu_overlap)
+        self.assertEqual(panel.items[0].rect.y1, row.rect.y1)
+        self.assertIsNone(cc.list_opener(lay, (99,)), "not a visible row")
+
+    def test_cascade_at(self):
+        lay = cp.place_compass(compass(8, 0), (800, 450), self.m, BOUNDS, width_fn, fixed=True)
+        box = next(b for b in lay.boxes if b.direction == 'E')
+        model = dm.DropdownModel('SUB', 'Sub', (op('a'), I(dm.DD_SEPARATOR), I(dm.DD_LABEL, 'L'),
+                                                op('b')))
+        panel = cc.place_cascade(model, *cc.slot_opener(box), 0, BOUNDS, self.m, width_fn)
+        chain = dg.extend_chain(dg.ChainLayout(metrics=self.m), panel)
+        mid = lambda r: (r.x + r.w / 2, r.y + r.h / 2)
+        self.assertEqual(cc.cascade_at(chain, *mid(panel.items[0].rect)), (True, (0,)))
+        self.assertEqual(cc.cascade_at(chain, *mid(panel.items[1].rect)), (True, None))
+        self.assertEqual(cc.cascade_at(chain, *mid(panel.items[2].rect)), (True, None))
+        self.assertEqual(cc.cascade_at(chain, 0, 0), (False, None))
+        self.assertEqual(cc.cascade_at(dg.EMPTY_CHAIN, 0, 0), (False, None))
+
+    def test_keeps(self):
+        s = cp.CompassState('RIGHTMOUSE', 0.0)
+        import dataclasses
+        on_slot = dataclasses.replace(s, hover_slot=2)
+        self.assertTrue(cc.keeps(('slot', 2), on_slot, False))
+        self.assertFalse(cc.keeps(('slot', 3), on_slot, False))
+        self.assertTrue(cc.keeps(('slot', 3), on_slot, True), "heading to it")
+        self.assertTrue(cc.keeps(('slot', 3), dataclasses.replace(s, cascade_on=True), False))
+        on_row = dataclasses.replace(s, hover_path=(4,), list_on=True)
+        self.assertTrue(cc.keeps(('list', (4,)), on_row, False))
+        self.assertFalse(cc.keeps(('list', (5,)), on_row, False))
+        gap = dataclasses.replace(s, list_on=True)
+        self.assertTrue(cc.keeps(('list', (5,)), gap, False), "a separator next to it")
+        self.assertFalse(cc.keeps(('list', (5,)), dataclasses.replace(s, hover_slot=1),
+                                  False), "the direction took over")
 
 
 if __name__ == "__main__":
