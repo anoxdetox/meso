@@ -78,6 +78,10 @@ def scenarios(drv):
         """Save the main window as the next frame, on screen for ``seconds``."""
         import imbuf
         note_drawn()
+        # Draw the window now: a slow (4K) frame may not have reached the screen yet, and the
+        # screenshot reads what was last drawn.
+        with bpy.context.temp_override(window=drv.win()):
+            bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
         pixels = drv.win().screenshot()
         h, w = pixels.shape[0], pixels.shape[1]
         ibuf = imbuf.new((w, h))
@@ -273,8 +277,9 @@ def scenarios(drv):
         space.shading.light = 'MATCAP'
         space.overlay.show_cursor = False
         prefs = bpy.context.preferences
-        old = prefs.view.ui_scale
+        old = (prefs.view.ui_scale, prefs.view.smooth_view)
         prefs.view.ui_scale = CLOSEUP_SCALE
+        prefs.view.smooth_view = 0          # a view change lands at once (no half-way frame)
         return old
 
     def sc_gif_frames(rec):
@@ -313,7 +318,8 @@ def scenarios(drv):
             if size is not None:
                 write_index(size)
             if old_scale is not None:
-                bpy.context.preferences.view.ui_scale = old_scale
+                v = bpy.context.preferences.view
+                v.ui_scale, v.smooth_view = old_scale
             yield 0.3
         drv.check(rec, "frames_written", len(frames) >= 10, len(frames))
         drv.META.setdefault("gif", {}).update(frames=len(frames), dir=str(out_dir))
