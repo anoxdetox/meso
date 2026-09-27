@@ -5,7 +5,7 @@ right-click and flick north (Edge, still in the Top view), and orbit back to the
 perspective view, so the clip loops. Every step saves the main window as
 ``tests/gui/out/gif/frame_NNNN.png`` (full size) with how long it stays on screen, listed in
 ``frames.ffconcat``; ``gif.json`` holds the 3D View area as the default crop.
-``tools/make_gif.py`` turns them into ``docs/images/meso.gif``.
+``tools/make_gif.py`` turns them into ``docs/images/meso-demo.gif``.
 
 Close-up (``run_gui_tests.sh --size 3840x2160 --only gif``): on an output at least 3000 px wide
 the scenario runs at UI scale 2 over a smooth Suzanne under a matcap (as

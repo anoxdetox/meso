@@ -4,7 +4,7 @@ Hold <kbd>Space</kbd> anywhere in Blender 5.2 LTS for the **Plaza**: Blender's m
 settings and workspaces in strips around the cursor. Press a mouse button around it for a
 **Compass menu**, a radial menu you pick from with a flick, without looking.
 
-![Hold Space for the Plaza, flick a Compass menu, right-click for the modes](docs/images/meso.gif)
+![Hold Space for the Plaza, flick a Compass menu, right-click for the modes](docs/images/meso-demo.gif)
 
 ## Why
 After years of scaling Mayan pyramids, the muscle memory is just too strong ;)

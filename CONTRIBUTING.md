@@ -96,10 +96,11 @@ which git ignores.
 
 The README animation: `make gui GUI_ARGS="--size 3840x2160 --only gif"` saves its frames (that
 scenario runs only when asked for; on a 4K output it is a close-up at UI scale 2), then
-`python3 tools/make_gif.py --width 1280 --mp4` turns them into `docs/images/meso.gif` with
-ffmpeg (cropped to the menus, 12 fps) and prints its size (keep it under 2 MB), and into
-`docs/images/meso.mp4`, a 1080p MP4 of the same crop with the Compass close-up as its thumbnail
-(`--cover` picks another image).
+`python3 tools/make_gif.py --width 1280 --mp4` turns them into `docs/images/meso-demo.gif`
+with ffmpeg (cropped to the menus, 12 fps) and prints its size (keep it under 2 MB), and into
+`docs/images/meso-demo.mp4`, a 1080p MP4 of the same crop with the Compass close-up as its
+thumbnail (`--cover` picks another image). GitHub caches images by name: after a new recording,
+a new file name makes the README show it at once.
 
 The close-ups for the listing and the docs: `make gui GUI_ARGS="--size 3840x2160 --only shots"`
 runs a 4K nested session at UI scale 2 and saves `plaza_closeup.png`, `compass_closeup.png` and
