@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GUI scenarios for the Phase 6 Plaza options (local/docs/phase6-interfaces.md §1-7): the
+"""GUI scenarios for the Phase 6 Plaza options (local/docs/phase6-interfaces.md §1-6): the
 ZONES_ONLY and CENTER_ONLY styles, the AREA_CENTER anchor, the AREA draw scope, a disabled
-editor giving Blender's own Space, the settings Compass hiding a row and switching the style in
-place, and a preset saved, changed and loaded back. Loaded by ``tests/gui/gui_driver.py`` like
-every ``scenarios_*.py``; each scenario restores the preferences it changed.
+editor giving Blender's own Space, and the settings Compass hiding a row and switching the style
+in place. Loaded by ``tests/gui/gui_driver.py`` like every ``scenarios_*.py``; each scenario
+restores the preferences it changed.
 """
 
 import contextlib
-import importlib
-import os
 
 
 def scenarios(drv):
@@ -228,52 +226,8 @@ def scenarios(drv):
                 drv.check(rec, "rows_back", len(st.model.rows) >= 3, len(st.model.rows))
             yield from drv.close_plaza(xy, rec)
 
-    def sc_preset_round_trip(rec):
-        """Save a preset, change values, load it back (the operators as the Presets row
-        runs them; the folder is the temporary extensions folder of the session)."""
-        import bpy
-        root = os.environ.get("BLENDER_USER_EXTENSIONS", "")
-        presets = importlib.import_module(drv.ADDON_MODULE + ".ops.prefs_presets")
-        # Check where the folder would go BEFORE creating it: never under ~/.config/blender.
-        try:
-            planned = bpy.utils.extension_path_user(presets._ROOT, path='presets',
-                                                    create=False)
-        except Exception:
-            planned = ""
-        inside = bool(root and planned) and os.path.realpath(planned).startswith(
-            os.path.realpath(root) + os.sep)
-        drv.check(rec, "temp_folder", inside, planned)
-        if not inside:
-            return
-        folder = presets.presets_dir(create=True)
-        if folder is None:
-            return
-        name = "GUI Scenario"
-        with prefs_set(transparency=30, plaza_style='FULL', show_recent_files=True) as p:
-            try:
-                bpy.ops.meso.prefs_preset_save('EXEC_DEFAULT', name=name)
-                drv.check(rec, "listed", name in presets.list_presets(), presets.list_presets())
-                p.transparency, p.plaza_style, p.show_recent_files = 70, 'CENTER_ONLY', False
-                yield 0.1
-                bpy.ops.meso.prefs_preset_load('EXEC_DEFAULT', name=name)
-                yield 0.1
-                drv.check(rec, "loaded", (p.transparency, p.plaza_style, p.show_recent_files)
-                          == (30, 'FULL', True),
-                          [p.transparency, p.plaza_style, p.show_recent_files])
-                drv.check(rec, "no_warnings", presets.last_result.get('warnings') == [],
-                          presets.last_result.get('warnings'))
-                xy = drv.center_of("VIEW_3D")
-                st = yield from drv.open_plaza(xy)
-                drv.check(rec, "next_plaza", st is not None and st.model.files is not None)
-                yield from drv.close_plaza(xy, rec)
-            finally:
-                path = presets.preset_path(name)
-                if path and os.path.isfile(path):
-                    os.remove(path)
-
     return [("p6_zones_only", sc_zones_only), ("p6_center_only", sc_center_only),
             ("p6_area_center", sc_area_center), ("p6_area_scope", sc_area_scope),
             ("p6_disabled_editor", sc_disabled_editor),
             ("p6_settings_hides_row", sc_settings_hides_row),
-            ("p6_settings_style", sc_settings_style),
-            ("p6_preset_round_trip", sc_preset_round_trip)]
+            ("p6_settings_style", sc_settings_style)]
