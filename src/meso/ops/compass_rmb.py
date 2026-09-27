@@ -57,9 +57,10 @@ data).
 
 invoke passes the key on (PASS_THROUGH, so the native item after it runs) outside a 3D View
 WINDOW region with a window, while the Plaza runs (it owns RMB then: its zone Compasses) and
-while another ``meso.compass_rmb`` runs. WINDOW_DEACTIVATE, a lost window or area (the TIMER
-watchdog) and any exception cancel and tear down. Only plain data outlives the modal
-(:func:`last_session`); the live window / area / region stay on the state only while it runs.
+while another ``meso.compass_rmb`` runs. WINDOW_DEACTIVATE, a lost window or area (the
+watchdog: checked on every event, the TIMER keeps it running) and any exception cancel and
+tear down. Only plain data outlives the modal (:func:`last_session`); the live window / area
+/ region stay on the state only while it runs.
 No UNDO flag: the actions it runs push their own steps.
 """
 
@@ -511,12 +512,14 @@ the pointer"""
             if state.failed:
                 _end(state, 'failed')
                 return {'CANCELLED'}
+            if not _alive(context, state):
+                # Checked on every event (Phase 7), not only on the timer: no event of a lost
+                # window or area reaches the press.
+                _end(state, 'watchdog')
+                return {'CANCELLED'}
             etype, value = event.type, event.value
             now = time.perf_counter()
             if etype.startswith('TIMER'):
-                if not _alive(context, state):
-                    _end(state, 'watchdog')
-                    return {'CANCELLED'}
                 if (not state.shown and state.behaviour == rmb.BEHAVIOUR_COMPASS
                         and rmb.shows_compass(now - state.t0, state.press, state.pointer,
                                               state.scale)):

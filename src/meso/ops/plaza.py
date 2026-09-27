@@ -531,6 +531,16 @@ def _end(state: PlazaState | None, reason: str = 'finish') -> None:
             pass
 
 
+def _screen_lost(state: PlazaState, context) -> bool:
+    """True when the Plaza's window is gone or shows another screen than at invoke (a
+    workspace switch or a maximize the Plaza did not make): the watchdog condition, checked
+    on every event (Phase 7), not only on the watchdog timer, so no event of the old screen
+    reaches the session. Cheap: a pointer walk over ``wm.windows``."""
+    window = _find_window(context, state.window_ptr)
+    return (window is None or window.screen is None
+            or window.screen.as_pointer() != state.screen_ptr)
+
+
 def _is_stale(state: PlazaState, context) -> bool:
     """True if ``state`` claims to run but its window has no Plaza modal any more."""
     window = _find_window(context, state.window_ptr)
@@ -717,12 +727,13 @@ class MESO_OT_plaza(Operator):
           tap_threshold, interacted)``; if tapped, ``cmd = resolve_tap(...)`` and capture
           window/area/region; ``_end(state)``; ``run_tap(cmd, ...)`` if cmd; return
           ``{'FINISHED'}``.
-        - ``event.type.startswith('TIMER')``: watchdog — window pointer no longer in
-          ``wm.windows`` or ``window.screen.as_pointer() != screen_ptr`` -> ``_end`` ->
-          ``{'CANCELLED'}``; else the reducer's Timer step (submenu delay, aim timeout,
-          hover-open delay, hover-close grace) and
-          ``{'PASS_THROUGH'}`` (timers are not ours to eat; Blender does not tell us which
-          timer fired).
+        - Watchdog, on every event (Phase 7; the 0.05 s timer keeps it running while no
+          other event comes): window pointer no longer in ``wm.windows`` or
+          ``window.screen.as_pointer() != screen_ptr`` (:func:`_screen_lost`) -> ``_end``
+          -> ``{'CANCELLED'}``.
+        - ``event.type.startswith('TIMER')``: the reducer's Timer step (submenu delay, aim
+          timeout, hover-open delay, hover-close grace) and ``{'PASS_THROUGH'}`` (timers
+          are not ours to eat; Blender does not tell us which timer fired).
         - WINDOW_DEACTIVATE -> ``_end`` -> ``{'CANCELLED'}``.
         - With a dropdown session: ``ops.dropdowns.handle_event`` takes MOUSEMOVE /
           INBETWEEN_MOUSEMOVE, LEFTMOUSE, ESC and the nav keys (ESC closes an open chain, else
@@ -743,6 +754,9 @@ class MESO_OT_plaza(Operator):
             if state.failed:
                 _end(state, 'failed')
                 return {'CANCELLED'}
+            if _screen_lost(state, context):
+                _end(state, 'watchdog')
+                return {'CANCELLED'}
 
             etype, value = event.type, event.value
             if etype == state.release_key:
@@ -757,11 +771,6 @@ class MESO_OT_plaza(Operator):
                 # The key release always ends the session (also when the reducer failed).
                 return self._finish(context, state)
             if etype.startswith('TIMER'):
-                window = _find_window(context, state.window_ptr)
-                if window is None or window.screen is None \
-                        or window.screen.as_pointer() != state.screen_ptr:
-                    _end(state, 'watchdog')
-                    return {'CANCELLED'}
                 if state.menus is not None:
                     result = dropdowns.handle_event(self, state, context, event)
                     if result is not None:
