@@ -520,7 +520,7 @@ class TestCompassList(_CompassCase):
         self.move(xy)
         self.assertEqual(self.compass().layout.scroll, 0, "entering does not scroll yet")
         cp_ = _mod("core.compass")
-        self.clock[0] += 2 * cp_.SCROLL_REPEAT + 0.01
+        self.clock[0] += cp_.SCROLL_REPEAT + 0.01          # a repeat, still under the dwell
         self.ev('TIMER', 'NOTHING')
         self.assertEqual(self.compass().layout.scroll, 0,
                          "a flick onto an arrow row is a mark: no scroll before the dwell")

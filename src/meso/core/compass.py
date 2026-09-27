@@ -74,7 +74,7 @@ LIST_GAP_ROWS = 1.5             # list top: this many rows below the S box
 # A drag reaches the list only after resting on it this long (s): until then the direction
 # picks, so a flick south never lands on a list item (the gesture always wins). A rest this
 # long on the direction of a '▸' slot opens its cascade.
-LIST_DWELL = 0.2
+LIST_DWELL = 0.15
 # A rest: the pointer stays this close (px at 1x; the dead-zone radius) to where it stopped.
 # A move further on the list starts the rest again, so a slow stroke never arms the list.
 LIST_STILL_PX = COMPASS_DEAD_PX

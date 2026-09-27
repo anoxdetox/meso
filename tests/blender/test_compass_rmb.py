@@ -842,7 +842,7 @@ class TestCompassRmbPhase5c(_RmbCase):
         self.ev(op, 'MOUSEMOVE', xy=xy)
         cpm = _mod("core.compass")
         repeat = cpm.SCROLL_REPEAT
-        self.clock[0] += 2 * repeat + 0.01
+        self.clock[0] += repeat + 0.01          # a repeat, still under the dwell
         self.assertEqual(self.ev(op, 'TIMER'), {'PASS_THROUGH'})
         self.assertEqual(self.rmb.current_state().compass.layout.scroll, 0,
                          "a drag scrolls only once the rest armed the list")

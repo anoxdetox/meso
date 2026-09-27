@@ -773,7 +773,7 @@ class TestTheListNeverTakesAFlick(unittest.TestCase):
         down = lay.arrow_down
         self.assertIsNotNone(down)
         target = (800.0, float(down.y + down.h // 2))
-        for rest in (0.05, 0.11, cp.LIST_DWELL - 0.06):
+        for rest in (0.03, 0.06, cp.LIST_DWELL - 0.06):     # ticks overshoot by < 0.05
             with self.subTest(rest=rest):
                 g = Driven(lay)
                 g.move(800, 170, 0.01)
