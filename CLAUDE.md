@@ -22,8 +22,8 @@ click/modifier conventions.
 - `docs/` holds only the user docs (`docs/guide.md`, `docs/keymap.md`, `docs/comparison.md`, `docs/images/`). The developer
   notes are private (user decision 2026-09-26, "get rid of dev shit altogether"): `local/docs/` has the verified facts
   (`verified-facts-5.2.md`, `header-controls-5.2.md`), the contracts (`phase*-interfaces.md`, `meso-keymap-interfaces.md`),
-  `spikes.md` + `spikes/` and `roadmap.md`; code and tests cite them by that path. `local/` (private research, the dev
-  notes) and `docs/reference/` (third-party screenshots) are gitignored and must never be committed. GUI screenshots go to
+  `spikes.md` + `spikes/` and `roadmap.md`; code and tests cite them by that path. `local/` (private research and the dev
+  notes) is gitignored and must never be committed. GUI screenshots go to
   `tests/gui/out/screenshots/` (gitignored); only chosen images for the user docs are committed, in `docs/images/`.
   Test fixture data lives in `tests/data/`.
 

@@ -5,8 +5,6 @@ dist/
 *.blend1
 *.blend[1-9]
 .blender_ext/
-# third-party reference screenshots: local only, never commit
-/docs/reference/
 .venv/
 .vscode/
 .idea/

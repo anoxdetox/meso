@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Dropdown / cascade panel geometry and hit testing (Phase 4, implementer A).
 
-The reference list panel (``docs/reference/reference_plaza_and_rmb.jpg``, right half): one column,
+The reference list panel: one column,
 item rows about a strip row high, a left check column (hollow / filled square, radio), the
 label, an optional dimmed shortcut hint right-aligned, a right column for the '▸' cascade
 arrow, thin horizontal separator lines, dimmed section headers.

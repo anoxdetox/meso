@@ -5,8 +5,7 @@ Coordinates are window pixels with a bottom-left origin (``event.mouse_x/y``, ``
 rects are :class:`core.rects.Rect` (half-open). Every layout rect has int coordinates (crisp
 fills, int scissors); text origins are ints; tick segments are floats.
 
-The Plaza look (reference ``docs/reference/reference_plaza.png``; spec in
-local/docs/phase2-interfaces.md):
+The Plaza look (spec in local/docs/phase2-interfaces.md):
 
 - each row is ONE flat strip with its labels laid out left to right inside it; strips are
   centred horizontally on the anchor x and have different widths;
