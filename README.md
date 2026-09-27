@@ -25,6 +25,9 @@ The pyramids are theirs; the menus are ours.
 ## What it does
 - **The Plaza:** hold Space for menus that stay open while you browse, a Tool Settings row,
   modes, recent commands and files, and workspaces.
+- **Tap Space for quad view:** in the 3D Viewport a quick tap of Space switches the single view
+  to the four-view layout; tap over the Top, Front or Side view to maximize it, over the
+  perspective view to go back. Elsewhere a tap keeps Blender's own Space action.
 - **Compass menus:** press in a zone around the Plaza for a radial menu (views, area layout,
   editors, selection, toggles). Any Blender menu or pie can go in any of the 15 slots.
 - **Right-click Compass** (with the Meso Keymap): hold right-click for the modes, Shift+right-click
@@ -60,7 +63,9 @@ When it is first enabled, Meso Mode asks whether to use the [Meso Keymap](docs/k
 **Keep My Keymap** changes nothing, and you can change your mind later in its preferences.
 
 Developed and tested on Linux; meant to run on Windows and macOS too (not tested there yet).
-[`CONTRIBUTING.md`](CONTRIBUTING.md) covers testing and helping out.
+The test suite was written for Linux on KDE Plasma, and it is always open to anyone who wants
+to take it to other test beds: [`CONTRIBUTING.md`](CONTRIBUTING.md) covers testing and helping
+out.
 
 > **Disclaimer:** This is 100% vibe coded. We're not responsible if this code eats your homework.
 > It comes WITHOUT ANY WARRANTY (see `LICENSE`, GPL-3.0 §§15–16).

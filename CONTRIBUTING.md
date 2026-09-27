@@ -36,11 +36,13 @@ Blender launch must use fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` 
 
 ## Build and test
 Meso Mode is developed and tested on Linux, and is meant to run on Windows and macOS too. The
-unit tests and `tools/dev_link.py` run anywhere; the Blender test runners are bash scripts, and
-the GUI suite needs Linux (a nested KWin session).
+tests were authored for Linux on KDE Plasma: the unit tests and `tools/dev_link.py` run
+anywhere, the Blender test runners are bash scripts, and the GUI suite runs in a nested KWin
+session (KDE Plasma's compositor), with an Xwayland session for the grab and real-input checks.
 
-Help is welcome here: runners and GUI tests for Windows and macOS (an isolated session the tests
-can drive without touching your desktop) would let the suite cover every platform.
+The suite is always open to other test beds. Help is welcome: runners and GUI tests for other
+Linux desktops (GNOME, wlroots compositors, X11), Windows and macOS (an isolated session the
+tests can drive without touching your desktop) would let it cover every platform.
 
 With GNU make (Linux, macOS), `make` lists the targets:
 ```

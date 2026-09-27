@@ -71,8 +71,12 @@ List.... Picking one closes the Plaza and opens the file; Blender asks about uns
 usual.
 
 ### Tap Space
-In the 3D Viewport a tap toggles quad view, or maximizes the hovered Top/Front/Side view.
-Elsewhere a tap keeps Blender's own Space action (play, tools or search).
+**In the 3D Viewport, a quick tap of Space switches the single view to quad view** (Top, Front,
+Side and the perspective view). In quad view, a tap over the Top, Front or Side view maximizes
+that view, and a tap over the perspective view goes back to the single view. Elsewhere a tap
+keeps Blender's own Space action (play, tools or search). A tap is a press and release too quick
+for the Plaza to open; the tap time and the tap actions are in the preferences (Timing,
+Behaviour).
 
 ### What the Plaza shows, and where
 The preferences choose a **Style**: *Full* (everything above), *Zones Only* (just the centre box
