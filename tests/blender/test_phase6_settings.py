@@ -1,21 +1,15 @@
-"""Phase 6 §6-8 (local/docs/phase6-interfaces.md): the ``meso:settings`` Compass and its
-in-place picks, the preference presets (save / list / load / delete, export / import, bad
-files) and the regrouped preferences page.
+"""Phase 6 §6 and §8 (local/docs/phase6-interfaces.md): the ``meso:settings`` Compass and its
+in-place picks, and the regrouped preferences page (§7, the presets, is deferred: branch
+``deferred/presets``).
 
-Runs inside Blender via tests/run_tests.py (factory startup). Every test restores every preset
-preference it changed. Presets are written only under the temporary
-``BLENDER_USER_EXTENSIONS`` (the tests refuse to run otherwise) and exports to a temporary
-folder. The live picks reuse the Phase 5c modal stub (test_plaza_modes_files ``_LiveCase``:
-real builders, the in-place call run headless without the undo flag). Never opens a popup or
-a file browser (-b): the operators run EXEC.
+Runs inside Blender via tests/run_tests.py (factory startup). Every test restores every
+preference it changed. The live picks reuse the Phase 5c modal stub (test_plaza_modes_files
+``_LiveCase``: real builders, the in-place call run headless without the undo flag). Never
+opens a popup (-b).
 """
 
-import json
 import math
-import os
-import shutil
 import sys
-import tempfile
 import unittest
 from types import SimpleNamespace
 
@@ -27,6 +21,14 @@ from tests.blender.test_plaza_modes_files import _LiveCase
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 
+# The preferences that are not user settings: the Meso Keymap choice and its bookkeeping, the
+# keymap section state and the "Set all Space items" fields.
+_BOOKKEEPING = frozenset({
+    'keymap_choice', 'keymap_prompted', 'previous_keyconfig', 'keymap_expanded',
+    'space_items_key', 'space_items_shift', 'space_items_ctrl', 'space_items_alt',
+    'space_items_oskey',
+})
+
 
 def _mod(name):
     return sys.modules[f"{ADDON_MODULE}.{name}"]
@@ -36,24 +38,30 @@ def _prefs():
     return _mod("prefs").get_prefs(bpy.context)
 
 
-def _pp():
-    return _mod("core.prefs_preset")
+def _user_keys(p):
+    """Every user-facing preference (its RNA properties without the bookkeeping ones)."""
+    return {prop.identifier for prop in p.bl_rna.properties
+            if prop.identifier not in ('rna_type', 'bl_idname')
+            and prop.identifier not in _BOOKKEEPING}
 
 
-def _presets():
-    return _mod("ops.prefs_presets")
+def _value(raw):
+    """A preference value as plain Python (vectors as tuples, flag enums as sets)."""
+    if isinstance(raw, (bool, int, float, str, set)):
+        return raw
+    return tuple(raw)
 
 
 def save_all_prefs(case):
-    """Restore every preset preference (and the keymap choice) when ``case`` ends."""
+    """Restore every user preference (and the keymap choice) when ``case`` ends."""
     p = _prefs()
-    saved = _presets().read_values(p)
+    saved = {key: _value(getattr(p, key)) for key in _user_keys(p)}
     choice = p.keymap_choice
 
     def restore():
         q = _prefs()
         for key, value in saved.items():
-            if getattr(q, key) != value:
+            if _value(getattr(q, key)) != value:
                 setattr(q, key, value)
         q.keymap_choice = choice
 
@@ -243,265 +251,14 @@ class TestSettingsPick(_LiveCase):
         self.assertIsNone(self.state.menus.compass, "Compass menus are off now")
 
 
-# --------------------------------------------------------------------------- §7 presets
-
-
-def _changed(value, field, pp):
-    """A valid value of ``field`` other than ``value``."""
-    kind = field.kind
-    if kind == pp.KIND_BOOL:
-        return not value
-    if kind == pp.KIND_INT:
-        return value + 1 if field.max is None or value < field.max else value - 1
-    if kind == pp.KIND_FLOAT:
-        hi = min(field.max, 1e6) if field.max is not None else 1e6
-        lo = max(field.min, -1e6) if field.min is not None else -1e6
-        new = (value + hi) / 2 if value < hi else (value + lo) / 2
-        return pp.short_float(new)
-    if kind == pp.KIND_VECTOR:
-        return tuple(pp.short_float(0.25 if abs(v - 0.25) > 1e-3 else 0.75) for v in value)
-    if kind == pp.KIND_ENUM:
-        return next(i for i in field.items if i != value)
-    if kind == pp.KIND_FLAG:
-        return set(field.items[:2]) if set(value) != set(field.items[:2]) else {field.items[0]}
-    if kind == pp.KIND_STRING:
-        return value + 'x' if value else 'VIEW3D_MT_view_pie'
-    raise AssertionError(kind)
-
-
-class _PresetCase(unittest.TestCase):
-
-    def setUp(self):
-        root = os.environ.get("BLENDER_USER_EXTENSIONS", "")
-        if not root:
-            self.skipTest("BLENDER_USER_EXTENSIONS is not set (presets would go to ~/.config)")
-        self.saved = save_all_prefs(self)
-        folder = _presets().presets_dir(create=True)
-        self.assertIsNotNone(folder)
-        self.assertTrue(os.path.realpath(folder).startswith(os.path.realpath(root)), folder)
-        self.folder = folder
-        before = set(os.listdir(folder))
-
-        def clean():
-            for name in set(os.listdir(folder)) - before:
-                os.remove(os.path.join(folder, name))
-
-        self.addCleanup(clean)
-        self.tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-
-    def write(self, name, doc):
-        path = os.path.join(self.tmp, name)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(doc if isinstance(doc, str) else json.dumps(doc))
-        return path
-
-
-class TestSchema(_PresetCase):
-
-    def test_every_preference_is_a_preset_key_or_excluded(self):
-        pp = _pp()
-        props = {p.identifier for p in _mod("prefs").MesoAddonPreferences.bl_rna.properties
-                 if p.identifier not in ('rna_type', 'bl_idname')}
-        self.assertEqual(props - set(pp.PRESET_KEYS), set(pp.EXCLUDED_KEYS))
-        schema = _presets().build_schema(_prefs())
-        self.assertEqual(tuple(schema), pp.PRESET_KEYS, "every key, in order")
-        self.assertEqual(schema['transparency'], pp.Field(pp.KIND_INT, min=0, max=100))
-        self.assertEqual(schema['color_strip'].kind, pp.KIND_VECTOR)
-        self.assertEqual(schema['color_strip'].size, 3)
-        self.assertEqual(schema['plaza_editors'].kind, pp.KIND_FLAG)
-        self.assertEqual(schema['plaza_style'].items, _mod("core.zones").PLAZA_STYLES)
-        self.assertEqual(schema['zone_C_M'].kind, pp.KIND_STRING)
-        self.assertEqual(schema['font_scale'].min, 0.5)
-
-    def test_values_are_json_and_short(self):
-        values = _presets().read_values(_prefs())
-        doc = _pp().to_document(values)
-        text = json.dumps(doc)
-        self.assertIn('"tap_threshold": 0.1,', text, "no float32 noise")
-        self.assertIsInstance(values['plaza_editors'], set)
-
-
-class TestPresetFiles(_PresetCase):
-
-    def test_save_list_load_delete(self):
-        p = _prefs()
-        ops = bpy.ops.meso
-        self.assertEqual(ops.prefs_preset_save('EXEC_DEFAULT', name="Test Setup"),
-                         {'FINISHED'})
-        self.assertIn("Test Setup", _presets().list_presets())
-        self.assertTrue(os.path.isfile(os.path.join(self.folder, "Test Setup.json")))
-        with self.assertRaises(RuntimeError, msg="an ERROR report: no name"):
-            ops.prefs_preset_save('EXEC_DEFAULT', name="  ")
-        before = p.transparency
-        p.transparency = 90 if before != 90 else 10
-        p.plaza_style = 'ZONES_ONLY'
-        self.assertEqual(ops.prefs_preset_load('EXEC_DEFAULT', name="Test Setup"),
-                         {'FINISHED'})
-        self.assertEqual(p.transparency, before)
-        self.assertEqual(p.plaza_style, self.saved['plaza_style'])
-        self.assertEqual(_presets().last_result['warnings'], [])
-        with self.assertRaises(TypeError):
-            ops.prefs_preset_load('EXEC_DEFAULT', name="No Such Preset")
-        # Saving again under the same name replaces it.
-        p.font_scale = 2.0
-        ops.prefs_preset_save('EXEC_DEFAULT', name="Test Setup")
-        p.font_scale = 1.0
-        ops.prefs_preset_load('EXEC_DEFAULT', name="Test Setup")
-        self.assertEqual(p.font_scale, 2.0)
-        self.assertEqual(ops.prefs_preset_delete('EXEC_DEFAULT', name="Test Setup"),
-                         {'FINISHED'})
-        self.assertNotIn("Test Setup", _presets().list_presets())
-
-    def test_unsafe_names_stay_in_the_folder(self):
-        path = _presets().save_preset(_prefs(), "../../escape")
-        self.assertEqual(os.path.dirname(path), self.folder)
-        self.assertEqual(_presets().list_presets(), sorted(_presets().list_presets(),
-                                                            key=str.casefold))
-        self.assertIn("_.._escape", _presets().list_presets())
-
-    def test_hand_copied_files_load_and_delete(self):
-        """A file put in the folder by hand is listed by its stem as it is; Load and Delete
-        open that very file (never a name rebuilt through safe_name)."""
-        pr, pp = _presets(), _pp()
-        p = _prefs()
-        doc = json.dumps(pp.to_document({'transparency': 33}))
-        for file_name, name in (("a:b.json", "a:b"), ("Studio.JSON", "Studio"),
-                                ("my[1].json", "my[1]")):
-            with self.subTest(file_name=file_name):
-                path = os.path.join(self.folder, file_name)
-                with open(path, 'w', encoding='utf-8') as f:
-                    f.write(doc)
-                self.assertIn(name, pr.list_presets())
-                self.assertEqual(pr.preset_file(name), path)
-                p.transparency = 5
-                self.assertEqual(bpy.ops.meso.prefs_preset_load('EXEC_DEFAULT', name=name),
-                                 {'FINISHED'})
-                self.assertEqual(p.transparency, 33)
-                self.assertEqual(bpy.ops.meso.prefs_preset_delete('EXEC_DEFAULT', name=name),
-                                 {'FINISHED'})
-                self.assertFalse(os.path.exists(path))
-                self.assertNotIn(name, pr.list_presets())
-        self.assertIsNone(pr.preset_file("never saved"))
-        # Both 'x.json' and 'x.JSON': 'x' is the '.json' one, listed once.
-        for file_name, value in (("x.json", 40), ("x.JSON", 60)):
-            with open(os.path.join(self.folder, file_name), 'w', encoding='utf-8') as f:
-                f.write(json.dumps(pp.to_document({'transparency': value})))
-        self.assertEqual(pr.list_presets().count("x"), 1)
-        pr.load_preset(p, "x")
-        self.assertEqual(p.transparency, 40)
-
-    def test_export_to_a_folder_is_refused(self):
-        folder = os.path.join(self.tmp, "sub")
-        os.mkdir(folder)
-        for path in (folder + os.sep, folder):
-            with self.subTest(path=path), self.assertRaises(RuntimeError, msg="an ERROR"):
-                bpy.ops.meso.prefs_export('EXEC_DEFAULT', filepath=path)
-        self.assertEqual(os.listdir(folder), [], "no hidden '.json' file")
-
-    def test_deep_and_huge_files_never_raise(self):
-        pr, pp = _presets(), _pp()
-        p = _prefs()
-        p.transparency, p.font_scale = 10, 1.0
-        before = pr.read_values(p)
-        deep = self.write("deep.json", '{"format": "%s", "version": %d, "values": {"x": '
-                          % (pp.FORMAT, pp.VERSION) + "[" * 200000 + "]" * 200000 + "}}")
-        applied, warnings = pr.import_file(p, deep)
-        self.assertEqual((applied, len(warnings)), ([], 1), warnings)
-        self.assertEqual(pr.read_values(p), before, "nothing changed")
-        self.assertEqual(pr.last_result['warnings'], warnings, "recorded")
-        self.assertEqual(bpy.ops.meso.prefs_import('EXEC_DEFAULT', filepath=deep),
-                         {'CANCELLED'})
-        huge = self.write("huge.json", '{"format": "%s", "version": %d, "values": '
-                          '{"transparency": 50, "font_scale": 1%s}}'
-                          % (pp.FORMAT, pp.VERSION, "0" * 400))
-        applied, warnings = pr.import_file(p, huge)
-        self.assertEqual(sorted(applied), ['font_scale', 'transparency'])
-        self.assertEqual(len(warnings), 1, warnings)
-        self.assertEqual(p.transparency, 50, "the other values still load")
-        self.assertEqual(p.font_scale, 3.0, "clamped")
-
-    def test_export_import_round_trip_of_every_key(self):
-        pp, pr = _pp(), _presets()
-        p = _prefs()
-        schema = pr.build_schema(p)
-        original = pr.read_values(p, schema)
-        changed = {k: _changed(v, schema[k], pp) for k, v in original.items()}
-        for key, value in changed.items():
-            setattr(p, key, value)
-        mutated = pr.read_values(p, schema)
-        for key in pp.PRESET_KEYS:
-            with self.subTest(key=key):
-                self.assertNotEqual(mutated[key], original[key], "every value changed")
-        path = os.path.join(self.tmp, "all.json")
-        self.assertEqual(bpy.ops.meso.prefs_export('EXEC_DEFAULT', filepath=path),
-                         {'FINISHED'})
-        for key, value in original.items():         # reset
-            setattr(p, key, value)
-        self.assertEqual(pr.read_values(p, schema), original)
-        self.assertEqual(bpy.ops.meso.prefs_import('EXEC_DEFAULT', filepath=path),
-                         {'FINISHED'})
-        self.assertEqual(pr.last_result['warnings'], [])
-        self.assertEqual(sorted(pr.last_result['applied']), sorted(pp.PRESET_KEYS))
-        self.assertEqual(pr.read_values(p, schema), mutated, "exactly what was exported")
-
-    def test_export_adds_the_extension(self):
-        base = os.path.join(self.tmp, "noext")
-        bpy.ops.meso.prefs_export('EXEC_DEFAULT', filepath=base)
-        self.assertTrue(os.path.isfile(base + ".json"))
-
-    def test_keymap_choice_is_never_touched(self):
-        p = _prefs()
-        choice = p.keymap_choice
-        doc = _pp().to_document({'keymap_choice': 'MESO' if choice != 'MESO' else 'KEEP',
-                                 'keymap_prompted': True, 'transparency': 42})
-        applied, warnings = _presets().import_file(p, self.write("km.json", doc))
-        self.assertEqual(applied, ['transparency'])
-        self.assertEqual(len(warnings), 2)
-        self.assertEqual(p.keymap_choice, choice)
-        self.assertEqual(p.transparency, 42)
-
-    def test_bad_files_warn_and_keep_the_other_values(self):
-        pr, pp = _presets(), _pp()
-        p = _prefs()
-        before = pr.read_values(p)
-        for name, content in (("text.json", "not json {"),
-                              ("list.json", [1, 2, 3]),
-                              ("format.json", {'format': 'other', 'version': 1,
-                                               'values': {'transparency': 5}}),
-                              ("newer.json", {'format': pp.FORMAT, 'version': pp.VERSION + 1,
-                                              'values': {'transparency': 5}})):
-            with self.subTest(name=name):
-                applied, warnings = pr.import_file(p, self.write(name, content))
-                self.assertEqual(applied, [])
-                self.assertEqual(len(warnings), 1, warnings)
-                self.assertEqual(pr.read_values(p), before, "nothing changed")
-        self.assertEqual(bpy.ops.meso.prefs_import('EXEC_DEFAULT',
-                                                   filepath=os.path.join(self.tmp, "text.json")),
-                         {'CANCELLED'})
-        applied, warnings = pr.import_file(p, os.path.join(self.tmp, "missing.json"))
-        self.assertEqual((applied, len(warnings)), ([], 1))
-        bad = pp.to_document({'transparency': 'x', 'plaza_style': 'HUGE', 'font_scale': 99,
-                              'color_text': [1, 1], 'plaza_editors': ['VIEW_3D', 'NEW'],
-                              'row_spacing': 2.0, 'nope': 1, 'show_root_row': False})
-        applied, warnings = pr.import_file(p, self.write("bad.json", bad))
-        self.assertEqual(sorted(applied), ['font_scale', 'plaza_editors', 'row_spacing',
-                                           'show_root_row'])
-        self.assertEqual(len(warnings), 6, warnings)
-        self.assertEqual(p.font_scale, 3.0, "clamped")
-        self.assertEqual(set(p.plaza_editors), {'VIEW_3D'})
-        self.assertEqual(p.row_spacing, 2.0)
-        self.assertFalse(p.show_root_row)
-        after = pr.read_values(p)
-        for key in ('transparency', 'plaza_style', 'color_text'):
-            self.assertEqual(after[key], before[key], key)
-
-
 # --------------------------------------------------------------------------- snapshot
 
 
-class TestNextInvoke(_PresetCase):
-    """Preferences changed from Python (or by a preset) reach the next Plaza, no restart."""
+class TestNextInvoke(unittest.TestCase):
+    """Preferences changed from Python reach the next Plaza, no restart."""
+
+    def setUp(self):
+        save_all_prefs(self)
 
     def test_snapshots(self):
         from tests.blender.test_phase6_plaza import TestInvoke
@@ -590,19 +347,19 @@ class TestPrefsPage(unittest.TestCase):
         log = self._draw()
         self.assertEqual([e[1] for e in log if e[0] == 'panel'],
                          ['meso_prefs_plaza', 'meso_prefs_look', 'meso_prefs_timing',
-                          'meso_prefs_behaviour', 'meso_prefs_compass', 'meso_prefs_presets'])
+                          'meso_prefs_behaviour', 'meso_prefs_compass'])
         self.assertEqual(log[-1], ('keymap',), "the keymap sections last")
 
     def test_every_preference_is_reachable(self):
         drawn = {e[1] for e in self._draw(palette_style='CUSTOM') if e[0] == 'prop'}
-        want = set(_pp().PRESET_KEYS) | {'debug_timing'}
+        want = _user_keys(_prefs())
+        self.assertIn('debug_timing', want)
         self.assertEqual(want - drawn, set(), "the colours with the Custom palette")
         self.assertNotIn('color_strip', {e[1] for e in self._draw(palette_style='BLENDER')
                                          if e[0] == 'prop'})
         ops = {e[1] for e in self._draw() if e[0] == 'op'}
-        self.assertTrue({'meso.prefs_preset_load', 'meso.prefs_preset_save',
-                         'meso.prefs_preset_delete', 'meso.prefs_export',
-                         'meso.prefs_import'} <= ops)
+        self.assertFalse({op for op in ops if 'preset' in op or op.startswith('meso.prefs_')},
+                         "presets are deferred")
 
     def test_row_toggles_greyed_only_where_they_do_nothing(self):
         """Outside Full the rows are not drawn, but the Tool Settings toggles still shape the

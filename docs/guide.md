@@ -167,7 +167,7 @@ Everything is in Preferences ▸ Add-ons ▸ Meso Mode (or the Plaza's **Meso Se
 sections you can fold away: **Plaza** (style, position, where it draws, the rows and the editors
 it opens over), **Look** (transparency, sizes and colours), **Timing** (the tap and hold times,
 the menu delays), **Behaviour** (the tap actions, running on key release, shortcuts, the Text
-Editor key and more), **Compass Menus** (the slots) and **Presets**, then the Plaza's keys,
+Editor key and more) and **Compass Menus** (the slots), then the Plaza's keys,
 grouped like Blender's keymap editor. The Meso Keymap's keys are edited in Blender's own keymap
 editor; see [the keymap page](keymap.md).
 
@@ -179,16 +179,6 @@ Tool Settings row, the display controls, opening menus on hover, shortcuts in me
 key release, and Compass menus. In the list under it: which rows show, the style and the
 position. A pick applies at once: the Plaza is drawn again with the change and stays open. It
 is laid out again from the point where you pressed Space, so a new position moves it there.
-
-### Presets
-**Save…** stores your Meso Mode settings under a name; **Load** and **Delete** pick a saved
-preset. **Export…** and **Import…** write and read a settings file, to take your setup to another
-computer or share it. A preset holds the Plaza, Look, Timing, Behaviour and Compass Menus
-settings, colours and slots included (not the debug timing switch). It never holds the Plaza's
-keys, your keymap choice or keymap edits. Loading skips settings it does not know and values that
-do not fit, brings a number that is out of range back into range, and lists each of these in the
-Info log; everything else still loads. A file written in a newer Meso Mode format is not loaded at
-all. Presets are kept in your own Blender user folder.
 
 ## Nothing native is removed
 Every binding can be edited or switched off: the Plaza's in the add-on preferences, the Meso

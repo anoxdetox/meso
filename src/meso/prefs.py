@@ -409,8 +409,8 @@ class MesoAddonPreferences(AddonPreferences):
 
     def draw(self, context):
         """The sections of local/docs/phase6-interfaces.md §8, each a collapsible panel
-        (:func:`_section`): Plaza, Look, Timing, Behaviour, Compass Menus, Presets, then the
-        keymap sections. Every preference but the hidden bookkeeping ones is on the page."""
+        (:func:`_section`): Plaza, Look, Timing, Behaviour, Compass Menus, then the keymap
+        sections. Every preference but the hidden bookkeeping ones is on the page."""
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
@@ -500,11 +500,6 @@ def _draw_behaviour(layout, prefs) -> None:
     col.prop(prefs, "debug_timing")
 
 
-def _draw_presets(layout, prefs) -> None:
-    from .ops import prefs_presets  # lazy: keeps prefs importable first in __init__._modules
-    prefs_presets.draw(layout)
-
-
 def _draw_editors(layout, prefs) -> None:
     """``plaza_editors`` as a grid of toggles (one per ``core.tables.PLAZA_EDITORS`` id)."""
     box = layout.box()
@@ -551,7 +546,6 @@ _SECTIONS = (
     ('meso_prefs_timing', "Timing", True, _draw_timing),
     ('meso_prefs_behaviour', "Behaviour", True, _draw_behaviour),
     ('meso_prefs_compass', "Compass Menus", True, _draw_compass_slots),
-    ('meso_prefs_presets', "Presets", False, _draw_presets),
 )
 
 

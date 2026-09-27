@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "meso"
-version = "0.1.0"
+version = "0.7.1"
 name = "Meso Mode"
 tagline = "Hold Space for a Plaza of menus, tool settings and Compass menus"
 maintainer = "anoxdetox <5579531+anoxdetox@users.noreply.github.com>"
@@ -12,3 +12,4 @@ tags = ["User Interface", "3D View"]
 blender_version_min = "5.2.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
+copyright = ["2026 Meso Mode contributors"]
