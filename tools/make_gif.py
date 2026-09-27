@@ -4,7 +4,7 @@
 
     tests/gui/run_gui_tests.sh --only gif      # the lead: frames into tests/gui/out/gif/
     python3 tools/make_gif.py [--crop closeup|view3d|window|W:H:X:Y] [--width 800] [--fps 12]
-                              [--mp4 dist/meso.mp4 [--cover docs/images/compass_closeup.png]]
+                              [--mp4 [PATH] [--cover docs/images/compass_closeup.png]]
 
 The frames come from ``tests/gui/scenarios_gif.py``: ``frame_NNNN.png`` (full window size),
 ``frames.ffconcat`` (each frame's time on screen) and ``gif.json`` (the 3D View area; from a
@@ -12,7 +12,8 @@ close-up run, a 4K session, also the 16:9 box around the menus, the default crop
 pixels wide, builds one palette for the whole clip (palettegen) and maps every frame onto it
 (paletteuse, only the changed rectangle per frame). The tool prints the result's size and warns
 above the target (2 MB: listing images should stay light). ``--mp4`` also writes an H.264
-MP4 of the same crop from the same frames (not from the GIF: full colour), at ``--mp4-fps``,
+MP4 of the same crop from the same frames (``docs/images/meso.mp4`` next to the GIF unless a
+path follows) (not from the GIF: full colour), at ``--mp4-fps``,
 scaled to at most ``--mp4-width`` (never up), ``yuv420p`` with ``faststart`` (plays on the web
 and on phones), with ``--cover`` embedded as its thumbnail (an ``attached_pic`` JPEG; the
 Compass close-up by default, none when the file is missing). Needs ``ffmpeg`` on PATH;
@@ -31,6 +32,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FRAMES = ROOT / "tests" / "gui" / "out" / "gif"
 OUT = ROOT / "docs" / "images" / "meso.gif"
+OUT_MP4 = OUT.with_suffix(".mp4")
 TARGET_BYTES = 2 * 1024 * 1024
 COVER = ROOT / "docs" / "images" / "compass_closeup.png"
 
@@ -123,8 +125,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--width", type=int, default=800, help="maximum width in pixels (800)")
     ap.add_argument("--fps", type=int, default=12, help="frames per second (12)")
     ap.add_argument("--colors", type=int, default=256, help="palette size, 2-256 (256)")
-    ap.add_argument("--mp4", type=pathlib.Path, default=None,
-                    help="also write an MP4 of the same crop here (e.g. dist/meso.mp4)")
+    ap.add_argument("--mp4", type=pathlib.Path, nargs="?", const=OUT_MP4, default=None,
+                    help="also write an MP4 of the same crop (default path: "
+                         "docs/images/meso.mp4, next to the GIF)")
     ap.add_argument("--mp4-width", type=int, default=1920,
                     help="the MP4's maximum width (1920)")
     ap.add_argument("--mp4-fps", type=int, default=30, help="the MP4's frame rate (30)")
