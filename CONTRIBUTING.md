@@ -94,15 +94,15 @@ into a temporary extensions folder and starts Blender headless on it: the add-on
 enabled, and must unregister and register again without an error. Built zips go to `dist/`,
 which git ignores.
 
-The README animation: `make gui GUI_ARGS="--only gif"` saves its frames (that scenario runs
-only when asked for), then `python3 tools/make_gif.py` turns them into `docs/images/meso.gif`
-with ffmpeg (at most 800 px wide, 12 fps) and prints its size. Keep it under 2 MB.
+The README animation: `make gui GUI_ARGS="--size 3840x2160 --only gif"` saves its frames (that
+scenario runs only when asked for; on a 4K output it is a close-up at UI scale 2), then
+`python3 tools/make_gif.py --width 1280` turns them into `docs/images/meso.gif` with ffmpeg
+(cropped to the menus, 12 fps) and prints its size. Keep it under 2 MB.
 
 The close-ups for the listing and the docs: `make gui GUI_ARGS="--size 3840x2160 --only shots"`
 runs a 4K nested session at UI scale 2 and saves `plaza_closeup.png`, `compass_closeup.png` and
-`compass_uv_closeup.png`
-(16:9, native pixels, at least 1920x1080) in `tests/gui/out/shots/`; copy the ones you keep to
-`docs/images/`. The icon is `docs/images/icon.svg`; render it with
+`compass_uv_closeup.png` (16:9, native pixels, at least 1920x1080) in `tests/gui/out/shots/`;
+copy the ones you keep to `docs/images/`. The icon is `docs/images/icon.svg`; render it with
 `rsvg-convert -w 256 -h 256 docs/images/icon.svg -o docs/images/icon.png`.
 
 Every Blender launch uses fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` directories

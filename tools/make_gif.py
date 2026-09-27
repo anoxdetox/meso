@@ -3,11 +3,11 @@
 """Turn the README GIF frames into ``docs/images/meso.gif``.
 
     tests/gui/run_gui_tests.sh --only gif      # the lead: frames into tests/gui/out/gif/
-    python3 tools/make_gif.py [--crop view3d|window|W:H:X:Y] [--width 800] [--fps 12]
+    python3 tools/make_gif.py [--crop closeup|view3d|window|W:H:X:Y] [--width 800] [--fps 12]
 
 The frames come from ``tests/gui/scenarios_gif.py``: ``frame_NNNN.png`` (full window size),
-``frames.ffconcat`` (each frame's time on screen) and ``gif.json`` (the 3D View area, the
-default crop). ffmpeg resamples them to a steady frame rate, scales them to at most ``--width``
+``frames.ffconcat`` (each frame's time on screen) and ``gif.json`` (the 3D View area; from a
+close-up run, a 4K session, also the 16:9 box around the menus, the default crop then). ffmpeg resamples them to a steady frame rate, scales them to at most ``--width``
 pixels wide, builds one palette for the whole clip (palettegen) and maps every frame onto it
 (paletteuse, only the changed rectangle per frame). The tool prints the result's size and warns
 above the target (2 MB: listing images should stay light). Needs ``ffmpeg`` on PATH; standard
@@ -30,16 +30,17 @@ TARGET_BYTES = 2 * 1024 * 1024
 
 
 def parse_crop(value: str, meta: dict) -> tuple[int, int, int, int] | None:
-    """``(w, h, x, y)`` in image pixels (top-left origin) from ``--crop``: ``view3d`` (the 3D
-    View area of ``gif.json``), ``window`` (no crop: None) or ``W:H:X:Y``; clamped to the
-    image. Raises ValueError on anything else."""
+    """``(w, h, x, y)`` in image pixels (top-left origin) from ``--crop``: ``closeup`` (the
+    menus' 16:9 box of a close-up run), ``view3d`` (the 3D View area of ``gif.json``),
+    ``window`` (no crop: None) or ``W:H:X:Y``; clamped to the image. Raises ValueError on
+    anything else."""
     size = meta.get("size") or [0, 0]
     if value == "window":
         return None
-    if value == "view3d":
-        c = meta.get("crop_view3d")
+    if value in ("view3d", "closeup"):
+        c = meta.get(f"crop_{value}")
         if not c:
-            raise ValueError("gif.json has no crop_view3d")
+            raise ValueError(f"gif.json has no crop_{value}")
         box = (int(c["w"]), int(c["h"]), int(c["x"]), int(c["y"]))
     else:
         parts = value.split(":")
@@ -89,7 +90,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="the frames folder (default: tests/gui/out/gif)")
     ap.add_argument("--out", type=pathlib.Path, default=OUT,
                     help="the GIF to write (default: docs/images/meso.gif)")
-    ap.add_argument("--crop", default="view3d", help="view3d (default), window or W:H:X:Y")
+    ap.add_argument("--crop", default=None,
+                    help="closeup (the default after a close-up run), view3d (else), window or "
+                         "W:H:X:Y")
     ap.add_argument("--width", type=int, default=800, help="maximum width in pixels (800)")
     ap.add_argument("--fps", type=int, default=12, help="frames per second (12)")
     ap.add_argument("--colors", type=int, default=256, help="palette size, 2-256 (256)")
@@ -106,6 +109,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     meta_path = args.frames / "gif.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
+    if args.crop is None:
+        args.crop = "closeup" if meta.get("crop_closeup") else "view3d"
     try:
         crop = parse_crop(args.crop, meta)
     except ValueError as ex:

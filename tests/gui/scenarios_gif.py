@@ -6,6 +6,12 @@ right-click and flick north (Edge). Every step saves the main window as
 ``frames.ffconcat``; ``gif.json`` holds the 3D View area as the default crop.
 ``tools/make_gif.py`` turns them into ``docs/images/meso.gif``.
 
+Close-up (``run_gui_tests.sh --size 3840x2160 --only gif``): on an output at least 3000 px wide
+the scenario runs at UI scale 2 over a smooth Suzanne under a matcap (as
+``scenarios_shots.py``), and ``gif.json`` gets ``crop_closeup``: the 16:9 box around everything
+the Plaza and the Compasses drew in any frame (``tools/make_gif.py --crop closeup``, its default
+when present).
+
 Not part of the regular suite: the module returns its scenario only when the run asks for it
 (``tests/gui/run_gui_tests.sh --only gif``, i.e. ``MESO_GUI_ONLY`` names it). ``NEEDS_GRAB``
 stays False: nothing here starts a transform. Restores the preferences, the view, the mode,
@@ -23,6 +29,8 @@ import bpy
 NEEDS_GRAB = False
 
 FRAME_PREFIX = "frame_"
+CLOSEUP_WIDTH = 3000     # an output at least this wide: the close-up run
+CLOSEUP_SCALE = 2.0
 STEP = 0.09          # seconds on screen of an in-between frame (a drag step)
 
 
@@ -36,6 +44,26 @@ def scenarios(drv):
 
     out_dir = drv.ROOT / "tests" / "gui" / "out" / "gif"
     frames = []          # (file name, seconds on screen)
+    drawn = []           # window rects the Plaza and the Compasses drew in the frames
+
+    def renderer():
+        return importlib.import_module(drv.ADDON_MODULE + ".view.renderer")
+
+    def radial(cs):
+        """A Compass's slot boxes (its list may run far down: the crop never chases it)."""
+        return [b.rect for b in cs.layout.boxes] if cs is not None else []
+
+    def note_drawn():
+        """The rects on screen now: the Plaza and its dropdowns, the Compass radials."""
+        st = drv.plaza().current_state()
+        if st is not None:
+            menus = getattr(st, 'menus', None)
+            drawn.extend(r for r in (getattr(st.layout, 'extent', None) if st.layout else None,
+                                     renderer().chain_extent(getattr(menus, 'chain', None)))
+                         if r is not None)
+            drawn.extend(radial(getattr(menus, 'compass', None)))
+        rs = rmb().current_state()
+        drawn.extend(radial(getattr(rs, 'compass', None) if rs is not None else None))
 
     def cp():
         return importlib.import_module(drv.ADDON_MODULE + ".core.compass")
@@ -49,6 +77,7 @@ def scenarios(drv):
     def frame(seconds):
         """Save the main window as the next frame, on screen for ``seconds``."""
         import imbuf
+        note_drawn()
         pixels = drv.win().screenshot()
         h, w = pixels.shape[0], pixels.shape[1]
         ibuf = imbuf.new((w, h))
@@ -75,7 +104,24 @@ def scenarios(drv):
         a = drv.area_by("VIEW_3D")
         crop = {"x": int(a.x * sx), "y": int(h - (a.y + a.height) * sy),
                 "w": int(a.width * sx), "h": int(a.height * sy)}
+        if drawn and closeup():
+            x0, y0 = min(r.x for r in drawn), min(r.y for r in drawn)
+            x1, y1 = max(r.x + r.w for r in drawn), max(r.y + r.h for r in drawn)
+            pad = 40 * CLOSEUP_SCALE
+            bw, bh = (x1 - x0 + 2 * pad) * sx, (y1 - y0 + 2 * pad) * sy
+            # Inside the 3D View (never the timeline or the header bars around it).
+            vl, vt, vw, vh = crop["x"], crop["y"], crop["w"], crop["h"]
+            cw = min(vw, max(bw, bh * 16 / 9))
+            ch = min(vh, cw * 9 / 16)
+            cw = ch * 16 / 9
+            cx, cy = (x0 + x1) / 2 * sx, h - (y0 + y1) / 2 * sy
+            cl = int(min(max(cx - cw / 2, vl), vl + vw - cw))
+            ct = int(min(max(cy - ch / 2, vt), vt + vh - ch))
+            crop_closeup = {"x": cl, "y": ct, "w": int(cw), "h": int(ch)}
+        else:
+            crop_closeup = None
         meta = {"frames": len(frames), "size": [w, h], "crop_view3d": crop,
+                "crop_closeup": crop_closeup,
                 "seconds": round(sum(s for _n, s in frames), 2),
                 "backend": drv.backend_name()}
         (out_dir / "gif.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8")
@@ -84,10 +130,11 @@ def scenarios(drv):
         a = math.radians(cp().DIRECTION_ANGLE[direction])
         return int(centre[0] + dist * math.cos(a)), int(centre[1] + dist * math.sin(a))
 
-    def flick(centre, direction, steps=3, dist=90):
+    def flick(centre, direction, steps=3, dist=None):
         """Pointer moves (the button still down) from ``centre`` toward ``direction``, a frame
         per step; returns the end point."""
         end = centre
+        dist = 90 * (bpy.context.preferences.view.ui_scale or 1.0) if dist is None else dist
         for k in range(1, steps + 1):
             end = toward(centre, direction, dist * k / steps)
             drv.sim('MOUSEMOVE', 'NOTHING', end)
@@ -178,10 +225,14 @@ def scenarios(drv):
         frame(0.6)
         drv.sim('RIGHTMOUSE', 'PRESS', xy)
         yield 0.45                          # past the hold delay: the Compass shows
-        st = rmb().current_state()
-        cs = getattr(st, 'compass', None) if st is not None else None
+        for _ in range(20):                 # a 4K close-up run draws slower: wait for it
+            st = rmb().current_state()
+            cs = getattr(st, 'compass', None) if st is not None else None
+            if cs is not None or st is None:
+                break
+            yield 0.1
         drv.check(rec, "rmb_compass", cs is not None and cs.model.key == 'meso:context',
-                  cs.model.key if cs is not None else None)
+                  cs.model.key if cs is not None else (st is not None, rmb().last_session()))
         if cs is None:
             drv.sim('RIGHTMOUSE', 'RELEASE', xy)
             yield 0.3
@@ -194,12 +245,42 @@ def scenarios(drv):
         drv.check(rec, "edge_select", bpy.context.mode == 'EDIT_MESH' and tuple(
             bpy.context.scene.tool_settings.mesh_select_mode) == (False, True, False),
             [bpy.context.mode, tuple(bpy.context.scene.tool_settings.mesh_select_mode)])
-        drv.sim('MOUSEMOVE', 'NOTHING', (xy[0] + 160, xy[1] - 120))
+        k = bpy.context.preferences.view.ui_scale or 1.0
+        drv.sim('MOUSEMOVE', 'NOTHING', (int(xy[0] + 160 * k), int(xy[1] - 120 * k)))
         yield 0.2
         frame(1.8)
 
+    def closeup():
+        return drv.win().width >= CLOSEUP_WIDTH
+
+    def stage():
+        """The close-up scene: Suzanne (smooth, subdivided) for the cube, a matcap, UI scale
+        2; returns what to restore (None: not a close-up run)."""
+        if not closeup():
+            return None
+        area = drv.area_by("VIEW_3D")
+        ctx = dict(window=drv.win(), area=area, region=drv.region_of(area, 'WINDOW'))
+        cube = bpy.data.objects.get('Cube')
+        if cube is not None:
+            bpy.data.objects.remove(cube)
+        if bpy.data.objects.get('Suzanne') is None:
+            with bpy.context.temp_override(**ctx):
+                bpy.ops.mesh.primitive_monkey_add(size=2.2, location=(0, 0, 0))
+                bpy.ops.object.shade_smooth()
+                bpy.context.active_object.modifiers.new("Subdivision", 'SUBSURF').levels = 2
+        space = area.spaces.active
+        space.region_3d.view_distance = 9.0
+        space.shading.light = 'MATCAP'
+        space.overlay.show_cursor = False
+        prefs = bpy.context.preferences
+        old = prefs.view.ui_scale
+        prefs.view.ui_scale = CLOSEUP_SCALE
+        return old
+
     def sc_gif_frames(rec):
         out_dir.mkdir(parents=True, exist_ok=True)
+        old_scale = stage()
+        drawn.clear()
         for old in out_dir.glob(f"{FRAME_PREFIX}*.png"):
             old.unlink()
         frames.clear()
@@ -231,6 +312,8 @@ def scenarios(drv):
                     setattr(q, key, value)
             if size is not None:
                 write_index(size)
+            if old_scale is not None:
+                bpy.context.preferences.view.ui_scale = old_scale
             yield 0.3
         drv.check(rec, "frames_written", len(frames) >= 10, len(frames))
         drv.META.setdefault("gif", {}).update(frames=len(frames), dir=str(out_dir))
