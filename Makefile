@@ -10,6 +10,8 @@
 #   make test K=pattern       only the headless tests matching the pattern
 #   make gui GUI_ARGS="--only gif"
 #   make profile PROFILE_ARGS="-n 50 --only object,edit_mesh --detail"
+#   make release              the release's checks and plan (nothing is tagged or pushed)
+#   make release CONFIRM=v0.7.1 [DRAFT=1]   tag, push and publish the GitHub release
 
 SHELL := bash
 .DEFAULT_GOAL := help
@@ -21,6 +23,13 @@ ZIP := $(DIST)/meso-$(VERSION).zip
 K ?=
 GUI_ARGS ?=
 PROFILE_ARGS ?=
+TAG := v$(VERSION)
+REMOTE ?= origin
+BRANCH ?= master
+CONFIRM ?=
+DRAFT ?=
+# The release notes: the "## <version>" section of CHANGELOG.md.
+NOTES = awk '/^\#\# /{on = ($$2 == "$(VERSION)")} on' CHANGELOG.md | tail -n +2
 
 # The shell prologue of every recipe that runs Blender: stop on the first error, B / PY, a
 # temporary folder $$T (removed on exit) with the private runtime, config and extensions
@@ -52,11 +61,11 @@ CHECK_EXPR = import addon_utils, bpy; m = '$(ADDON)'; \
 	print('check: meso', bpy.app.version_string, n, 'classes registered and unregistered cleanly')
 
 .PHONY: help version test-unit test test-render validate build check gui persist profile all \
-	clean dev-link release
+	clean dev-link dev-unlink notes release-check release
 
 help: ## Show this list
 	@echo "Meso Mode $(VERSION): make <target>"
-	@awk 'BEGIN { FS = ":.*## " } /^[a-z][a-z-]*:.*## / { printf "  %-12s %s\n", $$1, $$2 }' \
+	@awk 'BEGIN { FS = ":.*## " } /^[a-z][a-z-]*:.*## / { printf "  %-14s %s\n", $$1, $$2 }' \
 		$(MAKEFILE_LIST)
 
 version: ## Print the manifest version
@@ -114,12 +123,54 @@ clean: ## Remove dist/ and every __pycache__
 dev-link: ## Link src/meso into MESO_EXTENSIONS_DIR for development
 	python3 tools/dev_link.py
 
-release: ## Print the release checklist (nothing is run)
-	@echo "Release checklist for Meso Mode $(VERSION):"
-	@echo "  1. version = \"$(VERSION)\" in $(MANIFEST) is the release version, committed"
-	@echo "  2. make all                  (unit + headless tests, validate, build, check)"
-	@echo "  3. make test-render          (offscreen renderer on Vulkan and OpenGL)"
-	@echo "  4. make gui && make persist  (nested GUI suite and restart check, Linux)"
-	@echo "  5. git tag -a v$(VERSION) -m \"Meso Mode $(VERSION)\"   (by hand)"
-	@echo "  6. push master and the tag   (by hand)"
-	@echo "  7. upload $(ZIP) to the release page / extensions platform (by hand)"
+dev-unlink: ## Remove the development link (then install the zip to test the real package)
+	python3 tools/dev_link.py --remove
+
+notes: ## Print the release notes of this version (from CHANGELOG.md)
+	@notes="$$($(NOTES))"; test -n "$$notes" || { echo "no '## $(VERSION)' in CHANGELOG.md" >&2; exit 1; }; \
+		echo "$$notes"
+
+# The release's preconditions (every one is checked; any failure stops): a clean tree on
+# $(BRANCH), the tag not taken yet (here or on $(REMOTE)), release notes for the version, the gh
+# CLI logged in, and the private pre-push scan (local/release-check.sh, when there is one).
+release-check: ## Check that this version can be released (read-only)
+	@set -eo pipefail; ok=1; fail() { echo "  ✗ $$*"; ok=0; }; pass() { echo "  ✓ $$*"; }; \
+	echo "Meso Mode $(VERSION): release $(TAG) from $(BRANCH) to $(REMOTE)"; \
+	[ -z "$$(git status --porcelain)" ] && pass "clean tree" || fail "uncommitted changes"; \
+	[ "$$(git rev-parse --abbrev-ref HEAD)" = "$(BRANCH)" ] && pass "on $(BRANCH)" \
+		|| fail "not on $(BRANCH) ($$(git rev-parse --abbrev-ref HEAD))"; \
+	! git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null && pass "no local tag $(TAG)" \
+		|| fail "the tag $(TAG) exists here"; \
+	git fetch -q --tags $(REMOTE) 2>/dev/null || fail "cannot reach $(REMOTE)"; \
+	! git ls-remote --exit-code --tags $(REMOTE) "refs/tags/$(TAG)" >/dev/null 2>&1 \
+		&& pass "no tag $(TAG) on $(REMOTE)" || fail "the tag $(TAG) exists on $(REMOTE)"; \
+	[ -n "$$($(NOTES))" ] && pass "release notes in CHANGELOG.md" || fail "no '## $(VERSION)' in CHANGELOG.md"; \
+	if command -v gh >/dev/null; then gh auth status >/dev/null 2>&1 && pass "gh logged in" \
+		|| fail "gh is not logged in (gh auth login)"; else fail "no gh CLI (GitHub CLI: https://cli.github.com)"; fi; \
+	if [ -x local/release-check.sh ]; then local/release-check.sh "$(REMOTE)/$(BRANCH)..HEAD" >/dev/null 2>&1 \
+		&& pass "pre-push scan clean" || fail "pre-push scan: run local/release-check.sh"; fi; \
+	[ $$ok = 1 ] || { echo "release-check: not ready"; exit 1; }; echo "release-check: ready"
+
+# `make release`: the checks and the plan. `make release CONFIRM=$(TAG)`: the checks, `make all`,
+# then tag, push and publish; DRAFT=1 makes the GitHub release a draft (published by hand on
+# the release page). Going public (the repository's visibility, the extensions platform
+# upload) stays by hand.
+release: ## Release checks and plan; CONFIRM=v<version> [DRAFT=1] tags, pushes and publishes
+	@$(MAKE) --no-print-directory release-check
+	@if [ "$(CONFIRM)" != "$(TAG)" ]; then \
+		echo; echo "Plan for $(TAG) (run: make release CONFIRM=$(TAG) [DRAFT=1]):"; \
+		echo "  1. make all                        unit + headless tests, validate, build, check"; \
+		echo "  2. git tag -a $(TAG)                annotated, on $$(git rev-parse --short HEAD)"; \
+		echo "  3. git push $(REMOTE) $(BRANCH) $(TAG)"; \
+		echo "  4. gh release create $(TAG) $(ZIP)  notes: make notes$(if $(DRAFT), (draft))"; \
+		echo "By hand afterwards: make the repository public, upload $(ZIP) to extensions.blender.org."; \
+		echo "Also run before: make test-render, make gui, make persist."; \
+		exit 0; fi; \
+	set -eo pipefail; \
+	$(MAKE) --no-print-directory all; \
+	git tag -a "$(TAG)" -m "Meso Mode $(VERSION)"; \
+	git push $(REMOTE) $(BRANCH) "$(TAG)"; \
+	mkdir -p $(DIST); $(NOTES) > "$(DIST)/notes-$(VERSION).md"; \
+	gh release create "$(TAG)" "$(ZIP)" --verify-tag --title "Meso Mode $(VERSION)" \
+		--notes-file "$(DIST)/notes-$(VERSION).md" $(if $(DRAFT),--draft); \
+	echo "release: $(TAG) published$(if $(DRAFT), as a draft)"

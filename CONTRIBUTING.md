@@ -58,9 +58,18 @@ make gui            # GUI suite (Linux, nested session); make gui GUI_ARGS="--on
 make persist        # Meso Keymap restart check (Linux, nested session)
 make profile        # timings of the Plaza's hot paths (headless); PROFILE_ARGS="-n 50 --only object"
 make dev-link       # link src/meso into $MESO_EXTENSIONS_DIR
+make dev-unlink     # remove that link (to install and try the built zip instead)
 make clean          # remove dist/ and __pycache__
-make release        # print the release checklist
+make notes          # the release notes of this version (its CHANGELOG.md section)
+make release-check  # can this version be released? (clean tree on master, tag free, notes,
+                    #   gh logged in); read-only
+make release        # the checks and the release plan; nothing is tagged or pushed
+make release CONFIRM=v<version> [DRAFT=1]
+                    # make all, then tag v<version>, push master and the tag, and create the
+                    #   GitHub release with the zip and the notes (DRAFT=1: a draft release)
 ```
+A release needs the [GitHub CLI](https://cli.github.com) (`gh auth login` once). Making the
+repository public and uploading the zip to the extensions platform stay manual steps.
 Without make (to run one step by hand), the same commands. They are bash (on Windows: Git Bash
 or WSL); from cmd or PowerShell, build with `blender --command extension build --source-dir
 src/meso --output-dir dist` (the full path to `blender.exe` if it is not on your PATH):

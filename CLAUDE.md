@@ -38,6 +38,7 @@ timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Key
 $PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate tests/data/inventory_5_2.json (subprocesses)
 $B --command extension build --source-dir src/meso --output-dir dist
 python3 tools/dev_link.py [--remove]                                  # link src/meso into $MESO_EXTENSIONS_DIR (env or local.env)
+make dev-link / make dev-unlink; make all; make release              # release: checks + plan only; CONFIRM=v<version> tags, pushes and publishes (only on the user's explicit go)
 ```
 Offscreen render test on each GPU backend (add `--gpu-backend vulkan` / `--gpu-backend opengl` right after `-b`,
 `-- -k test_render_offscreen`); headless default is OpenGL. Run both after renderer changes.
