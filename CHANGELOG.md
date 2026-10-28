@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+No change to the add-on: tests and developer tooling only.
+
+- More reliable GUI tests: the Compass toolbar toggle check waits for the toggle instead of a
+  fixed delay, and the drag checks read each finished move from Blender's own operator record,
+  so a very fast drag is never missed.
+- The GUI suite's time limit is 15 minutes (it takes about 12).
+
 ## 0.8.0
 
 Keymaps the way the Blender Extensions platform asks: Meso Mode only registers and unregisters
