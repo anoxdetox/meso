@@ -154,6 +154,50 @@ def addon_items():
     return out
 
 
+def meso_keymap_module():
+    return importlib.import_module(ADDON_MODULE + ".meso_keymap")
+
+
+def use_meso_keymap():
+    """Select the Meso keymap as a user does ("Use the Meso Keymap": Blender's own
+    ``preferences.keyconfig_activate``); True when it is active."""
+    with bpy.context.temp_override(window=win()):
+        bpy.ops.meso.keymap_choose(choice='MESO')
+    bpy.context.window_manager.keyconfigs.update()
+    return meso_keymap_module().is_meso_active()
+
+
+def set_binding_active(binding_id, on):
+    """What the keymap editor's checkbox does to every item of a Meso binding (test helper:
+    the user-keyconfig copies). Returns the number of items changed."""
+    changed = 0
+    for _km, kmi, _item in meso_keymap_module().user_items(binding_id):
+        if kmi.active != bool(on):
+            kmi.active = bool(on)
+            changed += 1
+    bpy.context.window_manager.keyconfigs.update()
+    return changed
+
+
+def leave_meso_keymap():
+    """Test cleanup: undo the edits of the keymaps holding Meso items (the keymap editor's
+    Restore), back to the Blender keymap, the first-enable question marked asked."""
+    kcs = bpy.context.window_manager.keyconfigs
+    try:
+        mb = importlib.import_module(ADDON_MODULE + ".core.meso_bindings")
+        names = set(mb.items_by_keymap())
+        for km in kcs.user.keymaps:
+            if km.name in names and km.is_user_modified:
+                km.restore_to_default()
+    except Exception as ex:
+        print("GUITEST leave_meso_keymap:", repr(ex), flush=True)
+    ensure_blender_keyconfig()
+    kcs.update()
+    p = addon_prefs()
+    if p is not None:
+        p.keymap_prompted = True
+
+
 def ensure_blender_keyconfig():
     kc = bpy.context.window_manager.keyconfigs.active
     if kc is None or kc.name != "Blender":

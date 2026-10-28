@@ -166,14 +166,7 @@ def scenarios(drv):
             drv.sim('RIGHTMOUSE', 'RELEASE', xy)
             yield 0.3
         finally:
-            if mk().is_meso_active():
-                mk().reset_to_default()
-                with bpy.context.temp_override(window=drv.win()):
-                    bpy.ops.meso.keymap_choose(choice='KEEP')
-            drv.ensure_blender_keyconfig()
-            if p is not None:
-                p.keymap_choice = 'UNDECIDED'
-                p.previous_keyconfig = ""
+            drv.leave_meso_keymap()
             bpy.context.preferences.view.ui_scale = old
             if bpy.context.mode != 'OBJECT':
                 drv.set_mode('OBJECT')
@@ -225,14 +218,7 @@ def scenarios(drv):
             drv.sim('ESC', 'RELEASE', end)
             yield 0.3
         finally:
-            if mk().is_meso_active():
-                mk().reset_to_default()
-                with bpy.context.temp_override(window=drv.win()):
-                    bpy.ops.meso.keymap_choose(choice='KEEP')
-            drv.ensure_blender_keyconfig()
-            if p is not None:
-                p.keymap_choice = 'UNDECIDED'
-                p.previous_keyconfig = ""
+            drv.leave_meso_keymap()
             bpy.context.preferences.view.ui_scale = old
             if bpy.context.mode != 'OBJECT':
                 drv.set_mode('OBJECT')

@@ -6,16 +6,18 @@ them, as in the hotkey editor), grouped by the hotkey editor's own nesting
 (``keymap_hierarchy.generate()`` pruned by ``core.keymap_tree``) and drawn with
 ``rna_keymap_ui.draw_kmi``. Section expansion is kept in the ``keymap_expanded`` preference.
 
-"Set all Space items" rebinds the add-on's items of every KIND_SPACE keymap (Window, Frames
-and the paint/sculpt mode maps) at once, whatever key they carry now; the Text/Console chord
-items are never touched (they follow the ``text_chord`` preference).
+"Set all Space items" gives the add-on's items of every KIND_SPACE keymap (Window, Frames
+and the paint/sculpt mode maps) one key: it stores it in the ``space_items_*`` preferences and
+registers the Plaza items again (``keymaps.reregister``); the Text/Console chord items follow
+the ``text_chord`` preference. Nothing here writes a keymap item.
 
-The "Meso Keymap" box above it (local/docs/meso-keymap-interfaces.md, "Preferences UI") holds the
-keymap choice, "Reset to default (Meso)", the binding list (grouped, collapsible; what each key
-does and what it displaces) with the Meso options, and the warnings. The bindings are items of
-the "Meso" keyconfig: users switch and rebind them in Blender's keymap editor, or in the
-section tree below, which lists the Meso items of the active Meso keymap too (the user-keyconfig
-copies, found with ``find_match``).
+The "Meso Keymap" box above it (local/docs/meso-keymap-interfaces.md, "Preferences UI") says
+which keymap is active, recommends the Meso Keymap (its button runs Blender's own
+``preferences.keyconfig_activate``, as Preferences > Keymap does; Meso never selects a keymap by
+itself), and holds the binding list (grouped, collapsible; what each key does, what it
+displaces, and the base keys that are on with every keymap) with the Meso options and the
+warnings. Users switch and rebind the keys in Blender's keymap editor, or in the section tree
+below, which lists them too (the user-keyconfig copies, found with ``find_match``).
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from __future__ import annotations
 import bpy
 from bpy.props import StringProperty
 
-from . import meso_keymap, prefs, wrapped_text
+from . import keymaps, meso_keymap, prefs, wrapped_text
 from .prefs import space_key_items as key_items
 from .core import keymap_tree
 from .core import meso_bindings as mb
@@ -33,7 +35,6 @@ from .keymaps import KEYMAP_SET, KIND_SPACE, OPERATOR_IDNAME
 INDENT_PX = 16
 MESO_ROOT = "Meso Keymap"     # section path root of the binding groups
 CHOOSE_IDNAME = "meso.keymap_choose"   # ops/keymap_choice.py
-RESET_IDNAME = "meso.keymap_reset"     # ops/keymap_choice.py
 BODY_INDENT = 2 * INDENT_PX            # a binding group's body: two _indented levels
 
 
@@ -43,13 +44,15 @@ def space_keymap_names() -> tuple[str, ...]:
 
 
 def sections():
-    """The pruned hotkey-editor hierarchy holding the Plaza's 13 keymaps and, while the Meso
-    keymap is active, every keymap with a Meso item."""
+    """The pruned hotkey-editor hierarchy holding the Plaza's 13 keymaps, the keymaps of the
+    base Meso keys and, while the Meso keymap is active, every keymap with a Meso item."""
     from bl_keymap_utils import keymap_hierarchy
     wanted = [(name, space, region) for name, space, region, _kind in KEYMAP_SET]
+    names = [item.keymap for _bid, _km, _kmi, item in meso_keymap.registered()]
     if meso_keymap.is_meso_active():
-        for name in mb.items_by_keymap():
-            wanted.append((name, *mb.KEYMAP_SPACES[name]))
+        names += list(mb.items_by_keymap())
+    for name in dict.fromkeys(names):
+        wanted.append((name, *mb.KEYMAP_SPACES[name]))
     return keymap_tree.prune(keymap_hierarchy.generate(), wanted)
 
 
@@ -63,8 +66,8 @@ def our_items(km):
 
 
 def meso_items_by_keymap() -> dict[tuple, list]:
-    """``{(name, space_type, region_type): [user kmi, ...]}`` of the Meso items (the active
-    Meso keymap only; empty otherwise)."""
+    """``{(name, space_type, region_type): [user kmi, ...]}`` of the Meso items (the base keys,
+    and the Meso keymap's while it is active)."""
     out: dict[tuple, list] = {}
     for ukm, kmi, _item in meso_keymap.user_items():
         out.setdefault((ukm.name, ukm.space_type, ukm.region_type), []).append(kmi)
@@ -72,7 +75,7 @@ def meso_items_by_keymap() -> dict[tuple, list]:
 
 
 def meso_items(km, grouped=None):
-    """The user-keyconfig copies of the Meso keyconfig's table items in ``km``.
+    """The user-keyconfig copies of the Meso items in ``km``.
 
     ``find_match`` follows the item id, also after the user rebinds it, so Industry
     Compatible's own items with the same operator are never mistaken for ours. ``grouped`` is
@@ -191,12 +194,11 @@ def _draw_section(kc, section, layout, level, expanded, grouped=None):
 # ------------------------------------------------------------------------------ Meso Keymap box
 
 
-def _choice_status(choice, active_name):
-    if choice == mb.CHOICE_MESO:
-        return "Using the Meso keymap (Industry Compatible + Meso bindings)"
-    if choice == mb.CHOICE_KEEP:
-        return f"Keeping your keymap: {active_name}"
-    return "Not chosen yet"
+def _keymap_status(active_name):
+    if active_name == mb.MESO_NAME:
+        return "Using the Meso keymap: Industry Compatible plus every Meso key"
+    return (f"The active keymap is {active_name}: the base Meso keys are on. The Meso Keymap "
+            "(recommended) adds every other Meso key")
 
 
 def _disclosure(layout, path, text, expanded):
@@ -234,16 +236,16 @@ def _wrapped(layout, text, *, boxes=1, indent=0.0, **kwargs):
     return wrapped_text.labels(layout, text, bpy.context, boxes=boxes, indent=indent, **kwargs)
 
 
-def binding_keys(b: mb.Binding, user, meso_active: bool = False) -> list[str]:
-    """The keys of a binding's items: as the user has them in the active Meso keymap (``user``:
-    ``{id(Item): user kmi}``), "off" for a switched-off item, "removed" for an item the user
-    deleted in the keymap editor (``meso_active`` and not in ``user``); the table keys
-    otherwise."""
+def binding_keys(b: mb.Binding, user, registered: bool = False) -> list[str]:
+    """The keys of a binding's items: as the user has them (``user``: ``{id(Item): user kmi}``
+    of the available items), "off" for a switched-off item, "removed" for an item the user
+    deleted in the keymap editor (``registered``, available, and not in ``user``); the table
+    keys otherwise."""
     keys = []
     for item in b.items:
         kmi = user.get(id(item))
         if kmi is None:
-            text = "removed" if meso_active else item.key.label()
+            text = "removed" if registered else item.key.label()
         elif not kmi.active:
             text = "off"
         else:
@@ -255,11 +257,12 @@ def binding_keys(b: mb.Binding, user, meso_active: bool = False) -> list[str]:
     return list(dict.fromkeys(keys))
 
 
-def _draw_binding(layout, b, user, meso_active=False):
+def _draw_binding(layout, b, user, registered=False):
     col = layout.column(align=True)
     split = col.split(factor=0.55, align=True)
-    split.label(text=b.label)
-    split.label(text=" / ".join(binding_keys(b, user, meso_active)))
+    split.label(text=b.label + ("" if mb.tier(b) == mb.TIER_MESO else "  (every keymap)"))
+    split.label(text=" / ".join(binding_keys(b, user, registered)) if registered
+                else "with the Meso keymap")
     for line in displaced_lines(b):
         hint = col.column(align=True)
         hint.active = False
@@ -320,14 +323,12 @@ _GROUP_EXTRAS = {
 }
 
 
-KEYMAP_EDITOR_HINT = ("Switch off, rebind or add Meso keys in Preferences > Keymap (the Meso "
-                      "keymap), or in the sections below; Reset to Default (Meso) undoes it.")
-# Blender keeps one set of edits per keymap name, shared by every keymap (Meso, Blender,
-# Industry Compatible), and rebuilds it against the active keymap on every edit.
-SHARED_EDITS_HINT = ("Blender stores one set of changes per keymap name for all keymaps: "
-                     "changing a keymap (e.g. Object Mode) while Blender or Industry Compatible "
-                     "is active replaces your Meso changes of that keymap, and Reset to Default "
-                     "(Meso) resets its changes there too.")
+KEYMAP_EDITOR_HINT = ("Switch off, rebind or restore Meso keys in Preferences > Keymap, or in "
+                      "the sections below.")
+RECOMMEND_HINT = ("Optional, and recommended: the Meso keymap is listed in Preferences > Keymap "
+                  "next to Blender and Industry Compatible. Meso never switches your keymap by "
+                  "itself: after a restart, select it again there if Blender started on another "
+                  "keymap.")
 
 
 def _draw_meso_keymap(context, layout, addon_prefs, expanded):
@@ -335,43 +336,20 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     box.label(text=MESO_ROOT)
     col = box.column()
     col.use_property_split = False
-    choice = meso_keymap.choice(context)
     active_name = meso_keymap.active_keyconfig_name(context) or "?"
     meso_active = active_name == mb.MESO_NAME
-    _wrapped(col.column(align=True), _choice_status(choice, active_name))
-    row = col.row(align=True)
-    op = row.operator(CHOOSE_IDNAME, text="Use Meso Keymap",
-                      depress=choice == mb.CHOICE_MESO)
-    op.choice = mb.CHOICE_MESO
-    op = row.operator(CHOOSE_IDNAME, text="Keep My Keymap",
-                      depress=choice == mb.CHOICE_KEEP)
-    op.choice = mb.CHOICE_KEEP
-    if choice == mb.CHOICE_MESO and not meso_active:
-        warn = col.column(align=True)
-        warn.alert = True
-        warn.label(text=f"The Meso keymap is not active: the active keymap is {active_name}",
-                   icon='ERROR')
-        row = warn.row(align=True)
-        op = row.operator(CHOOSE_IDNAME, text="Select Meso")
-        op.choice = mb.CHOICE_MESO
-        op = row.operator(CHOOSE_IDNAME, text=f"Keep {active_name}")
-        op.choice = mb.CHOICE_KEEP
-    elif meso_active and addon_prefs.previous_keyconfig not in ("", mb.MESO_NAME):
-        hint = col.column(align=True)
-        hint.active = False
-        _wrapped(hint, f"Keep, or disabling Meso Mode, restores the "
-                       f"{addon_prefs.previous_keyconfig} keymap")
-    row = col.row()
-    row.enabled = meso_active
-    n = meso_keymap.modified_count(context)
-    row.operator(RESET_IDNAME, text="Reset to Default (Meso)" + (f" ({n} changes)" if n else ""),
-                 icon='LOOP_BACK')
+    _wrapped(col.column(align=True), _keymap_status(active_name))
+    if not meso_active:
+        row = col.row(align=True)
+        op = row.operator(CHOOSE_IDNAME, text="Use the Meso Keymap (recommended)",
+                          icon='KEYINGSET')
+        op.choice = 'MESO'
     hint = col.column(align=True)
     hint.active = False
+    _wrapped(hint, RECOMMEND_HINT)
     _wrapped(hint, KEYMAP_EDITOR_HINT)
-    _wrapped(hint, SHARED_EDITS_HINT)
     live = meso_keymap.live_bindings(context)
-    off = tuple(b for b in mb.BINDINGS if b not in live) if meso_active else ()
+    off = meso_keymap.off_bindings(context)
     owner = getattr(addon_prefs, 'shift_rmb_owner', 'COMPASS') or 'COMPASS'
     for message in mb.warnings(live, off, shift_rmb_owner=owner):
         warn = col.column(align=True)
@@ -380,7 +358,7 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     col.separator()
     if not _disclosure(col, MESO_ROOT, "Bindings", expanded):
         return
-    user = {id(item): kmi for _km, kmi, item in meso_keymap.user_items(context=context)}
+    user = {id(item): kmi for _ukm, kmi, item in meso_keymap.user_items(context=context)}
     for group_id, group_label in mb.GROUPS:
         bindings = [b for b in mb.BINDINGS if b.group == group_id]
         if not bindings:
@@ -391,7 +369,7 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
             continue
         body = _indented(sub, 1)
         for b in bindings:
-            _draw_binding(body, b, user, meso_active)
+            _draw_binding(body, b, user, meso_active or mb.tier(b) == mb.TIER_BASE)
         for prop in _GROUP_EXTRAS.get(group_id, ()):
             body.prop(addon_prefs, prop)
         if group_id == 'PROPERTIES':
@@ -402,26 +380,6 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
             col_hint.active = False
             for text in hints:
                 _wrapped(col_hint, text, indent=BODY_INDENT)
-
-
-def set_space_items(kc, key, shift=False, ctrl=False, alt=False, oskey=False):
-    """Rebind the add-on item of every Space keymap in ``kc``; return (changed, missing).
-
-    ``missing`` lists the Space keymaps with no add-on item (e.g. the user deleted it).
-    """
-    changed, missing = 0, []
-    for name in space_keymap_names():
-        km = _find_keymap(kc, name, 'EMPTY', 'WINDOW')
-        items = our_items(km) if km is not None else []
-        if not items:
-            missing.append(name)
-        for kmi in items:
-            kmi.map_type = 'KEYBOARD'
-            kmi.type = key
-            kmi.any = False
-            kmi.shift_ui, kmi.ctrl_ui, kmi.alt_ui, kmi.oskey_ui = shift, ctrl, alt, oskey
-            changed += 1
-    return changed, missing
 
 
 def _mark_dirty(context):
@@ -439,19 +397,11 @@ the chosen key and modifiers; the Text/Console chord is not changed"""
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
-        addon_prefs = prefs.get_prefs(context)
-        kc = context.window_manager.keyconfigs.user
-        if addon_prefs is None or kc is None:
-            self.report({'ERROR'}, "Preferences or user keyconfig unavailable")
+        if prefs.get_prefs(context) is None:
+            self.report({'ERROR'}, "Preferences unavailable")
             return {'CANCELLED'}
-        changed, missing = set_space_items(
-            kc, addon_prefs.space_items_key, addon_prefs.space_items_shift,
-            addon_prefs.space_items_ctrl, addon_prefs.space_items_alt,
-            addon_prefs.space_items_oskey)
-        if missing:
-            self.report({'WARNING'}, "No Plaza item in: " + ", ".join(missing))
-        if not changed:
-            return {'CANCELLED'}
+        # The key is in the space_items_* preferences: register the Plaza items again with it.
+        keymaps.reregister(context)
         _mark_dirty(context)
         return {'FINISHED'}
 

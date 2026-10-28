@@ -1,18 +1,29 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The Meso Keymap binding table (pure; no bpy). Contract: local/docs/meso-keymap-interfaces.md.
+"""The Meso key binding table (pure; no bpy). Contract: local/docs/meso-keymap-interfaces.md.
 
-The Meso Keymap is a real keyconfig named "Meso" (``presets/keyconfig/Meso.py``): Blender's
-Industry Compatible keymap data (IC) with every item of this table put first in its keymap
-(``merge_keyconfig_data``). Users switch items off, rebind them and reset them in Blender's own
-keymap editor; ``Binding.default_on`` is the item's initial ``active`` flag. The IC items on the
-same key stay in the keyconfig after the Meso item (shadowed, so switching the Meso item off
-gives the key back). Each binding lists what it displaces in IC and where that native action
-lives now; a headless test compares every ``displaces`` list with the real IC keymap (the
-"shadow test"), so a future keymap change cannot silently hide a native action.
+Two tiers (``tier()``):
 
-One IC item is switched off instead of shadowed (``Displaced.off``): the 'User Interface'
-keymap's Alt D driver removal returns CANCELLED over empty space, which stops the key before any
-editor keymap, so a shadowing item ahead of it cannot pass Alt D on. Meso's
+- ``TIER_BASE`` (:data:`BASE_IDS`): the bindings whose every key is free in both Blender's
+  default keymap and Industry Compatible (IC). They are add-on keymap items
+  (``wm.keyconfigs.addon``, ``meso_keymap``), registered and unregistered only, so they work
+  with every keymap.
+- ``TIER_MESO``: the rest, items of the **Meso Keymap**, a keyconfig named "Meso" in
+  Preferences > Keymap (optional, recommended), which the user selects there. Its preset
+  (``presets/keyconfig/Meso.py``, written by ``tools/gen_meso_preset.py`` from this table:
+  self-contained, it loads no Meso module) is Blender's Industry Compatible keymap data with
+  every item of this tier put first in its keymap (``merge_keyconfig_data``). With the base
+  tier's add-on items, the Meso Keymap has every Meso key.
+
+Users switch items off, rebind them and restore them in Blender's own keymap editor;
+``Binding.default_on`` is the item's initial ``active`` flag. The IC items on the same key stay
+in the keyconfig after the Meso item (shadowed, so switching the Meso item off gives the key
+back). Each binding lists what it displaces in IC and where that native action lives now; a
+headless test compares every ``displaces`` list with the real IC keymap (the "shadow test"),
+and checks that the base tier shadows nothing in Blender or IC.
+
+One IC item is switched off in the Meso keyconfig instead of shadowed (``Displaced.off``): the
+'User Interface' keymap's Alt D driver removal returns CANCELLED over empty space, which stops
+the key before any editor keymap, so a shadowing item ahead of it cannot pass Alt D on. Meso's
 ``meso.driver_button_remove`` does exactly the native removal over a driven property and passes
 the key on everywhere else (``driver_remove_pass``, the only Meso item in 'User Interface').
 
@@ -35,7 +46,7 @@ from .compass_rmb import ROLE_SHIFT
 IC_NAME = 'Industry_Compatible'
 MESO_NAME = 'Meso'         # the keyconfig name (= the preset file name)
 
-CHOICE_UNDECIDED, CHOICE_MESO, CHOICE_KEEP = 'UNDECIDED', 'MESO', 'KEEP'
+TIER_BASE, TIER_MESO = 'BASE', 'MESO'
 
 # ``Displaced.now`` value for "a quick tap of the key replays the native action".
 NOW_TAP = 'tap'
@@ -590,6 +601,34 @@ def operator_idnames(b: Binding) -> tuple[str, ...]:
     return tuple(dict.fromkeys(item.idname for item in b.items))
 
 
+# ------------------------------------------------------------------------------ tiers
+
+# The base tier: every key of these bindings is free in both Blender's default keymap and
+# Industry Compatible (audited from the installed keymap data; a headless test keeps it so).
+# They are add-on items, on with every keymap; the rest are in the Meso Keymap. A binding is
+# in one tier as a whole (Ctrl 1 isolate in Edit Curve but not in Object Mode, where Blender has
+# Ctrl 1, would only confuse), and a relocation (``follows``) only makes sense with the binding
+# that takes the native key, so it stays in that binding's tier.
+BASE_IDS: frozenset[str] = frozenset({
+    'select_invert', 'select_keys_extra', 'apply_menu', 'snap_hold_increment', 'pivot_toggle',
+})
+
+
+def tier(b: Binding) -> str:
+    """``TIER_BASE`` for :data:`BASE_IDS`, else ``TIER_MESO``."""
+    return TIER_BASE if b.id in BASE_IDS else TIER_MESO
+
+
+def base_bindings() -> tuple[Binding, ...]:
+    """The base tier (the add-on items), in table order."""
+    return tuple(b for b in BINDINGS if tier(b) == TIER_BASE)
+
+
+def keyconfig_bindings() -> tuple[Binding, ...]:
+    """The Meso tier (the Meso keyconfig's own items), in table order."""
+    return tuple(b for b in BINDINGS if tier(b) == TIER_MESO)
+
+
 # ------------------------------------------------------------------------------ keyconfig data
 
 
@@ -654,7 +693,7 @@ def _switched_off(entry) -> tuple:
     return (idname, args, extra)
 
 
-def merge_keyconfig_data(data, bindings=BINDINGS):
+def merge_keyconfig_data(data, bindings=None):
     """Industry Compatible keyconfig data -> the Meso keyconfig data (in place; returned).
 
     ``data`` is ``generate_keymaps()``'s list of ``(keymap name, keymap args, {"items": [...]})``.
@@ -663,8 +702,11 @@ def merge_keyconfig_data(data, bindings=BINDINGS):
     in the keymap editor gives the key back, and a hold key's tap replays the IC item). The IC
     items of a ``Displaced.off`` entry stay too, switched off (the keymap editor can switch
     them on again). A keymap the data lacks is a ``KeyError`` (Blender never merges a keymap
-    name that its default keyconfig lacks into the user keyconfig).
+    name that its default keyconfig lacks into the user keyconfig). ``bindings`` defaults to the
+    Meso tier (:func:`keyconfig_bindings`): the base tier is in the add-on keyconfig.
     """
+    if bindings is None:
+        bindings = keyconfig_bindings()
     by_name = {}
     for name, _args, content in data:
         by_name.setdefault(name, content)

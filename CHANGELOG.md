@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.8.0
+
+Keymaps the way the Blender Extensions platform asks: Meso Mode only registers and unregisters
+keys, and never changes your keymap by itself.
+
+- **The Meso Keymap stays a keymap of its own**, listed in Preferences ▸ Keymap (optional, and
+  recommended). You select it there, or with "Use the Meso Keymap" in the first-enable question
+  and the add-on preferences, which run the same Blender command. Every Meso key is in it,
+  Alt D included.
+- **A few Meso keys now work with any keymap**: the ones that collide with nothing in Blender's
+  or Industry Compatible's keymap (Ctrl Shift I invert, the select keys in the File Browser,
+  Clip Graph Editor, Paint Vertex Selection and Grease Pencil selection, Ctrl Alt A Apply menu,
+  hold J to snap in steps, Insert to edit origins).
+- **Meso no longer selects, restores or resets a keymap**: the start-up reselection of the Meso
+  keymap, the restore of your previous keymap on disable and "Reset to Default (Meso)" are gone.
+  Use Preferences ▸ Keymap to switch keymaps, and Blender's keymap editor to restore keys.
+  After a restart, Blender may start on its own keymap: select Meso there again (your edits of
+  its keys are kept).
+- **"Set all Space items"** stores the key in Meso's preferences and registers the Plaza's keys
+  again with it, instead of editing your keymap.
+- The Meso keymap's preset is self-contained (it loads no Meso module), built like Blender's own
+  Industry Compatible preset.
+
+**Coming from 0.7.1:** if you used the Meso keymap, select **Meso** in Preferences ▸ Keymap
+once after updating.
+
 ## 0.7.1
 
 The first release of Meso Mode, for Blender 5.2 LTS.

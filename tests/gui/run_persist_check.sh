@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Meso Keymap restart check (local/docs/meso-keymap-interfaces.md, GUI case G2):
-#   1. disable Meso Mode in the Preferences after choosing the Meso Keymap, quit: the restored
-#      keyconfig ('Blender') is what the next start reads;
-#   2. control: choose the Meso Keymap, edit two of its items, quit: the next start is on the
-#      Meso keyconfig (Meso Mode reselects it in register(); Blender alone starts on 'Blender')
-#      with the edits kept, the bindings live, no new question and clean preferences, and the
-#      exit-time restore was not saved;
-#   3. Reset to Default (Meso) after that restart, quit, restart: the reset was saved (the Meso
-#      items are the defaults again, the Plaza item keeps the user's key, clean preferences).
+#   1. select the Meso Keymap, disable Meso Mode in the Preferences, quit: the keymap is left as
+#      the user had it (Meso never switches keymaps);
+#   2. control: select the Meso Keymap, edit five items, quit; restart: record which keymap
+#      Blender starts on (Meso never selects one), select Meso again if needed: the user's
+#      edits are back, no new question, the saved choice is the user's.
 #
 #   tests/gui/run_persist_check.sh [--host]
 #
@@ -76,9 +73,6 @@ gui gui_keep "$T/cfg2" b_gui_keep
 headless read "$T/cfg2" b_read
 gui gui_restart "$T/cfg2" b_gui_restart
 headless read "$T/cfg2" b_read_again
-# 3. Reset to Default (Meso), quit, restart: the reset was saved
-gui gui_reset "$T/cfg2" c_gui_reset
-gui gui_after_reset "$T/cfg2" c_gui_after_reset
 
 "$PY" - "$T/out" <<'PY'
 import json, pathlib, sys
@@ -93,48 +87,32 @@ EDITED = {"cycle": [["F13", -1]], "apply_active": [False, False], "isolate": [],
           "sc_first_active": False, "sc_plaza": ["F16"]}
 DEFAULTS = {"cycle": [["A", 1]], "apply_active": [True, True], "isolate": ["ONE"],
             "sc_first_active": True, "sc_plaza": ["SPACE"]}
-AFTER_RESET = dict(DEFAULTS, sc_plaza=["F16"])     # the Plaza's item keeps the user's key
 ae, ag, ar = load("a_enable"), load("a_gui_disable"), load("a_read")
 be, bg, br, bs, bra = (load("b_enable"), load("b_gui_keep"), load("b_read"), load("b_gui_restart"),
                        load("b_read_again"))
-cr, ca = load("c_gui_reset"), load("c_gui_after_reset")
 checks = {
-    "a_enabled_undecided": ae.get("choice") == "UNDECIDED",
     "a_start_on_blender": ag.get("start_active") == "Blender",
     "a_no_question": ag.get("start_prompt_pending") is False,
     "a_choose_selects_meso": ag.get("after_choose_active") == MESO,
-    "a_records_previous": ag.get("after_choose_previous") == "Blender",
     "a_bindings_live": bool(ag.get("after_choose_registered")),
-    "a_disable_restores": ag.get("after_disable_active") == "Blender",
+    "a_disable_leaves_the_keymap": ag.get("after_disable_active") == MESO,
     "a_disabled": ag.get("after_disable_enabled") is False,
-    "a_saved_restore": ar.get("pref_active_keyconfig") == "Blender",
     "a_saved_disabled": ar.get("enabled") is False,
     "b_choose_selects_meso": bg.get("after_choose_active") == MESO,
-    "b_edits_made": bg.get("after_edit") == EDITED,
     "b_default_before_edit": bg.get("before_edit") == DEFAULTS,
+    "b_edits_made": bg.get("after_edit") == EDITED,
     "b_saved_meso": br.get("pref_active_keyconfig") == MESO,
-    "b_saved_choice": br.get("choice") == "MESO" and br.get("previous_keyconfig") == "Blender",
-    "b_restart_on_meso": bs.get("start_active") == MESO,
-    "b_restart_pref_meso": bs.get("start_pref_active_keyconfig") == MESO,
-    "b_restart_edits_kept": bs.get("start_edits") == EDITED,
-    "b_restart_bindings_live": bool(bs.get("start_registered"))
-                               and "apply_menu" not in bs.get("start_registered"),
     "b_restart_no_question": bs.get("start_prompt_pending") is False,
-    "b_restart_clean_prefs": bs.get("start_is_dirty") is False,
-    "b_exit_restore_not_saved": bra.get("pref_active_keyconfig") == MESO,
-    "c_reset_starts_edited": cr.get("start_active") == MESO and cr.get("start_edits") == EDITED
-                             and (cr.get("start_modified_count") or 0) >= 5,
-    "c_reset_finished": cr.get("reset") == ["FINISHED"],
-    "c_reset_defaults": cr.get("after_reset") == AFTER_RESET
-                        and cr.get("after_reset_modified_count") == 0,
-    "c_reset_marks_dirty": cr.get("is_dirty") is True,
-    "c_restart_on_meso": ca.get("start_active") == MESO,
-    "c_restart_reset_kept": ca.get("start_edits") == AFTER_RESET
-                            and ca.get("start_modified_count") == 0,
-    "c_restart_bindings_live": "apply_menu" in (ca.get("start_registered") or []),
-    "c_restart_clean_prefs": ca.get("start_is_dirty") is False,
+    "b_restart_meso_again": bs.get("after_reselect_active") == MESO,
+    "b_restart_edits_kept": bs.get("after_reselect_edits") == EDITED,
+    "b_restart_bindings_live": bool(bs.get("after_reselect_registered"))
+                               and "apply_menu" not in bs.get("after_reselect_registered"),
+    "b_saved_still_meso": bra.get("pref_active_keyconfig") == MESO,
 }
-errors = [d.get("error") for d in (ae, ag, ar, be, bg, br, bs, bra, cr, ca)
+print(f"info: Blender started on {bs.get('start_active')!r} "
+      f"(saved choice {bs.get('start_pref_active_keyconfig')!r}, "
+      f"reselected: {bs.get('reselect')!r})")
+errors = [d.get("error") for d in (ae, ag, ar, be, bg, br, bs, bra)
           if d.get("error") or d.get("missing")]
 for name, ok in checks.items():
     print(("PASS " if ok else "FAIL ") + name)

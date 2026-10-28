@@ -357,31 +357,12 @@ class MesoAddonPreferences(AddonPreferences):
     space_items_alt: BoolProperty(name="Alt", default=False)
     space_items_oskey: BoolProperty(name="OS", default=False)
 
-    # -- Meso Keymap (local/docs/meso-keymap-interfaces.md "Preferences"). The bindings themselves
-    # are items of the "Meso" keyconfig, switched and rebound in Blender's keymap editor.
-    keymap_choice: EnumProperty(
-        name="Meso Keymap Choice",
-        description="Whether Meso Mode uses the Meso keymap (set by the choice buttons, and by "
-                    "picking a keymap in Preferences > Keymap)",
-        items=(
-            ('UNDECIDED', "Not Chosen", "No choice yet: behaves like Keep"),
-            ('MESO', "Meso Keymap", "The Meso keymap: Industry Compatible plus Meso's bindings"),
-            ('KEEP', "Keep", "Keep your keymap; no Meso bindings"),
-        ),
-        default='UNDECIDED',
-        options={'HIDDEN'},
-    )
+    # -- Meso Keymap (local/docs/meso-keymap-interfaces.md "Preferences"): the keyconfig "Meso",
+    # selected in Preferences > Keymap; its items are edited in Blender's keymap editor.
     keymap_prompted: BoolProperty(
         name="Keymap Choice Asked",
         description="The first-enable Meso Keymap question was shown",
         default=False,
-        options={'HIDDEN'},
-    )
-    previous_keyconfig: StringProperty(
-        name="Previous Keymap",
-        description="The keymap that was active before the Meso keymap; restored on Keep or "
-                    "when Meso Mode is disabled",
-        default="",
         options={'HIDDEN'},
     )
     properties_cycle_order: StringProperty(

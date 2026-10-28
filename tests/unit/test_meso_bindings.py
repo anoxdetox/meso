@@ -1,11 +1,14 @@
 """core.meso_bindings: the Meso Keymap binding table and the Meso keyconfig data (pure)."""
 
 import importlib
+import importlib.util
+import pathlib
 import unittest
 
 from tests.unit.test_keymap_tree import _load_core
 
 mb = importlib.import_module(_load_core() + ".meso_bindings")
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 ALL_IDS = [b.id for b in mb.BINDINGS]
 
@@ -442,7 +445,7 @@ class TestKeyconfigData(unittest.TestCase):
     def test_merge_puts_meso_items_first_and_keeps_the_native_ones(self):
         data = mb.merge_keyconfig_data(ic_like_data())
         by_name = {name: content["items"] for name, _a, content in data}
-        groups = mb.items_by_keymap()
+        groups = mb.items_by_keymap(mb.keyconfig_bindings())
         active = {b.id: b.default_on for b in mb.BINDINGS}
         for name, items in by_name.items():
             with self.subTest(keymap=name):
@@ -482,7 +485,7 @@ class TestKeyconfigData(unittest.TestCase):
         self.assertEqual([e[2] for e in ui if e[0] == 'anim.driver_button_remove'], [None, None])
 
     def test_merge_refuses_a_missing_keymap(self):
-        data = [d for d in ic_like_data() if d[0] != 'Clip Graph Editor']
+        data = [d for d in ic_like_data() if d[0] != 'Clip Editor']
         with self.assertRaises(KeyError):
             mb.merge_keyconfig_data(data)
 
@@ -496,6 +499,53 @@ class TestKeyconfigData(unittest.TestCase):
     def test_names(self):
         self.assertEqual(mb.MESO_NAME, 'Meso')
         self.assertEqual(mb.IC_NAME, 'Industry_Compatible')
+
+
+class TestTiers(unittest.TestCase):
+    """The base tier (add-on keys, every keymap) and the Meso tier (the Meso keyconfig)."""
+
+    def test_base_ids(self):
+        self.assertEqual(mb.BASE_IDS, {'select_invert', 'select_keys_extra', 'apply_menu',
+                                       'snap_hold_increment', 'pivot_toggle'})
+        self.assertEqual({b.id for b in mb.base_bindings()}, mb.BASE_IDS)
+        self.assertEqual(mb.base_bindings() + mb.keyconfig_bindings(),
+                         tuple(sorted(mb.BINDINGS, key=lambda b: mb.tier(b) != mb.TIER_BASE)))
+
+    def test_base_bindings_displace_and_relocate_nothing(self):
+        for b in mb.BINDINGS:
+            with self.subTest(binding=b.id):
+                if mb.tier(b) == mb.TIER_BASE:
+                    self.assertEqual(b.displaces, ())
+                    self.assertIsNone(b.follows)
+                elif b.follows is not None:
+                    self.assertEqual(mb.tier(mb.binding(b.follows)), mb.TIER_MESO)
+
+    def test_the_keyconfig_has_the_meso_tier_only(self):
+        data = mb.merge_keyconfig_data(ic_like_data())
+        ids = {e[0] for _n, _a, content in data for e in content["items"]}
+        self.assertNotIn('meso.pivot_toggle', ids)          # base: an add-on key
+        self.assertIn('meso.pivot_once', ids)
+        self.assertIn('meso.driver_button_remove', ids)     # Alt D stays in the Meso keymap
+
+
+class TestPreset(unittest.TestCase):
+    """``presets/keyconfig/Meso.py`` is generated from the table and loads no Meso module."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location(
+            "_gen_meso_preset", ROOT / "tools" / "gen_meso_preset.py")
+        self.gen = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.gen)
+
+    def test_up_to_date(self):
+        self.assertEqual(self.gen.main(["--check"]), 0,
+                         "run tools/gen_meso_preset.py after changing the table")
+
+    def test_self_contained(self):
+        text = (ROOT / "src" / "meso" / "presets" / "keyconfig" / "Meso.py").read_text("utf-8")
+        for banned in ("importlib", "sys.modules", "__import__", "spec_from_file_location",
+                       "meso_keymap", "meso_bindings", "from ."):
+            self.assertNotIn(banned, text)
 
 
 class TestWarnings(unittest.TestCase):

@@ -89,6 +89,10 @@ bl --command extension validate dist/meso-<version>.zip
 $PY tools/check_zip.py dist/meso-<version>.zip --version <version>     # list what went into the zip
 python3 tools/dev_link.py [--remove]                                    # link src/meso into $MESO_EXTENSIONS_DIR
 ```
+The Meso Keymap preset `src/meso/presets/keyconfig/Meso.py` is generated from the key table
+(`src/meso/core/meso_bindings.py`): after any change to the table, run
+`python3 tools/gen_meso_preset.py` (a unit test runs it with `--check` and fails on a stale preset).
+
 On top of that, `make check` installs the zip (`extension install-file -r user_default -e`)
 into a temporary extensions folder and starts Blender headless on it: the add-on must be
 enabled, and must unregister and register again without an error. Built zips go to `dist/`,

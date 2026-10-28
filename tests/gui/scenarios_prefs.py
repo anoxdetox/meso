@@ -72,8 +72,7 @@ def scenarios(drv):
             root = kp.MESO_ROOT
             prefs.keymap_expanded = tree.EXPANDED_SEP.join(
                 [root] + [f"{root}{tree.PATH_SEP}{label}" for _g, label in mb.GROUPS])
-            meso_keymap = importlib.import_module(drv.ADDON_MODULE + ".meso_keymap")
-            meso_keymap.set_binding_active('deselect_all', False)    # one warning row too
+            drv.set_binding_active('deselect_all', False)    # one warning row too
             n = state["draws"]
             area.tag_redraw()
             yield 0.6
@@ -81,13 +80,7 @@ def scenarios(drv):
             drv.check(rec, "meso_box_no_draw_error", state["error"] is None, state["error"])
             drv.save_screenshot("prefs_meso_keymap")
         finally:
-            p = drv.addon_prefs()
-            if p is not None and p.keymap_choice == 'MESO':
-                importlib.import_module(drv.ADDON_MODULE + ".meso_keymap").reset_to_default()
-                with bpy.context.temp_override(window=drv.win()):
-                    bpy.ops.meso.keymap_choose(choice='KEEP')
-                p.keymap_choice = 'UNDECIDED'
-                p.previous_keyconfig = ""
+            drv.leave_meso_keymap()
             kmi.show_expanded = False
             prefs.keymap_expanded = saved_expanded
             space.show_region_ui = saved_ui
@@ -97,12 +90,13 @@ def scenarios(drv):
 
     def sc_prefs_wrap(rec):
         """The help text in the real Preferences window (user item E of 2026-09-26): the add-on
-        shown by ``preferences.addon_show`` (as the Plaza's Meso Settings box does), the Meso
-        Keymap in use, the text wrapped to the full width of its row at UI scale 1 and 1.5 and
-        in a narrower Preferences area (the area split: a real ``region.width``).
+        shown by ``preferences.addon_show`` (as the Plaza's Meso Settings box does), the text
+        wrapped to the full width of its row at UI scale 1 and 1.5 and in a narrower
+        Preferences area (the area split: a real ``region.width``), on Blender's keymap (the
+        Meso keymap for the binding groups at the end).
 
         Measured on the rendered pixels, never with the draw's own width formula: while it is
-        measured, the two hints under Reset to Default (Meso) are drawn red (``alert``, a
+        measured, the two hints under "Use the Meso Keymap" are drawn red (``alert``, a
         colour change only), each red band of the screenshot is one drawn line, and the box
         edge is found to the right of it. A line Blender cut ("Keep, or disa...keymap") is
         narrower on screen than the ``blf`` width of its text (``*_not_clipped``); a line that
@@ -117,7 +111,7 @@ def scenarios(drv):
         saved_scale = view.ui_scale
         n_windows = len(wm.windows)
         details = rec.setdefault("details", {})
-        hints = (("editor", kp.KEYMAP_EDITOR_HINT), ("shared", kp.SHARED_EDITS_HINT))
+        hints = (("recommend", kp.RECOMMEND_HINT), ("editor", kp.KEYMAP_EDITOR_HINT))
         drawn = {}                      # (region pointer, text) -> the lines the draw made
         orig_labels = wt.labels
 
@@ -169,7 +163,7 @@ def scenarios(drv):
             return out[::-1]
 
         def row_right(shot, r, band, scale):
-            """The right edge of the hints' row, from the pixels: the Reset to Default (Meso)
+            """The right edge of the hints' row, from the pixels: the "Use the Meso Keymap"
             button right above the first hint spans that same column. Found going up from
             the first line (at its right end) to the button body, then right along it to the
             last button pixel. None if not on screen."""
@@ -217,7 +211,9 @@ def scenarios(drv):
                     outside.append(text)
                 nxt = lines[i + 1] if i + 1 < len(lines) else None
                 if nxt is not None and nxt[0] == key and nxt[1]:
-                    if x1 + m(" " + nxt[1].split()[0]) <= edge - 20 * scale:
+                    # the same measuring tolerance as the clip check (both edges are
+                    # estimates: the model's and the pixels')
+                    if x1 + m(" " + nxt[1].split()[0]) <= edge - 20 * scale - tol:
                         early.append(text)
             drv.check(rec, f"{tag}_not_clipped", not clipped, clipped)
             drv.check(rec, f"{tag}_inside_box", not outside, outside)
@@ -256,8 +252,8 @@ def scenarios(drv):
                 a.tag_redraw()
 
         try:
+            drv.leave_meso_keymap()             # Blender's keymap: the button above the hints
             with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.meso.keymap_choose(choice='MESO')
                 bpy.ops.preferences.addon_show(module=drv.ADDON_MODULE)
             yield 1.0
             w, a, r = prefs_window()
@@ -298,7 +294,8 @@ def scenarios(drv):
             prefs.keymap_expanded = tree.EXPANDED_SEP.join(
                 [root] + [f"{root}{tree.PATH_SEP}{label}" for _g, label in mb.GROUPS
                           if label in ("Snapping", "Pivot")])
-            mk.set_binding_active('deselect_all', False)
+            drv.check(rec, "meso_keymap", drv.use_meso_keymap())
+            drv.set_binding_active('deselect_all', False)
             w, a, r = max(prefs_areas(), key=lambda f: f[2].width)
             scroll(w, a, r, 8)
             yield 0.6
@@ -315,13 +312,7 @@ def scenarios(drv):
                     except Exception as ex:
                         drv.check(rec, "prefs_window_close", False, repr(ex))
             wm.addon_search = ""
-            p = drv.addon_prefs()
-            if p is not None and p.keymap_choice == 'MESO':
-                mk.reset_to_default()
-                with bpy.context.temp_override(window=drv.win()):
-                    bpy.ops.meso.keymap_choose(choice='KEEP')
-                p.keymap_choice = 'UNDECIDED'
-                p.previous_keyconfig = ""
+            drv.leave_meso_keymap()
             yield 0.5
         drv.check(rec, "prefs_window_closed", len(wm.windows) == n_windows, len(wm.windows))
 

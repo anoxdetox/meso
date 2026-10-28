@@ -1,21 +1,26 @@
-# The Meso Keymap (optional)
+# The Meso Keymap (optional, recommended)
 The **Meso Keymap** is a keymap of its own: while Meso Mode is enabled, **Meso** is listed in
 Preferences ▸ Keymap next to Blender and Industry Compatible. It is Blender's built-in Industry
-Compatible keymap plus the keys below.
+Compatible keymap plus every key below. It is optional, and we recommend it: it is how Meso
+Mode is meant to be used.
 
-On its first enable, Meso Mode asks whether to use it. "Use" switches Blender to the Meso
-keymap; "Keep" (the default button) changes nothing.
+**You select it, Meso never does.** Pick **Meso** in Preferences ▸ Keymap, or answer "Use the
+Meso Keymap" to the question Meso Mode asks after its first enable (it runs the same Blender
+command). Switch back to any keymap there at any time.
 
-You can change your mind at any time in the add-on preferences, or pick a keymap in
-Preferences ▸ Keymap. "Keep", or disabling Meso Mode, gives you back the keymap you had before.
+**After a restart**, Blender may start on its own keymap: it chooses the keymap before
+extensions load, so the Meso entry is not there yet at that moment. Select Meso again in
+Preferences ▸ Keymap (your edits of its keys are kept).
 
-Customize it like any keymap in Blender's keymap editor (Preferences ▸ Keymap, with Meso
-selected): rebind a key, switch an item off (Industry Compatible's own key comes back), or add
-items.
+**With any keymap**, a few Meso keys that collide with nothing in Blender's or Industry
+Compatible's keymap are always on (marked "every keymap" below): Ctrl Shift I invert, the select
+keys in the File Browser, Clip Graph Editor, Paint Vertex Selection and Grease Pencil selection,
+Ctrl Alt A Apply menu, hold J to snap in steps and Insert to edit origins.
 
-The add-on preferences list what each Meso key does and what it replaced. **Reset to Default
-(Meso)** there undoes every change you made to the Meso keymap (the Plaza's Space keys keep
-yours).
+Customize the keys in Blender's keymap editor (Preferences ▸ Keymap): rebind a key, switch an
+item off (Industry Compatible's own key comes back), restore it, or add items. The keys that are
+on with every keymap are add-on keys there. The add-on preferences list what each Meso key does
+and what it replaced.
 
 Blender stores keymap edits per keymap name, so an edit made under Meso to an item that
 Industry Compatible or Blender also has applies there too.
@@ -24,17 +29,17 @@ Industry Compatible or Blender also has applies there too.
 |---|---|---|
 | <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>A</kbd> | Select All | every editor with select keys: 3D View modes, UV, masks, Graph, Dope Sheet, Timeline, NLA, Sequencer, Outliner, Node, Clip (and its graph), channel lists, File Browser, Info |
 | <kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Deselect All; over a driven property, removes its drivers (as Blender does, one undo step) | every editor with select keys (as Ctrl Shift A); the driver removal over any property |
-| <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>I</kbd> | Invert Selection (Ctrl I stays too) | every editor with select keys |
-| <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>A</kbd> | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) | Object Mode, Pose Mode |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>I</kbd> | Invert Selection (Ctrl I stays too) (every keymap) | every editor with select keys |
+| <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>A</kbd> | Apply menu (also Plaza: Object ▸ Apply, Pose ▸ Apply) (every keymap) | Object Mode, Pose Mode |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Show Disabled tracks (Industry Compatible's Alt D there) | Clip Editor |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Annotate tool (again: its next variant). Industry Compatible's D, moved here because D edits origins in the 3D View; D still annotates in the Image and UV Editors | 3D View modes, Image Editor, UV Editor |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>D</kbd> | Toggle the weight brush direction (add / subtract; Industry Compatible's D there). Ctrl + drag still paints the other way | Grease Pencil Weight Paint |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>1</kbd> | Isolate the selection; again to go back ([details](#ctrl-1-isolate-the-selection)) | 3D View |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>Alt</kbd>&nbsp;<kbd>1</kbd> | Vertex select mode with expand (Industry Compatible's Ctrl 1; Ctrl click on the vertex select button does the same) | Edit Mesh |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>A</kbd> | Next Properties tab (Object ▸ Object Data ▸ Modifiers ▸ Material, set in the preferences); with no Properties editor on the screen, the sidebar Item tab | 3D View (not Sculpt or text editing) |
-| Hold&nbsp;<kbd>X</kbd>&nbsp;/&nbsp;<kbd>C</kbd>&nbsp;/&nbsp;<kbd>V</kbd>&nbsp;/&nbsp;<kbd>J</kbd> | Snap while held: to the grid / edges / vertices / in increments. A tap does what the key does in Industry Compatible ([details](#snap-holds-x-c-v-j)) | 3D View: Object, Edit, Pose and Particle modes |
+| Hold&nbsp;<kbd>X</kbd>&nbsp;/&nbsp;<kbd>C</kbd>&nbsp;/&nbsp;<kbd>V</kbd>&nbsp;/&nbsp;<kbd>J</kbd> | Snap while held: to the grid / edges / vertices / in increments. A tap does what the key does in Industry Compatible ([details](#snap-holds-x-c-v-j)). Hold J: every keymap | 3D View: Object, Edit, Pose and Particle modes |
 | <kbd>D</kbd> | Edit origins: hold D for gizmo drags, tap D for the next transform ([details](#d-edit-origins)) | 3D View (not mesh Sculpt or text editing) |
-| <kbd>Insert</kbd> | Edit origins until Insert again (toggles Affect Only Origins: move origins, not the shapes) | Object Mode |
+| <kbd>Insert</kbd> | Edit origins until Insert again (toggles Affect Only Origins: move origins, not the shapes) (every keymap) | Object Mode |
 | Hold&nbsp;<kbd>Right&nbsp;Mouse</kbd> | Compass of modes (Object Mode; Edit Mode with Vertex / Edge / Face; the other modes), the context menu as the list below it. A quick click opens the context menu as before ([details](guide.md#right-click-compass-menus-meso-keymap)) | 3D View: Object Mode, Edit Mesh, Curve, Armature, Pose, Metaball, Lattice, Particle Edit |
 | Hold&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>Right&nbsp;Mouse</kbd> | Tool Compass of the mode (Object, Vertex, Edge, Face), the mode's menu as the list below it. **A quick click without moving places the 3D cursor** under the pointer, as before | 3D View |
 | <kbd>Ctrl</kbd>&nbsp;<kbd>Shift</kbd>&nbsp;<kbd>Right&nbsp;Mouse</kbd> | The 3D cursor: click to place, drag to move (Industry Compatible's Shift right click). The Shift Right Click preference swaps the two chords back | 3D View |
@@ -48,8 +53,9 @@ over empty space. The Meso keymap replaces it with one that removes the drivers 
 before when the property under the mouse is driven, and otherwise lets Alt D through to the
 editor, so Alt D deselects there too.
 
-Industry Compatible's own item stays in the User Interface keymap, switched off. If you switch
-Meso's off, switch it back on to keep the key.
+Industry Compatible's own item stays in the Meso keymap's User Interface keymap, switched off
+(only in the Meso keymap: your other keymaps are untouched). If you switch Meso's off, switch it
+back on to keep the key.
 
 
 ## Ctrl 1: isolate the selection

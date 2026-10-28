@@ -21,10 +21,10 @@ from tests.blender.test_plaza_modes_files import _LiveCase
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 
-# The preferences that are not user settings: the Meso Keymap choice and its bookkeeping, the
-# keymap section state and the "Set all Space items" fields.
+# The preferences that are not user settings: the Meso Keymap question's flag, the keymap
+# section state and the "Set all Space items" fields.
 _BOOKKEEPING = frozenset({
-    'keymap_choice', 'keymap_prompted', 'previous_keyconfig', 'keymap_expanded',
+    'keymap_prompted', 'keymap_expanded',
     'space_items_key', 'space_items_shift', 'space_items_ctrl', 'space_items_alt',
     'space_items_oskey',
 })
@@ -53,17 +53,15 @@ def _value(raw):
 
 
 def save_all_prefs(case):
-    """Restore every user preference (and the keymap choice) when ``case`` ends."""
+    """Restore every user preference when ``case`` ends."""
     p = _prefs()
     saved = {key: _value(getattr(p, key)) for key in _user_keys(p)}
-    choice = p.keymap_choice
 
     def restore():
         q = _prefs()
         for key, value in saved.items():
             if _value(getattr(q, key)) != value:
                 setattr(q, key, value)
-        q.keymap_choice = choice
 
     case.addCleanup(restore)
     return saved

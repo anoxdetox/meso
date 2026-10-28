@@ -153,7 +153,7 @@ def _setup(args):
     if mod is None:
         _fail(f"addon_utils.enable({ADDON_MODULE!r}) returned None")
     if args.keyconfig == "meso":
-        _mod("meso_keymap").select_meso()
+        bpy.utils.keyconfig_set(_mod("meso_keymap").PRESET_PATH)   # test setup, as a user pick
     else:
         path = os.path.join(bpy.utils.system_resource('SCRIPTS'), "presets", "keyconfig",
                             "Blender.py")

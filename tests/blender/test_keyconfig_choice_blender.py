@@ -1,22 +1,23 @@
-"""Meso Keymap choice and keyconfig restore (meso_keymap.py, ops/keymap_choice.py).
+"""The Meso Keymap question and reloads (meso_keymap.py, ops/keymap_choice.py).
 
 Runs inside Blender via tests/run_tests.py (Blender keyconfig active at the start). Covers
-``meso.keymap_choose`` (record, select the Meso keyconfig, restore on Keep), the restore rules
-of ``unregister()`` (only while Meso is active; loaded / preset / fallback; the Meso keyconfig is
-removed), ``register()`` under RestrictBlend reselecting Meso (Blender never does at start-up),
-the add-on reload that keeps the user's edits of Meso items (``keep_properties``), and the
-background-mode guards of the first-enable dialog (it is never opened under ``-b``).
+``meso.keymap_choose`` (MESO runs Blender's own keymap selection; KEEP changes nothing),
+``register()`` under RestrictBlend (the base keys and the preset path, never a keyconfig), the
+add-on reloads (the active keymap is left as it is; the Preferences checkbox drops the "asked"
+flag, so a re-enable asks again), the user's edits of Meso items across a reload
+(``keep_properties``), and the background-mode guards of the first-enable dialog (it is never
+opened under ``-b``).
 """
 
 import importlib
-import os
 import unittest
 
 import addon_utils
 import bpy
 
-from tests.blender.test_meso_keymap import (ADDON_MODULE, LIVE_IDS, MesoKeymapCase, mk,
-                                            prefs, use_keyconfig, wm)
+from tests.blender.test_meso_keymap import (ADDON_MODULE, BASE_IDS, LIVE_IDS, N_BASE_ITEMS,
+                                            MesoKeymapCase, mk, prefs, refresh, use_keyconfig,
+                                            wm)
 
 
 def _raise(ex):
@@ -28,140 +29,47 @@ def active_name():
 
 
 class TestChoose(MesoKeymapCase):
-    def test_use_then_keep(self):
-        bpy.context.preferences.is_dirty = False
+    def test_use_then_not_now(self):
         self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
+        refresh()
         self.assertEqual(active_name(), 'Meso')
-        self.assertEqual(self.p.previous_keyconfig, 'Blender')
-        self.assertEqual(self.p.keymap_choice, 'MESO')
         self.assertTrue(self.p.keymap_prompted)
-        self.assertTrue(bpy.context.preferences.is_dirty)
         self.assertEqual(mk().live_ids(), LIVE_IDS)
-        # A second "Use" keeps the recorded keyconfig.
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        self.assertEqual(self.p.previous_keyconfig, 'Blender')
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='KEEP'), {'FINISHED'})
-        self.assertEqual(active_name(), 'Blender')
-        self.assertEqual(self.p.keymap_choice, 'KEEP')
-        self.assertEqual(self.p.previous_keyconfig, '')
-        self.assertEqual(mk().live_ids(), ())
-
-    def test_use_from_industry_compatible_gives_it_back(self):
-        use_keyconfig('Industry_Compatible')
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        self.assertEqual(self.p.previous_keyconfig, 'Industry_Compatible')
-        self.assertEqual(active_name(), 'Meso')
-        bpy.ops.meso.keymap_choose(choice='KEEP')
-        self.assertEqual(active_name(), 'Industry_Compatible')
-
-    def test_keep_from_undecided_changes_nothing(self):
-        bpy.ops.meso.keymap_choose(choice='KEEP')
-        self.assertEqual(active_name(), 'Blender')
-        self.assertEqual(self.p.keymap_choice, 'KEEP')
-        self.assertEqual(mk().live_ids(), ())
-
-    def test_mismatch_select_meso_again_records_the_current(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        use_keyconfig('Blender')          # e.g. a script switched (the watcher did not run)
-        self.assertEqual(mk().live_ids(), ())
-        bpy.ops.meso.keymap_choose(choice='MESO')   # "Select Meso"
-        self.assertEqual(active_name(), 'Meso')
-        self.assertEqual(self.p.previous_keyconfig, 'Blender')
-        self.assertEqual(mk().live_ids(), LIVE_IDS)
-
-    def test_keyconfig_without_preset_is_assigned_back(self):
-        kcs = wm().keyconfigs
-        custom = kcs.new("Meso Test Keys")
-        self.addCleanup(lambda: kcs.remove(kcs["Meso Test Keys"]) if "Meso Test Keys" in kcs else None)
-        kcs.active = custom
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        self.assertEqual(self.p.previous_keyconfig, "Meso Test Keys")
-        bpy.ops.meso.keymap_choose(choice='KEEP')
-        self.assertEqual(active_name(), "Meso Test Keys")
         use_keyconfig('Blender')
+        self.assertEqual(bpy.ops.meso.keymap_choose(choice='KEEP'), {'FINISHED'})
+        self.assertEqual(active_name(), 'Blender', "Not now changes nothing")
+        self.assertEqual(mk().live_ids(), BASE_IDS)
 
 
-class TestUnregisterRestore(MesoKeymapCase):
+class TestRegister(MesoKeymapCase):
     """``meso_keymap.unregister()`` and ``register()`` called directly on the module."""
 
     def setUp(self):
         super().setUp()
-        self.addCleanup(mk().register)   # re-arm (preset path, watcher) after each case
+        self.addCleanup(mk().register)
 
-    def test_restores_and_removes_the_keyconfig(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
+    def test_the_meso_keymap_stays_selected_across_a_module_reload(self):
+        use_keyconfig('Meso')
         mk().unregister()
-        self.assertEqual(active_name(), 'Blender')
-        self.assertNotIn('Meso', wm().keyconfigs)
+        self.assertEqual(active_name(), 'Meso', "Meso never switches the keymap")
         self.assertIsNone(bpy.utils.preset_find('Meso', 'keyconfig'))
-        self.assertEqual(self.p.keymap_choice, 'MESO')      # a reload selects Meso again
         mk().register()
         self.assertEqual(active_name(), 'Meso')
         self.assertIsNotNone(bpy.utils.preset_find('Meso', 'keyconfig'))
 
-    def test_leaves_another_keymap_alone(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        kcs = wm().keyconfigs
-        custom = kcs.new("Meso Test Other")
-        self.addCleanup(lambda: kcs.remove(kcs["Meso Test Other"]) if "Meso Test Other" in kcs else None)
-        kcs.active = custom
-        mk().unregister()
-        self.assertEqual(active_name(), "Meso Test Other")
-        self.assertNotIn('Meso', kcs)
-        use_keyconfig('Blender')
-
-    def test_preset_path_when_previous_is_not_loaded(self):
-        self.assertNotIn('Blender_27x', wm().keyconfigs)
-        use_keyconfig('Meso')
-        self.p.keymap_choice = 'MESO'
-        self.p.previous_keyconfig = 'Blender_27x'
-        mk().unregister()
-        self.assertEqual(active_name(), 'Blender_27x')
-        use_keyconfig('Blender')
-
-    def test_fallback_when_previous_is_gone(self):
-        use_keyconfig('Meso')
-        self.p.keymap_choice = 'MESO'
-        self.p.previous_keyconfig = 'No Such Keymap'
-        mk().unregister()
-        self.assertEqual(active_name(), 'Blender')
-
-    def test_meso_active_without_the_choice_falls_back(self):
-        for choice in ('KEEP', 'UNDECIDED'):
-            with self.subTest(choice=choice):
-                use_keyconfig('Industry_Compatible')
-                use_keyconfig('Meso')
-                self.p.keymap_choice = choice
-                self.p.previous_keyconfig = 'Industry_Compatible'   # not theirs to restore
-                mk().unregister()
-                self.assertEqual(active_name(), 'Blender')
-                mk().register()
-                self.assertEqual(active_name(), 'Blender')         # not reselected
-
-    def test_register_under_restrict_blend_reselects_meso(self):
+    def test_register_under_restrict_blend(self):
         from _bpy_restrict_state import RestrictBlend
-        bpy.ops.meso.keymap_choose(choice='MESO')
         mk().unregister()
-        self.assertEqual(active_name(), 'Blender')
         bpy.context.preferences.is_dirty = False
         with RestrictBlend():
             self.assertFalse(_data_ok())        # really restricted
             mk().register()
-        self.assertEqual(active_name(), 'Meso')
-        self.assertEqual(mk().live_ids(), LIVE_IDS)
-        # the saved preferences already name Meso: the start-up reselect saves nothing
-        self.assertFalse(bpy.context.preferences.is_dirty)
-
-    def test_register_keeps_dirty_preferences_dirty(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        mk().unregister()
-        bpy.context.preferences.is_dirty = True
-        mk().register()
-        self.assertEqual(active_name(), 'Meso')
-        self.assertTrue(bpy.context.preferences.is_dirty)
+        refresh()
+        self.assertEqual(active_name(), 'Blender')
+        self.assertEqual(len(mk().registered()), N_BASE_ITEMS)
+        self.assertFalse(bpy.context.preferences.is_dirty, "registering saves nothing")
 
     def test_background_never_prompts(self):
-        self.p.keymap_choice = 'UNDECIDED'
         self.p.keymap_prompted = False
         mk().unregister()
         mk().register()
@@ -180,21 +88,39 @@ def _data_ok():
         return False
 
 
+def _edit_meso_items():
+    """Rebind the Object Mode Ctrl A cycle to F13 with direction -1 and add a user item of a
+    Meso operator (as the keymap editor does)."""
+    refresh()
+    cycle = next(k for _km, k, i in mk().user_items('properties_cycle')
+                 if i.keymap == 'Object Mode')
+    cycle.type = 'F13'
+    cycle.properties.direction = -1
+    km = wm().keyconfigs.user.keymaps.find('Object Mode', space_type='EMPTY',
+                                          region_type='WINDOW')
+    added = km.keymap_items.new('meso.snap_hold', 'F14', 'PRESS')
+    added.properties.element = 'EDGE'
+    refresh()
+
+
 class TestAddonReload(MesoKeymapCase):
     """``addon_utils.disable(default_set=False)`` + ``enable``: the same-session reload path."""
 
     def _reload(self):
         try:
             addon_utils.disable(ADDON_MODULE, default_set=False, handle_error=_raise)
-            self.assertEqual(active_name(), 'Blender')
-            self.assertNotIn('Meso', wm().keyconfigs)
+            refresh()
             self.assertIsNone(prefs())   # the prefs class is gone; its stored values are kept
+            left = [kmi.idname for km in wm().keyconfigs.addon.keymaps
+                    for kmi in km.keymap_items if kmi.idname.startswith('meso.')]
+            self.assertEqual(left, [])
         finally:
             addon_utils.enable(ADDON_MODULE, default_set=False, handle_error=_raise)
+        refresh()
         self.p = prefs()
 
-    def test_disable_restores_and_enable_reselects(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
+    def test_the_active_keymap_is_left_alone(self):
+        use_keyconfig('Meso')
         self._reload()
         self.assertEqual(active_name(), 'Meso')
         self.assertEqual(importlib.import_module(ADDON_MODULE + ".meso_keymap").live_ids(),
@@ -203,18 +129,9 @@ class TestAddonReload(MesoKeymapCase):
     def test_user_edits_of_meso_items_survive(self):
         """Operator properties of edited Meso items survive the operators' unregister
         (``keep_properties``), also on a user-added item."""
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        cycle = next(k for _km, k, i in mk().user_items('properties_cycle')
-                     if i.keymap == 'Object Mode')
-        cycle.type = 'F13'
-        cycle.properties.direction = -1
-        km = wm().keyconfigs.user.keymaps.find('Object Mode', space_type='EMPTY',
-                                              region_type='WINDOW')
-        added = km.keymap_items.new('meso.snap_hold', 'F14', 'PRESS')
-        added.properties.element = 'EDGE'
-        wm().keyconfigs.update()
+        use_keyconfig('Meso')
+        _edit_meso_items()
         self._reload()
-        self.assertEqual(active_name(), 'Meso')
         mod = importlib.import_module(ADDON_MODULE + ".meso_keymap")
         cycle = next(k for _km, k, i in mod.user_items('properties_cycle')
                      if i.keymap == 'Object Mode')
@@ -228,66 +145,30 @@ class TestAddonReload(MesoKeymapCase):
 
 class TestCheckboxReload(MesoKeymapCase):
     """The Preferences add-on checkbox: ``preferences.addon_disable`` / ``addon_enable``
-    (``default_set=True``). Blender drops the add-on's preferences entry on that disable, so the
-    choice, the recorded keymap and "asked" go with it: a re-enable is a first enable (Meso is
-    not reselected, the question comes back), while the user's edits of Meso items stay in the
-    user keymaps (``keep_properties``) and apply again once Meso is picked."""
+    (``default_set=True``). Blender drops the add-on's preferences entry on that disable, so
+    "asked" goes with it: a re-enable asks again. The active keymap is never touched."""
 
     def _checkbox_reload(self):
         try:
             self.assertEqual(bpy.ops.preferences.addon_disable(module=ADDON_MODULE), {'FINISHED'})
             self.assertNotIn(ADDON_MODULE, bpy.context.preferences.addons)
-            self.assertEqual(active_name(), 'Blender')
-            self.assertNotIn('Meso', wm().keyconfigs)
         finally:
             if ADDON_MODULE not in bpy.context.preferences.addons:
                 self.assertEqual(bpy.ops.preferences.addon_enable(module=ADDON_MODULE),
                                  {'FINISHED'})
+        refresh()
         self.p = prefs()
         self.assertIsNotNone(self.p)
 
-    def test_a_reenable_is_a_first_enable(self):
-        kc_choice = importlib.import_module(ADDON_MODULE + ".core.keyconfig_choice")
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        self.assertEqual((self.p.keymap_choice, self.p.keymap_prompted), ('MESO', True))
+    def test_a_reenable_asks_again(self):
+        bpy.ops.meso.keymap_choose(choice='KEEP')
+        self.assertTrue(self.p.keymap_prompted)
         self._checkbox_reload()
-        self.assertEqual(active_name(), 'Blender', "not reselected: the choice is gone")
-        self.assertEqual((self.p.keymap_choice, self.p.previous_keyconfig,
-                          self.p.keymap_prompted), ('UNDECIDED', '', False))
-        self.assertEqual(mk().live_ids(), ())
-        # what register() plans in a GUI session: the first-enable question again
-        self.assertEqual(kc_choice.register_plan(mk().choice(), active_name(),
-                                                 self.p.keymap_prompted, False),
-                         kc_choice.REGISTER_PROMPT)
-        self.assertEqual(os.path.normpath(bpy.utils.preset_find('Meso', 'keyconfig')),
-                         os.path.normpath(mk().PRESET_PATH), "listed in the keymap menu again")
-
-    def test_edits_of_meso_items_come_back_when_meso_is_picked_again(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        cycle = next(k for _km, k, i in mk().user_items('properties_cycle')
-                     if i.keymap == 'Object Mode')
-        cycle.type = 'F13'
-        cycle.properties.direction = -1
-        km = wm().keyconfigs.user.keymaps.find('Object Mode', space_type='EMPTY',
-                                              region_type='WINDOW')
-        added = km.keymap_items.new('meso.snap_hold', 'F14', 'PRESS')
-        added.properties.element = 'EDGE'
-        mk().set_binding_active('apply_menu', False)
-        wm().keyconfigs.update()
-        self._checkbox_reload()
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
-        self.assertEqual(active_name(), 'Meso')
-        mod = mk()
-        cycle = next(k for _km, k, i in mod.user_items('properties_cycle')
-                     if i.keymap == 'Object Mode')
-        self.assertEqual((cycle.type, cycle.properties.direction), ('F13', -1))
-        km = wm().keyconfigs.user.keymaps.find('Object Mode', space_type='EMPTY',
-                                              region_type='WINDOW')
-        added = [k for k in km.keymap_items if k.type == 'F14' and k.is_user_defined]
-        self.assertEqual([(k.idname, k.properties.element) for k in added],
-                         [('meso.snap_hold', 'EDGE')])
-        self.assertNotIn('apply_menu', mod.live_ids())
-        self.assertEqual(self.p.previous_keyconfig, 'Blender')
+        self.assertEqual(active_name(), 'Blender')
+        self.assertFalse(self.p.keymap_prompted)
+        self.assertEqual(mk().live_ids(), BASE_IDS)
+        self.assertIsNotNone(bpy.utils.preset_find('Meso', 'keyconfig'),
+                             "listed in the keymap menu again")
 
 
 if __name__ == '__main__':

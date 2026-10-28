@@ -35,15 +35,8 @@ def scenarios(drv):
             return bpy.ops.meso.keymap_choose(choice=choice)
 
     def back_to_blender():
-        p = drv.addon_prefs()
-        if mk().is_meso_active():
-            mk().reset_to_default()
-        if p is not None and (p.keymap_choice == 'MESO' or mk().is_meso_active()):
-            choose('KEEP')
-        drv.ensure_blender_keyconfig()
-        if p is not None:
-            p.keymap_choice = 'UNDECIDED'
-            p.previous_keyconfig = ""
+        """Undo the Meso keymap edits, back to the Blender keymap."""
+        drv.leave_meso_keymap()
 
     def with_meso(rec):
         choose('MESO')

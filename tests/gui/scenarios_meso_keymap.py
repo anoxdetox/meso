@@ -83,19 +83,14 @@ def scenarios(drv):
             return bpy.ops.meso.keymap_choose(choice=choice)
 
     def back_to_blender():
-        """Undo the scenario's Meso keymap edits, leave Meso, choice undecided."""
-        p = drv.addon_prefs()
-        if mk().is_meso_active():
-            mk().reset_to_default()
-        if p is not None and (p.keymap_choice == 'MESO' or mk().is_meso_active()):
-            choose('KEEP')
-        drv.ensure_blender_keyconfig()
-        if p is not None:
-            p.keymap_choice = 'UNDECIDED'
-            p.previous_keyconfig = ""
+        """Undo the Meso keymap edits, back to the Blender keymap."""
+        drv.leave_meso_keymap()
 
     def step1_ids():
         return tuple(b.id for b in mb().BINDINGS if b.default_on)
+
+    def base_ids():
+        return tuple(b.id for b in mb().base_bindings())
 
     def last_op():
         ops = bpy.context.window_manager.operators
@@ -163,98 +158,73 @@ def scenarios(drv):
     # ------------------------------------------------------------------------------ G1
 
     def sc_first_enable_dialog(rec):
+        """The first-enable question: Esc changes nothing; "Not now" keeps the keymap;
+        "Use the Meso Keymap" (the dialog's default) selects it through Blender's own
+        operator."""
         c = (drv.win().width // 2, drv.win().height // 2)
         try:
             drv.disable_addon()                 # default_set: the add-on prefs are dropped
             yield 0.2
             drv.enable_addon(prompt=True)       # a fresh first enable
             p = drv.addon_prefs()
-            drv.check(rec, "undecided", p.keymap_choice == 'UNDECIDED', p.keymap_choice)
+            drv.check(rec, "not_asked_yet", not p.keymap_prompted)
             drv.check(rec, "prompt_armed", mk().prompt_pending())
             drv.sim('MOUSEMOVE', 'NOTHING', c)
             yield 1.0
+            # the user keyconfig merges the new add-on items on the next event loop
+            drv.check(rec, "base_keys_on", mk().live_ids() == base_ids(), mk().live_ids())
             drv.check(rec, "prompted", p.keymap_prompted)
             drv.check(rec, "dialog_blocks_events", not (yield from drv.canary_ok(c)))
             drv.save_screenshot("meso_keymap_dialog")
             yield from key(c, 'ESC')
             yield 0.2
             drv.check(rec, "esc_closed", (yield from drv.canary_ok(c)))
-            drv.check(rec, "esc_undecided", p.keymap_choice == 'UNDECIDED', p.keymap_choice)
             drv.check(rec, "esc_keyconfig_kept", keyconfig() == 'Blender', keyconfig())
-            drv.check(rec, "esc_no_bindings", mk().live_ids() == (), mk().live_ids())
             drv.check(rec, "asked_once", not mk().prompt_pending())
-            # Enter = the default choice: keep.
+            # "Not now".
+            with bpy.context.temp_override(window=drv.win()):
+                bpy.ops.meso.keymap_choice_dialog('INVOKE_DEFAULT', choice='KEEP')
+            yield 0.4
+            yield from key(c, 'RET')
+            yield 0.2
+            drv.check(rec, "not_now_keyconfig_kept", keyconfig() == 'Blender', keyconfig())
+            drv.check(rec, "not_now_closed", (yield from drv.canary_ok(c)))
+            # Enter = the default choice: use the Meso Keymap.
             with bpy.context.temp_override(window=drv.win()):
                 bpy.ops.meso.keymap_choice_dialog('INVOKE_DEFAULT')
             yield 0.4
             yield from key(c, 'RET')
-            yield 0.2
-            drv.check(rec, "enter_keeps", p.keymap_choice == 'KEEP', p.keymap_choice)
-            drv.check(rec, "enter_keyconfig_kept", keyconfig() == 'Blender', keyconfig())
-            drv.check(rec, "enter_closed", (yield from drv.canary_ok(c)))
-            # The dialog with "Use the Meso Keymap" selected.
-            with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.meso.keymap_choice_dialog('INVOKE_DEFAULT', choice='MESO')
             yield 0.4
-            yield from key(c, 'RET')
-            yield 0.4
-            drv.check(rec, "use_choice", p.keymap_choice == 'MESO', p.keymap_choice)
             drv.check(rec, "use_selects_meso", keyconfig() == 'Meso', keyconfig())
-            drv.check(rec, "use_records_previous", p.previous_keyconfig == 'Blender',
-                      p.previous_keyconfig)
             drv.check(rec, "use_bindings_live", mk().live_ids() == step1_ids(),
                       mk().live_ids())
-            choose('KEEP')
-            yield 0.3
-            drv.check(rec, "keep_restores", keyconfig() == 'Blender', keyconfig())
-            drv.check(rec, "keep_no_bindings", mk().live_ids() == ())
         finally:
             back_to_blender()
-            p = drv.addon_prefs()
-            if p is not None:
-                p.keymap_prompted = True
             yield 0.2
 
     # ------------------------------------------------------------------------------ G3
 
     def sc_keyconfig_switch(rec):
+        """The Meso keymap in Blender's keymap menu (``preferences.keyconfig_activate``, as
+        USERPREF_MT_keyconfigs runs it): its keys come and go with it; the base keys stay."""
         presets = os.path.join(bpy.utils.system_resource('SCRIPTS'), "presets", "keyconfig")
-        # Probe: does a keyconfig switch publish a msgbus notification? (Recorded, not required:
-        # meso_keymap watches the active keyconfig name with a timer because it does not.)
-        owner = object()
-        notes = []
-        for k in ((bpy.types.PreferencesKeymap, 'active_keyconfig'),
-                  (bpy.types.KeyConfigurations, 'active')):
-            bpy.msgbus.subscribe_rna(key=k, owner=owner, args=(k[1],),
-                                     notify=lambda name: notes.append(name))
         try:
-            p = drv.addon_prefs()
-            choose('MESO')
-            yield 0.3
-            drv.check(rec, "meso_live", mk().live_ids() == step1_ids(), mk().live_ids())
             meso_preset = bpy.utils.preset_find('Meso', 'keyconfig')
             drv.check(rec, "meso_preset_listed", meso_preset is not None
                       and os.path.dirname(meso_preset) in bpy.utils.preset_paths('keyconfig'),
                       meso_preset)
-            # The Preferences keymap menu runs this operator (USERPREF_MT_keyconfigs).
-            with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.preferences.keyconfig_activate(filepath=os.path.join(presets, "Blender.py"))
-            yield 0.8
-            drv.check(rec, "switched_to_blender", keyconfig() == 'Blender', keyconfig())
-            drv.check(rec, "no_meso_items_on_blender", mk().live_ids() == (), mk().live_ids())
-            drv.check(rec, "watcher_records_keep", p.keymap_choice == 'KEEP'
-                      and p.previous_keyconfig == '', [p.keymap_choice, p.previous_keyconfig])
-            rec.setdefault("details", {})["msgbus_notifications"] = list(notes)
             with bpy.context.temp_override(window=drv.win()):
                 bpy.ops.preferences.keyconfig_activate(filepath=meso_preset)
             yield 0.8
             drv.check(rec, "switched_to_meso", keyconfig() == 'Meso', keyconfig())
-            drv.check(rec, "meso_live_again", mk().live_ids() == step1_ids(), mk().live_ids())
-            drv.check(rec, "watcher_records_meso", p.keymap_choice == 'MESO'
-                      and p.previous_keyconfig == 'Blender',
-                      [p.keymap_choice, p.previous_keyconfig])
+            drv.check(rec, "meso_live", mk().live_ids() == step1_ids(), mk().live_ids())
+            with bpy.context.temp_override(window=drv.win()):
+                bpy.ops.preferences.keyconfig_activate(filepath=os.path.join(presets, "Blender.py"))
+            yield 0.8
+            drv.check(rec, "switched_to_blender", keyconfig() == 'Blender', keyconfig())
+            drv.check(rec, "base_keys_on_blender", mk().live_ids() == base_ids(),
+                      mk().live_ids())
         finally:
-            bpy.msgbus.clear_by_owner(owner)
             back_to_blender()
             yield 0.2
 
@@ -380,19 +350,19 @@ def scenarios(drv):
             yield from key(v3d, 'A', ctrl=True)
             drv.check(rec, "obj_ctrl_a_is_properties_cycle", selected_names() == ["Cube"],
                       selected_names())
-            mk().set_binding_active('properties_cycle', False)
+            drv.set_binding_active('properties_cycle', False)
             yield 0.2
             yield from key(v3d, 'A', ctrl=True)
             drv.check(rec, "obj_ctrl_a_native_when_off", selected_names() == everything,
                       selected_names())
-            mk().set_binding_active('properties_cycle', True)
+            drv.set_binding_active('properties_cycle', True)
             yield 0.2
             # Switched off: Ctrl Shift A is Industry Compatible's deselect again.
-            mk().set_binding_active('select_all', False)
+            drv.set_binding_active('select_all', False)
             yield 0.2
             yield from key(v3d, 'A', **SELECT)
             drv.check(rec, "obj_off_gives_key_back", selected_names() == [], selected_names())
-            mk().set_binding_active('select_all', True)
+            drv.set_binding_active('select_all', True)
             yield 0.2
             select_only(cube)
 
@@ -606,8 +576,8 @@ def scenarios(drv):
         bpy.utils.register_class(MESO_GUITEST_OT_alt_d_probe)
         try:
             choose('MESO')
-            mk().set_binding_active('deselect_all', False)
-            mk().set_binding_active('select_keys_extra', False)
+            drv.set_binding_active('deselect_all', False)
+            drv.set_binding_active('select_keys_extra', False)
             yield 0.3
             kc = bpy.context.window_manager.keyconfigs.addon
             drv.check(rec, "wrapper_live", 'driver_remove_pass' in mk().live_ids(),
@@ -667,7 +637,7 @@ def scenarios(drv):
             )
             for i, case in enumerate(cases):
                 if case == 'native':
-                    mk().set_binding_active('driver_remove_pass', False)
+                    drv.set_binding_active('driver_remove_pass', False)
                     ukm = bpy.context.window_manager.keyconfigs.user.keymaps.find(
                         'User Interface', space_type='EMPTY', region_type='WINDOW')
                     for k in ukm.keymap_items:
@@ -1268,7 +1238,7 @@ def scenarios(drv):
                       and op.properties.use_expand and op.properties.type == 'VERT',
                       op and op.bl_idname)
             # switched off: Ctrl 1 is Industry Compatible's vertex mode with expand again
-            mk().set_binding_active('isolate', False)
+            drv.set_binding_active('isolate', False)
             yield 0.2
             scene.tool_settings.mesh_select_mode = (False, True, False)
             hidden_now = mesh_hidden(cube)
@@ -1278,7 +1248,7 @@ def scenarios(drv):
                       tuple(scene.tool_settings.mesh_select_mode) == (True, False, False)
                       and mesh_hidden(cube) == hidden_now,
                       tuple(scene.tool_settings.mesh_select_mode))
-            mk().set_binding_active('isolate', True)
+            drv.set_binding_active('isolate', True)
             yield 0.2
             with v3d_ctx():
                 bpy.ops.mesh.reveal(select=False)

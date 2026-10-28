@@ -32,8 +32,10 @@ The pyramids are theirs; the menus are ours.
   editors, selection, toggles). Any Blender menu or pie can go in any of the 15 slots.
 - **Right-click Compass** (with the Meso Keymap): hold right-click for the modes, Shift+right-click
   for the mode's tools. A quick click keeps Blender's own action.
-- **The Meso Keymap** (optional): Blender's Industry Compatible keymap plus isolate on Ctrl 1,
-  snapping while you hold X / C / V / J, origin editing on D, and more.
+- **The Meso Keymap** (optional, and recommended): Blender's Industry Compatible keymap plus
+  the right-click Compass, select keys, isolate on Ctrl 1, snapping while you hold X / C / V / J,
+  origin editing on D, and more. Pick **Meso** in Preferences ▸ Keymap; a few of its keys work
+  with any keymap.
 - **Nothing native is removed:** every Meso key can be switched off, and every native action it
   displaces stays reachable.
 
@@ -69,8 +71,10 @@ To install the zip, open Blender's Preferences ▸ Get Extensions, open the menu
 right and choose **Install from Disk…**. Pick the zip, then make sure Meso Mode is ticked in
 Preferences ▸ Add-ons. Dragging the zip into Blender's window works too.
 
-When it is first enabled, Meso Mode asks whether to use the [Meso Keymap](docs/keymap.md).
-**Keep My Keymap** changes nothing, and you can change your mind later in its preferences.
+When it is first enabled, Meso Mode asks whether to use the [Meso Keymap](docs/keymap.md)
+(recommended). **Not Now** changes nothing; pick **Meso** in Preferences ▸ Keymap any time.
+Meso never switches your keymap by itself, so after a restart select it there again if Blender
+started on another keymap.
 
 Developed and tested on Linux; meant to run on Windows and macOS too (not tested there yet).
 The test suite was written for Linux on KDE Plasma, and it is always open to anyone who wants

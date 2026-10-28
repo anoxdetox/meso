@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Plaza key bindings (local/docs/spikes.md D1; evidence in local/docs/spikes/keymap.md).
 
-Every item lives in ``wm.keyconfigs.addon`` only: ``meso.plaza``, ``SPACE``, ``PRESS``,
-``repeat=False``, never ``head=True``. Each keymap is created with the built-in's
+Every item lives in ``wm.keyconfigs.addon`` only: ``meso.plaza``, ``SPACE`` (or the key of the
+``space_items_*`` preferences, "Set all Space items"), ``PRESS``, ``repeat=False``, never
+``head=True``. Items are registered and unregistered, never edited. Each keymap is created with the built-in's
 ``space_type``/``region_type`` (EMPTY/WINDOW, except 'Text' = TEXT_EDITOR and
 'Console' = CONSOLE). Order: Window -> Frames -> the 9 paint/sculpt mode maps -> Text ->
 Console; removal in reverse. Bare Space is never bound in 'Text'/'Console': they get the
@@ -82,16 +83,31 @@ def _addon_keyconfig(context):
     return getattr(keyconfigs, 'addon', None)
 
 
-def _add_item(kc, name: str, space_type: str, region_type: str, kind: str, chord: str) -> None:
+def space_key(context) -> tuple[str, dict[str, bool]]:
+    """``(key type, modifier kwargs)`` of the KIND_SPACE items: the ``space_items_*``
+    preferences ("Set all Space items"), bare Space without preferences."""
+    try:
+        p = prefs.get_prefs(context)
+    except Exception:
+        p = None
+    key = getattr(p, 'space_items_key', 'SPACE') or 'SPACE'
+    mods = {name: bool(getattr(p, f'space_items_{name}', False))
+            for name in ('shift', 'ctrl', 'alt', 'oskey')}
+    return key, {name: on for name, on in mods.items() if on}
+
+
+def _add_item(kc, name: str, space_type: str, region_type: str, kind: str, chord: str,
+              space: tuple[str, dict[str, bool]] = ('SPACE', {})) -> None:
     """Create one KEYMAP_SET entry's item and record it; chord items skip 'NONE'."""
+    key = 'SPACE'
     if kind == KIND_CHORD:
         modifiers = TEXT_CHORDS[chord]
         if modifiers is None:
             return
     else:
-        modifiers = {}
+        key, modifiers = space
     km = kc.keymaps.new(name, space_type=space_type, region_type=region_type)
-    kmi = km.keymap_items.new(OPERATOR_IDNAME, 'SPACE', 'PRESS', repeat=False, **modifiers)
+    kmi = km.keymap_items.new(OPERATOR_IDNAME, key, 'PRESS', repeat=False, **modifiers)
     _addon_keymaps.append((km, kmi))
 
 
@@ -122,9 +138,10 @@ def register() -> None:
     if kc is None:
         return
     chord = _text_chord(context)
+    space = space_key(context)
     try:
         for name, space_type, region_type, kind in KEYMAP_SET:
-            _add_item(kc, name, space_type, region_type, kind, chord)
+            _add_item(kc, name, space_type, region_type, kind, chord, space)
     except Exception:
         unregister()  # drop the items created before the failure
         raise
@@ -172,3 +189,10 @@ def reregister_text_chord(context=None) -> None:
     for name, space_type, region_type, kind in KEYMAP_SET:
         if kind == KIND_CHORD:
             _add_item(kc, name, space_type, region_type, kind, chord)
+
+
+def reregister(context=None) -> None:
+    """Replace every Plaza item (after a "Set all Space items" change): unregister, then
+    register with the current preferences."""
+    unregister()
+    register()

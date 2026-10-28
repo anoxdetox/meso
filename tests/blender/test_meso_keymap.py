@@ -1,23 +1,28 @@
-"""The Meso keyconfig (meso_keymap.py, presets/keyconfig/Meso.py, core/meso_bindings.py;
+"""The Meso keys (meso_keymap.py, presets/keyconfig/Meso.py, core/meso_bindings.py;
 local/docs/meso-keymap-interfaces.md).
 
 Runs inside Blender via tests/run_tests.py (the Blender keyconfig is active at the start; these
-tests select Meso themselves and always go back to Blender, with the user edits of the Meso
-keyconfig reset). Covers the preset (found through the registered preset path, listed in the
-keymap menu), the keyconfig = Industry Compatible + the table items (first in their keymaps, the
-native items kept after them), the **shadow test** (every Meso item's native Industry Compatible
-counterpart on the same keymap, type, value and modifiers must be listed in that binding's
-``displaces``, and nothing else), switching items off in the user keyconfig, "Reset to default
-(Meso)", and the Plaza items that stay in ``wm.keyconfigs.addon``.
+tests select the Meso preset themselves, as a user picks it in Preferences > Keymap, and always
+go back to Blender with their edits undone). Covers the base keys (add-on items, on with every
+keymap), the preset (found through the registered preset path, listed in the keymap menu,
+self-contained), the keyconfig = Industry Compatible + the Meso tier (first in their keymaps, the
+native items kept after them; Alt D's native driver removal switched off in it), the **shadow
+test** (every Meso item's native Industry Compatible counterpart on the same keymap, type,
+value and modifiers must be listed in that binding's ``displaces``, and nothing else; the base
+keys hide nothing in Blender or Industry Compatible), switching items off in the user keyconfig,
+and the **guard**: Meso's own register / unregister never selects, removes or edits a keyconfig.
 """
 
 import importlib
 import os
+import pathlib
+import re
 import unittest
 
 import bpy
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
+SRC = pathlib.Path(__file__).resolve().parents[2] / "src" / "meso"
 
 MODIFIERS = ('ctrl', 'shift', 'alt', 'oskey')
 
@@ -29,8 +34,10 @@ ALL_IDS = ('select_all', 'deselect_all', 'driver_remove_pass', 'select_invert',
            'snap_hold_increment', 'pivot_once', 'reloc_annotate', 'reloc_gp_weight_direction',
            'pivot_toggle', 'compass_context', 'compass_tools', 'reloc_cursor')
 LIVE_IDS = ALL_IDS
-N_ITEMS = (24 + 24 + 1 + 24 + 1 + 12 + 10 + 1 + 14 + 2 + 1 + 7 + 1 + 1 + 19 + 12 + 1 + 1
-           + 8 + 1 + 1)
+BASE_IDS = ('select_invert', 'select_keys_extra', 'apply_menu', 'snap_hold_increment',
+            'pivot_toggle')
+N_BASE_ITEMS = 24 + 12 + 2 + 1 + 1          # the base add-on items
+N_ITEMS = (24 + 24 + 1 + 1 + 10 + 1 + 14 + 1 + 7 + 1 + 19 + 12 + 1 + 8 + 1 + 1)   # the keyconfig
 
 
 def _mod(name):
@@ -58,16 +65,35 @@ def keyconfig_path(name):
 
 
 def use_keyconfig(name):
+    """Test setup: make ``name`` the active keyconfig, as a user picks it (the Meso preset
+    through Blender's own ``keyconfig_set``)."""
     kcs = wm().keyconfigs
     if kcs.active.name != name:
         if name in kcs:
             kcs.active = kcs[name]
         elif name == 'Meso':
-            assert mk().select_meso()
+            assert bpy.utils.keyconfig_set(mk().PRESET_PATH)
         else:
             bpy.utils.keyconfig_set(keyconfig_path(name))
     kcs.update()
     assert kcs.active.name == name, kcs.active.name
+
+
+def refresh():
+    """Merge the add-on items into the user keyconfig now (a running Blender does it on its
+    next event loop, which a headless run never reaches)."""
+    wm().keyconfigs.update()
+
+
+def set_binding_active(binding_id, on):
+    """What the keymap editor's checkbox does to every item of a binding (test helper)."""
+    changed = 0
+    for _km, kmi, _item in mk().user_items(binding_id):
+        if kmi.active != bool(on):
+            kmi.active = bool(on)
+            changed += 1
+    refresh()
+    return changed
 
 
 def props_of(kmi):
@@ -127,11 +153,14 @@ def is_off_native(km_name, kmi):
 
 
 def reset_meso():
-    """Undo the user edits of the Meso keyconfig (it must be active for that)."""
+    """Undo the test's edits of Meso items (test helper: the keymap editor's Restore of every
+    user keymap that holds a Meso item)."""
     kcs = wm().keyconfigs
-    if kcs.active.name != 'Meso':
-        use_keyconfig('Meso')
-    mk().reset_to_default()
+    names = set(mb().items_by_keymap())
+    for km in kcs.user.keymaps:
+        if km.name in names and km.is_user_modified:
+            km.restore_to_default()
+    refresh()
 
 
 class MesoKeymapCase(unittest.TestCase):
@@ -145,17 +174,14 @@ class MesoKeymapCase(unittest.TestCase):
                              for km, kmi in _mod("keymaps").registered_items()]
 
     def _reset(self):
-        p = prefs()
         reset_meso()
-        p.keymap_choice = 'UNDECIDED'
-        p.previous_keyconfig = ""
         use_keyconfig('Blender')
-        self.assertEqual(mk().live_ids(), ())
+        self.assertEqual(mk().live_ids(), BASE_IDS)
 
     def meso_on(self):
-        """Meso chosen and active (as ``meso.keymap_choose`` leaves it); the live binding ids."""
+        """The Meso keymap active (as the user's pick leaves it); the live binding ids."""
         use_keyconfig('Meso')
-        self.p.keymap_choice = 'MESO'
+        refresh()
         return mk().live_ids()
 
 
@@ -190,8 +216,9 @@ class TestTable(MesoKeymapCase):
         """The bindings are switched in Blender's keymap editor, not in the add-on prefs."""
         names = {p.identifier for p in self.p.bl_rna.properties}
         self.assertFalse([n for n in names if n.startswith('bind_')])
-        self.assertNotIn('bindings_on_other_keymaps', names)
-        self.assertNotIn('keyconfig_restored', names)
+        for gone in ('bindings_on_other_keymaps', 'keyconfig_restored', 'keymap_choice',
+                     'previous_keyconfig'):
+            self.assertNotIn(gone, names)
 
 
 class TestPreset(MesoKeymapCase):
@@ -215,7 +242,7 @@ class TestPreset(MesoKeymapCase):
             self.assertIn(name, names)
 
     def test_selecting_the_preset(self):
-        self.assertTrue(mk().select_meso())
+        self.assertTrue(bpy.utils.keyconfig_set(mk().PRESET_PATH))
         kcs = wm().keyconfigs
         self.assertEqual(kcs.active.name, 'Meso')
         self.assertEqual(bpy.context.preferences.keymap.active_keyconfig, 'Meso')
@@ -223,7 +250,7 @@ class TestPreset(MesoKeymapCase):
         self.assertEqual(len(kcs['Meso'].keymaps), len(kcs['Industry_Compatible'].keymaps)
                          if 'Industry_Compatible' in kcs else 280)
         # selecting again rebuilds the same single keyconfig
-        self.assertTrue(mk().select_meso())
+        self.assertTrue(bpy.utils.keyconfig_set(mk().PRESET_PATH))
         self.assertEqual([k.name for k in kcs].count('Meso'), 1)
         self.assertEqual(len(mk().meso_items()), N_ITEMS)
 
@@ -242,7 +269,7 @@ class TestKeyconfig(MesoKeymapCase):
         ic, meso = kcs['Industry_Compatible'], kcs['Meso']
         self.assertEqual(sorted(km.name for km in meso.keymaps),
                          sorted(km.name for km in ic.keymaps))
-        groups = mb().items_by_keymap()
+        groups = mb().items_by_keymap(mb().keyconfig_bindings())
         total = 0
         for km_ic in ic.keymaps:
             with self.subTest(keymap=km_ic.name):
@@ -267,7 +294,7 @@ class TestKeyconfig(MesoKeymapCase):
         use_keyconfig('Meso')
         items = mk().meso_items()
         self.assertEqual([item for _km, _kmi, item in items],
-                         [item for _bid, item in mb().table_items()])
+                         [item for _bid, item in mb().table_items(mb().keyconfig_bindings())])
         default_on = {b.id: b.default_on for b in mb().BINDINGS}
         for km, kmi, item in items:
             with self.subTest(keymap=item.keymap, key=item.key.label()):
@@ -287,8 +314,7 @@ class TestKeyconfig(MesoKeymapCase):
         clip = {(i.key.label(), i.idname) for _k, _i, i in items if i.keymap == 'Clip Editor'}
         self.assertEqual(clip, {('Ctrl Shift A', 'clip.select_all'),
                                 ('Alt D', 'clip.select_all'),
-                                ('Ctrl Shift I', 'clip.select_all'),
-                                ('Ctrl Alt D', 'wm.context_toggle')})
+                                ('Ctrl Alt D', 'wm.context_toggle')})     # Ctrl Shift I: base
         # 'User Interface': only the Alt D wrapper (C13).
         ui = [(i.key.label(), i.idname) for _k, _i, i in items if i.keymap == 'User Interface']
         self.assertEqual(ui, [('Alt D', 'meso.driver_button_remove')])
@@ -303,14 +329,20 @@ class TestKeyconfig(MesoKeymapCase):
                                                           region_type=km.region_type))
 
     def test_meso_items_only_in_the_meso_keyconfig(self):
+        """The Meso tier is in the Meso keyconfig only; the add-on keyconfig has the Plaza's
+        and the base keys."""
         use_keyconfig('Industry_Compatible')
         use_keyconfig('Meso')
         kcs = wm().keyconfigs
-        for kc in (kcs['Industry_Compatible'], kcs['Blender'], kcs.addon):
+        for kc in (kcs['Industry_Compatible'], kcs['Blender']):
             for km in kc.keymaps:
                 for kmi in km.keymap_items:
-                    self.assertFalse(kmi.idname.startswith('meso.') and kmi.idname != 'meso.plaza',
+                    self.assertFalse(kmi.idname.startswith('meso.'),
                                      (kc.name, km.name, kmi.idname))
+        addon = sorted({kmi.idname for km in kcs.addon.keymaps for kmi in km.keymap_items
+                        if kmi.idname.startswith('meso.')})
+        self.assertEqual(addon, ['meso.pivot_toggle', 'meso.plaza', 'meso.snap_hold'])
+        self.assertEqual(len(mk().registered()), N_BASE_ITEMS)
         self.assertEqual([(km.name, kmi.as_pointer()) for km, kmi in
                           _mod("keymaps").registered_items()], self.plaza_before)
 
@@ -320,8 +352,9 @@ class TestShadow(MesoKeymapCase):
 
     def _check(self, kc, meso_block):
         problems = []
-        groups = mb().items_by_keymap()
-        for b in mb().BINDINGS:
+        groups = mb().items_by_keymap(mb().keyconfig_bindings())
+        bindings = mb().keyconfig_bindings() if meso_block else mb().BINDINGS
+        for b in bindings:
             # In the Meso keyconfig a Displaced.off item is switched off, not shadowed.
             expected = sorted((d.keymap, d.key, d.native) for d in b.displaces
                               if not (meso_block and d.off))
@@ -329,7 +362,7 @@ class TestShadow(MesoKeymapCase):
             for item in b.items:
                 km = find_builtin(kc, item.keymap)
                 self.assertIsNotNone(km, item.keymap)
-                skip = len(groups[item.keymap]) if meso_block else 0
+                skip = len(groups.get(item.keymap, ())) if meso_block else 0
                 for kmi in list(km.keymap_items)[skip:]:
                     if kmi.active and key_matches(kmi, item.key):
                         found.append((item.keymap, item.key, native_of(kmi)))
@@ -346,6 +379,20 @@ class TestShadow(MesoKeymapCase):
     def test_shadow_in_the_meso_keyconfig(self):
         use_keyconfig('Meso')
         self._check(wm().keyconfigs['Meso'], meso_block=True)
+
+    def test_the_base_keys_shadow_nothing(self):
+        """The base tier (add-on keys, on with every keymap) hides nothing in Blender or
+        Industry Compatible."""
+        use_keyconfig('Industry_Compatible')
+        kcs = wm().keyconfigs
+        for name in ('Blender', 'Industry_Compatible'):
+            for b in mb().base_bindings():
+                for item in b.items:
+                    with self.subTest(keyconfig=name, binding=b.id, keymap=item.keymap):
+                        km = find_builtin(kcs[name], item.keymap)
+                        hits = [native_of(k) for k in km.keymap_items
+                                if k.active and key_matches(k, item.key)]
+                        self.assertEqual(hits, [])
 
     def test_switched_off_natives(self):
         """Every Displaced.off item is in the Meso keyconfig after the Meso block, switched
@@ -383,16 +430,16 @@ class TestShadow(MesoKeymapCase):
 
 class TestUserEdits(MesoKeymapCase):
     def test_live_ids(self):
-        self.assertEqual(mk().live_ids(), ())            # on Blender
+        self.assertEqual(mk().live_ids(), BASE_IDS)      # on Blender: the base keys
         self.assertEqual(self.meso_on(), LIVE_IDS)
-        self.assertEqual(len(mk().user_items()), N_ITEMS)
+        self.assertEqual(len(mk().user_items()), N_ITEMS + N_BASE_ITEMS)
         use_keyconfig('Industry_Compatible')
-        self.assertEqual(mk().live_ids(), ())
-        self.assertEqual(mk().user_items(), [])
+        self.assertEqual(mk().live_ids(), BASE_IDS)
+        self.assertEqual(len(mk().user_items()), N_BASE_ITEMS)
 
     def test_switching_a_binding_off_gives_the_key_back(self):
         self.meso_on()
-        self.assertEqual(mk().set_binding_active('select_all', False), 24)
+        self.assertEqual(set_binding_active('select_all', False), 24)
         self.assertNotIn('select_all', mk().live_ids())
         km = find_builtin(wm().keyconfigs.user, 'Object Mode')
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().KEY_SELECT_ALL))
@@ -401,7 +448,7 @@ class TestUserEdits(MesoKeymapCase):
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D')))
         self.assertEqual(first.idname, 'meso.pivot_once')
         n = len(mb().PIVOT_KEYMAPS)
-        self.assertEqual(mk().set_binding_active('pivot_once', False), n)
+        self.assertEqual(set_binding_active('pivot_once', False), n)
         self.assertNotIn('pivot_once', mk().live_ids())
         first = next(k for k in km.keymap_items if k.active and key_matches(k, mb().Key('D')))
         self.assertEqual(native_of(first),
@@ -416,13 +463,13 @@ class TestUserEdits(MesoKeymapCase):
             d = [native_of(k) for k in find_builtin(user, name).keymap_items
                  if k.active and key_matches(k, mb().Key('D'))]
             self.assertEqual(d[:1], [native] if native else [], name)
-        self.assertEqual(mk().set_binding_active('pivot_once', True), n)
+        self.assertEqual(set_binding_active('pivot_once', True), n)
         self.assertIn('pivot_once', mk().live_ids())
 
     def test_warning_when_deselect_is_off(self):
         self.meso_on()
         self.assertEqual(mb().warnings(mk().live_bindings()), ())
-        mk().set_binding_active('deselect_all', False)
+        set_binding_active('deselect_all', False)
         warnings = mb().warnings(mk().live_bindings())
         self.assertEqual(len(warnings), 1, warnings)
         self.assertIn('Alt D', warnings[0])
@@ -451,7 +498,7 @@ class TestUserEdits(MesoKeymapCase):
     def test_driver_removal_off_warns(self):
         self.meso_on()
         self.assertEqual(mb().warnings(mk().live_bindings(), mk().off_bindings()), ())
-        mk().set_binding_active('driver_remove_pass', False)
+        set_binding_active('driver_remove_pass', False)
         self.assertEqual([b.id for b in mk().off_bindings()], ['driver_remove_pass'])
         warnings = mb().warnings(mk().live_bindings(), mk().off_bindings())
         self.assertEqual(len(warnings), 1, warnings)
@@ -471,234 +518,107 @@ class TestUserEdits(MesoKeymapCase):
                                   for k in hits], [('A', True, True, False)])
 
 
-class TestReset(MesoKeymapCase):
-    def _object_mode(self):
-        return find_builtin(wm().keyconfigs.user, 'Object Mode')
+class TestBaseKeys(MesoKeymapCase):
+    """The base tier: add-on items, on with every keymap, registered and unregistered only."""
 
-    def test_reset_to_default_undoes_every_meso_edit_and_keeps_the_plazas(self):
-        self.meso_on()
-        kcs = wm().keyconfigs
-        # 1. a rebind of a Meso item with a property, 2. a switched-off Meso item, 3. a changed
-        # native IC item, 4. a user-added item, 5. a modal map edit, 6. a Plaza item edit (kept)
-        cycle = next(k for _km, k, i in mk().user_items('properties_cycle')
-                     if i.keymap == 'Object Mode')
-        cycle.type = 'F13'
-        mk().set_binding_active('apply_menu', False)
-        km = self._object_mode()
-        dup = next(k for k in km.keymap_items if k.idname == 'object.duplicate_move')
-        dup.active = False
-        km.keymap_items.new('meso.isolate_toggle', 'F14', 'PRESS')
-        modal = kcs.user.keymaps['Transform Modal Map']
-        confirm = next(k for k in modal.keymap_items
-                       if k.propvalue == 'CONFIRM' and k.map_type == 'KEYBOARD')
-        confirm_type = confirm.type
-        confirm.type = 'F15'
-        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
-        plaza = next(k for k in window.keymap_items if k.idname == 'meso.plaza')
-        plaza.type = 'F16'
-        kcs.update()
-        self.addCleanup(self._restore_plaza)
-        self.addCleanup(self._restore_keymap, 'Transform Modal Map')
-        self.assertEqual(mk().modified_count(), 5)     # apply_menu: Object Mode and Pose
-        self.assertEqual(bpy.ops.meso.keymap_reset(), {'FINISHED'})
-        kcs.update()
-        self.assertEqual(mk().modified_count(), 0)
-        km = self._object_mode()
-        self.assertFalse(km.is_user_modified)
-        self.assertEqual(mk().live_ids(), LIVE_IDS)
-        cycle = next(k for _km, k, i in mk().user_items('properties_cycle')
-                     if i.keymap == 'Object Mode')
-        self.assertEqual((cycle.type, cycle.properties.direction), ('A', 1))
-        self.assertFalse([k for k in km.keymap_items if k.type == 'F14'])
-        self.assertTrue(next(k for k in km.keymap_items
-                             if k.idname == 'object.duplicate_move').active)
-        # a keymap without Meso items (Industry Compatible's, shared with the user's other
-        # keymaps): not the Meso reset's
-        confirm = next(k for k in kcs.user.keymaps['Transform Modal Map'].keymap_items
-                       if k.propvalue == 'CONFIRM' and k.map_type == 'KEYBOARD')
-        self.assertEqual(confirm.type, 'F15')
-        self.assertNotEqual(confirm_type, 'F15')
-        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
-        self.assertEqual([k.type for k in window.keymap_items if k.idname == 'meso.plaza'],
-                         ['F16'])
-        self.assertEqual(bpy.ops.meso.keymap_reset(), {'CANCELLED'})   # nothing left
+    def test_registered_with_every_keymap(self):
+        for name in ('Blender', 'Industry_Compatible', 'Meso'):
+            with self.subTest(keyconfig=name):
+                use_keyconfig(name)
+                refresh()
+                self.assertEqual(len(mk().registered()), N_BASE_ITEMS)
+                self.assertEqual(tuple(dict.fromkeys(b for b, *_r in mk().registered())),
+                                 BASE_IDS)
+                live = mk().live_ids()
+                for bid in BASE_IDS:
+                    self.assertIn(bid, live)
 
-    def _restore_keymap(self, name, space_type='EMPTY', region_type='WINDOW'):
-        kcs = wm().keyconfigs
-        km = kcs.user.keymaps.find(name, space_type=space_type, region_type=region_type)
-        if km is not None and km.is_user_modified:
-            km.restore_to_default()
-        kcs.update()
+    def test_the_items(self):
+        addon = wm().keyconfigs.addon
+        for bid, km, kmi, item in mk().registered():
+            with self.subTest(keymap=item.keymap, key=item.key.label()):
+                self.assertEqual(km, addon.keymaps.find(item.keymap, space_type=km.space_type,
+                                                        region_type=km.region_type))
+                self.assertEqual((kmi.idname, kmi.type, kmi.value),
+                                 (item.idname, item.key.type, item.key.value))
+                self.assertFalse(kmi.repeat)
+                for m in MODIFIERS:
+                    self.assertEqual(bool(getattr(kmi, m)), getattr(item.key, m), m)
+                self.assertEqual(dict(props_of(kmi)), dict(item.props))
 
-    def _find_user(self, name):
-        return find_builtin(wm().keyconfigs.user, name)
-
-    def test_reset_gives_back_deleted_items(self):
-        """The keymap editor's X button deletes a default item (a 'remove' edit): the item is
-        gone from the user keymap, and the reset must still bring it back."""
-        self.meso_on()
-        kcs = wm().keyconfigs
-        km = self._object_mode()
-        iso = next(k for k in km.keymap_items if k.idname == 'meso.isolate_toggle')
-        km.keymap_items.remove(iso)
-        mesh = self._find_user('Mesh')
-        native = next(k for k in mesh.keymap_items if k.idname == 'mesh.select_mode')
-        native_sig = signature(native)
-        mesh.keymap_items.remove(native)
-        kcs.update()
-        self.assertEqual(mk().modified_count(), 2)
-        self.assertEqual(mk().reset_to_default(), (2, 0))
-        km = self._object_mode()
-        self.assertFalse(km.is_user_modified)
-        self.assertEqual([(k.type, k.ctrl) for k in km.keymap_items
-                          if k.idname == 'meso.isolate_toggle'], [('ONE', True)])
-        mesh = self._find_user('Mesh')
-        self.assertFalse(mesh.is_user_modified)
-        self.assertIn(native_sig, [signature(k) for k in mesh.keymap_items])
-        self.assertEqual(mk().live_ids(), LIVE_IDS)
-        self.assertEqual(mk().modified_count(), 0)
-        self.assertEqual(bpy.ops.meso.keymap_reset(), {'CANCELLED'})
-
-    def test_reset_keeps_the_edits_of_keymaps_without_meso_items(self):
-        """Blender keeps edits per keymap name for every keyconfig: an edit of 'Window' made
-        under Blender shows under Meso too, but it is not a Meso edit and survives the reset."""
-        kcs = wm().keyconfigs
-        use_keyconfig('Blender')
-        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
-        window.keymap_items.new('wm.search_menu', 'F19', 'PRESS')
-        kcs.update()
-        self.addCleanup(self._restore_keymap, 'Window')
-        self.meso_on()
-        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
-        self.assertEqual([k.idname for k in window.keymap_items if k.type == 'F19'],
-                         ['wm.search_menu'])
-        self.assertEqual(mk().modified_count(), 0)
-        self.assertEqual(bpy.ops.meso.keymap_reset(), {'CANCELLED'})
-        use_keyconfig('Blender')
-        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
-        self.assertEqual([k.idname for k in window.keymap_items if k.type == 'F19'],
-                         ['wm.search_menu'])
-
-    def test_reset_keeps_edits_that_do_not_apply_to_meso(self):
-        """An edit made under Blender to an item the Meso keymap lacks (Blender's X delete in
-        'Object Mode') leaves the keymap marked modified under Meso with nothing to reset:
-        the reset must not drop it."""
-        kcs = wm().keyconfigs
-        use_keyconfig('Blender')
-        km = self._object_mode()
-        delete = next(k for k in km.keymap_items if k.idname == 'object.delete'
-                      and k.type == 'X' and not k.shift)
-        delete.active = False
-        kcs.update()
-        self.addCleanup(self._restore_keymap, 'Object Mode')
-        self.meso_on()
-        self.assertTrue(self._object_mode().is_user_modified)
-        self.assertEqual(mk().modified_count(), 0)
-        self.assertEqual(mk().reset_to_default(), (0, 0))
-        use_keyconfig('Blender')
-        km = self._object_mode()
-        self.assertEqual([k.active for k in km.keymap_items if k.idname == 'object.delete'
-                          and k.type == 'X' and not k.shift], [False])
-
-    def test_reset_keeps_the_plazas_edits_in_a_meso_keymap(self):
-        """'Sculpt Curves' holds Meso items and a Plaza Space item: the keymap is restored whole
-        (a deleted Meso item comes back) and the Plaza item keeps the user's key."""
-        self.meso_on()
-        kcs = wm().keyconfigs
-        name = 'Sculpt Curves'
-        km = self._find_user(name)
-        ours = [(_km, k, i) for _km, k, i in mk().user_items() if i.keymap == name]
-        self.assertTrue(ours)
-        ours_sig = signature(ours[0][1])
-        km.keymap_items.remove(ours[0][1])
-        plaza = next(k for k in km.keymap_items if k.idname == 'meso.plaza')
-        plaza.type = 'F16'
-        plaza.alt = True
-        kcs.update()
-        self.addCleanup(self._restore_keymap, name)
-        self.assertEqual(mk().modified_count(), 1)
-        self.assertEqual(mk().reset_to_default(), (1, 0))
-        km = self._find_user(name)
-        self.assertIn(ours_sig, [signature(k) for k in km.keymap_items])
-        self.assertEqual([(k.type, k.alt) for k in km.keymap_items if k.idname == 'meso.plaza'],
-                         [('F16', True)])
-        self.assertEqual(mk().modified_count(), 0)
-
-    def test_reset_keeps_a_deleted_plaza_item_deleted(self):
-        self.meso_on()
-        kcs = wm().keyconfigs
-        name = 'Sculpt Curves'
-        km = self._find_user(name)
-        ours = next(k for _km, k, i in mk().user_items() if i.keymap == name)
-        ours.active = False
-        km.keymap_items.remove(next(k for k in km.keymap_items if k.idname == 'meso.plaza'))
-        kcs.update()
-        self.addCleanup(self._restore_keymap, name)
-        self.assertEqual(mk().reset_to_default(), (1, 0))
-        km = self._find_user(name)
-        self.assertEqual([k for k in km.keymap_items if k.idname == 'meso.plaza'], [])
-        self.assertTrue(all(k.active for _km, k, i in mk().user_items() if i.keymap == name))
-
-    def _restore_plaza(self):
-        kcs = wm().keyconfigs
-        window = kcs.user.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
-        for k in window.keymap_items:
-            if k.idname == 'meso.plaza' and k.is_user_modified:
-                window.restore_item_to_default(k)
-        kcs.update()
-
-    def test_an_edit_under_another_keymap_replaces_the_meso_edits(self):
-        """Blender's own behaviour (decision 26, SHARED_EDITS_HINT): an edit of 'Object Mode'
-        under Blender rebuilds that keymap's stored edits against Blender, so the Meso rebind
-        of it is gone when Meso is picked again. If this ever fails, Blender changed: update
-        the hint and decision 26."""
-        self.meso_on()
-        kcs = wm().keyconfigs
-        iso = next(k for k in self._object_mode().keymap_items
-                   if k.idname == 'meso.isolate_toggle')
-        iso.type = 'F13'
-        kcs.update()
-        use_keyconfig('Blender')
-        self.addCleanup(self._restore_keymap, 'Object Mode')
-        delete = next(k for k in self._object_mode().keymap_items if k.idname == 'object.delete')
-        delete.active = False
-        kcs.update()
-        use_keyconfig('Meso')
-        self.assertEqual([k.type for k in self._object_mode().keymap_items
-                          if k.idname == 'meso.isolate_toggle'], ['ONE'])
-
-    def test_reset_needs_the_meso_keymap(self):
-        self.assertFalse(bpy.ops.meso.keymap_reset.poll())
-        self.assertEqual(mk().reset_to_default(), (0, 0))
-        self.assertEqual(mk().modified_count(), 0)
-        self.meso_on()
-        self.assertTrue(bpy.ops.meso.keymap_reset.poll())
+    def test_unregister_removes_them(self):
+        mk().unregister()
+        try:
+            left = [kmi.idname for km in wm().keyconfigs.addon.keymaps
+                    for kmi in km.keymap_items
+                    if kmi.idname.startswith('meso.') and kmi.idname != 'meso.plaza']
+            self.assertEqual(left, [])
+            self.assertIsNone(bpy.utils.preset_find('Meso', 'keyconfig'))
+        finally:
+            mk().register()
+        self.assertEqual(len(mk().registered()), N_BASE_ITEMS)
 
 
-class TestKeyconfigWatch(MesoKeymapCase):
-    def test_a_menu_switch_is_recorded(self):
-        """The watcher timer (called directly: timers do not run headless)."""
-        mk()._start_watch()
-        self.assertEqual(mk()._watch_keyconfig(), mk().WATCH_INTERVAL)
-        self.assertEqual(self.p.keymap_choice, 'UNDECIDED')
-        use_keyconfig('Meso')                       # picked in Preferences > Keymap
-        mk()._watch_keyconfig()
-        self.assertEqual((self.p.keymap_choice, self.p.previous_keyconfig), ('MESO', 'Blender'))
-        use_keyconfig('Industry_Compatible')        # another keymap picked there
-        mk()._watch_keyconfig()
-        self.assertEqual((self.p.keymap_choice, self.p.previous_keyconfig), ('KEEP', ''))
-        use_keyconfig('Blender')
-        mk()._watch_keyconfig()
-        self.assertEqual(self.p.keymap_choice, 'KEEP')
+def keyconfigs_state():
+    """The keyconfigs as Meso must leave them: their names, the active one, and the items of
+    every keyconfig but the add-on and user ones."""
+    kcs = wm().keyconfigs
+    refresh()
+    state = {'names': sorted(kc.name for kc in kcs), 'active': kcs.active.name}
+    for kc in kcs:
+        if kc in (kcs.addon, kcs.user):
+            continue
+        state[kc.name] = sorted((km.name, signature(kmi)) for km in kc.keymaps
+                                for kmi in km.keymap_items)
+    return state
 
-    def test_our_own_choice_is_not_rerecorded(self):
-        mk()._start_watch()
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        mk()._watch_keyconfig()
-        self.assertEqual((self.p.keymap_choice, self.p.previous_keyconfig), ('MESO', 'Blender'))
-        bpy.ops.meso.keymap_choose(choice='KEEP')
-        mk()._watch_keyconfig()
-        self.assertEqual(self.p.keymap_choice, 'KEEP')
+
+class TestNeverModifiesKeymaps(MesoKeymapCase):
+    """The extensions platform's rule: Meso registers and unregisters add-on keymap items and
+    its preset path, nothing else. The user selects keymaps."""
+
+    def test_register_and_unregister_leave_the_keyconfigs_alone(self):
+        for base in ('Blender', 'Industry_Compatible', 'Meso'):
+            with self.subTest(keyconfig=base):
+                use_keyconfig(base)
+                before = keyconfigs_state()
+                mk().unregister()
+                self.assertEqual(keyconfigs_state(), before)
+                mk().register()
+                self.assertEqual(keyconfigs_state(), before)
+                self.assertEqual(wm().keyconfigs.active.name, base)
+
+    def test_the_choose_operator_runs_blenders_own_selection(self):
+        """"Use the Meso Keymap" runs ``preferences.keyconfig_activate`` (what the keymap menu
+        runs); "Not now" changes nothing."""
+        self.assertEqual(bpy.ops.meso.keymap_choose(choice='KEEP'), {'FINISHED'})
+        self.assertEqual(wm().keyconfigs.active.name, 'Blender')
+        self.assertTrue(self.p.keymap_prompted)
+        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
+        self.assertEqual(wm().keyconfigs.active.name, 'Meso')
+        self.assertEqual(bpy.context.preferences.keymap.active_keyconfig, 'Meso')
+
+    def test_no_keyconfig_editing_and_no_module_loading_in_the_source(self):
+        patterns = (r"keyconfig_set\(", r"keyconfigs\.new\(", r"keyconfigs\.remove\(",
+                    r"keyconfigs\.active\s*=", r"restore_to_default\(",
+                    r"restore_item_to_default\(", r"keyconfigs\.update\(",
+                    r"\bimportlib\b", r"spec_from_file_location", r"\bsys\.modules\b",
+                    r"__import__\(", r"\bexec\(")
+        # Allowed: the preset's own ``keyconfigs.new`` (Blender's preset pattern, run when the
+        # user selects the keymap) and the update that keeps the user's own edits on disable.
+        allowed = {("Meso.py", "keyconfigs.new("),
+                   ("meso_keymap.py", "keyconfigs.update(keep_properties=True)")}
+        hits = []
+        for path in sorted(SRC.rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            for pattern in patterns:
+                for m in re.finditer(pattern, text):
+                    rest = text[m.start():text.find("\n", m.start())]
+                    if any(path.name == f and rest.startswith(c) for f, c in allowed):
+                        continue
+                    line = text.count("\n", 0, m.start()) + 1
+                    hits.append(f"{path.relative_to(SRC)}:{line}: {pattern}")
+        self.assertEqual(hits, [])
 
 
 class TestApplyInPlaza(MesoKeymapCase):
@@ -783,9 +703,9 @@ class TestCompassRmbBindings(MesoKeymapCase):
 
     def test_switching_the_compass_bindings_off_gives_the_chords_back(self):
         self.meso_on()
-        self.assertEqual(mk().set_binding_active('compass_context', False), 8)
-        self.assertEqual(mk().set_binding_active('compass_tools', False), 1)
-        self.assertEqual(mk().set_binding_active('reloc_cursor', False), 1)
+        self.assertEqual(set_binding_active('compass_context', False), 8)
+        self.assertEqual(set_binding_active('compass_tools', False), 1)
+        self.assertEqual(set_binding_active('reloc_cursor', False), 1)
         user = wm().keyconfigs.user
         for km_name, menu in _mod("core.compass_rmb").CONTEXT_MENUS.items():
             with self.subTest(keymap=km_name):
@@ -798,12 +718,12 @@ class TestCompassRmbBindings(MesoKeymapCase):
         self.assertEqual(self._chord(km, mb().KEY_CURSOR), [])
         for bid in ('compass_context', 'compass_tools', 'reloc_cursor'):
             self.assertNotIn(bid, mk().live_ids())
-            mk().set_binding_active(bid, True)
+            set_binding_active(bid, True)
         self.assertEqual(mk().live_ids(), ALL_IDS)
 
     def test_the_cursor_off_warns(self):
         self.meso_on()
-        mk().set_binding_active('reloc_cursor', False)
+        set_binding_active('reloc_cursor', False)
         warnings = mb().warnings(mk().live_bindings())
         self.assertEqual(len(warnings), 1, warnings)
         self.assertIn(self.CURSOR_PLACE, warnings[0])

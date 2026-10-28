@@ -137,35 +137,26 @@ class TestKeymapItem(MesoKeymapCase):
                                  ('anim.driver_button_remove', False)])
         self.assertEqual([k.idname for k in km.keymap_items if k.active and k.type == 'D'
                           and not (k.alt or k.ctrl or k.shift)], ['anim.driver_button_add'])
-        self.assertIn('User Interface', mk().reset_keymap_names())
 
-    def test_switched_off_and_reset(self):
-        """The wrapper off: nothing on Alt D (IC's item stays off, a warning says so); the
-        keymap editor can switch IC's item on again; Reset to Default (Meso) gives the wrapper
-        back and IC's item off."""
+    def test_switched_off_gives_the_native_item_back_in_the_keymap_editor(self):
+        """The wrapper off: nothing on Alt D (IC's item stays off in the Meso keymap, a warning
+        says so); the keymap editor can switch IC's item on again (test helper edits)."""
+        from tests.blender.test_meso_keymap import set_binding_active, refresh
         self.meso_on()
         kcs = wm().keyconfigs
-        self.assertEqual(mk().set_binding_active('driver_remove_pass', False), 1)
+        self.assertEqual(set_binding_active('driver_remove_pass', False), 1)
         km = find_builtin(kcs.user, 'User Interface')
         self.assertEqual([k.idname for k in km.keymap_items
                           if k.active and key_matches(k, mb().KEY_DESELECT_ALL)], [])
+        self.assertEqual([b.id for b in mk().off_bindings()], ['driver_remove_pass'])
         native = next(k for k in km.keymap_items if k.idname == 'anim.driver_button_remove'
                       and key_matches(k, mb().KEY_DESELECT_ALL))
         native.active = True
-        kcs.update()
+        refresh()
         km = find_builtin(kcs.user, 'User Interface')
         self.assertEqual([k.idname for k in km.keymap_items
                           if k.active and key_matches(k, mb().KEY_DESELECT_ALL)],
                          ['anim.driver_button_remove'])
-        self.assertEqual(mk().modified_count(), 2)
-        mk().reset_to_default()
-        km = find_builtin(kcs.user, 'User Interface')
-        self.assertEqual([(k.idname, k.active) for k in km.keymap_items
-                          if key_matches(k, mb().KEY_DESELECT_ALL)],
-                         [('meso.driver_button_remove', True),
-                          ('anim.driver_button_remove', False)])
-        self.assertEqual(mk().modified_count(), 0)
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -1415,7 +1415,8 @@ class TestIsolateKeys(MesoKeymapCase):
         """Switched off in the keymap editor, Ctrl 1 is IC's vertex mode with expand again; the
         relocated Ctrl Alt 1 item stays (both keys then do the same)."""
         self.meso_on()
-        mk_mod().set_binding_active('isolate', False)
+        from tests.blender.test_meso_keymap import set_binding_active
+        set_binding_active('isolate', False)
         ids = mk_mod().live_ids()
         self.assertNotIn('isolate', ids)
         self.assertIn('reloc_mesh_vert_expand', ids)

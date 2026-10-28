@@ -5,22 +5,20 @@ No ``--factory-startup``: the throw-away ``BLENDER_USER_CONFIG`` of the run is t
 preference store, and Meso Mode is installed as a copy in the throw-away ``user_default``
 extension repo. ``MESO_PERSIST_PHASE``:
 
-- ``enable`` (headless): enable Meso Mode with default_set, mark the choice question as asked,
-  save the preferences.
-- ``gui_disable`` (GUI): choose the Meso Keymap, then disable Meso Mode with the Preferences'
-  own operator (the add-on checkbox), quit (the preferences auto-save).
-- ``gui_keep`` (GUI): choose the Meso Keymap, record its items (``before_edit``: the defaults),
+- ``enable`` (headless): enable Meso Mode with default_set, mark the question as asked, save
+  the preferences.
+- ``gui_disable`` (GUI): select the Meso Keymap ("Use the Meso Keymap": Blender's own
+  ``preferences.keyconfig_activate``), then disable Meso Mode with the Preferences' own
+  operator (the add-on checkbox): the keymap is left as it is; quit (the preferences
+  auto-save).
+- ``gui_keep`` (GUI): select the Meso Keymap, record its items (``before_edit``: the defaults),
   edit them as the keymap editor does (rebind the Object Mode Ctrl A Properties cycle to F13
   with direction -1, switch the Apply menu items off, delete the Object Mode Ctrl 1 isolate
   item, switch off the first Meso item of 'Sculpt Curves' and rebind the Plaza's Space item
   there to F16), quit.
-- ``gui_restart`` (GUI): a restart after ``gui_keep``: the choice and the Meso keymap are back
-  (Blender itself starts on 'Blender': Meso Mode selects Meso again in register()), with the
-  user's edits, the bindings live, no new question and clean preferences; quit.
-- ``gui_reset`` (GUI): after ``gui_restart``: run Reset to Default (Meso) (the button's
-  operator), quit (the preferences auto-save).
-- ``gui_after_reset`` (GUI): a restart after ``gui_reset``: the Meso items are the defaults, the
-  Plaza item keeps F16, nothing left to reset, clean preferences; quit.
+- ``gui_restart`` (GUI): a restart after ``gui_keep``: record which keymap Blender started on
+  (Meso Mode never selects one), then select the Meso Keymap again if needed: the user's edits
+  are back, the base keys live, no new question; quit.
 - ``read`` (headless): what the last quit saved.
 
 Each phase writes ``MESO_PERSIST_OUT`` (JSON) and exits.
@@ -64,15 +62,14 @@ def headless():
     if PHASE == "enable":
         R["enable"] = repr(addon_utils.enable(MOD, default_set=True))
         p = _prefs()
-        R["choice"] = getattr(p, "keymap_choice", None)
+        R["prompted_before"] = bool(p.keymap_prompted)
         p.keymap_prompted = True
         R["save_userpref"] = sorted(bpy.ops.wm.save_userpref())
     elif PHASE == "read":
         R["pref_active_keyconfig"] = prefs.keymap.active_keyconfig
         p = _prefs()
         R["enabled"] = MOD in prefs.addons
-        R["choice"] = getattr(p, "keymap_choice", None)
-        R["previous_keyconfig"] = getattr(p, "previous_keyconfig", None)
+        R["prompted"] = bool(getattr(p, "keymap_prompted", False))
 
 
 def _user_km(name):
@@ -85,6 +82,8 @@ def _edits(mk):
     the Object Mode Ctrl A cycle (type, direction), the Apply menu items' active flags, the
     keys of the Object Mode isolate item (deleted in the keymap editor: []), the first Meso
     item of 'Sculpt Curves' (switched off) and that keymap's Plaza Space item (rebound)."""
+    if _active() != "Meso":
+        return None
     cycle = [(k.type, k.properties.direction) for _km, k, i in mk.user_items('properties_cycle')
              if i.keymap == 'Object Mode']
     apply_ = [k.active for _km, k, _i in mk.user_items('apply_menu')]
@@ -110,8 +109,8 @@ def gui_tick():
         if PHASE in ("gui_disable", "gui_keep"):
             with bpy.context.temp_override(window=wm.windows[0]):
                 R["choose"] = sorted(bpy.ops.meso.keymap_choose(choice='MESO'))
+            wm.keyconfigs.update()
             R["after_choose_active"] = _active()
-            R["after_choose_previous"] = _prefs().previous_keyconfig
             R["after_choose_registered"] = list(mk.live_ids())
             R["before_edit"] = _edits(mk)
         if PHASE == "gui_keep":
@@ -119,7 +118,8 @@ def gui_tick():
                          if i.keymap == 'Object Mode')
             cycle.type = 'F13'
             cycle.properties.direction = -1
-            mk.set_binding_active('apply_menu', False)
+            for _km, k, _i in mk.user_items('apply_menu'):
+                k.active = False
             obj = _user_km('Object Mode')
             obj.keymap_items.remove(next(k for k in obj.keymap_items
                                          if k.idname == 'meso.isolate_toggle'))
@@ -129,14 +129,16 @@ def gui_tick():
             wm.keyconfigs.update()
             R["after_edit"] = _edits(mk)
             R["after_edit_registered"] = list(mk.live_ids())
-        if PHASE in ("gui_reset", "gui_after_reset"):
-            R["start_modified_count"] = mk.modified_count()
-        if PHASE == "gui_reset":
-            # What the Reset to Default (Meso) button runs.
-            with bpy.context.temp_override(window=wm.windows[0]):
-                R["reset"] = sorted(bpy.ops.meso.keymap_reset())
-            R["after_reset"] = _edits(mk)
-            R["after_reset_modified_count"] = mk.modified_count()
+        if PHASE == "gui_restart":
+            if _active() != "Meso":
+                # The user's pick again (Blender started on its own keymap: the Meso preset is
+                # an extension's, registered after Blender chose the keymap).
+                with bpy.context.temp_override(window=wm.windows[0]):
+                    R["reselect"] = sorted(bpy.ops.meso.keymap_choose(choice='MESO'))
+                wm.keyconfigs.update()
+            R["after_reselect_active"] = _active()
+            R["after_reselect_edits"] = _edits(mk)
+            R["after_reselect_registered"] = list(mk.live_ids())
         if PHASE == "gui_disable":
             with bpy.context.temp_override(window=wm.windows[0]):
                 R["disable"] = sorted(bpy.ops.preferences.addon_disable(module=MOD))

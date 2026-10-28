@@ -639,11 +639,12 @@ class TestOtherKeyconfigs(_Case):
                 kc = _select_keyconfig(preset, kc_prefs)
                 for name, value in kc_prefs.items():
                     self.assertEqual(getattr(kc.preferences, name), value)
-                # Space opens the Plaza where Phase 1 says: the add-on item first.
+                # Space opens the Plaza where Phase 1 says: the add-on item first on Space
+                # (the base Meso keys are add-on items too, on other keys).
                 for name, _space, _region, kind in keymaps.KEYMAP_SET:
                     km = wm.keyconfigs.user.keymaps.get(name)
                     self.assertIsNotNone(km, name)
-                    first = km.keymap_items[0]
+                    first = next(k for k in km.keymap_items if k.type == 'SPACE')
                     self.assertEqual((first.idname, first.type, first.active),
                                      ('meso.plaza', 'SPACE', True), f"{label}: {name}")
                     if kind == keymaps.KIND_SPACE:
@@ -668,16 +669,16 @@ class TestOtherKeyconfigs(_Case):
         for label, preset, kc_prefs in KEYCONFIG_VARIANTS:
             with self.subTest(keyconfig=label):
                 kc = _select_keyconfig(preset, kc_prefs)
-                # Only the Plaza's Space items: nothing of the Meso Keymap reaches these
-                # keyconfigs (the right-click Compass lives in the Meso keyconfig only).
-                meso = sorted({(km.name, kmi.idname) for km in wm.keyconfigs.user.keymaps
+                # The Meso Keymap off: the Plaza's Space items and the base Meso keys only
+                # (the right-click Compass is in the Meso tier).
+                meso = sorted({kmi.idname for km in wm.keyconfigs.user.keymaps
                                for kmi in km.keymap_items
-                               if kmi.idname.startswith('meso.')
-                               and kmi.idname != 'meso.plaza'})
-                self.assertEqual(meso, [], label)
-                addon = {kmi.idname for km in wm.keyconfigs.addon.keymaps
-                         for kmi in km.keymap_items if kmi.idname.startswith('meso.')}
-                self.assertEqual(addon, {'meso.plaza'}, label)
+                               if kmi.idname.startswith('meso.')})
+                self.assertEqual(meso, ['meso.pivot_toggle', 'meso.plaza', 'meso.snap_hold'],
+                                 label)
+                rmb = [(km.name, kmi.idname) for km in wm.keyconfigs.addon.keymaps
+                       for kmi in km.keymap_items if kmi.type == 'RIGHTMOUSE']
+                self.assertEqual(rmb, [], label)
                 # Every right-click item of the 3D View is the keyconfig's own, in order.
                 for name in ('3D View', 'Object Mode', 'Mesh', 'Pose', 'Armature'):
                     native = [(k.idname, k.value) for k in kc.keymaps[name].keymap_items

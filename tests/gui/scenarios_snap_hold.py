@@ -92,16 +92,8 @@ def scenarios(drv):
             return bpy.ops.meso.keymap_choose(choice=choice)
 
     def back_to_blender():
-        """Undo the scenario's Meso keymap edits, leave Meso, choice undecided."""
-        p = drv.addon_prefs()
-        if mk().is_meso_active():
-            mk().reset_to_default()
-        if p is not None and (p.keymap_choice == 'MESO' or mk().is_meso_active()):
-            choose('KEEP')
-        drv.ensure_blender_keyconfig()
-        if p is not None:
-            p.keymap_choice = 'UNDECIDED'
-            p.previous_keyconfig = ""
+        """Undo the Meso keymap edits, back to the Blender keymap."""
+        drv.leave_meso_keymap()
 
     def ts():
         return bpy.context.scene.tool_settings
@@ -435,7 +427,7 @@ def scenarios(drv):
             tool("builtin.select_box")
             yield 0.2
             # switched off in the keymap editor: D is Industry Compatible's Annotate on the press
-            mk().set_binding_active('pivot_once', False)
+            drv.set_binding_active('pivot_once', False)
             yield 0.2
             drv.sim('D', 'PRESS', c)
             yield 0.3
@@ -444,7 +436,7 @@ def scenarios(drv):
             drv.sim('D', 'RELEASE', c)
             yield 0.2
             tool("builtin.select_box")
-            mk().set_binding_active('pivot_once', True)
+            drv.set_binding_active('pivot_once', True)
             yield 0.2
             # Insert: Affect Only Origins, sticky
             yield from key(c, 'INSERT')
@@ -452,7 +444,7 @@ def scenarios(drv):
             yield from key(c, 'INSERT')
             drv.check(rec, "insert_off", not ts().use_transform_data_origin)
             # switched off: X is Industry Compatible's snap toggle again, on the press
-            mk().set_binding_active('snap_hold_grid', False)
+            drv.set_binding_active('snap_hold_grid', False)
             yield 0.2
             drv.sim('X', 'PRESS', c)
             yield 0.3
@@ -463,7 +455,7 @@ def scenarios(drv):
             drv.check(rec, "off_x_no_overlay", state()['snap_elements'] == USER['snap_elements'],
                       state())
             ts().use_snap = False
-            mk().set_binding_active('snap_hold_grid', True)
+            drv.set_binding_active('snap_hold_grid', True)
             yield 0.2
         finally:
             try:
@@ -996,7 +988,7 @@ def scenarios(drv):
             drv.set_mode('OBJECT')
             yield 0.2
             # switched off in the keymap editor: D in Edit Mode is IC's Annotate tool again
-            mk().set_binding_active('pivot_once', False)
+            drv.set_binding_active('pivot_once', False)
             yield 0.2
             drv.set_mode('EDIT')
             yield 0.3
@@ -1008,7 +1000,7 @@ def scenarios(drv):
                       [active_tool(), bpy.context.mode, drv.modal_ops()])
             tool("builtin.select_box")
             drv.set_mode('OBJECT')
-            mk().set_binding_active('pivot_once', True)
+            drv.set_binding_active('pivot_once', True)
             yield 0.2
         finally:
             try:
@@ -1077,15 +1069,15 @@ def scenarios(drv):
 
             cursor_owners = ('compass_tools', 'reloc_cursor')
             for b in mb().BINDINGS:
-                mk().set_binding_active(b.id, False)
+                drv.set_binding_active(b.id, False)
             yield 0.3
             native = yield from cursor_drag()
             for b in mb().BINDINGS:
-                mk().set_binding_active(b.id, b.id not in cursor_owners)
+                drv.set_binding_active(b.id, b.id not in cursor_owners)
             yield 0.3
             meso = yield from cursor_drag()
             for bid in cursor_owners:
-                mk().set_binding_active(bid, True)
+                drv.set_binding_active(bid, True)
             yield 0.3
             rec.setdefault("details", {})["shift_rmb_drag_native_vs_meso"] = [native, meso]
             drv.check(rec, "shift_rmb_drag_as_native", native == meso, [native, meso])

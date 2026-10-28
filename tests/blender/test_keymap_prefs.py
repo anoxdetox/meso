@@ -1,7 +1,8 @@
 """Preferences keymap section (keymap_prefs.py; local/docs/phase4-interfaces.md "Preferences keymap").
 
-The add-on's 13 items are drawn under the hotkey editor's nesting, each exactly once, with
-rna_keymap_ui.draw_kmi; "Set all Space items" rebinds the 11 Space items and leaves the
+The add-on's 13 Plaza items and the base Meso keys are drawn under the hotkey editor's
+nesting, each exactly once, with rna_keymap_ui.draw_kmi; "Set all Space items" registers the
+11 Space items again with the chosen key (never editing a keymap item) and leaves the
 Text/Console chord items alone. The draw is exercised with a recording stand-in for UILayout
 (headless has no real one).
 """
@@ -115,6 +116,14 @@ class _PrefsCase(unittest.TestCase):
         self.prefs.space_items_key = 'SPACE'
         for flag in ('shift', 'ctrl', 'alt', 'oskey'):
             setattr(self.prefs, f"space_items_{flag}", False)
+        _mod("keymaps").reregister()
+        self.wm.keyconfigs.update()
+
+    def _base_keymaps(self):
+        return {item.keymap for _b, _km, _kmi, item in _mod("meso_keymap").registered()}
+
+    def _n_base(self):
+        return len(_mod("meso_keymap").registered())
 
 
 class TestKeymapPrefs(_PrefsCase):
@@ -129,8 +138,7 @@ class TestKeymapPrefs(_PrefsCase):
                 self.assertNotIn(section.name, owned, section.path)
                 owned[section.name] = parent.name if parent else None
         keymap_set = _mod("keymaps").KEYMAP_SET
-        self.assertEqual(set(owned), {name for name, *_ in keymap_set})
-        self.assertEqual(len(owned), 13)
+        self.assertEqual(set(owned), {name for name, *_ in keymap_set} | self._base_keymaps())
         for root in ('Window', 'Frames', 'Text', 'Console'):
             self.assertIsNone(owned[root], root)
         for name in ('Sculpt', 'Vertex Paint', 'Weight Paint', 'Image Paint', 'Sculpt Curves'):
@@ -154,18 +162,21 @@ class TestKeymapPrefs(_PrefsCase):
                 kmi.show_expanded = True
         self.addCleanup(self._collapse_items)
         log = self._draw()
+        n = 13 + self._n_base()                 # the Plaza's items and the base Meso keys
         active = [e[1] for e in log if e[0] == 'prop' and e[2] == 'active']
-        self.assertEqual(len(active), 13)
-        self.assertEqual(len({k.as_pointer() for k in active}), 13, "an item drawn twice")
-        self.assertTrue(all(k.idname == OPERATOR_IDNAME for k in active))
+        self.assertEqual(len(active), n)
+        self.assertEqual(len({k.as_pointer() for k in active}), n, "an item drawn twice")
+        self.assertEqual(len([k for k in active if k.idname == OPERATOR_IDNAME]), 13)
         keyed = [e[1] for e in log if e[0] == 'prop' and e[2] == 'type']
         self.assertEqual({k.as_pointer() for k in keyed}, {k.as_pointer() for k in active})
         props = [e[1] for e in log if e[0] == 'kmi_props']
         self.assertEqual(len(props), 11)
         removes = [e for e in log if e[0] == 'operator' and e[1] == 'preferences.keyitem_remove']
-        self.assertEqual(len(removes), 13)
+        self.assertEqual(len(removes), n)
+        tree = _mod("core.keymap_tree")
+        owned = [sec for sec, _p in tree.iter_sections(self.kp.sections()) if sec.owned]
         pointers = [e[2] for e in log if e[0] == 'pointer' and e[1] == 'keymap']
-        self.assertEqual(len(pointers), 13)
+        self.assertEqual(len(pointers), len(owned))
 
     def _collapse_items(self):
         for items in self._space_items().values():
@@ -181,7 +192,8 @@ class TestKeymapPrefs(_PrefsCase):
                          {'3D View', '3D View/Sculpt'})
         log = self._draw()
         active = [e[1] for e in log if e[0] == 'prop' and e[2] == 'active']
-        self.assertEqual(len(active), 1)  # only the Sculpt item
+        # the Sculpt item and the base Meso key of '3D View' (hold J)
+        self.assertEqual(sorted(k.idname for k in active), ['meso.plaza', 'meso.snap_hold'])
         bpy.ops.meso.keymap_section_toggle(path='3D View')
         self.assertEqual(self.prefs.keymap_expanded, '3D View/Sculpt')
         # Stored as a saved (not SKIP_SAVE) add-on preference, so it survives a restart.
@@ -191,14 +203,19 @@ class TestKeymapPrefs(_PrefsCase):
     # -- set all Space items ------------------------------------------------------------
 
     def test_set_all_changes_the_11_space_items_and_not_the_chord(self):
+        """The key goes into the preferences and the Plaza's add-on items are registered
+        again with it (no keymap item is edited)."""
         chord_before = self._chord_items()
-        # One item was rebound before: it is still found and rebound.
-        self._space_items()['Window'][0].type = 'F19'
         self.prefs.space_items_key = 'F5'
         self.prefs.space_items_ctrl = True
         self.prefs.space_items_alt = True
         self.addCleanup(self._reset_bulk_prefs)
         self.assertEqual(bpy.ops.meso.set_space_items(), {'FINISHED'})
+        self.wm.keyconfigs.update()
+        addon = [(km.name, kmi.type, kmi.ctrl, kmi.alt) for km, kmi in
+                 _mod("keymaps").registered_items() if km.name in self.kp.space_keymap_names()]
+        self.assertEqual(len(addon), 11)
+        self.assertTrue(all(row[1:] == ('F5', True, True) for row in addon), addon)
         items = self._space_items()
         self.assertEqual(len(items), 11)
         for name, kmis in items.items():
@@ -218,12 +235,14 @@ class TestKeymapPrefs(_PrefsCase):
     def test_user_added_items_are_left_alone(self):
         km = self.kc.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
         extra = km.keymap_items.new(OPERATOR_IDNAME, 'F18', 'PRESS')
-        self.addCleanup(lambda: km.keymap_items.remove(extra))
         self.assertTrue(extra.is_user_defined)
         self.prefs.space_items_key = 'F5'
         self.addCleanup(self._reset_bulk_prefs)
         bpy.ops.meso.set_space_items()
-        self.assertEqual(extra.type, 'F18')
+        self.wm.keyconfigs.update()
+        km = self.kc.keymaps.find('Window', space_type='EMPTY', region_type='WINDOW')
+        extras = [k for k in km.keymap_items if k.type == 'F18' and k.is_user_defined]
+        self.assertEqual(len(extras), 1)
         self.assertEqual(len(self.kp.our_items(km)), 1)
 
     def test_mixed_bindings_reported(self):
@@ -255,8 +274,6 @@ class TestMesoKeymapPrefs(_PrefsCase):
 
     def _reset_meso(self):
         self.tmk.reset_meso()
-        self.prefs.keymap_choice = 'UNDECIDED'
-        self.prefs.previous_keyconfig = ""
         self.tmk.use_keyconfig('Blender')
         for km in self.wm.keyconfigs.user.keymaps:
             if km.is_user_modified:
@@ -265,8 +282,6 @@ class TestMesoKeymapPrefs(_PrefsCase):
 
     def _meso_on(self):
         self.tmk.use_keyconfig('Meso')
-        self.prefs.keymap_choice = 'MESO'
-        self.prefs.previous_keyconfig = 'Blender'
         self.wm.keyconfigs.update()
         self.kc = self.wm.keyconfigs.user
 
@@ -277,7 +292,7 @@ class TestMesoKeymapPrefs(_PrefsCase):
         tree = _mod("core.keymap_tree")
         plaza_maps = {name for name, *_ in _mod("keymaps").KEYMAP_SET}
         owned = [s.name for s, _p in tree.iter_sections(self.kp.sections()) if s.owned]
-        self.assertEqual(set(owned), plaza_maps)          # not on Meso: the Plaza's only
+        self.assertEqual(set(owned), plaza_maps | self._base_keymaps())   # not on Meso
         self._meso_on()
         owned = [s.name for s, _p in tree.iter_sections(self.kp.sections()) if s.owned]
         self.assertEqual(len(owned), len(set(owned)))
@@ -290,7 +305,7 @@ class TestMesoKeymapPrefs(_PrefsCase):
         log = self._draw()
         active = [e[1] for e in log if e[0] == 'prop' and e[2] == 'active']
         n_meso = len(self.mk.user_items())
-        self.assertEqual(n_meso, self.tmk.N_ITEMS)
+        self.assertEqual(n_meso, self.tmk.N_ITEMS + self.tmk.N_BASE_ITEMS)
         self.assertEqual(len(active), 13 + n_meso)
         self.assertEqual(len({k.as_pointer() for k in active}), 13 + n_meso)
         # never IC's own items with the same operator (e.g. Ctrl A object.select_all)
@@ -323,40 +338,25 @@ class TestMesoKeymapPrefs(_PrefsCase):
                          {k.as_pointer() for k in self.kp.meso_items(km)})
 
     def test_meso_box_status_and_choice_buttons(self):
+        """Not on Meso: the active keymap, the recommendation and one button that runs
+        Blender's own keymap selection (through ``meso.keymap_choose``); no reset button."""
         self.prefs.keymap_expanded = ""
         log = self._draw()
         labels = self._labels(log)
         self.assertIn("Meso Keymap", labels)
-        self.assertIn("Not chosen yet", labels)
+        text = " ".join(labels)
+        self.assertIn("The active keymap is Blender", text)
+        self.assertIn("Preferences > Keymap", text)
         ops = [e for e in log if e[0] == 'operator' and e[1] == 'meso.keymap_choose']
-        self.assertEqual(sorted(o[2].choice for o in ops), ['KEEP', 'MESO'])
+        self.assertEqual([(o[2].choice, o[3].get('text')) for o in ops],
+                         [('MESO', "Use the Meso Keymap (recommended)")])
+        self.assertNotIn('meso.keymap_reset', [e[1] for e in log if e[0] == 'operator'])
         self.assertFalse([e for e in log if e[0] == 'prop' and e[2].startswith('bind_')])
-        self.assertIn('meso.keymap_reset', [e[1] for e in log if e[0] == 'operator'])
-        self.assertTrue(any("Preferences > Keymap" in t for t in labels), labels)
         self._meso_on()
-        labels = self._labels(self._draw())
-        self.assertIn("Using the Meso keymap (Industry Compatible + Meso bindings)", labels)
-        self.assertIn("Keep, or disabling Meso Mode, restores the Blender keymap", labels)
-
-    def test_reset_button_counts_the_changes(self):
-        self._meso_on()
-        texts = [o[3].get('text') for o in self._draw() if o[0] == 'operator'
-                 and o[1] == 'meso.keymap_reset']
-        self.assertEqual(texts, ["Reset to Default (Meso)"])
-        self.mk.set_binding_active('apply_menu', False)
-        texts = [o[3].get('text') for o in self._draw() if o[0] == 'operator'
-                 and o[1] == 'meso.keymap_reset']
-        self.assertEqual(texts, ["Reset to Default (Meso) (2 changes)"])
-
-    def test_reset_button_counts_a_deleted_item(self):
-        self._meso_on()
-        km = self.kc.keymaps.find('Object Mode', space_type='EMPTY', region_type='WINDOW')
-        km.keymap_items.remove(next(k for k in km.keymap_items
-                                    if k.idname == 'meso.isolate_toggle'))
-        self.wm.keyconfigs.update()
-        texts = [o[3].get('text') for o in self._draw() if o[0] == 'operator'
-                 and o[1] == 'meso.keymap_reset']
-        self.assertEqual(texts, ["Reset to Default (Meso) (1 changes)"])
+        log = self._draw()
+        text = " ".join(self._labels(log))
+        self.assertIn("Using the Meso keymap: Industry Compatible plus every Meso key", text)
+        self.assertFalse([e for e in log if e[0] == 'operator' and e[1] == 'meso.keymap_choose'])
 
     def test_binding_list_shows_a_deleted_item(self):
         """A Meso item deleted in the keymap editor reads "removed", not its table key."""
@@ -365,19 +365,12 @@ class TestMesoKeymapPrefs(_PrefsCase):
         root = self.kp.MESO_ROOT
         self.prefs.keymap_expanded = tree.EXPANDED_SEP.join(
             [root] + [f"{root}/{label}" for _g, label in self.mb.GROUPS])
-        for _km, kmi, item in self.mk.user_items('pivot_toggle'):
-            km = self.kc.keymaps.find(item.keymap, space_type='EMPTY', region_type='WINDOW')
+        for km, kmi, _item in self.mk.user_items('pivot_toggle'):
             km.keymap_items.remove(kmi)
         self.wm.keyconfigs.update()
         labels = self._labels(self._draw())
         self.assertIn("removed", labels)
         self.assertNotIn("Insert", labels)
-
-    def test_meso_box_warns_that_keymap_edits_are_shared(self):
-        """Blender keeps one set of edits per keymap name: the box says so (editing a keymap
-        under another keymap replaces the Meso edits of it; the reset resets it there too)."""
-        text = " ".join(self._labels(self._draw()))
-        self.assertIn(self.kp.SHARED_EDITS_HINT, text)
 
     def test_binding_groups_draw_every_binding(self):
         self._meso_on()
@@ -385,11 +378,12 @@ class TestMesoKeymapPrefs(_PrefsCase):
         root = self.kp.MESO_ROOT
         self.prefs.keymap_expanded = tree.EXPANDED_SEP.join(
             [root] + [f"{root}/{label}" for _g, label in self.mb.GROUPS])
-        self.mk.set_binding_active('pivot_toggle', False)
+        self.tmk.set_binding_active('pivot_toggle', False)
         log = self._draw()
         labels = self._labels(log)
         for b in self.mb.BINDINGS:
-            self.assertIn(b.label, labels)
+            want = b.label + ("  (every keymap)" if self.mb.tier(b) == self.mb.TIER_BASE else "")
+            self.assertIn(want, labels)
         self.assertIn("Shift Ctrl A", labels)            # the user's keys (Blender's to_string)
         self.assertIn("off", labels)                     # the switched-off Insert toggle
         for group in ("Selection", "Isolate", "Properties", "Apply", "Snapping", "Pivot",
@@ -445,17 +439,9 @@ class TestMesoKeymapPrefs(_PrefsCase):
         finally:
             self.prefs.shift_rmb_owner = 'COMPASS'
 
-    def test_mismatch_warning_and_binding_warnings(self):
+    def test_binding_warnings(self):
         self._meso_on()
-        self.tmk.use_keyconfig('Blender')
-        log = self._draw()
-        labels = self._labels(log)
-        self.assertIn("The Meso keymap is not active: the active keymap is Blender", labels)
-        texts = {o[3].get('text') for o in log if o[0] == 'operator'}
-        self.assertIn("Select Meso", texts)
-        self.assertIn("Keep Blender", texts)
-        self.tmk.use_keyconfig('Meso')
-        self.mk.set_binding_active('deselect_all', False)
+        self.tmk.set_binding_active('deselect_all', False)
         text = " ".join(self._labels(self._draw()))
         self.assertIn("new home, Alt D (Deselect All), is off", text)
 
@@ -463,7 +449,7 @@ class TestMesoKeymapPrefs(_PrefsCase):
         """``reloc_cursor`` off: the cursor has no key with ``shift_rmb_owner`` COMPASS, the
         tool Compass has none with CURSOR (the Shift RMB item is the cursor then)."""
         self._meso_on()
-        self.mk.set_binding_active('reloc_cursor', False)
+        self.tmk.set_binding_active('reloc_cursor', False)
         try:
             text = " ".join(self._labels(self._draw()))
             self.assertIn("its new home, Ctrl Shift Right Mouse", text)
@@ -474,7 +460,7 @@ class TestMesoKeymapPrefs(_PrefsCase):
             self.assertIn("the tool Compass has no key", text)
         finally:
             self.prefs.shift_rmb_owner = 'COMPASS'
-            self.mk.set_binding_active('reloc_cursor', True)
+            self.tmk.set_binding_active('reloc_cursor', True)
 
     def test_set_all_row_warns_about_meso_keys(self):
         self._meso_on()
@@ -492,15 +478,14 @@ class TestMesoKeymapPrefs(_PrefsCase):
         self._meso_on()
         before = sorted((k.type, k.ctrl, k.shift, k.alt) for km in self.kc.keymaps
                         for k in self.kp.meso_items(km))
-        self.assertEqual(len(before), self.tmk.N_ITEMS)
+        self.assertEqual(len(before), self.tmk.N_ITEMS + self.tmk.N_BASE_ITEMS)
         self.prefs.space_items_key = 'F5'
         self.addCleanup(self._reset_bulk_prefs)
         bpy.ops.meso.set_space_items()
+        self.wm.keyconfigs.update()
         after = sorted((k.type, k.ctrl, k.shift, k.alt) for km in self.kc.keymaps
                        for k in self.kp.meso_items(km))
         self.assertEqual(after, before)
-        self._reset_bulk_prefs()
-        bpy.ops.meso.set_space_items()
 
 
 class TestWrappedText(_PrefsCase):
@@ -535,14 +520,14 @@ class TestWrappedText(_PrefsCase):
 
     def test_measure_is_the_ui_font(self):
         m = self.wt.measure()
-        self.assertGreater(m("Reset to Default (Meso)"), m("Reset"))
+        self.assertGreater(m("Use the Meso Keymap"), m("Use"))
         self.assertEqual(self.wt.font_px(), 11.0 * self.wt.ui_scale())
         self.assertEqual(self.wt.ui_scale(), bpy.context.preferences.system.ui_scale or 1.0)
         self.assertEqual(self.wt.base_boxes(), 0)          # headless: no Preferences editor
 
-    def test_the_reset_hint_uses_the_full_width(self):
+    def test_the_recommendation_uses_the_full_width(self):
         m = self.wt.measure()
-        text = self.kp.KEYMAP_EDITOR_HINT
+        text = self.kp.RECOMMEND_HINT
         counts = []
         for width in (300, 500, 800, 1400, 2400):
             with self.subTest(width=width):
@@ -563,7 +548,7 @@ class TestWrappedText(_PrefsCase):
         root = self.kp.MESO_ROOT
         self.prefs.keymap_expanded = tree.EXPANDED_SEP.join(
             [root] + [f"{root}/{label}" for _g, label in self.mb.GROUPS])
-        self.mk.set_binding_active('deselect_all', False)
+        self.tmk.set_binding_active('deselect_all', False)
         self._at(420)
         log = self._draw()
         m = self.wt.measure()
@@ -580,10 +565,10 @@ class TestWrappedText(_PrefsCase):
 
     def test_the_choice_dialog_wraps_to_its_width(self):
         dialog = _mod("ops.keymap_choice")
-        lines = self.wt.lines("Meso Mode can switch Blender to the Meso keymap: Industry "
-                              "Compatible plus Meso's bindings (Ctrl Shift A select all, Alt D "
-                              "deselect, Ctrl 1 isolate, hold X/C/V/J to snap, Ctrl Alt A Apply "
-                              "menu, ...).", width=dialog.DIALOG_WIDTH * self.wt.ui_scale())
+        lines = self.wt.lines("The Meso Keymap is optional, and recommended: Industry Compatible "
+                              "plus every Meso key (right-click Compass menus, Ctrl Shift A "
+                              "select all, Alt D deselect, Ctrl 1 isolate, ...).",
+                              width=dialog.DIALOG_WIDTH * self.wt.ui_scale())
         self.assertGreater(len(lines), 1)
         limit = self.tw.label_width(dialog.DIALOG_WIDTH * self.wt.ui_scale(), self.wt.ui_scale())
         self.assertTrue(all(self.wt.measure()(t) <= limit for t in lines), lines)
