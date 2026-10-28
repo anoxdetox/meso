@@ -33,7 +33,7 @@ $PY -m unittest discover -s tests/unit -t .                          # pure test
 NODESK="prlimit --core=1 -- env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=$(mktemp -d)"  # prefix of EVERY non-GUI Blender launch
 $NODESK BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) $B -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 $NODESK $B --command extension validate src/meso                  # positional path
-timeout 700 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules + a real-input session; ~5-8 min)
+timeout 900 tests/gui/run_gui_tests.sh [--host|--xwayland] [--backend vulkan|opengl] [--out F] [--only a,b]  # GUI suite (nested kwin_wayland + an Xwayland session for NEEDS_GRAB modules + a real-input session; ~12 min)
 timeout 400 tests/gui/run_persist_check.sh [--host]                   # Meso Keymap restart check (real start-ups, temp config)
 $PY tools/dump_inventory.py [--only Layout,editors]                   # regenerate tests/data/inventory_5_2.json (subprocesses)
 $B --command extension build --source-dir src/meso --output-dir dist

@@ -48,7 +48,7 @@ i=1
 while [ "$i" -le "$RUNS" ]; do
     log="$T/race-$i.log"
     : > "$log"
-    out=$(B="$T/blender-gdb" RACE_LOG="$log" timeout 700 "$ROOT/tests/gui/run_gui_tests.sh" $ONLY_ARGS 2>&1; echo "suite_rc=$?")
+    out=$(B="$T/blender-gdb" RACE_LOG="$log" timeout 900 "$ROOT/tests/gui/run_gui_tests.sh" $ONLY_ARGS 2>&1; echo "suite_rc=$?")
     if printf '%s\n' "$out" | grep -q 'blender_exit=139'; then
         crashes=$((crashes + 1)); verdict=crash
     elif printf '%s\n' "$out" | grep -q '^suite_rc=0$'; then

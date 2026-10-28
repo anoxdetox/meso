@@ -103,7 +103,7 @@ check: build ## Validate, inspect, install and enable the built zip (headless)
 gui: ## GUI suite in a nested session (Linux; GUI_ARGS="--only a,b")
 	@. tools/env.sh; T="$$(mktemp -d)"; trap 'rm -rf "$$T"' EXIT; \
 		BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" \
-		timeout 700 tests/gui/run_gui_tests.sh $(GUI_ARGS)
+		timeout 900 tests/gui/run_gui_tests.sh $(GUI_ARGS)
 
 persist: ## Meso Keymap restart check in a nested session (Linux)
 	@. tools/env.sh; T="$$(mktemp -d)"; trap 'rm -rf "$$T"' EXIT; \

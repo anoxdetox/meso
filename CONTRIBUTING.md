@@ -82,7 +82,7 @@ bl -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k 
 bl -b --gpu-backend vulkan --factory-startup --python-exit-code 1 --python tests/run_tests.py -- -k test_render_offscreen
 bl --command extension validate src/meso
 bl -b --factory-startup --python-exit-code 1 --python tools/profile_plaza.py -- [-n 50] [--only object]  # timings (printed, never stored)
-BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 700 tests/gui/run_gui_tests.sh
+BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 900 tests/gui/run_gui_tests.sh
 BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 400 tests/gui/run_persist_check.sh
 bl --command extension build --source-dir src/meso --output-dir dist
 bl --command extension validate dist/meso-<version>.zip

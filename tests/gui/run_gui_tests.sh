@@ -28,7 +28,7 @@
 # only if every scenario of every session passed.
 # The temp dir (logs, reports, full-size screenshots in shots/) is removed on success and kept
 # (path printed) on failure; the downscaled screenshots stay in tests/gui/out/screenshots/.
-# The whole run takes a few minutes: wrap it in `timeout 700`.
+# The whole run takes about 12 minutes: wrap it in `timeout 900`.
 set -u
 # No crash reports: a test Blender crash must never reach the desktop crash handler (DrKonqi),
 # which would pop up on the user's session and offer to restart Blender there. RLIMIT_CORE = 1

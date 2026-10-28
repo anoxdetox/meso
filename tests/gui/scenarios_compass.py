@@ -96,9 +96,15 @@ def scenarios(drv):
             yield from drag_to(cs, 'N')
             drv.save_screenshot("compass_toggles")
             drv.sim('LEFTMOUSE', 'RELEASE', toward(cs, 'N'))
-            yield 1.0                         # the region animation lands the value
+            # The region animation lands the value, ~0.3 s after the release; it can take
+            # longer when the main loop stalls (seen 2026-10-28): wait for it, up to 3 s.
+            waited = 0.0
+            while space.show_region_toolbar == before and waited < 3.0:
+                yield 0.05
+                waited += 0.05
             drv.check(rec, "toolbar_toggled", space.show_region_toolbar != before,
-                      [space.show_region_toolbar, list(st.menus.in_place) if st.menus else None,
+                      [space.show_region_toolbar, round(waited, 2),
+                       list(st.menus.in_place) if st.menus else None,
                        list(st.menus.compass_picks) if st.menus else None])
             drv.check(rec, "plaza_open", drv.plaza().is_running())
             drv.check(rec, "compass_closed", st.menus is not None and st.menus.compass is None)

@@ -317,6 +317,25 @@ def snap_state():
     return {n: (sorted(getattr(t, n)) if n == 'snap_elements' else getattr(t, n)) for n in USER}
 
 
+def last_translate():
+    """``(key, snap state)`` of the newest finished translate in ``window_manager.operators``
+    (key: list length and pointer, new for each transform), or ``(None, None)``. Blender saves
+    the snap settings a transform ran with in its properties: an exact record of a transform
+    too short for ``track()`` to sample (the main loop can stall longer than a fast drag)."""
+    ops = bpy.context.window_manager.operators
+    for i in range(len(ops) - 1, -1, -1):
+        if ops[i].bl_idname == 'TRANSFORM_OT_translate':
+            pr = ops[i].properties
+            return ((len(ops), ops[i].as_pointer()),
+                    {"use_snap": pr.snap, "snap_elements": sorted(pr.snap_elements)})
+    return None, None
+
+
+def op_fields(state):
+    """The part of a ``snap_state()`` a translate's properties record."""
+    return {"use_snap": state["use_snap"], "snap_elements": state["snap_elements"]}
+
+
 def user_state():
     return {n: (sorted(v) if n == 'snap_elements' else v) for n, v in USER.items()}
 
@@ -1103,6 +1122,7 @@ def multi_drag(case, label, path, key='x', fast=False, key_up_at=None, mod_mid=N
          "repeats_before": sum(1 for e in TRACE[case.get("t0", 0):]
                                if e["type"] == key.upper() and e["is_repeat"])}
     n_tr = len(case["transforms"])
+    op_before, _state = last_translate()
     XT.button(1, True)
     yield from track(case, 0.04 if fast else 0.12)
     n, dx, dy, dt = (3, 34, -14, 0.025) if fast else (6, 17, -7, 0.05)
@@ -1121,10 +1141,14 @@ def multi_drag(case, label, path, key='x', fast=False, key_up_at=None, mod_mid=N
     yield from track(case, 0.1)
     loc = [round(v, 4) for v in cube.location]
     d["end"] = loc
-    d["transformed"] = len(case["transforms"]) > n_tr
+    op_after, op_state = last_translate()
+    sampled = len(case["transforms"]) > n_tr
+    d["transformed"] = sampled or op_after != op_before
+    d["sampled"] = sampled
+    d["op_state"] = op_state if op_after != op_before else None
     d["moved"] = loc != start
     d["snapped"] = d["moved"] and all(abs(v - round(v)) < 1e-4 for v in cube.location)
-    d["states"] = case["transforms"][-1]["states"] if d["transformed"] else []
+    d["states"] = case["transforms"][-1]["states"] if sampled else []
     case["drags"].append(d)
 
 
@@ -1191,10 +1215,16 @@ def multi(steps, expect, tool_id="builtin.select", in_check=None):
         check(rec, "no_write_during_transforms",
               all(len(tr["states"]) == 1 for tr in case["transforms"]),
               [tr["states"] for tr in case["transforms"] if len(tr["states"]) != 1])
-        check(rec, "transform_states",
-              all(d["states"] == [case.get("overlay") if want else user_state()]
-                  for d, want in zip(drags, expect)),
-              [(d["label"], d["states"]) for d in drags])
+        # a drag too short for track() to sample is checked on the snap settings its
+        # translate recorded (last_translate)
+        def states_ok(d, want):
+            state = case.get("overlay") if want else user_state()
+            if d["sampled"]:
+                return d["states"] == [state]
+            return state is not None and d["op_state"] == op_fields(state)
+        check(rec, "transform_states", all(states_ok(d, w) for d, w in zip(drags, expect)),
+              [(d["label"], d["states"] if d["sampled"] else ("op", d["op_state"]))
+               for d in drags])
         if in_check is not None:
             d = drags[in_check] if len(drags) > in_check else {}
             check(rec, "drag_started_inside_the_check", d.get("checking_at_press") is True
