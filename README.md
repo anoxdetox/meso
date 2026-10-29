@@ -34,8 +34,8 @@ The pyramids are theirs; the menus are ours.
   for the mode's tools. A quick click keeps Blender's own action.
 - **The Meso Keymap** (optional, and recommended): Blender's Industry Compatible keymap plus
   the right-click Compass, select keys, isolate on Ctrl 1, snapping while you hold X / C / V / J,
-  origin editing on D, and more. Pick **Meso** in Preferences ▸ Keymap; a few of its keys work
-  with any keymap.
+  origin editing on D, and more. One click installs it and it stays selected across restarts;
+  a few of its keys work with any keymap.
 - **Nothing native is removed:** every Meso key can be switched off, and every native action it
   displaces stays reachable.
 
@@ -72,9 +72,9 @@ right and choose **Install from Disk…**. Pick the zip, then make sure Meso Mod
 Preferences ▸ Add-ons. Dragging the zip into Blender's window works too.
 
 When it is first enabled, Meso Mode asks whether to use the [Meso Keymap](docs/keymap.md)
-(recommended). **Not Now** changes nothing; pick **Meso** in Preferences ▸ Keymap any time.
-Meso never switches your keymap by itself, so after a restart select it there again if Blender
-started on another keymap.
+(recommended). **Use the Meso Keymap** installs it into your keymap presets with Blender's own
+keymap import and selects it; it stays selected across restarts. **Not Now** changes nothing;
+use it from Meso Mode's preferences any time. Meso never switches your keymap by itself.
 
 Developed and tested on Linux; meant to run on Windows and macOS too (not tested there yet).
 The test suite was written for Linux on KDE Plasma, and it is always open to anyone who wants

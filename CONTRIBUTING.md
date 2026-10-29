@@ -32,7 +32,7 @@ or have the right to submit it under the project's licences.
 ## Before you open a pull request
 Follow `CLAUDE.md` and run the unit tests, the headless Blender tests and
 `extension validate` (commands below), plus the GUI suite for UI changes. Every
-Blender launch must use fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` directories.
+Blender launch must use fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` / `BLENDER_USER_SCRIPTS` directories.
 
 ## Build and test
 Meso Mode is developed and tested on Linux, and is meant to run on Windows and macOS too. The
@@ -75,15 +75,15 @@ or WSL); from cmd or PowerShell, build with `blender --command extension build -
 src/meso --output-dir dist` (the full path to `blender.exe` if it is not on your PATH):
 ```
 . tools/env.sh      # B = blender on PATH (or set B=/path/to/blender in an untracked local.env), PY = its Python
-bl() { ( prlimit --core=1 --pid $BASHPID 2>/dev/null || ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" "$B" "$@" ); }
+bl() { ( prlimit --core=1 --pid $BASHPID 2>/dev/null || ulimit -c 0; env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$(mktemp -d)" BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" BLENDER_USER_SCRIPTS="$(mktemp -d)" "$B" "$@" ); }
 
 $PY -m unittest discover -s tests/unit -t .                            # pure tests (no bpy)
 bl -b --factory-startup --python-exit-code 1 --python tests/run_tests.py -- [-k pattern]
 bl -b --gpu-backend vulkan --factory-startup --python-exit-code 1 --python tests/run_tests.py -- -k test_render_offscreen
 bl --command extension validate src/meso
 bl -b --factory-startup --python-exit-code 1 --python tools/profile_plaza.py -- [-n 50] [--only object]  # timings (printed, never stored)
-BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 900 tests/gui/run_gui_tests.sh
-BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" timeout 400 tests/gui/run_persist_check.sh
+BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" BLENDER_USER_SCRIPTS="$(mktemp -d)" timeout 900 tests/gui/run_gui_tests.sh
+BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" BLENDER_USER_SCRIPTS="$(mktemp -d)" timeout 400 tests/gui/run_persist_check.sh
 bl --command extension build --source-dir src/meso --output-dir dist
 bl --command extension validate dist/meso-<version>.zip
 $PY tools/check_zip.py dist/meso-<version>.zip --version <version>     # list what went into the zip
@@ -112,7 +112,7 @@ runs a 4K nested session at UI scale 2 and saves `plaza_closeup.png`, `compass_c
 copy the ones you keep to `docs/images/`. The icon is `docs/images/icon.svg`; render it with
 `rsvg-convert -w 256 -h 256 docs/images/icon.svg -o docs/images/icon.png`.
 
-Every Blender launch uses fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` directories
+Every Blender launch uses fresh `BLENDER_USER_CONFIG` / `BLENDER_USER_EXTENSIONS` / `BLENDER_USER_SCRIPTS` directories
 and no core crash reports (a core limit of 1 byte, so a test crash never reaches your desktop's
 crash reporter), so tests never touch your real Blender config.
 

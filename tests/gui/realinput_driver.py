@@ -417,6 +417,9 @@ def enable_addon():
 
 def setup():
     global XT
+    # "Use the Meso Keymap" copies the preset into the user scripts: never the real ones.
+    if not (os.environ.get("BLENDER_USER_SCRIPTS") or os.environ.get("BLENDER_USER_RESOURCES")):
+        raise RuntimeError("BLENDER_USER_SCRIPTS is not set (the keymap import writes there)")
     XT = XTest()
     enable_addon()
     wrap_hold_modal()

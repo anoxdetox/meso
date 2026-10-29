@@ -80,6 +80,7 @@ def _run_worker(blender, tmp, tag, extra):
     log_path = os.path.join(tmp, tag + ".log")
     env = dict(os.environ)
     env["BLENDER_USER_EXTENSIONS"] = tempfile.mkdtemp(prefix="ext_", dir=tmp)
+    env["BLENDER_USER_SCRIPTS"] = tempfile.mkdtemp(prefix="scripts_", dir=tmp)
     env["BLENDER_USER_CONFIG"] = tempfile.mkdtemp(prefix="cfg_", dir=tmp)
     cmd = [blender, "-b", "--factory-startup", "--python-exit-code", "1", "--python", WORKER,
            "--", "--out", out_json] + extra

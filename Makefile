@@ -4,7 +4,7 @@
 # Every Blender launch goes through tools/env.sh (B = the Blender binary, PY = its Python; set
 # them in an untracked local.env) and $(BLENDER): no desktop (DISPLAY, WAYLAND_DISPLAY and the
 # session bus unset, a private XDG_RUNTIME_DIR), a 1-byte core limit (a crash never reaches the
-# desktop's crash reporter) and fresh temporary BLENDER_USER_CONFIG / BLENDER_USER_EXTENSIONS
+# desktop's crash reporter) and fresh temporary BLENDER_USER_CONFIG / BLENDER_USER_EXTENSIONS / BLENDER_USER_SCRIPTS
 # folders, removed afterwards. Windows: use the raw commands in CONTRIBUTING.md.
 #
 #   make test K=pattern       only the headless tests matching the pattern
@@ -39,7 +39,7 @@ PROLOGUE = set -eo pipefail; . tools/env.sh; T="$$(mktemp -d)"; trap 'rm -rf "$$
 	prlimit --core=1 --pid $$$$ >/dev/null 2>&1 || ulimit -c 0
 # Blender without the desktop, on the folders of $$T (use after $(PROLOGUE)).
 BLENDER = env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
-	XDG_RUNTIME_DIR="$$T/run" BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" "$$B"
+	XDG_RUNTIME_DIR="$$T/run" BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" BLENDER_USER_SCRIPTS="$$T/scripts" "$$B"
 HEADLESS_TESTS = --factory-startup --python-exit-code 1 --python tests/run_tests.py --
 
 # `make check`: the installed add-on must be enabled and registered at start-up, then unregister
@@ -102,12 +102,12 @@ check: build ## Validate, inspect, install and enable the built zip (headless)
 
 gui: ## GUI suite in a nested session (Linux; GUI_ARGS="--only a,b")
 	@. tools/env.sh; T="$$(mktemp -d)"; trap 'rm -rf "$$T"' EXIT; \
-		BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" \
+		BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" BLENDER_USER_SCRIPTS="$$T/scripts" \
 		timeout 900 tests/gui/run_gui_tests.sh $(GUI_ARGS)
 
 persist: ## Meso Keymap restart check in a nested session (Linux)
 	@. tools/env.sh; T="$$(mktemp -d)"; trap 'rm -rf "$$T"' EXIT; \
-		BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" \
+		BLENDER_USER_CONFIG="$$T/cfg" BLENDER_USER_EXTENSIONS="$$T/ext" BLENDER_USER_SCRIPTS="$$T/scripts" \
 		timeout 400 tests/gui/run_persist_check.sh
 
 profile: ## Time the Plaza's hot paths (headless; PROFILE_ARGS="-n 50 --only object")

@@ -8,7 +8,7 @@ extension repo. ``MESO_PERSIST_PHASE``:
 - ``enable`` (headless): enable Meso Mode with default_set, mark the question as asked, save
   the preferences.
 - ``gui_disable`` (GUI): select the Meso Keymap ("Use the Meso Keymap": Blender's own
-  ``preferences.keyconfig_activate``), then disable Meso Mode with the Preferences' own
+  ``preferences.keyconfig_import``), then disable Meso Mode with the Preferences' own
   operator (the add-on checkbox): the keymap is left as it is; quit (the preferences
   auto-save).
 - ``gui_keep`` (GUI): select the Meso Keymap, record its items (``before_edit``: the defaults),
@@ -16,9 +16,10 @@ extension repo. ``MESO_PERSIST_PHASE``:
   with direction -1, switch the Apply menu items off, delete the Object Mode Ctrl 1 isolate
   item, switch off the first Meso item of 'Sculpt Curves' and rebind the Plaza's Space item
   there to F16), quit.
-- ``gui_restart`` (GUI): a restart after ``gui_keep``: record which keymap Blender started on
-  (Meso Mode never selects one), then select the Meso Keymap again if needed: the user's edits
-  are back, the base keys live, no new question; quit.
+- ``gui_restart`` (GUI): a restart after ``gui_keep``: Blender starts on the Meso Keymap by
+  itself (the user's copy in the run's user scripts, loaded before the extensions: its items'
+  properties typed once the operators registered, ``start_props``), the user's edits are back,
+  the base keys live, no new question; quit.
 - ``read`` (headless): what the last quit saved.
 
 Each phase writes ``MESO_PERSIST_OUT`` (JSON) and exits.
@@ -31,6 +32,11 @@ import traceback
 
 import addon_utils
 import bpy
+
+# "Use the Meso Keymap" copies the preset into the user scripts: never the real ones.
+if not (os.environ.get("BLENDER_USER_SCRIPTS") or os.environ.get("BLENDER_USER_RESOURCES")):
+    print("persist_phase: FATAL: BLENDER_USER_SCRIPTS is not set", file=sys.stderr, flush=True)
+    sys.exit(1)
 
 PHASE = os.environ.get("MESO_PERSIST_PHASE", "")
 OUT = os.environ["MESO_PERSIST_OUT"]
@@ -55,6 +61,36 @@ def _mk():
 
 def _active():
     return bpy.context.window_manager.keyconfigs.active.name
+
+
+def _props_check(mk):
+    """The Meso items after a start-up, which loaded the preset before the operators existed
+    (raw ID property values): the user-keyconfig copies (what Blender runs; the ones the test
+    edited are skipped) read the table's typed values, and the Meso keyconfig's own items hold
+    the table's values (typed, or raw: an enum by its index, the same stored value).
+    ``{"user", "user_expected", "keyconfig", "keyconfig_expected", "mismatches"}``."""
+    if mk is None:
+        return None
+    mb = mk.mb
+    bad = []
+    users = [(kmi, item) for _ukm, kmi, item in mk.user_items() if not kmi.is_user_modified]
+    for kmi, item in users:
+        for prop, value in item.props:
+            if getattr(kmi.properties, prop, None) != value:
+                bad.append(["user", item.idname, item.keymap, prop,
+                            repr(getattr(kmi.properties, prop, None)), repr(value)])
+    found = mk.meso_items()
+    for _km, kmi, item in found:
+        pr = kmi.properties
+        for prop, value, raw in mb.raw_props(item):
+            typed = prop in pr.bl_rna.properties
+            got = getattr(pr, prop) if typed else pr.get(prop)
+            if got != (value if typed else raw):
+                bad.append(["keyconfig", item.idname, item.keymap, prop, repr(got),
+                            repr(value if typed else raw)])
+    expected = sum(len(p) for p in mb.items_by_keymap(mb.keyconfig_bindings()).values())
+    return {"user": len(users), "keyconfig": len(found), "keyconfig_expected": expected,
+            "mismatches": bad}
 
 
 def headless():
@@ -130,9 +166,10 @@ def gui_tick():
             R["after_edit"] = _edits(mk)
             R["after_edit_registered"] = list(mk.live_ids())
         if PHASE == "gui_restart":
+            R["start_props"] = _props_check(mk)
             if _active() != "Meso":
-                # The user's pick again (Blender started on its own keymap: the Meso preset is
-                # an extension's, registered after Blender chose the keymap).
+                # Only if Blender did not select the user's copy at start-up (a failure: the
+                # check reports it); the user's pick again.
                 with bpy.context.temp_override(window=wm.windows[0]):
                     R["reselect"] = sorted(bpy.ops.meso.keymap_choose(choice='MESO'))
                 wm.keyconfigs.update()

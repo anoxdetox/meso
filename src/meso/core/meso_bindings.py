@@ -41,7 +41,10 @@ from dataclasses import dataclass
 from .compass_rmb import CONTEXT_MENUS as COMPASS_CONTEXT_MENUS
 from .compass_rmb import IDNAME as COMPASS_RMB_IDNAME
 from .compass_rmb import KIND_CONTEXT, KIND_TOOLS, OWNER_COMPASS, OWNER_CURSOR, ROLE_CTRL_SHIFT
+from .compass_rmb import KINDS as COMPASS_KINDS
 from .compass_rmb import ROLE_SHIFT
+from .compass_rmb import ROLES as COMPASS_ROLES
+from .snap_hold import SNAP_ELEMENTS
 
 IC_NAME = 'Industry_Compatible'
 MESO_NAME = 'Meso'         # the keyconfig name (= the preset file name)
@@ -655,6 +658,27 @@ def items_by_keymap(bindings=BINDINGS) -> dict[str, list[tuple[str, Item]]]:
         if not is_allowed_item(item):
             raise ValueError(f"{bid}: Meso Keymap item in forbidden keymap {item.keymap!r}")
         out.setdefault(item.keymap, []).append((bid, item))
+    return out
+
+
+# The enum properties of the table's items: (operator, property) -> its item identifiers in the
+# operator's order. An item's ID property stores an enum by that index: the Meso preset writes
+# these raw values when it loads before Meso Mode registers its operators (a start-up), and
+# Blender types them once the operator is registered. A headless test checks the order.
+ENUM_PROPS = {
+    (COMPASS_RMB_IDNAME, 'kind'): COMPASS_KINDS,
+    (COMPASS_RMB_IDNAME, 'role'): COMPASS_ROLES,
+    ('meso.snap_hold', 'element'): SNAP_ELEMENTS,
+}
+
+
+def raw_props(item: Item) -> list[tuple[str, object, object]]:
+    """``[(name, value, raw value)]`` of an item's properties: the raw value is what its ID
+    property holds (an enum's index, ``ENUM_PROPS``; other values as they are)."""
+    out = []
+    for name, value in item.props:
+        order = ENUM_PROPS.get((item.idname, name))
+        out.append((name, value, order.index(value) if order is not None else value))
     return out
 
 

@@ -148,6 +148,7 @@ def run_driver(opts) -> int:
         log_path = os.path.join(tmp, "worker.log")
         env = dict(os.environ)
         env["BLENDER_USER_EXTENSIONS"] = tempfile.mkdtemp(prefix="ext_", dir=tmp)
+        env["BLENDER_USER_SCRIPTS"] = tempfile.mkdtemp(prefix="scripts_", dir=tmp)
         env["BLENDER_USER_CONFIG"] = tempfile.mkdtemp(prefix="cfg_", dir=tmp)
         cmd = [blender, "-b", "--factory-startup", "--python-exit-code", "1", "--python",
                os.path.abspath(__file__), "--", "--worker", out_json]

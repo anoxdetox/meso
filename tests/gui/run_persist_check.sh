@@ -3,15 +3,15 @@
 # Meso Keymap restart check (local/docs/meso-keymap-interfaces.md, GUI case G2):
 #   1. select the Meso Keymap, disable Meso Mode in the Preferences, quit: the keymap is left as
 #      the user had it (Meso never switches keymaps);
-#   2. control: select the Meso Keymap, edit five items, quit; restart: record which keymap
-#      Blender starts on (Meso never selects one), select Meso again if needed: the user's
-#      edits are back, no new question, the saved choice is the user's.
+#   2. select the Meso Keymap (Blender's keymap import: a copy in the user scripts), edit five
+#      items, quit; restart: Blender starts on the Meso Keymap by itself with its items'
+#      properties intact, the user's edits are back, no new question, the choice is kept.
 #
 #   tests/gui/run_persist_check.sh [--host]
 #
 # Real (not factory) start-ups, but every launch uses the run's throw-away BLENDER_USER_CONFIG /
-# BLENDER_USER_EXTENSIONS (Meso Mode is copied into its user_default repo), XDG_CONFIG_HOME and
-# TMPDIR; GUI launches run in a nested kwin_wayland --virtual unless --host. Exit 0 only if
+# BLENDER_USER_EXTENSIONS (Meso Mode is copied into its user_default repo) /
+# BLENDER_USER_SCRIPTS (per config: the Meso keymap copy), XDG_CONFIG_HOME and TMPDIR; GUI launches run in a nested kwin_wayland --virtual unless --host. Exit 0 only if
 # every check passed. Takes about a minute; wrap it in `timeout 400`.
 set -u
 # No crash reports: a test Blender crash must never reach the desktop crash handler (DrKonqi),
@@ -38,7 +38,7 @@ headless() {  # $1 phase, $2 config dir, $3 out name
     mkdir -p -m 700 "$T/run-headless"
     env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$T/run-headless" \
         MESO_PERSIST_PHASE=$1 MESO_PERSIST_OUT="$T/out/$3.json" TMPDIR="$T/tmp" \
-        BLENDER_USER_CONFIG="$2" BLENDER_USER_EXTENSIONS="$T/ext" \
+        BLENDER_USER_CONFIG="$2" BLENDER_USER_EXTENSIONS="$T/ext" BLENDER_USER_SCRIPTS="$2/scripts" \
         timeout 120 "$B" -b --python-exit-code 1 --python "$HERE/persist_phase.py" \
         > "$T/$3.log" 2>&1
     echo "$3: exit=$?"
@@ -48,7 +48,7 @@ gui() {  # $1 phase, $2 config dir, $3 out name
     cat > "$T/session.sh" <<EOF
 #!/bin/sh
 MESO_PERSIST_PHASE=$1 MESO_PERSIST_OUT="$T/out/$3.json" vblank_mode=0 TMPDIR="$T/tmp" \\
-    BLENDER_USER_CONFIG="$2" BLENDER_USER_EXTENSIONS="$T/ext" \\
+    BLENDER_USER_CONFIG="$2" BLENDER_USER_EXTENSIONS="$T/ext" BLENDER_USER_SCRIPTS="$2/scripts" \\
     timeout 120 "$B" --python "$HERE/persist_phase.py" > "$T/$3.log" 2>&1
 echo "blender_exit=\$?" >> "$T/$3.log"
 EOF
@@ -103,15 +103,20 @@ checks = {
     "b_edits_made": bg.get("after_edit") == EDITED,
     "b_saved_meso": br.get("pref_active_keyconfig") == MESO,
     "b_restart_no_question": bs.get("start_prompt_pending") is False,
-    "b_restart_meso_again": bs.get("after_reselect_active") == MESO,
-    "b_restart_edits_kept": bs.get("after_reselect_edits") == EDITED,
+    "b_restart_starts_on_meso": bs.get("start_active") == MESO and "reselect" not in bs,
+    "b_restart_choice_kept": bs.get("start_pref_active_keyconfig") == MESO,
+    "b_restart_props_intact": (bs.get("start_props") or {}).get("mismatches") == []
+                              and bs["start_props"]["keyconfig"]
+                              == bs["start_props"]["keyconfig_expected"]
+                              and bs["start_props"]["user"] > 100,
+    "b_restart_edits_kept": bs.get("start_edits") == EDITED,
     "b_restart_bindings_live": bool(bs.get("after_reselect_registered"))
                                and "apply_menu" not in bs.get("after_reselect_registered"),
     "b_saved_still_meso": bra.get("pref_active_keyconfig") == MESO,
 }
 print(f"info: Blender started on {bs.get('start_active')!r} "
       f"(saved choice {bs.get('start_pref_active_keyconfig')!r}, "
-      f"reselected: {bs.get('reselect')!r})")
+      f"reselected: {bs.get('reselect')!r}, props: {bs.get('start_props')!r})")
 errors = [d.get("error") for d in (ae, ag, ar, be, bg, br, bs, bra)
           if d.get("error") or d.get("missing")]
 for name, ok in checks.items():

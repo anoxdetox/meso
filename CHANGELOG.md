@@ -1,13 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.8.1
 
-No change to the add-on: tests and developer tooling only.
-
+- **The Meso Keymap stays selected across restarts.** "Use the Meso Keymap" now runs Blender's
+  own keymap import (Preferences ▸ Keymap ▸ Import): Blender copies the Meso keymap into your
+  keymap presets and selects it, and selects it again at every start-up. Meso is listed in
+  Preferences ▸ Keymap from then on; remove it there with the **−** next to the keymap menu.
+- When a new version brings a newer Meso Keymap, Meso Mode offers to update your copy (once per
+  version; the preferences have an **Update the Meso Keymap** button). Your edits of its keys are
+  kept.
+- Developer side: every test launch also uses a temporary user scripts folder
+  (`BLENDER_USER_SCRIPTS`), and the test runners refuse to start without one.
 - More reliable GUI tests: the Compass toolbar toggle check waits for the toggle instead of a
   fixed delay, and the drag checks read each finished move from Blender's own operator record,
   so a very fast drag is never missed.
 - The GUI suite's time limit is 15 minutes (it takes about 12).
+
+**Coming from 0.8.0:** click **Use the Meso Keymap** once (first-enable question or Meso Mode's
+preferences); after that Meso stays selected.
 
 ## 0.8.0
 

@@ -205,25 +205,27 @@ def scenarios(drv):
     # ------------------------------------------------------------------------------ G3
 
     def sc_keyconfig_switch(rec):
-        """The Meso keymap in Blender's keymap menu (``preferences.keyconfig_activate``, as
-        USERPREF_MT_keyconfigs runs it): its keys come and go with it; the base keys stay."""
+        """Once "Use the Meso Keymap" installed it, the Meso keymap is in Blender's keymap menu
+        (``preferences.keyconfig_activate``, as USERPREF_MT_keyconfigs runs it): its keys come
+        and go with it; the base keys stay."""
         presets = os.path.join(bpy.utils.system_resource('SCRIPTS'), "presets", "keyconfig")
         try:
+            drv.check(rec, "installed", drv.use_meso_keymap())
             meso_preset = bpy.utils.preset_find('Meso', 'keyconfig')
             drv.check(rec, "meso_preset_listed", meso_preset is not None
                       and os.path.dirname(meso_preset) in bpy.utils.preset_paths('keyconfig'),
                       meso_preset)
-            with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.preferences.keyconfig_activate(filepath=meso_preset)
-            yield 0.8
-            drv.check(rec, "switched_to_meso", keyconfig() == 'Meso', keyconfig())
-            drv.check(rec, "meso_live", mk().live_ids() == step1_ids(), mk().live_ids())
             with bpy.context.temp_override(window=drv.win()):
                 bpy.ops.preferences.keyconfig_activate(filepath=os.path.join(presets, "Blender.py"))
             yield 0.8
             drv.check(rec, "switched_to_blender", keyconfig() == 'Blender', keyconfig())
             drv.check(rec, "base_keys_on_blender", mk().live_ids() == base_ids(),
                       mk().live_ids())
+            with bpy.context.temp_override(window=drv.win()):
+                bpy.ops.preferences.keyconfig_activate(filepath=meso_preset)
+            yield 0.8
+            drv.check(rec, "switched_to_meso", keyconfig() == 'Meso', keyconfig())
+            drv.check(rec, "meso_live", mk().live_ids() == step1_ids(), mk().live_ids())
         finally:
             back_to_blender()
             yield 0.2

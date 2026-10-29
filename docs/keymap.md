@@ -1,16 +1,20 @@
 # The Meso Keymap (optional, recommended)
-The **Meso Keymap** is a keymap of its own: while Meso Mode is enabled, **Meso** is listed in
-Preferences ▸ Keymap next to Blender and Industry Compatible. It is Blender's built-in Industry
-Compatible keymap plus every key below. It is optional, and we recommend it: it is how Meso
-Mode is meant to be used.
+The **Meso Keymap** is a keymap of its own: Blender's built-in Industry Compatible keymap plus
+every key below. It is optional, and we recommend it: it is how Meso Mode is meant to be used.
 
-**You select it, Meso never does.** Pick **Meso** in Preferences ▸ Keymap, or answer "Use the
-Meso Keymap" to the question Meso Mode asks after its first enable (it runs the same Blender
-command). Switch back to any keymap there at any time.
+**You choose it, Meso never does.** Click **Use the Meso Keymap** in the question Meso Mode asks
+after its first enable, or in Meso Mode's preferences. That runs Blender's own keymap import
+(the same as Preferences ▸ Keymap ▸ Import): Blender copies the Meso keymap into your keymap
+presets and selects it. From then on **Meso** is listed in Preferences ▸ Keymap next to Blender
+and Industry Compatible, and **it stays selected across restarts**. Switch to any keymap there at
+any time.
 
-**After a restart**, Blender may start on its own keymap: it chooses the keymap before
-extensions load, so the Meso entry is not there yet at that moment. Select Meso again in
-Preferences ▸ Keymap (your edits of its keys are kept).
+**Updates:** when a new version of Meso Mode brings a newer Meso Keymap, Meso Mode offers to
+update your copy (and its preferences show an **Update the Meso Keymap** button); your edits of
+its keys are kept.
+
+**Removing it:** select **Meso** in Preferences ▸ Keymap and click the **−** next to the keymap
+menu. Uninstalling Meso Mode leaves the copy in your keymap presets, like any imported keymap.
 
 **With any keymap**, a few Meso keys that collide with nothing in Blender's or Industry
 Compatible's keymap are always on (marked "every keymap" below): Ctrl Shift I invert, the select

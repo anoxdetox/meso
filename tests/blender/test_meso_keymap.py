@@ -152,6 +152,18 @@ def is_off_native(km_name, kmi):
                for name, d in off_natives())
 
 
+def remove_installed_copy():
+    """Test cleanup: delete the user's copy of the Meso preset that "Use the Meso Keymap"
+    installed, only inside the run's temporary user scripts (tests/run_tests.py requires
+    BLENDER_USER_SCRIPTS)."""
+    path = mk().installed_preset_path()
+    if path is None:
+        return
+    root = os.environ.get("BLENDER_USER_SCRIPTS") or os.environ.get("BLENDER_USER_RESOURCES")
+    assert root and os.path.realpath(path).startswith(os.path.realpath(root) + os.sep), path
+    os.remove(path)
+
+
 def reset_meso():
     """Undo the test's edits of Meso items (test helper: the keymap editor's Restore of every
     user keymap that holds a Meso item)."""
@@ -176,6 +188,8 @@ class MesoKeymapCase(unittest.TestCase):
     def _reset(self):
         reset_meso()
         use_keyconfig('Blender')
+        remove_installed_copy()
+        self.p.keymap_update_declined = ""
         self.assertEqual(mk().live_ids(), BASE_IDS)
 
     def meso_on(self):
@@ -222,24 +236,71 @@ class TestTable(MesoKeymapCase):
 
 
 class TestPreset(MesoKeymapCase):
-    def test_found_through_the_registered_preset_path(self):
-        path = bpy.utils.preset_find('Meso', 'keyconfig')
-        self.assertIsNotNone(path)
-        self.assertTrue(os.path.samefile(path, mk().PRESET_PATH))
+    def test_not_listed_before_the_user_installs_it(self):
+        """No preset folder is registered: "Meso" is not in the keymap menu until "Use the Meso
+        Keymap" has installed the user's copy."""
+        self.assertIsNone(mk().installed_preset_path())
+        self.assertEqual(mk().preset_state(), mk().PRESET_NONE)
+        self.assertIsNone(bpy.utils.preset_find('Meso', 'keyconfig'))
         folders = [os.path.normpath(p) for p in bpy.utils.preset_paths('keyconfig')]
-        self.assertIn(os.path.normpath(os.path.dirname(mk().PRESET_PATH)), folders)
-        self.assertTrue(bpy.utils.is_path_extension(path))    # the keymap panel's "-" refuses it
+        self.assertNotIn(os.path.normpath(os.path.dirname(mk().PRESET_PATH)), folders)
 
-    def test_listed_in_the_keymap_menu(self):
-        """``USERPREF_MT_keyconfigs`` lists every ``*.py`` of ``preset_paths('keyconfig')``
-        with ``bpy.path.display_name`` (Menu.path_menu)."""
-        names = set()
-        for folder in bpy.utils.preset_paths('keyconfig'):
-            for f in os.listdir(folder):
-                if f.endswith('.py'):
-                    names.add(bpy.path.display_name(os.path.join(folder, f), title_case=False))
-        for name in ("Blender", "Industry Compatible", "Meso"):
-            self.assertIn(name, names)
+    def test_use_installs_a_copy_and_selects_it(self):
+        """Blender's keymap import copies the preset into the user's keymap presets (found and
+        listed there, so Blender selects it again at start-up) and selects it."""
+        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
+        path = mk().installed_preset_path()
+        self.assertIsNotNone(path)
+        folder = bpy.utils.user_resource('SCRIPTS', path=os.path.join("presets", "keyconfig"))
+        self.assertTrue(os.path.samefile(os.path.dirname(path), folder))
+        with open(path, 'rb') as a, open(mk().PRESET_PATH, 'rb') as b:
+            self.assertEqual(a.read(), b.read())
+        self.assertEqual(mk().preset_state(), mk().PRESET_CURRENT)
+        self.assertTrue(os.path.samefile(bpy.utils.preset_find('Meso', 'keyconfig'), path))
+        self.assertEqual(wm().keyconfigs.active.name, 'Meso')
+        self.assertEqual(bpy.context.preferences.keymap.active_keyconfig, 'Meso')
+        names = {bpy.path.display_name(os.path.join(d, f), title_case=False)
+                 for d in bpy.utils.preset_paths('keyconfig') for f in os.listdir(d)
+                 if f.endswith('.py')}
+        self.assertIn('Meso', names)
+        self.assertEqual(len(mk().meso_items()), N_ITEMS)
+
+    def test_an_outdated_copy_is_offered_once_and_updated(self):
+        bpy.ops.meso.keymap_choose(choice='MESO')
+        path = mk().installed_preset_path()
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write("# an older version\n")
+        self.assertEqual(mk().preset_state(), mk().PRESET_OUTDATED)
+        self.assertTrue(mk().update_pending())
+        self.p.keymap_update_declined = mk().preset_digest()        # "Not Now"
+        self.assertFalse(mk().update_pending())
+        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})   # "Update"
+        self.assertEqual(mk().preset_state(), mk().PRESET_CURRENT)
+        self.assertEqual(wm().keyconfigs.active.name, 'Meso')
+        use_keyconfig('Blender')
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write("# an older version\n")
+        self.p.keymap_update_declined = ""
+        self.assertFalse(mk().update_pending(), "only offered while the Meso keymap is active")
+
+    def test_enum_props_follow_the_operators(self):
+        """``ENUM_PROPS`` (the raw values the preset writes at start-up) match each operator's
+        enum items, and every enum property of a Meso item is listed."""
+        for (idname, prop), order in mb().ENUM_PROPS.items():
+            with self.subTest(op=idname, prop=prop):
+                module, name = idname.split('.')
+                rna = getattr(getattr(bpy.ops, module), name).get_rna_type()
+                self.assertEqual(tuple(e.identifier for e in rna.properties[prop].enum_items),
+                                 order)
+        for b in mb().BINDINGS:
+            for item in b.items:
+                if not item.idname.startswith('meso.'):
+                    continue
+                module, name = item.idname.split('.')
+                rna = getattr(getattr(bpy.ops, module), name).get_rna_type()
+                for prop, _value in item.props:
+                    if rna.properties[prop].type == 'ENUM':
+                        self.assertIn((item.idname, prop), mb().ENUM_PROPS)
 
     def test_selecting_the_preset(self):
         self.assertTrue(bpy.utils.keyconfig_set(mk().PRESET_PATH))
@@ -254,8 +315,10 @@ class TestPreset(MesoKeymapCase):
         self.assertEqual([k.name for k in kcs].count('Meso'), 1)
         self.assertEqual(len(mk().meso_items()), N_ITEMS)
 
-    def test_the_keymap_menu_operator_selects_it(self):
-        """What choosing "Meso" in Preferences > Keymap runs."""
+    def test_the_keymap_menu_operator_selects_the_copy(self):
+        """What choosing "Meso" in Preferences > Keymap runs, once it is installed."""
+        bpy.ops.meso.keymap_choose(choice='MESO')
+        use_keyconfig('Blender')
         self.assertEqual(bpy.ops.preferences.keyconfig_activate(
             filepath=bpy.utils.preset_find('Meso', 'keyconfig')), {'FINISHED'})
         self.assertEqual(wm().keyconfigs.active.name, 'Meso')
@@ -588,9 +651,9 @@ class TestNeverModifiesKeymaps(MesoKeymapCase):
                 self.assertEqual(keyconfigs_state(), before)
                 self.assertEqual(wm().keyconfigs.active.name, base)
 
-    def test_the_choose_operator_runs_blenders_own_selection(self):
-        """"Use the Meso Keymap" runs ``preferences.keyconfig_activate`` (what the keymap menu
-        runs); "Not now" changes nothing."""
+    def test_the_choose_operator_runs_blenders_own_import(self):
+        """"Use the Meso Keymap" runs ``preferences.keyconfig_import`` (what Preferences >
+        Keymap > Import runs); "Not now" changes nothing."""
         self.assertEqual(bpy.ops.meso.keymap_choose(choice='KEEP'), {'FINISHED'})
         self.assertEqual(wm().keyconfigs.active.name, 'Blender')
         self.assertTrue(self.p.keymap_prompted)

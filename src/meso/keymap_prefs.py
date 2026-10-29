@@ -13,8 +13,8 @@ the ``text_chord`` preference. Nothing here writes a keymap item.
 
 The "Meso Keymap" box above it (local/docs/meso-keymap-interfaces.md, "Preferences UI") says
 which keymap is active, recommends the Meso Keymap (its button runs Blender's own
-``preferences.keyconfig_activate``, as Preferences > Keymap does; Meso never selects a keymap by
-itself), and holds the binding list (grouped, collapsible; what each key does, what it
+``preferences.keyconfig_import``, as Preferences > Keymap > Import does; it also updates an
+out-of-date copy; Meso never selects a keymap by itself), and holds the binding list (grouped, collapsible; what each key does, what it
 displaces, and the base keys that are on with every keymap) with the Meso options and the
 warnings. Users switch and rebind the keys in Blender's keymap editor, or in the section tree
 below, which lists them too (the user-keyconfig copies, found with ``find_match``).
@@ -325,10 +325,12 @@ _GROUP_EXTRAS = {
 
 KEYMAP_EDITOR_HINT = ("Switch off, rebind or restore Meso keys in Preferences > Keymap, or in "
                       "the sections below.")
-RECOMMEND_HINT = ("Optional, and recommended: the Meso keymap is listed in Preferences > Keymap "
-                  "next to Blender and Industry Compatible. Meso never switches your keymap by "
-                  "itself: after a restart, select it again there if Blender started on another "
-                  "keymap.")
+RECOMMEND_HINT = ("Optional, and recommended: \"Use the Meso Keymap\" installs it into your "
+                  "keymap presets with Blender's keymap import. It stays selected across "
+                  "restarts and is listed in Preferences > Keymap next to Blender and Industry "
+                  "Compatible: switch keymaps or remove it there.")
+OUTDATED_HINT = ("Your copy of the Meso keymap is older than this version of Meso Mode: update "
+                 "it to get the current keys (your edits of its keys are kept).")
 
 
 def _draw_meso_keymap(context, layout, addon_prefs, expanded):
@@ -339,10 +341,16 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
     active_name = meso_keymap.active_keyconfig_name(context) or "?"
     meso_active = active_name == mb.MESO_NAME
     _wrapped(col.column(align=True), _keymap_status(active_name))
-    if not meso_active:
+    outdated = meso_active and meso_keymap.preset_state() == meso_keymap.PRESET_OUTDATED
+    if outdated:
+        warn = col.column(align=True)
+        warn.alert = True
+        _wrapped(warn, OUTDATED_HINT, icon='ERROR')
+    if not meso_active or outdated:
         row = col.row(align=True)
-        op = row.operator(CHOOSE_IDNAME, text="Use the Meso Keymap (recommended)",
-                          icon='KEYINGSET')
+        op = row.operator(CHOOSE_IDNAME, icon='KEYINGSET',
+                          text="Update the Meso Keymap" if outdated
+                          else "Use the Meso Keymap (recommended)")
         op.choice = 'MESO'
     hint = col.column(align=True)
     hint.active = False

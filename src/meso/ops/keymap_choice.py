@@ -2,16 +2,19 @@
 """The Meso Keymap operators (local/docs/meso-keymap-interfaces.md, "Operators").
 
 - ``meso.keymap_choose(choice='MESO'|'KEEP')``: the user's answer. MESO runs Blender's own
-  ``preferences.keyconfig_activate`` on the Meso preset, exactly what picking "Meso" in
-  Preferences > Keymap runs; KEEP changes nothing. Used by the dialog and the preferences box.
+  ``preferences.keyconfig_import`` on the Meso preset, exactly what Preferences > Keymap >
+  Import runs: Blender copies it into the user's keymap presets (replacing an older copy) and
+  selects it, and selects it again at every start-up. KEEP changes nothing. Used by the dialog
+  and the preferences box.
 - ``meso.keymap_choice_dialog``: the first-enable question, a props dialog that recommends the
-  Meso Keymap. Esc changes nothing. Never runs in background mode.
+  Meso Keymap; with ``update`` the question whether to update an out-of-date copy ("Not Now"
+  is remembered for that preset version). Esc changes nothing. Never runs in background mode.
 """
 
 from __future__ import annotations
 
 import bpy
-from bpy.props import EnumProperty
+from bpy.props import BoolProperty, EnumProperty
 
 from .. import meso_keymap, wrapped_text
 
@@ -19,12 +22,19 @@ DIALOG_WIDTH = 460       # the first-enable dialog (unscaled px; its text wraps 
 
 _CHOICES = (
     ('MESO', "Use the Meso Keymap (recommended)",
-     "Select the Meso keymap in Preferences > Keymap: Industry Compatible plus every Meso key "
-     "(right-click Compass menus, select keys, Ctrl 1 isolate, hold X / C / V / J to snap, D to "
-     "edit origins and more)"),
+     "Install the Meso keymap into your keymap presets and select it (Blender's keymap import): "
+     "Industry Compatible plus every Meso key (right-click Compass menus, select keys, Ctrl 1 "
+     "isolate, hold X / C / V / J to snap, D to edit origins and more)"),
     ('KEEP', "Not Now",
-     "Keep your keymap; the Meso keys that are free in every keymap are on. Select Meso in "
-     "Preferences > Keymap any time"),
+     "Keep your keymap; the Meso keys that are free in every keymap are on. Use the Meso Keymap "
+     "from Meso Mode's preferences any time"),
+)
+
+_UPDATE_CHOICES = (
+    ('MESO', "Update the Meso Keymap",
+     "Replace your copy of the Meso keymap with this version's (Blender's keymap import); your "
+     "edits of its keys are kept"),
+    ('KEEP', "Not Now", "Keep your copy; update from Meso Mode's preferences any time"),
 )
 
 
@@ -47,10 +57,12 @@ your keymap"""
             p.keymap_prompted = True
         if self.choice != 'MESO':
             return {'FINISHED'}
-        # Blender's own keymap selection (Preferences > Keymap runs the same operator).
-        result = bpy.ops.preferences.keyconfig_activate(filepath=meso_keymap.PRESET_PATH)
+        # Blender's own keymap import (Preferences > Keymap > Import runs the same operator):
+        # it copies the preset into the user's keymap presets and selects it.
+        result = bpy.ops.preferences.keyconfig_import(filepath=meso_keymap.PRESET_PATH,
+                                                      keep_original=True)
         if 'FINISHED' not in result or not meso_keymap.is_meso_active(context):
-            self.report({'ERROR'}, "Could not select the Meso keymap")
+            self.report({'ERROR'}, "Could not install the Meso keymap")
             return {'CANCELLED'}
         self.report({'INFO'}, "Using the Meso keymap")
         return {'FINISHED'}
@@ -63,6 +75,8 @@ class MESO_OT_keymap_choice_dialog(bpy.types.Operator):
     bl_options = {'INTERNAL'}
 
     choice: EnumProperty(items=_CHOICES, default='MESO', options={'SKIP_SAVE'})
+    update_choice: EnumProperty(items=_UPDATE_CHOICES, default='MESO', options={'SKIP_SAVE'})
+    update: BoolProperty(default=False, options={'SKIP_SAVE', 'HIDDEN'})
 
     @classmethod
     def poll(cls, _context):
@@ -77,19 +91,31 @@ class MESO_OT_keymap_choice_dialog(bpy.types.Operator):
         layout = self.layout
         col = layout.column(align=True)
         width = DIALOG_WIDTH * wrapped_text.ui_scale(context)
-        for text in ("The Meso Keymap is optional, and recommended: Industry Compatible plus "
+        if self.update:
+            texts = ("This version of Meso Mode has a newer Meso Keymap than the copy in your "
+                     "keymap presets. Updating replaces that copy; your edits of its keys are "
+                     "kept.",)
+        else:
+            texts = ("The Meso Keymap is optional, and recommended: Industry Compatible plus "
                      "every Meso key (right-click Compass menus, Ctrl Shift A select all, Alt D "
                      "deselect, Ctrl 1 isolate, hold X / C / V / J to snap, D to edit origins, "
                      "...). Without it, the Meso keys that are free in every keymap are on.",
-                     "It is listed in Preferences > Keymap next to Blender and Industry "
-                     "Compatible: switch keymaps there any time, and edit or switch off any "
-                     "key in Blender's keymap editor."):
+                     "Using it installs it into your keymap presets with Blender's keymap "
+                     "import: it stays selected across restarts and is listed in Preferences > "
+                     "Keymap, where you can switch keymaps, edit or switch off any key, or "
+                     "remove it.")
+        for text in texts:
             wrapped_text.labels(col, text, context, width=width)
         layout.separator()
-        layout.prop(self, "choice", expand=True)
+        layout.prop(self, "update_choice" if self.update else "choice", expand=True)
 
     def execute(self, context):
-        return bpy.ops.meso.keymap_choose(choice=self.choice)
+        choice = self.update_choice if self.update else self.choice
+        if self.update and choice != 'MESO':
+            p = meso_keymap._prefs(context)
+            if p is not None:
+                p.keymap_update_declined = meso_keymap.preset_digest()
+        return bpy.ops.meso.keymap_choose(choice=choice)
 
     def cancel(self, _context):
         pass   # Esc: nothing changes

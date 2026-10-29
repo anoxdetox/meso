@@ -10,7 +10,7 @@ dropdown scenarios).
 Run through ``tests/gui/run_gui_tests.sh`` (nested ``kwin_wayland --virtual`` by default), or
 directly:
 
-    vblank_mode=0 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) \
+    vblank_mode=0 BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) BLENDER_USER_SCRIPTS=$(mktemp -d) \
         timeout 640 "$B" --factory-startup --enable-event-simulate \
         --python tests/gui/gui_driver.py -- --out "$(mktemp)"
 
@@ -160,7 +160,8 @@ def meso_keymap_module():
 
 def use_meso_keymap():
     """Select the Meso keymap as a user does ("Use the Meso Keymap": Blender's own
-    ``preferences.keyconfig_activate``); True when it is active."""
+    ``preferences.keyconfig_import`` into the run's temporary user scripts); True when it is
+    active."""
     with bpy.context.temp_override(window=win()):
         bpy.ops.meso.keymap_choose(choice='MESO')
     bpy.context.window_manager.keyconfigs.update()
@@ -2422,6 +2423,9 @@ def setup():
 
 
 def main_gen():
+    # "Use the Meso Keymap" copies the preset into the user scripts: never the real ones.
+    if not (os.environ.get("BLENDER_USER_SCRIPTS") or os.environ.get("BLENDER_USER_RESOURCES")):
+        raise RuntimeError("BLENDER_USER_SCRIPTS is not set (the keymap import writes there)")
     yield from setup()
     for name, fn in SCENARIOS:
         rec = {"name": name, "checks": {}}

@@ -22,7 +22,7 @@
 # instead (never the realinput session: XTEST input must never reach the desktop).
 # --only runs just the scenarios whose name contains one of the comma-separated parts (for
 # iterating; the full suite is the gate).
-# Isolation: BLENDER_USER_CONFIG / BLENDER_USER_EXTENSIONS / XDG_CONFIG_HOME point at a throw-away
+# Isolation: BLENDER_USER_CONFIG / BLENDER_USER_EXTENSIONS / BLENDER_USER_SCRIPTS / XDG_CONFIG_HOME point at a throw-away
 # dir (a GUI quit rewrites config/recent-searches.txt even with --factory-startup), TMPDIR too
 # (quit.blend); vblank_mode=0 (Mesa EGL on Wayland blocks in eglSwapBuffers otherwise). Exit 0
 # only if every scenario of every session passed.
@@ -99,7 +99,7 @@ fi
 EOF
     cat >> "$T/$name.sh" <<EOF
 $unset_wl
-MESO_GUI_GRAB="$grab" vblank_mode=0 TMPDIR="$T/tmp" BLENDER_USER_CONFIG="$T/cfg" BLENDER_USER_EXTENSIONS="$T/ext" \\
+MESO_GUI_GRAB="$grab" vblank_mode=0 TMPDIR="$T/tmp" BLENDER_USER_CONFIG="$T/cfg" BLENDER_USER_EXTENSIONS="$T/ext" BLENDER_USER_SCRIPTS="$T/scripts" \\
     timeout $limit "$B" --factory-startup $flags --gpu-backend "$BACKEND" \\
     --python "$driver" -- --out "$out" $extra > "$log" 2>&1
 echo "blender_exit=\$?" >> "$log"

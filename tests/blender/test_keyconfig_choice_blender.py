@@ -10,14 +10,15 @@ opened under ``-b``).
 """
 
 import importlib
+import os
 import unittest
 
 import addon_utils
 import bpy
 
 from tests.blender.test_meso_keymap import (ADDON_MODULE, BASE_IDS, LIVE_IDS, N_BASE_ITEMS,
-                                            MesoKeymapCase, mk, prefs, refresh, use_keyconfig,
-                                            wm)
+                                            SRC, MesoKeymapCase, mb, mk, prefs, refresh,
+                                            use_keyconfig, wm)
 
 
 def _raise(ex):
@@ -49,13 +50,14 @@ class TestRegister(MesoKeymapCase):
         self.addCleanup(mk().register)
 
     def test_the_meso_keymap_stays_selected_across_a_module_reload(self):
-        use_keyconfig('Meso')
+        bpy.ops.meso.keymap_choose(choice='MESO')
+        path = mk().installed_preset_path()
         mk().unregister()
         self.assertEqual(active_name(), 'Meso', "Meso never switches the keymap")
-        self.assertIsNone(bpy.utils.preset_find('Meso', 'keyconfig'))
+        self.assertTrue(os.path.isfile(path), "the user's copy is theirs")
         mk().register()
         self.assertEqual(active_name(), 'Meso')
-        self.assertIsNotNone(bpy.utils.preset_find('Meso', 'keyconfig'))
+        self.assertEqual(mk().preset_state(), mk().PRESET_CURRENT)
 
     def test_register_under_restrict_blend(self):
         from _bpy_restrict_state import RestrictBlend
@@ -167,8 +169,41 @@ class TestCheckboxReload(MesoKeymapCase):
         self.assertEqual(active_name(), 'Blender')
         self.assertFalse(self.p.keymap_prompted)
         self.assertEqual(mk().live_ids(), BASE_IDS)
-        self.assertIsNotNone(bpy.utils.preset_find('Meso', 'keyconfig'),
-                             "listed in the keymap menu again")
+
+
+class TestPresetBeforeTheOperators(MesoKeymapCase):
+    """A start-up loads the saved keymap before the extensions register: the preset stores the
+    Meso items' properties raw (``core.meso_bindings.raw_props``), and Blender types them once
+    the operators register."""
+
+    def test_raw_properties_are_typed_once_registered(self):
+        table = mb()
+        expected = []                       # (keymap, index, [(prop, value, raw)])
+        for name, pairs in table.items_by_keymap(table.keyconfig_bindings()).items():
+            for i, (_bid, item) in enumerate(pairs):
+                if item.idname.startswith('meso.') and item.props:
+                    expected.append((name, i, item.idname, table.raw_props(item)))
+        self.assertTrue(expected)
+        try:
+            addon_utils.disable(ADDON_MODULE, default_set=False, handle_error=_raise)
+            self.assertFalse(hasattr(bpy.types, "MESO_OT_snap_hold"))
+            self.assertTrue(bpy.utils.keyconfig_set(str(SRC / "presets" / "keyconfig" / "Meso.py")))
+            kc = wm().keyconfigs['Meso']
+            raw = [(n, i, dict(kc.keymaps[n].keymap_items[i].properties.items()))
+                   for n, i, _idname, _props in expected]
+            self.assertEqual(raw, [(n, i, {p: r for p, _v, r in props})
+                                   for n, i, _idname, props in expected])
+        finally:
+            addon_utils.enable(ADDON_MODULE, default_set=False, handle_error=_raise)
+        refresh()
+        self.p = prefs()
+        kc = wm().keyconfigs['Meso']
+        for n, i, idname, props in expected:
+            kmi = kc.keymaps[n].keymap_items[i]
+            with self.subTest(keymap=n, item=idname):
+                self.assertEqual(kmi.idname, idname)
+                self.assertEqual({p: getattr(kmi.properties, p) for p, _v, _r in props},
+                                 {p: v for p, v, _r in props})
 
 
 if __name__ == '__main__':

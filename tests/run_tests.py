@@ -1,7 +1,7 @@
 """In-Blender test runner for Meso Mode.
 
 Usage (from the repo root):
-    BLENDER_USER_EXTENSIONS=$(mktemp -d) "$B" -b --factory-startup \
+    BLENDER_USER_EXTENSIONS=$(mktemp -d) BLENDER_USER_SCRIPTS=$(mktemp -d) "$B" -b --factory-startup \
         --python-exit-code 1 --python tests/run_tests.py -- [-k pattern] [-v]
 
 Steps (local/docs/verified-facts-5.2.md section 6, "Test harness"):
@@ -51,6 +51,11 @@ def _fail(msg):
 def _setup():
     if not bpy.app.factory_startup:
         _fail("must be run with --factory-startup (prefs must never be saved)")
+    # "Use the Meso Keymap" runs Blender's keymap import, which copies the preset into the
+    # user scripts' presets/keyconfig: never the real one.
+    if not (os.environ.get("BLENDER_USER_SCRIPTS") or os.environ.get("BLENDER_USER_RESOURCES")):
+        _fail("set BLENDER_USER_SCRIPTS to a temporary directory (the Meso keymap import "
+              "writes into the user scripts)")
     if not os.environ.get("BLENDER_USER_EXTENSIONS"):
         print("run_tests: WARNING: BLENDER_USER_EXTENSIONS is not set; "
               "extension_path_user() writes would go to ~/.config", file=sys.stderr)

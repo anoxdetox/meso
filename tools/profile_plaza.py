@@ -9,7 +9,7 @@ comparison; numbers vary per machine, so no baseline is ever committed).
 Usage (from the repo root; every Blender launch strips the desktop, CLAUDE.md):
     . tools/env.sh
     NODESK="prlimit --core=1 -- env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=$(mktemp -d)"
-    $NODESK BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) \\
+    $NODESK BLENDER_USER_CONFIG=$(mktemp -d) BLENDER_USER_EXTENSIONS=$(mktemp -d) BLENDER_USER_SCRIPTS=$(mktemp -d) \\
         $B -b [--gpu-backend vulkan|opengl] --factory-startup --python-exit-code 1 \\
         --python tools/profile_plaza.py -- [-n 30] [--warmup 3] [--only object,edit_mesh]
         [--detail] [--no-gpu] [--keyconfig blender|meso] [--cprofile PATTERN] [--json PATH]
@@ -137,6 +137,8 @@ def _setup(args):
         _fail("must be run with --factory-startup (prefs must never be saved)")
     if not os.environ.get("BLENDER_USER_EXTENSIONS"):
         _fail("set BLENDER_USER_EXTENSIONS to a temp dir (module doc)")
+    if not (os.environ.get("BLENDER_USER_SCRIPTS") or os.environ.get("BLENDER_USER_RESOURCES")):
+        _fail("set BLENDER_USER_SCRIPTS to a temp dir (the Meso keymap import writes there)")
     repos = bpy.context.preferences.extensions.repos
     for repo in list(repos):
         if repo.module == REPO_MODULE:
