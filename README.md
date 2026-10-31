@@ -34,8 +34,8 @@ The pyramids are theirs; the menus are ours.
   for the mode's tools. A quick click keeps Blender's own action.
 - **The Meso Keymap** (optional, and recommended): Blender's Industry Compatible keymap plus
   the right-click Compass, select keys, isolate on Ctrl 1, snapping while you hold X / C / V / J,
-  origin editing on D, and more. One click installs it and it stays selected across restarts;
-  a few of its keys work with any keymap.
+  origin editing on D, and more. It stays selected across restarts; a few of its keys work
+  with any keymap.
 - **Nothing native is removed:** every Meso key can be switched off, and every native action it
   displaces stays reachable.
 
@@ -51,13 +51,18 @@ Meso Mode is free and open source. If someone charged you for it, you paid for s
 that's free. Get it either way:
 
 - **The release:** download `meso-<version>.zip` from the
-  [latest release](https://github.com/anoxdetox/meso/releases/latest).
+  [latest release](https://github.com/anoxdetox/meso/releases/latest). It installs the
+  [Meso Keymap](docs/keymap.md) for you with one click.
 - **The Blender Extensions platform:** Meso Mode is in its
   [approval queue](https://extensions.blender.org/approval-queue/meso/). Download it there,
-  and leave a review while you're at it.
+  and leave a review while you're at it. The platform's version doesn't install keymaps: get
+  the Meso Keymap as `Meso.py` from the
+  [latest release](https://github.com/anoxdetox/meso/releases/latest) and import it in
+  Preferences ▸ Keymap ▸ **Import…**.
 
 Or build it yourself. You need Blender 5.2 and GNU make with bash (Linux, macOS). In a
-clone of this repository, run `make build`. It writes `dist/meso-<version>.zip`. `make` runs the
+clone of this repository, run `make build`. It writes `dist/meso-<version>.zip` (and
+`dist/meso-<version>-store.zip`, the Extensions platform's version). `make` runs the
 `blender` it finds on your PATH; the Linux tarball, the macOS app and the Windows installer do
 not put it there, so name the binary: `make build B=/path/to/blender` (on macOS
 `B=/Applications/Blender.app/Contents/MacOS/Blender`), or put that `B=` line in an untracked
@@ -71,10 +76,11 @@ To install the zip, open Blender's Preferences ▸ Get Extensions, open the menu
 right and choose **Install from Disk…**. Pick the zip, then make sure Meso Mode is ticked in
 Preferences ▸ Add-ons. Dragging the zip into Blender's window works too.
 
-When it is first enabled, Meso Mode asks whether to use the [Meso Keymap](docs/keymap.md)
-(recommended). **Use the Meso Keymap** installs it into your keymap presets with Blender's own
-keymap import and selects it; it stays selected across restarts. **Not Now** changes nothing;
-use it from Meso Mode's preferences any time. Meso never switches your keymap by itself.
+When it is first enabled, Meso Mode points you to the [Meso Keymap](docs/keymap.md)
+(recommended). In the release's version, **Use the Meso Keymap** imports it with Blender's own
+keymap import and selects it; in the Extensions platform's version, import `Meso.py` from the
+release yourself. Either way it stays selected across restarts, and Meso never switches your
+keymap by itself.
 
 Developed and tested on Linux; meant to run on Windows and macOS too (not tested there yet).
 The test suite was written for Linux on KDE Plasma, and it is always open to anyone who wants

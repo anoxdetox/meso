@@ -358,17 +358,17 @@ class MesoAddonPreferences(AddonPreferences):
     space_items_oskey: BoolProperty(name="OS", default=False)
 
     # -- Meso Keymap (local/docs/meso-keymap-interfaces.md "Preferences"): the keyconfig "Meso",
-    # installed into the user's keymap presets by Blender's keymap import on the user's click;
-    # its items are edited in Blender's keymap editor.
+    # imported with Blender's keymap import (by the user, or the full build's one-click
+    # install); its items are edited in Blender's keymap editor.
     keymap_prompted: BoolProperty(
         name="Keymap Choice Asked",
-        description="The first-enable Meso Keymap question was shown",
+        description="The first-enable Meso Keymap note was shown",
         default=False,
         options={'HIDDEN'},
     )
-    keymap_update_declined: StringProperty(
-        name="Keymap Update Declined",
-        description="The preset version (sha256) whose update the user put off",
+    keymap_noted_version: StringProperty(
+        name="Keymap Version Noted",
+        description="The Meso Keymap version the out-of-date note was shown for",
         default="",
         options={'HIDDEN'},
     )

@@ -2,16 +2,28 @@
 The **Meso Keymap** is a keymap of its own: Blender's built-in Industry Compatible keymap plus
 every key below. It is optional, and we recommend it: it is how Meso Mode is meant to be used.
 
-**You choose it, Meso never does.** Click **Use the Meso Keymap** in the question Meso Mode asks
-after its first enable, or in Meso Mode's preferences. That runs Blender's own keymap import
-(the same as Preferences ▸ Keymap ▸ Import): Blender copies the Meso keymap into your keymap
-presets and selects it. From then on **Meso** is listed in Preferences ▸ Keymap next to Blender
-and Industry Compatible, and **it stays selected across restarts**. Switch to any keymap there at
-any time.
+**You choose it, Meso never does.** It is a keymap file, `Meso.py`, that goes into your keymap
+presets with Blender's own keymap import:
 
-**Updates:** when a new version of Meso Mode brings a newer Meso Keymap, Meso Mode offers to
-update your copy (and its preferences show an **Update the Meso Keymap** button); your edits of
-its keys are kept.
+- **Meso Mode from the GitHub release** (`meso-<version>.zip`): click **Use the Meso Keymap** in
+  the note Meso Mode shows after its first enable, or in Meso Mode's preferences. It runs that
+  import for you.
+- **Meso Mode from the Blender Extensions platform:** extensions there don't install keymaps.
+  Download `Meso.py` from the
+  [latest release](https://github.com/anoxdetox/meso/releases/latest), then in Preferences ▸
+  Keymap choose **Import…** and pick it (keep its name, `Meso.py`). Meso Mode mentions it once
+  after its first enable, and its preferences link to the GitHub page; it never downloads,
+  imports or selects the keymap itself.
+
+Blender copies the Meso keymap into your keymap presets and selects it. From then on **Meso** is
+listed in Preferences ▸ Keymap next to Blender and Industry Compatible, and **it stays selected
+across restarts**. Switch to any keymap there at any time. Its Meso keys need Meso Mode enabled.
+
+**Updates:** when a new version of Meso Mode brings a newer Meso Keymap, its preferences say
+your copy doesn't match (the release's version also tells you once). Replace it the same way:
+**Update the Meso Keymap** in the release's version, or import the new `Meso.py` from the
+[latest release](https://github.com/anoxdetox/meso/releases/latest). Your edits of its keys are
+kept.
 
 **Removing it:** select **Meso** in Preferences ▸ Keymap and click the **−** next to the keymap
 menu. Uninstalling Meso Mode leaves the copy in your keymap presets, like any imported keymap.

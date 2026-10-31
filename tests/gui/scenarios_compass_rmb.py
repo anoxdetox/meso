@@ -31,8 +31,7 @@ def scenarios(drv):
         return importlib.import_module(drv.ADDON_MODULE + ".ops.compass_rmb")
 
     def choose(choice):
-        with bpy.context.temp_override(window=drv.win()):
-            return bpy.ops.meso.keymap_choose(choice=choice)
+        return drv.choose(choice)
 
     def back_to_blender():
         """Undo the Meso keymap edits, back to the Blender keymap."""

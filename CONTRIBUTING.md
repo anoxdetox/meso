@@ -50,7 +50,8 @@ make test-unit      # pure tests (no Blender)
 make test           # headless Blender tests; make test K=pattern for a subset
 make test-render    # offscreen renderer tests on Vulkan and OpenGL
 make validate       # extension validate on src/meso
-make build          # dist/meso-<version>.zip
+make build          # dist/meso-<version>.zip (full, GitHub release) and
+                    #   dist/meso-<version>-store.zip (Blender Extensions platform: no keymap install)
 make check          # validate the zip, list its content, install it into a temporary
                     #   extensions folder and enable / disable it headless
 make all            # test-unit test validate build check
@@ -66,10 +67,10 @@ make release-check  # can this version be released? (clean tree on master, tag f
 make release        # the checks and the release plan; nothing is tagged or pushed
 make release CONFIRM=v<version> [DRAFT=1]
                     # make all, then tag v<version>, push master and the tag, and create the
-                    #   GitHub release with the zip and the notes (DRAFT=1: a draft release)
+                    #   GitHub release with the full zip, Meso.py and the notes (DRAFT=1: a draft)
 ```
 A release needs the [GitHub CLI](https://cli.github.com) (`gh auth login` once). Making the
-repository public and uploading the zip to the extensions platform stay manual steps.
+repository public and uploading the store zip to the extensions platform stay manual steps.
 Without make (to run one step by hand), the same commands. They are bash (on Windows: Git Bash
 or WSL); from cmd or PowerShell, build with `blender --command extension build --source-dir
 src/meso --output-dir dist` (the full path to `blender.exe` if it is not on your PATH):
@@ -87,15 +88,24 @@ BLENDER_USER_CONFIG="$(mktemp -d)" BLENDER_USER_EXTENSIONS="$(mktemp -d)" BLENDE
 bl --command extension build --source-dir src/meso --output-dir dist
 bl --command extension validate dist/meso-<version>.zip
 $PY tools/check_zip.py dist/meso-<version>.zip --version <version>     # list what went into the zip
+$PY tools/check_zip.py dist/meso-<version>-store.zip --store --version <version>   # the store build
 python3 tools/dev_link.py [--remove]                                    # link src/meso into $MESO_EXTENSIONS_DIR
 ```
-The Meso Keymap preset `src/meso/presets/keyconfig/Meso.py` is generated from the key table
-(`src/meso/core/meso_bindings.py`): after any change to the table, run
-`python3 tools/gen_meso_preset.py` (a unit test runs it with `--check` and fails on a stale preset).
+The Meso Keymap `src/meso/keymap/Meso.py` and its version (`src/meso/core/meso_keymap_version.py`)
+are generated from the key table (`src/meso/core/meso_bindings.py`): after any change to the
+table, run `python3 tools/gen_meso_preset.py` (a unit test runs it with `--check` and fails on a
+stale keymap).
 
-On top of that, `make check` installs the zip (`extension install-file -r user_default -e`)
+Each release has two builds. The full one (`meso-<version>.zip`, on GitHub) has the one-click
+Meso Keymap install (`ops/keymap_install.py` and the bundled `keymap/`). The Blender Extensions
+platform's (`meso-<version>-store.zip`) is built from a copy of the source without those two,
+because the platform does not let extensions install keymaps; its users import `Meso.py`, which
+each release also carries on its own. Code outside `ops/keymap_install.py` must work in both.
+
+On top of that, `make check` installs each zip (`extension install-file -r user_default -e`)
 into a temporary extensions folder and starts Blender headless on it: the add-on must be
-enabled, and must unregister and register again without an error. Built zips go to `dist/`,
+enabled, must unregister and register again without an error, and must have the one-click
+install in the full build only. Built zips go to `dist/`,
 which git ignores.
 
 The README animation: `make gui GUI_ARGS="--size 3840x2160 --only gif"` saves its frames (that

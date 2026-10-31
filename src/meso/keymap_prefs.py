@@ -12,9 +12,10 @@ registers the Plaza items again (``keymaps.reregister``); the Text/Console chord
 the ``text_chord`` preference. Nothing here writes a keymap item.
 
 The "Meso Keymap" box above it (local/docs/meso-keymap-interfaces.md, "Preferences UI") says
-which keymap is active, recommends the Meso Keymap (its button runs Blender's own
-``preferences.keyconfig_import``, as Preferences > Keymap > Import does; it also updates an
-out-of-date copy; Meso never selects a keymap by itself), and holds the binding list (grouped, collapsible; what each key does, what it
+which keymap is active, recommends the Meso Keymap (its button and hint come from the full
+build's installer, ``meso_keymap.installer()``; without one, the button opens the release page
+and the user imports the file in Preferences > Keymap > Import; it says when the imported copy
+does not match this version; Meso never selects a keymap by itself), and holds the binding list (grouped, collapsible; what each key does, what it
 displaces, and the base keys that are on with every keymap) with the Meso options and the
 warnings. Users switch and rebind the keys in Blender's keymap editor, or in the section tree
 below, which lists them too (the user-keyconfig copies, found with ``find_match``).
@@ -34,7 +35,6 @@ from .keymaps import KEYMAP_SET, KIND_SPACE, OPERATOR_IDNAME
 
 INDENT_PX = 16
 MESO_ROOT = "Meso Keymap"     # section path root of the binding groups
-CHOOSE_IDNAME = "meso.keymap_choose"   # ops/keymap_choice.py
 BODY_INDENT = 2 * INDENT_PX            # a binding group's body: two _indented levels
 
 
@@ -325,12 +325,11 @@ _GROUP_EXTRAS = {
 
 KEYMAP_EDITOR_HINT = ("Switch off, rebind or restore Meso keys in Preferences > Keymap, or in "
                       "the sections below.")
-RECOMMEND_HINT = ("Optional, and recommended: \"Use the Meso Keymap\" installs it into your "
-                  "keymap presets with Blender's keymap import. It stays selected across "
-                  "restarts and is listed in Preferences > Keymap next to Blender and Industry "
-                  "Compatible: switch keymaps or remove it there.")
-OUTDATED_HINT = ("Your copy of the Meso keymap is older than this version of Meso Mode: update "
-                 "it to get the current keys (your edits of its keys are kept).")
+RECOMMEND_HINT = ("An optional keymap preset and manual installation instructions are available "
+                  "on GitHub. Meso works without this preset. Downloading and installing it is "
+                  "entirely your choice.")
+OUTDATED_HINT = ("Your Meso keymap does not match this version of Meso Mode: replace it with "
+                 "this version's (your edits of its keys are kept).")
 
 
 def _draw_meso_keymap(context, layout, addon_prefs, expanded):
@@ -346,15 +345,18 @@ def _draw_meso_keymap(context, layout, addon_prefs, expanded):
         warn = col.column(align=True)
         warn.alert = True
         _wrapped(warn, OUTDATED_HINT, icon='ERROR')
+    installer = meso_keymap.installer()
     if not meso_active or outdated:
         row = col.row(align=True)
-        op = row.operator(CHOOSE_IDNAME, icon='KEYINGSET',
-                          text="Update the Meso Keymap" if outdated
-                          else "Use the Meso Keymap (recommended)")
-        op.choice = 'MESO'
+        if installer is not None:
+            installer.button(row, outdated)
+        else:
+            row.operator("wm.url_open", text="Optional Meso keymap: " + meso_keymap.REPO_URL,
+                         icon='URL').url = meso_keymap.REPO_URL
     hint = col.column(align=True)
     hint.active = False
-    _wrapped(hint, RECOMMEND_HINT)
+    if not meso_active:
+        _wrapped(hint, installer.hint if installer is not None else RECOMMEND_HINT)
     _wrapped(hint, KEYMAP_EDITOR_HINT)
     live = meso_keymap.live_bindings(context)
     off = meso_keymap.off_bindings(context)

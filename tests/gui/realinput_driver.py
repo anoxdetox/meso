@@ -424,7 +424,7 @@ def setup():
     enable_addon()
     wrap_hold_modal()
     with bpy.context.temp_override(window=win()):
-        META["choose"] = str(bpy.ops.meso.keymap_choose(choice='MESO'))
+        META["choose"] = str(bpy.ops.meso.keymap_install())
     META["keyconfig"] = bpy.context.window_manager.keyconfigs.active.name
     META["blender"] = bpy.app.version_string
     META["display"] = "x11"

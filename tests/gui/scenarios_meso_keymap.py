@@ -79,8 +79,7 @@ def scenarios(drv):
         return bpy.context.window_manager.keyconfigs.active.name
 
     def choose(choice):
-        with bpy.context.temp_override(window=drv.win()):
-            return bpy.ops.meso.keymap_choose(choice=choice)
+        return drv.choose(choice)
 
     def back_to_blender():
         """Undo the Meso keymap edits, back to the Blender keymap."""
@@ -158,9 +157,9 @@ def scenarios(drv):
     # ------------------------------------------------------------------------------ G1
 
     def sc_first_enable_dialog(rec):
-        """The first-enable question: Esc changes nothing; "Not now" keeps the keymap;
-        "Use the Meso Keymap" (the dialog's default) selects it through Blender's own
-        operator."""
+        """The first-enable note: Esc and OK change nothing; its "Use the Meso Keymap" button
+        (the full build's one-click install, Blender's keymap import) selects it. The
+        extensions-platform build's note (no installer) opens the release page instead."""
         c = (drv.win().width // 2, drv.win().height // 2)
         try:
             drv.disable_addon()                 # default_set: the add-on prefs are dropped
@@ -181,22 +180,30 @@ def scenarios(drv):
             drv.check(rec, "esc_closed", (yield from drv.canary_ok(c)))
             drv.check(rec, "esc_keyconfig_kept", keyconfig() == 'Blender', keyconfig())
             drv.check(rec, "asked_once", not mk().prompt_pending())
-            # "Not now".
-            with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.meso.keymap_choice_dialog('INVOKE_DEFAULT', choice='KEEP')
-            yield 0.4
-            yield from key(c, 'RET')
-            yield 0.2
-            drv.check(rec, "not_now_keyconfig_kept", keyconfig() == 'Blender', keyconfig())
-            drv.check(rec, "not_now_closed", (yield from drv.canary_ok(c)))
-            # Enter = the default choice: use the Meso Keymap.
+            # OK (Enter): a note, nothing changes.
             with bpy.context.temp_override(window=drv.win()):
                 bpy.ops.meso.keymap_choice_dialog('INVOKE_DEFAULT')
             yield 0.4
             yield from key(c, 'RET')
-            yield 0.4
-            drv.check(rec, "use_selects_meso", keyconfig() == 'Meso', keyconfig())
-            drv.check(rec, "use_bindings_live", mk().live_ids() == step1_ids(),
+            yield 0.2
+            drv.check(rec, "ok_keyconfig_kept", keyconfig() == 'Blender', keyconfig())
+            drv.check(rec, "ok_closed", (yield from drv.canary_ok(c)))
+            # The extensions-platform build's note: the release page button.
+            installer = mk().installer()
+            mk().set_installer(None)
+            try:
+                with bpy.context.temp_override(window=drv.win()):
+                    bpy.ops.meso.keymap_choice_dialog('INVOKE_DEFAULT')
+                yield 0.4
+                drv.save_screenshot("meso_keymap_note_store")
+                yield from key(c, 'ESC')
+                yield 0.2
+            finally:
+                mk().set_installer(installer)
+            drv.check(rec, "store_note_keyconfig_kept", keyconfig() == 'Blender', keyconfig())
+            # The note's button: the full build's one-click install, on the user's click.
+            drv.check(rec, "install_selects_meso", drv.use_meso_keymap(), keyconfig())
+            drv.check(rec, "install_bindings_live", mk().live_ids() == step1_ids(),
                       mk().live_ids())
         finally:
             back_to_blender()
@@ -205,7 +212,7 @@ def scenarios(drv):
     # ------------------------------------------------------------------------------ G3
 
     def sc_keyconfig_switch(rec):
-        """Once "Use the Meso Keymap" installed it, the Meso keymap is in Blender's keymap menu
+        """Once it is installed (the user's import), the Meso keymap is in Blender's keymap menu
         (``preferences.keyconfig_activate``, as USERPREF_MT_keyconfigs runs it): its keys come
         and go with it; the base keys stay."""
         presets = os.path.join(bpy.utils.system_resource('SCRIPTS'), "presets", "keyconfig")
@@ -509,7 +516,7 @@ def scenarios(drv):
             area = swap('INFO')
             yield 0.4
             with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.meso.keymap_choose(choice='MESO')     # an INFO report to select
+                bpy.ops.meso.keymap_install()     # an INFO report to select
             yield 0.3
             wm = bpy.context.window_manager
             saved_clipboard = wm.clipboard

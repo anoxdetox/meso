@@ -1,8 +1,8 @@
-"""The Meso Keymap question and reloads (meso_keymap.py, ops/keymap_choice.py).
+"""The Meso Keymap note and reloads (meso_keymap.py, ops/keymap_choice.py).
 
 Runs inside Blender via tests/run_tests.py (Blender keyconfig active at the start). Covers
-``meso.keymap_choose`` (MESO runs Blender's own keymap selection; KEEP changes nothing),
-``register()`` under RestrictBlend (the base keys and the preset path, never a keyconfig), the
+the first-enable note (it changes nothing; never opened under ``-b``), ``register()`` under
+RestrictBlend (the base keys and the preset path, never a keyconfig), the
 add-on reloads (the active keymap is left as it is; the Preferences checkbox drops the "asked"
 flag, so a re-enable asks again), the user's edits of Meso items across a reload
 (``keep_properties``), and the background-mode guards of the first-enable dialog (it is never
@@ -16,9 +16,9 @@ import unittest
 import addon_utils
 import bpy
 
-from tests.blender.test_meso_keymap import (ADDON_MODULE, BASE_IDS, LIVE_IDS, N_BASE_ITEMS,
-                                            SRC, MesoKeymapCase, mb, mk, prefs, refresh,
-                                            use_keyconfig, wm)
+from tests.blender.test_meso_keymap import (ADDON_MODULE, BASE_IDS, LIVE_IDS, MESO_KEYMAP,
+                                            N_BASE_ITEMS, MesoKeymapCase, import_meso_keymap,
+                                            mb, mk, prefs, refresh, use_keyconfig, wm)
 
 
 def _raise(ex):
@@ -29,17 +29,24 @@ def active_name():
     return wm().keyconfigs.active.name
 
 
-class TestChoose(MesoKeymapCase):
-    def test_use_then_not_now(self):
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
-        refresh()
-        self.assertEqual(active_name(), 'Meso')
-        self.assertTrue(self.p.keymap_prompted)
-        self.assertEqual(mk().live_ids(), LIVE_IDS)
-        use_keyconfig('Blender')
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='KEEP'), {'FINISHED'})
-        self.assertEqual(active_name(), 'Blender', "Not now changes nothing")
+class TestNote(MesoKeymapCase):
+    def test_the_users_import_brings_every_key(self):
+        """With the user's import of the Meso Keymap every Meso key is live; on Blender's
+        keymap, the base keys."""
         self.assertEqual(mk().live_ids(), BASE_IDS)
+        import_meso_keymap()
+        self.assertEqual(active_name(), 'Meso')
+        self.assertEqual(mk().live_ids(), LIVE_IDS)
+
+    def test_the_note_has_no_side_effect(self):
+        """The note's only action is Blender's own ``wm.url_open`` to the release page; its
+        OK changes nothing (its execute is called directly: no dialog under ``-b``)."""
+        from importlib import import_module
+        ops = import_module(ADDON_MODULE + ".ops.keymap_choice")
+        self.assertEqual(mk().REPO_URL, "https://github.com/anoxdetox/meso")
+        self.assertEqual(ops.MESO_OT_keymap_choice_dialog.execute(None, bpy.context),
+                         {'FINISHED'})
+        self.assertEqual(active_name(), 'Blender')
 
 
 class TestRegister(MesoKeymapCase):
@@ -50,7 +57,7 @@ class TestRegister(MesoKeymapCase):
         self.addCleanup(mk().register)
 
     def test_the_meso_keymap_stays_selected_across_a_module_reload(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
+        import_meso_keymap()
         path = mk().installed_preset_path()
         mk().unregister()
         self.assertEqual(active_name(), 'Meso', "Meso never switches the keymap")
@@ -163,7 +170,7 @@ class TestCheckboxReload(MesoKeymapCase):
         self.assertIsNotNone(self.p)
 
     def test_a_reenable_asks_again(self):
-        bpy.ops.meso.keymap_choose(choice='KEEP')
+        self.p.keymap_prompted = True
         self.assertTrue(self.p.keymap_prompted)
         self._checkbox_reload()
         self.assertEqual(active_name(), 'Blender')
@@ -187,7 +194,7 @@ class TestPresetBeforeTheOperators(MesoKeymapCase):
         try:
             addon_utils.disable(ADDON_MODULE, default_set=False, handle_error=_raise)
             self.assertFalse(hasattr(bpy.types, "MESO_OT_snap_hold"))
-            self.assertTrue(bpy.utils.keyconfig_set(str(SRC / "presets" / "keyconfig" / "Meso.py")))
+            self.assertTrue(bpy.utils.keyconfig_set(MESO_KEYMAP))
             kc = wm().keyconfigs['Meso']
             raw = [(n, i, dict(kc.keymaps[n].keymap_items[i].properties.items()))
                    for n, i, _idname, _props in expected]

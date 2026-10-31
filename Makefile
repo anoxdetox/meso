@@ -20,6 +20,11 @@ MANIFEST := src/meso/blender_manifest.toml
 VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' $(MANIFEST))
 DIST := dist
 ZIP := $(DIST)/meso-$(VERSION).zip
+# The extensions-platform build: without the one-click keymap install (keymap/ and
+# ops/keymap_install.py); uploaded to extensions.blender.org by hand, not attached to the release.
+STORE_ZIP := $(DIST)/meso-$(VERSION)-store.zip
+# The Meso Keymap on its own, attached to the GitHub release (users import it themselves).
+KEYMAP_FILE := src/meso/keymap/Meso.py
 K ?=
 GUI_ARGS ?=
 PROFILE_ARGS ?=
@@ -46,12 +51,13 @@ HEADLESS_TESTS = --factory-startup --python-exit-code 1 --python tests/run_tests
 # and register again cleanly (headless; the first-enable keymap question needs a timer, which
 # never fires in -b).
 ADDON := bl_ext.user_default.meso
-CHECK_EXPR = import addon_utils, bpy; m = '$(ADDON)'; \
+CHECK_EXPR = import addon_utils, bpy, os; m = '$(ADDON)'; store = os.environ.get('MESO_CHECK_STORE') == '1'; \
 	ops = lambda: [n for n in dir(bpy.types) if n.startswith('MESO_')]; \
 	meso_items = lambda: [i.idname for c in (bpy.context.window_manager.keyconfigs.addon,) if c for k in c.keymaps for i in k.keymap_items if i.idname.startswith('meso.')]; \
 	assert addon_utils.check(m) == (True, True), ('not enabled at start-up', addon_utils.check(m)); \
 	assert 'MESO_OT_plaza' in ops() and bpy.context.preferences.addons.get(m), 'not registered'; \
 	assert meso_items(), 'no Plaza keymap items'; n = len(ops()); \
+	assert ('MESO_OT_keymap_install' in ops()) != store, ('one-click install', store, ops()); \
 	addon_utils.disable(m, default_set=True); \
 	assert addon_utils.check(m)[1] is False and ops() == [] and meso_items() == [], ('unregister left', ops(), meso_items()); \
 	addon_utils.enable(m, default_set=True); \
@@ -84,21 +90,30 @@ test-render: ## Offscreen render tests on Vulkan and OpenGL
 validate: ## Validate the extension source (src/meso)
 	@$(PROLOGUE); $(BLENDER) --command extension validate src/meso
 
-build: ## Build dist/meso-<version>.zip
-	@$(PROLOGUE); mkdir -p $(DIST); rm -f $(ZIP); \
+build: ## Build dist/meso-<version>.zip (full) and dist/meso-<version>-store.zip (extensions platform)
+	@$(PROLOGUE); mkdir -p $(DIST); rm -f $(ZIP) $(STORE_ZIP); \
 		$(BLENDER) --command extension build --source-dir src/meso --output-dir $(DIST); \
-		test -f $(ZIP)
+		test -f $(ZIP); \
+		mkdir "$$T/store"; cp -r src/meso "$$T/store/meso"; \
+		rm -rf "$$T/store/meso/keymap" "$$T/store/meso/ops/keymap_install.py"; \
+		$(BLENDER) --command extension build --source-dir "$$T/store/meso" \
+			--output-filepath "$$PWD/$(STORE_ZIP)"; \
+		test -f $(STORE_ZIP)
 
-check: build ## Validate, inspect, install and enable the built zip (headless)
-	@$(PROLOGUE); echo "== validate $(ZIP)"; $(BLENDER) --command extension validate $(ZIP); \
-		echo "== content"; "$${PY:-python3}" tools/check_zip.py $(ZIP) --version $(VERSION); \
+check: build ## Validate, inspect, install and enable both built zips (headless)
+	@$(PROLOGUE); for kind in full store; do \
+		if [ $$kind = store ]; then zip=$(STORE_ZIP); flag=--store; else zip=$(ZIP); flag=; fi; \
+		rm -rf "$$T/cfg" "$$T/ext"; mkdir "$$T/cfg" "$$T/ext"; \
+		echo "== validate $$zip"; $(BLENDER) --command extension validate $$zip; \
+		echo "== content"; "$${PY:-python3}" tools/check_zip.py $$zip $$flag --version $(VERSION); \
 		echo "== install into a temporary user_default"; \
-		$(BLENDER) --command extension install-file -r user_default -e $(ZIP); \
+		$(BLENDER) --command extension install-file -r user_default -e $$zip; \
 		test -f "$$T/ext/user_default/meso/blender_manifest.toml"; \
 		echo "== enable, unregister, register"; \
-		$(BLENDER) -b --python-exit-code 1 --python-expr "$(CHECK_EXPR)" 2>&1 | tee "$$T/check.log"; \
+		MESO_CHECK_STORE=$$([ $$kind = store ] && echo 1 || echo 0) \
+			$(BLENDER) -b --python-exit-code 1 --python-expr "$(CHECK_EXPR)" 2>&1 | tee "$$T/check.log"; \
 		if grep -q '^Traceback' "$$T/check.log"; then echo "check: a traceback in the log" >&2; exit 1; fi; \
-		echo "check: $(ZIP) OK"
+		echo "check: $$zip OK"; done
 
 gui: ## GUI suite in a nested session (Linux; GUI_ARGS="--only a,b")
 	@. tools/env.sh; T="$$(mktemp -d)"; trap 'rm -rf "$$T"' EXIT; \
@@ -162,8 +177,8 @@ release: ## Release checks and plan; CONFIRM=v<version> [DRAFT=1] tags, pushes a
 		echo "  1. make all                        unit + headless tests, validate, build, check"; \
 		echo "  2. git tag -a $(TAG)                annotated, on $$(git rev-parse --short HEAD)"; \
 		echo "  3. git push $(REMOTE) $(BRANCH) $(TAG)"; \
-		echo "  4. gh release create $(TAG) $(ZIP)  notes: make notes$(if $(DRAFT), (draft))"; \
-		echo "By hand afterwards: make the repository public, upload $(ZIP) to extensions.blender.org."; \
+		echo "  4. gh release create $(TAG) $(ZIP) $(KEYMAP_FILE)  notes: make notes$(if $(DRAFT), (draft))"; \
+		echo "By hand afterwards: upload $(STORE_ZIP) to extensions.blender.org."; \
 		echo "Also run before: make test-render, make gui, make persist."; \
 		exit 0; fi; \
 	set -eo pipefail; \
@@ -171,6 +186,6 @@ release: ## Release checks and plan; CONFIRM=v<version> [DRAFT=1] tags, pushes a
 	git tag -a "$(TAG)" -m "Meso Mode $(VERSION)"; \
 	git push $(REMOTE) $(BRANCH) "$(TAG)"; \
 	mkdir -p $(DIST); $(NOTES) > "$(DIST)/notes-$(VERSION).md"; \
-	gh release create "$(TAG)" "$(ZIP)" --verify-tag --title "Meso Mode $(VERSION)" \
+	gh release create "$(TAG)" "$(ZIP)" "$(KEYMAP_FILE)" --verify-tag --title "Meso Mode $(VERSION)" \
 		--notes-file "$(DIST)/notes-$(VERSION).md" $(if $(DRAFT),--draft); \
-	echo "release: $(TAG) published$(if $(DRAFT), as a draft)"
+	echo "release: $(TAG) published$(if $(DRAFT), as a draft); upload $(STORE_ZIP) to extensions.blender.org"

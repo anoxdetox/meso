@@ -7,8 +7,8 @@ extension repo. ``MESO_PERSIST_PHASE``:
 
 - ``enable`` (headless): enable Meso Mode with default_set, mark the question as asked, save
   the preferences.
-- ``gui_disable`` (GUI): select the Meso Keymap ("Use the Meso Keymap": Blender's own
-  ``preferences.keyconfig_import``), then disable Meso Mode with the Preferences' own
+- ``gui_disable`` (GUI): select the Meso Keymap ("Use the Meso Keymap", the full build's
+  ``meso.keymap_install``: Blender's own ``preferences.keyconfig_import``), then disable Meso Mode with the Preferences' own
   operator (the add-on checkbox): the keymap is left as it is; quit (the preferences
   auto-save).
 - ``gui_keep`` (GUI): select the Meso Keymap, record its items (``before_edit``: the defaults),
@@ -144,7 +144,7 @@ def gui_tick():
         R["start_edits"] = _edits(mk) if mk else None
         if PHASE in ("gui_disable", "gui_keep"):
             with bpy.context.temp_override(window=wm.windows[0]):
-                R["choose"] = sorted(bpy.ops.meso.keymap_choose(choice='MESO'))
+                R["choose"] = sorted(bpy.ops.meso.keymap_install())
             wm.keyconfigs.update()
             R["after_choose_active"] = _active()
             R["after_choose_registered"] = list(mk.live_ids())
@@ -171,7 +171,7 @@ def gui_tick():
                 # Only if Blender did not select the user's copy at start-up (a failure: the
                 # check reports it); the user's pick again.
                 with bpy.context.temp_override(window=wm.windows[0]):
-                    R["reselect"] = sorted(bpy.ops.meso.keymap_choose(choice='MESO'))
+                    R["reselect"] = sorted(bpy.ops.meso.keymap_install())
                 wm.keyconfigs.update()
             R["after_reselect_active"] = _active()
             R["after_reselect_edits"] = _edits(mk)

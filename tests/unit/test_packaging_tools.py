@@ -32,8 +32,9 @@ cz = _tool("check_zip")
 META = {"size": [1920, 1080], "crop_view3d": {"x": 0, "y": 71, "w": 1401, "h": 803}}
 
 
-GOOD = ["blender_manifest.toml", "__init__.py", "prefs.py", "presets/keyconfig/Meso.py",
+STORE = ["blender_manifest.toml", "__init__.py", "prefs.py", "core/meso_keymap_version.py",
         "core/__init__.py", "core/timing.py", "view/theme.py"]
+GOOD = STORE + ["ops/keymap_install.py", "keymap/Meso.py"]      # the full (GitHub) build
 MANIFEST = {"id": "meso", "version": "0.7.1"}
 
 
@@ -47,9 +48,20 @@ class TestCheckZip(unittest.TestCase):
         for name in ("__pycache__/prefs.cpython-313.pyc", "core/__pycache__/x.pyc",
                      "core/timing.pyc", "tests/test_x.py", "core/test_x.py",
                      "local/docs/notes.md", "docs/guide.md", ".gitignore", "a.blend1",
-                     "dist/meso.zip"):
+                     "dist/meso.zip", "presets/keyconfig/Meso.py"):
             with self.subTest(name=name):
                 self.assertTrue(cz.problems(GOOD + [name], MANIFEST, "0.7.1"), name)
+
+    def test_the_two_builds(self):
+        """The full build needs the one-click install and the bundled keymap; the
+        extensions-platform build must not hold either."""
+        self.assertEqual(cz.problems(STORE, MANIFEST, None, store=True), [])
+        for missing in ("ops/keymap_install.py", "keymap/Meso.py"):
+            with self.subTest(full_without=missing):
+                self.assertTrue(cz.problems([n for n in GOOD if n != missing], MANIFEST, None))
+        for extra in ("ops/keymap_install.py", "keymap/Meso.py", "Meso.py"):
+            with self.subTest(store_with=extra):
+                self.assertTrue(cz.problems(STORE + [extra], MANIFEST, None, store=True))
 
     def test_allowed_names_that_look_close(self):
         for name in ("record/latest.py", "core/docstrings.py", "view/localize.py",

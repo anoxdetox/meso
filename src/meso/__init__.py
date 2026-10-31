@@ -10,11 +10,19 @@ from .ops import (actions, compass_rmb, driver_remove, invoke, isolate, keymap_c
                   plaza, properties_cycle, snap_hold)
 from .view import draw_manager
 
+try:    # the full (GitHub) build only: the extensions-platform build is made without it
+    from .ops.keymap_install import MESO_OT_keymap_install  # noqa: F401 (presence test)
+except ModuleNotFoundError as ex:
+    if ex.name != __name__ + ".ops.keymap_install":
+        raise
+    keymap_install = None
+else:
+    from .ops import keymap_install
+
 # Ordered list of submodules exposing register()/unregister().
 # Registered in order, unregistered in reverse. keymaps and meso_keymap stay last: their
-# items need the operator classes (meso_keymap selects the Meso keyconfig), and they go first on
-# unregister (meso_keymap gives the previous keyconfig back and removes the Meso keyconfig).
-_modules = (
+# add-on items need the operator classes, and they go first on unregister.
+_modules = tuple(m for m in (
     prefs,
     keymap_prefs,
     plaza,
@@ -23,6 +31,7 @@ _modules = (
     panes,
     draw_manager,
     keymap_choice,
+    keymap_install,
     isolate,
     properties_cycle,
     snap_hold,
@@ -30,7 +39,7 @@ _modules = (
     compass_rmb,
     keymaps,
     meso_keymap,
-)
+) if m is not None)
 
 
 def register():

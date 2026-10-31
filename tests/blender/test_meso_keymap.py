@@ -23,6 +23,8 @@ import bpy
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 SRC = pathlib.Path(__file__).resolve().parents[2] / "src" / "meso"
+# The Meso Keymap file (bundled in the full build; also a separate file of each GitHub release).
+MESO_KEYMAP = str(SRC / "keymap" / "Meso.py")
 
 MODIFIERS = ('ctrl', 'shift', 'alt', 'oskey')
 
@@ -72,7 +74,7 @@ def use_keyconfig(name):
         if name in kcs:
             kcs.active = kcs[name]
         elif name == 'Meso':
-            assert bpy.utils.keyconfig_set(mk().PRESET_PATH)
+            assert bpy.utils.keyconfig_set(MESO_KEYMAP)
         else:
             bpy.utils.keyconfig_set(keyconfig_path(name))
     kcs.update()
@@ -152,9 +154,18 @@ def is_off_native(km_name, kmi):
                for name, d in off_natives())
 
 
+def import_meso_keymap():
+    """Test setup: what the user does with the release's Meso.py (Preferences > Keymap >
+    Import...): Blender's keymap import copies it into the run's temporary user scripts and
+    selects it."""
+    assert bpy.ops.preferences.keyconfig_import(filepath=MESO_KEYMAP,
+                                                keep_original=True) == {'FINISHED'}
+    refresh()
+
+
 def remove_installed_copy():
-    """Test cleanup: delete the user's copy of the Meso preset that "Use the Meso Keymap"
-    installed, only inside the run's temporary user scripts (tests/run_tests.py requires
+    """Test cleanup: delete the user's copy of the Meso keymap (``import_meso_keymap``), only
+    inside the run's temporary user scripts (tests/run_tests.py requires
     BLENDER_USER_SCRIPTS)."""
     path = mk().installed_preset_path()
     if path is None:
@@ -189,7 +200,7 @@ class MesoKeymapCase(unittest.TestCase):
         reset_meso()
         use_keyconfig('Blender')
         remove_installed_copy()
-        self.p.keymap_update_declined = ""
+        self.p.keymap_noted_version = ""
         self.assertEqual(mk().live_ids(), BASE_IDS)
 
     def meso_on(self):
@@ -236,52 +247,64 @@ class TestTable(MesoKeymapCase):
 
 
 class TestPreset(MesoKeymapCase):
-    def test_not_listed_before_the_user_installs_it(self):
-        """No preset folder is registered: "Meso" is not in the keymap menu until "Use the Meso
-        Keymap" has installed the user's copy."""
+    def test_not_listed_until_imported(self):
+        """No preset folder is registered: "Meso" is not listed until it is imported."""
+        self.assertFalse((SRC / "presets").exists())
         self.assertIsNone(mk().installed_preset_path())
         self.assertEqual(mk().preset_state(), mk().PRESET_NONE)
         self.assertIsNone(bpy.utils.preset_find('Meso', 'keyconfig'))
-        folders = [os.path.normpath(p) for p in bpy.utils.preset_paths('keyconfig')]
-        self.assertNotIn(os.path.normpath(os.path.dirname(mk().PRESET_PATH)), folders)
 
-    def test_use_installs_a_copy_and_selects_it(self):
-        """Blender's keymap import copies the preset into the user's keymap presets (found and
-        listed there, so Blender selects it again at start-up) and selects it."""
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
+    def test_the_users_import_is_recognised(self):
+        """After the user's import (Blender copies it into their keymap presets and selects
+        it), Meso Mode sees the current copy and the Meso keyconfig."""
+        import_meso_keymap()
         path = mk().installed_preset_path()
         self.assertIsNotNone(path)
         folder = bpy.utils.user_resource('SCRIPTS', path=os.path.join("presets", "keyconfig"))
         self.assertTrue(os.path.samefile(os.path.dirname(path), folder))
-        with open(path, 'rb') as a, open(mk().PRESET_PATH, 'rb') as b:
-            self.assertEqual(a.read(), b.read())
+        self.assertEqual(mk().copy_version(path), mk().MESO_KEYMAP_VERSION)
         self.assertEqual(mk().preset_state(), mk().PRESET_CURRENT)
-        self.assertTrue(os.path.samefile(bpy.utils.preset_find('Meso', 'keyconfig'), path))
-        self.assertEqual(wm().keyconfigs.active.name, 'Meso')
-        self.assertEqual(bpy.context.preferences.keymap.active_keyconfig, 'Meso')
-        names = {bpy.path.display_name(os.path.join(d, f), title_case=False)
-                 for d in bpy.utils.preset_paths('keyconfig') for f in os.listdir(d)
-                 if f.endswith('.py')}
-        self.assertIn('Meso', names)
+        self.assertTrue(mk().is_meso_active())
         self.assertEqual(len(mk().meso_items()), N_ITEMS)
 
-    def test_an_outdated_copy_is_offered_once_and_updated(self):
-        bpy.ops.meso.keymap_choose(choice='MESO')
-        path = mk().installed_preset_path()
-        with open(path, 'a', encoding='utf-8') as f:
-            f.write("# an older version\n")
-        self.assertEqual(mk().preset_state(), mk().PRESET_OUTDATED)
-        self.assertTrue(mk().update_pending())
-        self.p.keymap_update_declined = mk().preset_digest()        # "Not Now"
-        self.assertFalse(mk().update_pending())
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})   # "Update"
+    def test_the_one_click_install(self):
+        """The full build: ``meso.keymap_install`` runs Blender's keymap import of the bundled
+        keymap (the user's click); its hooks are registered for the note and the box."""
+        self.assertTrue(mk().install_available())
+        self.assertEqual(bpy.ops.meso.keymap_install(), {'FINISHED'})
+        refresh()
         self.assertEqual(mk().preset_state(), mk().PRESET_CURRENT)
         self.assertEqual(wm().keyconfigs.active.name, 'Meso')
-        use_keyconfig('Blender')
-        with open(path, 'a', encoding='utf-8') as f:
-            f.write("# an older version\n")
-        self.p.keymap_update_declined = ""
-        self.assertFalse(mk().update_pending(), "only offered while the Meso keymap is active")
+        self.assertEqual(bpy.context.preferences.keymap.active_keyconfig, 'Meso')
+        self.assertTrue(self.p.keymap_prompted)
+        self.assertEqual(mk().live_ids(), LIVE_IDS)
+
+    def test_the_note_is_due_once_then_once_per_outdated_version(self):
+        self.p.keymap_prompted = False
+        self.assertTrue(mk().note_pending())
+        self.p.keymap_prompted = True
+        self.assertFalse(mk().note_pending())
+        import_meso_keymap()
+        self.assertFalse(mk().note_pending(), "a current copy")
+        path = mk().installed_preset_path()
+        with open(path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(text.replace(mk().MESO_KEYMAP_VERSION, "0123456789abcdef", 1))
+        self.assertTrue(mk().note_pending(), "an outdated copy")
+        self.p.keymap_noted_version = mk().MESO_KEYMAP_VERSION
+        self.assertFalse(mk().note_pending(), "shown for this version")
+        self.p.keymap_noted_version = ""
+
+    def test_another_version_is_reported_and_nothing_changes(self):
+        import_meso_keymap()
+        path = mk().installed_preset_path()
+        with open(path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(text.replace(mk().MESO_KEYMAP_VERSION, "0123456789abcdef", 1))
+        self.assertEqual(mk().preset_state(), mk().PRESET_OUTDATED)
+        self.assertEqual(wm().keyconfigs.active.name, 'Meso', "Meso Mode only reports it")
 
     def test_enum_props_follow_the_operators(self):
         """``ENUM_PROPS`` (the raw values the preset writes at start-up) match each operator's
@@ -303,7 +326,7 @@ class TestPreset(MesoKeymapCase):
                         self.assertIn((item.idname, prop), mb().ENUM_PROPS)
 
     def test_selecting_the_preset(self):
-        self.assertTrue(bpy.utils.keyconfig_set(mk().PRESET_PATH))
+        self.assertTrue(bpy.utils.keyconfig_set(MESO_KEYMAP))
         kcs = wm().keyconfigs
         self.assertEqual(kcs.active.name, 'Meso')
         self.assertEqual(bpy.context.preferences.keymap.active_keyconfig, 'Meso')
@@ -311,13 +334,13 @@ class TestPreset(MesoKeymapCase):
         self.assertEqual(len(kcs['Meso'].keymaps), len(kcs['Industry_Compatible'].keymaps)
                          if 'Industry_Compatible' in kcs else 280)
         # selecting again rebuilds the same single keyconfig
-        self.assertTrue(bpy.utils.keyconfig_set(mk().PRESET_PATH))
+        self.assertTrue(bpy.utils.keyconfig_set(MESO_KEYMAP))
         self.assertEqual([k.name for k in kcs].count('Meso'), 1)
         self.assertEqual(len(mk().meso_items()), N_ITEMS)
 
     def test_the_keymap_menu_operator_selects_the_copy(self):
-        """What choosing "Meso" in Preferences > Keymap runs, once it is installed."""
-        bpy.ops.meso.keymap_choose(choice='MESO')
+        """What choosing "Meso" in Preferences > Keymap runs, once the user imported it."""
+        import_meso_keymap()
         use_keyconfig('Blender')
         self.assertEqual(bpy.ops.preferences.keyconfig_activate(
             filepath=bpy.utils.preset_find('Meso', 'keyconfig')), {'FINISHED'})
@@ -651,28 +674,27 @@ class TestNeverModifiesKeymaps(MesoKeymapCase):
                 self.assertEqual(keyconfigs_state(), before)
                 self.assertEqual(wm().keyconfigs.active.name, base)
 
-    def test_the_choose_operator_runs_blenders_own_import(self):
-        """"Use the Meso Keymap" runs ``preferences.keyconfig_import`` (what Preferences >
-        Keymap > Import runs); "Not now" changes nothing."""
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='KEEP'), {'FINISHED'})
-        self.assertEqual(wm().keyconfigs.active.name, 'Blender')
-        self.assertTrue(self.p.keymap_prompted)
-        self.assertEqual(bpy.ops.meso.keymap_choose(choice='MESO'), {'FINISHED'})
-        self.assertEqual(wm().keyconfigs.active.name, 'Meso')
-        self.assertEqual(bpy.context.preferences.keymap.active_keyconfig, 'Meso')
+    def test_no_selection_operator(self):
+        """No operator selects a keymap; the full build's install is the user's import."""
+        self.assertFalse(hasattr(bpy.types, "MESO_OT_keymap_choose"))
 
     def test_no_keyconfig_editing_and_no_module_loading_in_the_source(self):
         patterns = (r"keyconfig_set\(", r"keyconfigs\.new\(", r"keyconfigs\.remove\(",
                     r"keyconfigs\.active\s*=", r"restore_to_default\(",
                     r"restore_item_to_default\(", r"keyconfigs\.update\(",
                     r"\bimportlib\b", r"spec_from_file_location", r"\bsys\.modules\b",
-                    r"__import__\(", r"\bexec\(")
-        # Allowed: the preset's own ``keyconfigs.new`` (Blender's preset pattern, run when the
-        # user selects the keymap) and the update that keeps the user's own edits on disable.
-        allowed = {("Meso.py", "keyconfigs.new("),
-                   ("meso_keymap.py", "keyconfigs.update(keep_properties=True)")}
+                    r"__import__\(", r"\bexec\(", r"keyconfig_import", r"keyconfig_activate",
+                    r"register_preset_path", r"\bexecfile\b")
+        # Allowed: the update that keeps the user's own edits on disable, the full build's
+        # one-click install (Blender's keymap import on the user's click) and the keymap file
+        # itself (Blender runs it; never part of the extensions-platform build).
+        allowed = {("meso_keymap.py", "keyconfigs.update(keep_properties=True)"),
+                   ("keymap_install.py", "keyconfig_import")}
+        skip = {SRC / "keymap" / "Meso.py"}
         hits = []
         for path in sorted(SRC.rglob("*.py")):
+            if path in skip:
+                continue
             text = path.read_text(encoding="utf-8")
             for pattern in patterns:
                 for m in re.finditer(pattern, text):

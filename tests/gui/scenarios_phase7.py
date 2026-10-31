@@ -83,8 +83,7 @@ def scenarios(drv):
                 bpy.ops.wm.window_close()
 
     def choose(choice):
-        with bpy.context.temp_override(window=drv.win()):
-            return bpy.ops.meso.keymap_choose(choice=choice)
+        return drv.choose(choice)
 
     def with_meso(rec):
         choose('MESO')

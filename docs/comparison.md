@@ -22,6 +22,7 @@ code, assets, icons, colours or documentation, and it is not affiliated with Aut
 | Hold D / Insert to edit the pivot | Meso Keymap: hold D to edit origins while it is down, tap D for the next transform only, Insert toggles it until Insert again | ✅ |
 
 The **Meso** keymap is Blender's **Industry Compatible** keymap (navigation, QWER tools, frame
-selected/all) plus Meso's bindings. One click installs it into Blender's keymap list (with
-Blender's own keymap import) and selects it; it stays selected across restarts and is customized in Blender's keymap editor like any other; Meso never removes a native
+selected/all) plus Meso's bindings. It goes into Blender's keymap list with Blender's own keymap
+import (one click in the release's version of Meso Mode, a file to import in the Extensions
+platform's), stays selected across restarts and is customized in Blender's keymap editor like any other; Meso never removes a native
 Blender feature.

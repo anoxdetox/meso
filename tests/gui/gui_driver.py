@@ -158,13 +158,24 @@ def meso_keymap_module():
     return importlib.import_module(ADDON_MODULE + ".meso_keymap")
 
 
-def use_meso_keymap():
-    """Select the Meso keymap as a user does ("Use the Meso Keymap": Blender's own
-    ``preferences.keyconfig_import`` into the run's temporary user scripts); True when it is
-    active."""
+def choose(choice):
+    """The user's answer to the Meso Keymap note: 'MESO' clicks "Use the Meso Keymap" (the full
+    build's ``meso.keymap_install``: Blender's keymap import into the run's temporary user
+    scripts); anything else leaves the keymap alone. The note counts as shown."""
+    p = addon_prefs()
+    if p is not None:
+        p.keymap_prompted = True
+    if choice != 'MESO':
+        return {'FINISHED'}
     with bpy.context.temp_override(window=win()):
-        bpy.ops.meso.keymap_choose(choice='MESO')
+        result = bpy.ops.meso.keymap_install()
     bpy.context.window_manager.keyconfigs.update()
+    return result
+
+
+def use_meso_keymap():
+    """Select the Meso keymap as a user does (``choose('MESO')``); True when it is active."""
+    choose('MESO')
     return meso_keymap_module().is_meso_active()
 
 

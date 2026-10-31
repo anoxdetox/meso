@@ -337,9 +337,14 @@ class TestMesoKeymapPrefs(_PrefsCase):
         self.assertNotIn(ic_select_all[0].as_pointer(),
                          {k.as_pointer() for k in self.kp.meso_items(km)})
 
-    def test_meso_box_status_and_choice_buttons(self):
-        """Not on Meso: the active keymap, the recommendation and one button that runs
-        Blender's own keymap selection (through ``meso.keymap_choose``); no reset button."""
+    def _keymap_buttons(self, log):
+        return [(e[1], e[3].get('text')) for e in log if e[0] == 'operator'
+                and e[1] in ('meso.keymap_install', 'wm.url_open')]
+
+    def test_meso_box_status_and_buttons(self):
+        """Not on Meso: the active keymap, the recommendation and one button: the full
+        build's one-click install, or (no installer: the extensions-platform build) the
+        release page. On Meso: neither; no reset button."""
         self.prefs.keymap_expanded = ""
         log = self._draw()
         labels = self._labels(log)
@@ -347,16 +352,26 @@ class TestMesoKeymapPrefs(_PrefsCase):
         text = " ".join(labels)
         self.assertIn("The active keymap is Blender", text)
         self.assertIn("Preferences > Keymap", text)
-        ops = [e for e in log if e[0] == 'operator' and e[1] == 'meso.keymap_choose']
-        self.assertEqual([(o[2].choice, o[3].get('text')) for o in ops],
-                         [('MESO', "Use the Meso Keymap (recommended)")])
+        self.assertEqual(self._keymap_buttons(log),
+                         [('meso.keymap_install', "Use the Meso Keymap (recommended)")])
         self.assertNotIn('meso.keymap_reset', [e[1] for e in log if e[0] == 'operator'])
         self.assertFalse([e for e in log if e[0] == 'prop' and e[2].startswith('bind_')])
+        mk = _mod("meso_keymap")
+        installer = mk.installer()
+        mk.set_installer(None)
+        try:
+            log = self._draw()
+            self.assertEqual(self._keymap_buttons(log),
+                             [('wm.url_open',
+                               "Optional Meso keymap: https://github.com/anoxdetox/meso")])
+            self.assertIn("entirely your choice", " ".join(self._labels(log)))
+        finally:
+            mk.set_installer(installer)
         self._meso_on()
         log = self._draw()
         text = " ".join(self._labels(log))
         self.assertIn("Using the Meso keymap: Industry Compatible plus every Meso key", text)
-        self.assertFalse([e for e in log if e[0] == 'operator' and e[1] == 'meso.keymap_choose'])
+        self.assertEqual(self._keymap_buttons(log), [])
 
     def test_binding_list_shows_a_deleted_item(self):
         """A Meso item deleted in the keymap editor reads "removed", not its table key."""
@@ -527,7 +542,8 @@ class TestWrappedText(_PrefsCase):
 
     def test_the_recommendation_uses_the_full_width(self):
         m = self.wt.measure()
-        text = self.kp.RECOMMEND_HINT
+        installer = _mod("meso_keymap").installer()      # the full build's hint, if any
+        text = installer.hint if installer is not None else self.kp.RECOMMEND_HINT
         counts = []
         for width in (300, 500, 800, 1400, 2400):
             with self.subTest(width=width):

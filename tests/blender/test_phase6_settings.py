@@ -21,10 +21,10 @@ from tests.blender.test_plaza_modes_files import _LiveCase
 
 ADDON_MODULE = "bl_ext.meso_dev.meso"
 
-# The preferences that are not user settings: the Meso Keymap questions' flags, the keymap
+# The preferences that are not user settings: the Meso Keymap note's flags, the keymap
 # section state and the "Set all Space items" fields.
 _BOOKKEEPING = frozenset({
-    'keymap_prompted', 'keymap_update_declined', 'keymap_expanded',
+    'keymap_prompted', 'keymap_noted_version', 'keymap_expanded',
     'space_items_key', 'space_items_shift', 'space_items_ctrl', 'space_items_alt',
     'space_items_oskey',
 })

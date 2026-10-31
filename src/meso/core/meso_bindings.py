@@ -7,10 +7,10 @@ Two tiers (``tier()``):
   default keymap and Industry Compatible (IC). They are add-on keymap items
   (``wm.keyconfigs.addon``, ``meso_keymap``), registered and unregistered only, so they work
   with every keymap.
-- ``TIER_MESO``: the rest, items of the **Meso Keymap**, a keyconfig named "Meso" in
-  Preferences > Keymap (optional, recommended), which the user selects there. Its preset
-  (``presets/keyconfig/Meso.py``, written by ``tools/gen_meso_preset.py`` from this table:
-  self-contained, it loads no Meso module) is Blender's Industry Compatible keymap data with
+- ``TIER_MESO``: the rest, items of the **Meso Keymap**, a keyconfig named "Meso" (optional,
+  recommended) that is not part of the extension: ``keymap/Meso.py`` (written by
+  ``tools/gen_meso_preset.py`` from this table: self-contained, it loads no Meso module) is a
+  separate file of each GitHub release, which the user imports in Preferences > Keymap. It is Blender's Industry Compatible keymap data with
   every item of this tier put first in its keymap (``merge_keyconfig_data``). With the base
   tier's add-on items, the Meso Keymap has every Meso key.
 

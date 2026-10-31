@@ -67,7 +67,7 @@ def scenarios(drv):
             drv.check(rec, "no_draw_error_collapsed", state["error"] is None, state["error"])
             # The Meso Keymap box in use, every binding group expanded (real UILayout).
             with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.meso.keymap_choose(choice='MESO')
+                bpy.ops.meso.keymap_install()
             mb = importlib.import_module(drv.ADDON_MODULE + ".core.meso_bindings")
             root = kp.MESO_ROOT
             prefs.keymap_expanded = tree.EXPANDED_SEP.join(
@@ -111,7 +111,9 @@ def scenarios(drv):
         saved_scale = view.ui_scale
         n_windows = len(wm.windows)
         details = rec.setdefault("details", {})
-        hints = (("recommend", kp.RECOMMEND_HINT), ("editor", kp.KEYMAP_EDITOR_HINT))
+        installer = mk.installer()                  # the full build's hint, if any
+        hints = (("recommend", installer.hint if installer is not None else kp.RECOMMEND_HINT),
+                 ("editor", kp.KEYMAP_EDITOR_HINT))
         drawn = {}                      # (region pointer, text) -> the lines the draw made
         orig_labels = wt.labels
 

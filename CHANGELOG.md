@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0
+
+Two builds of each release: one for GitHub and one for the Blender Extensions platform, which
+does not allow extensions to install keymaps.
+
+- **The release** (`meso-<version>.zip` on GitHub) is unchanged: **Use the Meso Keymap** imports
+  the Meso Keymap with Blender's own keymap import, and it stays selected across restarts.
+- **The Extensions platform's build** registers and unregisters Meso Mode's own keys only (the
+  ones that collide with nothing in Blender's or Industry Compatible's keymap). After its first
+  enable it shows one informational note, once: the optional Meso Keymap and its manual
+  installation instructions are on GitHub. It never downloads, imports or selects a keymap.
+- Each release now has the Meso Keymap, `Meso.py`, attached on its own: import it in
+  Preferences ▸ Keymap ▸ **Import…**.
+- The release's build tells you once when your Meso Keymap doesn't match its version; the
+  preferences of both builds say so until you replace it.
+- **Fix:** tapping D and then cancelling a drag with Esc no longer uses up the one-shot "edit
+  origins" in a fresh session (when Blender's operator history was still empty); it stays armed
+  for the next transform.
+
 ## 0.8.1
 
 - **The Meso Keymap stays selected across restarts.** "Use the Meso Keymap" now runs Blender's

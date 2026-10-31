@@ -504,11 +504,15 @@ class TestTick(unittest.TestCase):
         self.assertEqual(action, po.USED)
 
     def test_no_marker(self):
-        """Nothing registered before or after: the evidence decides."""
+        """Nothing registered before or after (a fresh session): the transform was cancelled (a
+        finished one registers itself), so the one-shot stays armed, moved origins or not;
+        the first finished one then uses it."""
         st, _ = po.tick(armed(None), True, None, moved=True)
-        self.assertEqual(po.tick(st, False, None), (po.Once(), po.USED))
+        self.assertEqual(po.tick(st, False, None), (po.Once(po.ARMED, None), po.KEPT))
         st, _ = po.tick(armed(None), True, None)
-        self.assertEqual(po.tick(st, False, None), (po.Once(po.ARMED, None), po.OTHER))
+        self.assertEqual(po.tick(st, False, None), (po.Once(po.ARMED, None), po.KEPT))
+        st, _ = po.tick(po.Once(po.ARMED, None), True, None, moved=True)
+        self.assertEqual(po.tick(st, False, (5, 'TRANSFORM_OT_translate'))[1], po.USED)
 
     def test_the_marker_is_taken_when_the_transform_starts(self):
         """A click registered just before the drag began (between two ticks) is the marker."""

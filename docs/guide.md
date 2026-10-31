@@ -3,8 +3,8 @@
 Meso Mode adds two things to Blender 5.2 LTS: the **Plaza**, menus around the cursor while you
 hold Space, and **Compass menus**, radial menus you pick from with a flick of the mouse. The
 optional, recommended [Meso Keymap](keymap.md) (Blender's Industry Compatible keymap plus the
-Meso keys) is one click away, and stays selected across restarts; a few Meso keys work with any
-keymap.
+Meso keys) is a keymap file you import once, and it stays selected across restarts; a few Meso
+keys work with any keymap.
 
 ## The Plaza (hold Space)
 ![The Plaza in the 3D Viewport](images/plaza_closeup.png)

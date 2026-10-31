@@ -214,7 +214,9 @@ def tick(state: Once, transform: bool, last, value_on: bool = True, moved: bool 
         return Once(TRANSFORM, marker, moved), None
     if phase == TRANSFORM:
         edited = state.moved or moved
-        if changed or marker is None:
+        # A finished transform always registers itself: no newer operator (also an empty
+        # history, a fresh session) means it was cancelled, and the origins it moved went back.
+        if changed:
             if edited:
                 return Once(), USED
             return Once(ARMED, marker), OTHER

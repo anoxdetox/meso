@@ -529,7 +529,8 @@ class TestTiers(unittest.TestCase):
 
 
 class TestPreset(unittest.TestCase):
-    """``presets/keyconfig/Meso.py`` is generated from the table and loads no Meso module."""
+    """``src/meso/keymap/Meso.py`` is generated from the table, loads no Meso module and
+    carries the version ``core.meso_keymap_version`` names."""
 
     def setUp(self):
         spec = importlib.util.spec_from_file_location(
@@ -542,10 +543,19 @@ class TestPreset(unittest.TestCase):
                          "run tools/gen_meso_preset.py after changing the table")
 
     def test_self_contained(self):
-        text = (ROOT / "src" / "meso" / "presets" / "keyconfig" / "Meso.py").read_text("utf-8")
+        text = (ROOT / "src" / "meso" / "keymap" / "Meso.py").read_text("utf-8")
         for banned in ("importlib", "sys.modules", "__import__", "spec_from_file_location",
                        "meso_keymap", "meso_bindings", "from ."):
             self.assertNotIn(banned, text)
+
+    def test_version_stamp(self):
+        version = importlib.import_module(_load_core() + ".meso_keymap_version")
+        MESO_KEYMAP_VERSION = version.MESO_KEYMAP_VERSION
+        head = (ROOT / "src" / "meso" / "keymap" / "Meso.py").read_text("utf-8").splitlines()[:5]
+        self.assertIn(f"# Meso keymap version: {MESO_KEYMAP_VERSION}", head)
+
+    def test_no_preset_folder(self):
+        self.assertFalse((ROOT / "src" / "meso" / "presets").exists())
 
 
 class TestWarnings(unittest.TestCase):

@@ -46,7 +46,7 @@ class TestManifest(unittest.TestCase):
 
     def test_version(self):
         self.assertRegex(self.m["version"], r"^\d+\.\d+\.\d+$")
-        self.assertEqual(self.m["version"], "0.8.1")
+        self.assertEqual(self.m["version"], "0.9.0")
 
     def test_tagline(self):
         tagline = self.m["tagline"]

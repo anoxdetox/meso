@@ -137,7 +137,7 @@ def scenarios(drv):
         p = drv.addon_prefs()
         try:
             with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.meso.keymap_choose(choice='MESO')
+                bpy.ops.meso.keymap_install()
             yield 0.3
             drv.check(rec, "meso_active", mk().is_meso_active())
             drv.sim('MOUSEMOVE', 'NOTHING', xy)
@@ -180,7 +180,7 @@ def scenarios(drv):
         p = drv.addon_prefs()
         try:
             with bpy.context.temp_override(window=drv.win()):
-                bpy.ops.meso.keymap_choose(choice='MESO')
+                bpy.ops.meso.keymap_install()
             yield 0.3
             drv.sim('MOUSEMOVE', 'NOTHING', xy)
             yield 0.1
